@@ -609,6 +609,7 @@ struct drm_driver {
 };
 
 extern unsigned int drm_debug;
+extern bool drm_master_relax;
 
 int drm_dev_init(struct drm_device *dev,
 		 struct drm_driver *driver,
