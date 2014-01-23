@@ -201,6 +201,8 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	if (hung_task_show_lock)
 		debug_show_all_locks();
 	if (hung_task_call_panic) {
+		/* Dump all tasks. */
+		show_state_filter(TASK_UNINTERRUPTIBLE);
 		trigger_all_cpu_backtrace();
 		panic("hung_task: blocked tasks");
 	}
