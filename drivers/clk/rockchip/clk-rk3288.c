@@ -14,6 +14,7 @@
  */
 
 #include <linux/clk-provider.h>
+#include <linux/clkdev.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/syscore_ops.h>
@@ -900,6 +901,34 @@ static struct syscore_ops rk3288_clk_syscore_ops = {
 	.resume = rk3288_clk_resume,
 };
 
+static const char *const rk3288_global_clocks[] __initconst = {
+	/* NOTE: before adding clocks here, think if there's a better way */
+	"pclk_dbg",
+	"pclk_core_niu",
+	/* NOTE: before adding clocks here, think if there's a better way */
+};
+
+static void __init rk3288_register_global_clocks(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rk3288_global_clocks); i++) {
+		struct clk *clk = __clk_lookup(rk3288_global_clocks[i]);
+		int ret;
+
+		if (IS_ERR(clk)) {
+			pr_warn("%s: Couldn't lookup clock %s\n", __func__,
+				rk3288_global_clocks[i]);
+			continue;
+		}
+
+		ret = clk_register_clkdev(clk, rk3288_global_clocks[i], NULL);
+		if (ret)
+			pr_warn("%s: Couldn't register clock %s\n", __func__,
+				rk3288_global_clocks[i]);
+	}
+}
+
 static void __init rk3288_clk_init(struct device_node *np)
 {
 	struct rockchip_clk_provider *ctx;
@@ -948,5 +977,7 @@ static void __init rk3288_clk_init(struct device_node *np)
 	register_syscore_ops(&rk3288_clk_syscore_ops);
 
 	rockchip_clk_of_add_provider(np, ctx);
+
+	rk3288_register_global_clocks();
 }
 CLK_OF_DECLARE(rk3288_cru, "rockchip,rk3288-cru", rk3288_clk_init);
