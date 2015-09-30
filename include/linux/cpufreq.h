@@ -154,6 +154,10 @@ struct cpufreq_policy {
 
 	/* Pointer to the cooling device if used for thermal mitigation */
 	struct thermal_cooling_device *cdev;
+
+	unsigned int complexusb_cnt; /* complex usb device refcount */
+	unsigned int complexusb_minfreq; /* in Khz, when plug complex usb
+					  * device, cpu min frequency value */
 };
 
 /* Only for ACPI */
@@ -226,6 +230,14 @@ static inline void cpufreq_stats_free_table(struct cpufreq_policy *policy) { }
 static inline void cpufreq_stats_record_transition(struct cpufreq_policy *policy,
 						   unsigned int new_freq) { }
 #endif /* CONFIG_CPU_FREQ_STAT */
+
+#ifdef CONFIG_CPU_FREQ
+void cpufreq_start_complex_usb(void);
+void cpufreq_end_complex_usb(void);
+#else
+static inline void cpufreq_start_complex_usb(void) { }
+static inline void cpufreq_end_complex_usb(void) { }
+#endif
 
 /*********************************************************************
  *                      CPUFREQ DRIVER INTERFACE                     *
