@@ -30,6 +30,7 @@ struct task_struct;
 #include <asm/memory.h>
 #include <asm/stack_pointer.h>
 #include <asm/types.h>
+#include <asm/unistd.h>
 
 typedef unsigned long mm_segment_t;
 
@@ -43,7 +44,31 @@ struct thread_info {
 	u64			ttbr0;		/* saved TTBR0_EL1 */
 #endif
 	int			preempt_count;	/* 0 => preemptable, <0 => bug */
+#ifdef CONFIG_ALT_SYSCALL
+	unsigned int		nr_syscalls;
+	const void		*sys_call_table;
+#ifdef CONFIG_COMPAT
+	unsigned int		compat_nr_syscalls;
+	const void		*compat_sys_call_table;
+#endif
+#endif
 };
+
+#ifdef CONFIG_ALT_SYSCALL
+#ifdef CONFIG_COMPAT
+#define INIT_THREAD_INFO_SYSCALL_COMPAT				\
+	.compat_nr_syscalls	= __NR_compat_syscalls,		\
+	.compat_sys_call_table	= &compat_sys_call_table,
+#else
+#define INIT_THREAD_INFO_SYSCALL_COMPAT
+#endif
+#define INIT_THREAD_INFO_SYSCALL				\
+	.nr_syscalls		= __NR_syscalls,		\
+	.sys_call_table		= &sys_call_table,		\
+	INIT_THREAD_INFO_SYSCALL_COMPAT
+#else
+#define INIT_THREAD_INFO_SYSCALL
+#endif
 
 #define thread_saved_pc(tsk)	\
 	((unsigned long)(tsk->thread.cpu_context.pc))
@@ -117,6 +142,7 @@ void arch_release_task_struct(struct task_struct *tsk);
 	.flags		= _TIF_FOREIGN_FPSTATE,				\
 	.preempt_count	= INIT_PREEMPT_COUNT,				\
 	.addr_limit	= KERNEL_DS,					\
+	INIT_THREAD_INFO_SYSCALL					\
 }
 
 #endif /* __KERNEL__ */
