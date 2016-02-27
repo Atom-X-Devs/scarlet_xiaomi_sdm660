@@ -1186,6 +1186,89 @@ static int __init topology_init(void)
 }
 subsys_initcall(topology_init);
 
+#ifdef CONFIG_DEBUG_FS
+#include <linux/debugfs.h>
+
+/*
+ * arm_coprocessor_show - Show various CP14 / CP15 registers
+ *
+ * Getting access to CP14 / CP15 registers from userspace isn't trivial because
+ * userspace just doesn't have access to them.  That makes it very hard to
+ * write tests that confirm the value of these registers.
+ *
+ * This function attempts to expose any CP14 / CP15 registers that are safe and
+ * secure to to expose in a read-only manner.
+ *
+ * To simplify things, this file is intended to include a whole bunch of
+ * registers.  The format should be easily parseable by a script.  Format
+ * looks like:
+ *    CPU <NUM>: <REG DESC>: (pXX, X, cXX, cX, X): <VALUE>
+ *
+ * Or, an example:
+ *    CPU 0: diag register: (p15, 0, c15, c0, 1): 0x00001000
+ *
+ * The CPU number is printed because often there are separate copies of CP14
+ * and CP15 registers per core.  Note also that for parsing purposes you're
+ * encouraged to rely on the numbering and not the description.
+ */
+static int arm_coprocessor_show(struct seq_file *s, void *data)
+{
+	unsigned int processor_id = get_cpu();
+	unsigned long part_number;
+	u32 tmp;
+
+	part_number = read_cpuid_part();
+
+	if (part_number == ARM_CPU_PART_CORTEX_A12 ||
+	    part_number == ARM_CPU_PART_CORTEX_A17) {
+		/* As far as I know these are only present on A12 / A17 */
+		asm volatile("mrc p15, 0, %0, c15, c0, 1" : "=r" (tmp));
+		seq_printf(s,
+			"CPU %u: diag register: (p15, 0, c15, c0, 1): %#010x\n",
+			processor_id, tmp);
+
+		asm volatile("mrc p15, 0, %0, c15, c0, 2" : "=r" (tmp));
+		seq_printf(s,
+			"CPU %u: int feat reg: (p15, 0, c15, c0, 2): %#010x\n",
+			processor_id, tmp);
+	}
+
+	put_cpu();
+
+	return 0;
+}
+
+static int arm_coprocessor_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, arm_coprocessor_show, inode->i_private);
+}
+
+static const struct file_operations arm_coprocessor_fops = {
+	.open		= arm_coprocessor_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int __init arm_debug_init(void)
+{
+	unsigned long implementor = read_cpuid_implementor();
+	struct dentry *d;
+
+	/* Nothing to do if this isn't implemented by ARM */
+	if (implementor != ARM_CPU_IMP_ARM)
+		return 0;
+
+	d = debugfs_create_file("arm_coprocessor_debug", 0444, NULL, NULL,
+				&arm_coprocessor_fops);
+	if (!d)
+		return -ENOMEM;
+
+	return 0;
+}
+subsys_initcall(arm_debug_init);
+#endif
+
 #ifdef CONFIG_HAVE_PROC_CPU
 static int __init proc_cpu_init(void)
 {
