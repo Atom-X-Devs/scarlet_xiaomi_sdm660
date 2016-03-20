@@ -990,4 +990,7 @@ config QPNP_HAPTIC
 	  module provides haptic feedback for user actions such as a long press
 	  on the touch screen.  It uses the Android timed-output framework.
 
+config STATE_NOTIFIER
+    bool "State Notifier"
+
 source "drivers/soc/qcom/wcnss/Kconfig"
