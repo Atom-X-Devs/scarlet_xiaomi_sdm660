@@ -81,6 +81,7 @@ obj-$(CONFIG_QTI_SYSTEM_PM) += system_pm.o
 obj-$(CONFIG_MSM_REMOTEQDSS) += remoteqdss.o
 obj-$(CONFIG_MSM_EVENT_TIMER) += event_timer.o
 obj-$(CONFIG_MSM_IDLE_STATS)	+= lpm-stats.o
+obj-$(CONFIG_STATE_NOTIFIER) += state_notifier.o
 ifdef CONFIG_QCOM_RPMH
        obj-$(CONFIG_QTI_RPM_STATS_LOG) += rpmh_master_stat.o
 else
