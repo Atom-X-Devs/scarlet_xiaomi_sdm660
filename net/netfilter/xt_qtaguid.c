@@ -1632,11 +1632,52 @@ static void account_for_uid(const struct sk_buff *skb,
 			   proto, skb->len);
 }
 
+/* This function is based on xt_owner.c:owner_check(). */
+static int qtaguid_check(const struct xt_mtchk_param *par)
+{
+	struct xt_qtaguid_match_info *info = par->matchinfo;
+	struct net *net = par->net;
+
+	/* Only allow the common case where the userns of the writer
+	 * matches the userns of the network namespace.
+	 */
+	if ((info->match & (XT_QTAGUID_UID | XT_QTAGUID_GID)) &&
+	    (current_user_ns() != net->user_ns))
+		return -EINVAL;
+
+	/* Ensure the uids are valid */
+	if (info->match & XT_QTAGUID_UID) {
+		kuid_t uid_min = make_kuid(net->user_ns, info->uid_min);
+		kuid_t uid_max = make_kuid(net->user_ns, info->uid_max);
+
+		if (!uid_valid(uid_min) || !uid_valid(uid_max) ||
+		    (info->uid_max < info->uid_min) ||
+		    uid_lt(uid_max, uid_min)) {
+			return -EINVAL;
+		}
+	}
+
+	/* Ensure the gids are valid */
+	if (info->match & XT_QTAGUID_GID) {
+		kgid_t gid_min = make_kgid(net->user_ns, info->gid_min);
+		kgid_t gid_max = make_kgid(net->user_ns, info->gid_max);
+
+		if (!gid_valid(gid_min) || !gid_valid(gid_max) ||
+		    (info->gid_max < info->gid_min) ||
+		    gid_lt(gid_max, gid_min)) {
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	const struct xt_qtaguid_match_info *info = par->matchinfo;
 	const struct nf_hook_state *parst = par->state;
 	const struct file *filp;
+	const struct net *net;
 	bool got_sock = false;
 	struct sock *sk;
 	kuid_t sock_uid;
@@ -1736,8 +1777,9 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		goto put_sock_ret_res;
 	}
 	sock_uid = sk->sk_uid;
+	net = sock_net(sk);
 	if (do_tag_stat)
-		account_for_uid(skb, sk, from_kuid(&init_user_ns, sock_uid),
+		account_for_uid(skb, sk, from_kuid(net->user_ns, sock_uid),
 				par);
 
 	/*
@@ -1747,8 +1789,8 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	 * Thus (!a && b) || (a && !b) == a ^ b
 	 */
 	if (info->match & XT_QTAGUID_UID) {
-		kuid_t uid_min = make_kuid(&init_user_ns, info->uid_min);
-		kuid_t uid_max = make_kuid(&init_user_ns, info->uid_max);
+		kuid_t uid_min = make_kuid(net->user_ns, info->uid_min);
+		kuid_t uid_max = make_kuid(net->user_ns, info->uid_max);
 
 		if ((uid_gte(sock_uid, uid_min) &&
 		     uid_lte(sock_uid, uid_max)) ^
@@ -1760,8 +1802,8 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		}
 	}
 	if (info->match & XT_QTAGUID_GID) {
-		kgid_t gid_min = make_kgid(&init_user_ns, info->gid_min);
-		kgid_t gid_max = make_kgid(&init_user_ns, info->gid_max);
+		kgid_t gid_min = make_kgid(net->user_ns, info->gid_min);
+		kgid_t gid_max = make_kgid(net->user_ns, info->gid_max);
 		set_sk_callback_lock = true;
 		read_lock_bh(&sk->sk_callback_lock);
 		MT_DEBUG("qtaguid[%d]: sk=%p->sk_socket=%p->file=%p\n",
@@ -1776,7 +1818,8 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		}
 		MT_DEBUG("qtaguid[%d]: filp...uid=%u\n",
 			 parst->hook, filp ?
-			 from_kuid(&init_user_ns, filp->f_cred->fsuid) : -1);
+			 from_kuid(net->user_ns, filp->f_cred->fsuid) : -1);
+
 		if ((gid_gte(filp->f_cred->fsgid, gid_min) &&
 				gid_lte(filp->f_cred->fsgid, gid_max)) ^
 			!(info->invert & XT_QTAGUID_GID)) {
@@ -1914,10 +1957,11 @@ static void qtaguid_ctrl_proc_stop(struct seq_file *m, void *v)
 static int qtaguid_ctrl_proc_show(struct seq_file *m, void *v)
 {
 	struct sock_tag *sock_tag_entry = v;
+	struct net *net = sock_net(sock_tag_entry->sk);
 	uid_t uid;
 
 	CT_DEBUG("qtaguid: proc ctrl pid=%u tgid=%u uid=%u\n",
-		 current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+		 current->pid, current->tgid, from_kuid(net->user_ns, current_fsuid()));
 
 	if (sock_tag_entry != SEQ_START_TOKEN) {
 		int sk_ref_count;
@@ -2996,6 +3040,7 @@ static struct xt_match qtaguid_mt_reg __read_mostly = {
 	.name       = "owner",
 	.revision   = 1,
 	.family     = NFPROTO_UNSPEC,
+	.checkentry = qtaguid_check,
 	.match      = qtaguid_mt,
 	.matchsize  = sizeof(struct xt_qtaguid_match_info),
 	.me         = THIS_MODULE,
