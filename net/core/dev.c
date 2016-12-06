@@ -5957,6 +5957,7 @@ bool napi_schedule_prep(struct napi_struct *n)
 }
 EXPORT_SYMBOL(napi_schedule_prep);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /**
  * __napi_schedule_irqoff - schedule for receive
  * @n: entry to schedule
@@ -5975,6 +5976,7 @@ void __napi_schedule_irqoff(struct napi_struct *n)
 		__napi_schedule(n);
 }
 EXPORT_SYMBOL(__napi_schedule_irqoff);
+#endif
 
 bool napi_complete_done(struct napi_struct *n, int work_done)
 {
