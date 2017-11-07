@@ -1131,6 +1131,7 @@ static void hci_cc_le_set_adv_enable(struct hci_dev *hdev, struct sk_buff *skb)
 		hci_dev_clear_flag(hdev, HCI_LE_ADV);
 	}
 	hci_dev_clear_flag(hdev, HCI_LE_ADV_CHANGE_IN_PROGRESS);
+	hdev->count_adv_change_in_progress--;
 	hci_dev_unlock(hdev);
 }
 
@@ -1248,6 +1249,7 @@ static void le_set_scan_enable_complete(struct hci_dev *hdev, u8 enable)
 	hci_dev_lock(hdev);
 
 	hci_dev_clear_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS);
+	hdev->count_scan_change_in_progress--;
 	switch (enable) {
 	case LE_SCAN_ENABLE:
 		hci_dev_set_flag(hdev, HCI_LE_SCAN);
