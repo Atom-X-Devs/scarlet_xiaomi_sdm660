@@ -298,3 +298,16 @@ config SND_SOC_INTEL_GLK_RT5682_MAX98357A_MACH
 endif ## SND_SOC_INTEL_SKYLAKE
 
 endif ## SND_SOC_INTEL_MACH
+
+config SND_SOC_INTEL_CNL_RT274_MACH
+	tristate "ASoC Audio driver for Cannonlake with RT274 I2S mode"
+	depends on X86 && ACPI && I2C
+	select SND_SOC_INTEL_SST
+	depends on SND_SOC_INTEL_SKYLAKE
+	select SND_SOC_RT274
+	select SND_SOC_DMIC
+	help
+	   This adds support for ASoC machine driver for Cannonlake platform
+	   with RT274 I2S audio codec.
+	   Say Y if you have such a device.
+	   If unsure select "N".
