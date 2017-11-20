@@ -67,17 +67,25 @@ static const char *const pctl_names[] = {
 	"fpc1020_irq_active",
 };
 
+typedef enum {
+	VDD_ANA = 0,
+	VCC_SPI = 0,
+	VDD_IO = 0,
+	FPC_VREG_MAX,
+} fpc_rails_t;
+
 struct vreg_config {
 	char *name;
 	unsigned long vmin;
 	unsigned long vmax;
 	int ua_load;
+	bool is_optional;
 };
 
 static const struct vreg_config vreg_conf[] = {
-	{ "vdd_ana", 1800000UL, 1800000UL, 6000, },
-	{ "vcc_spi", 1800000UL, 1800000UL, 10, },
-	{ "vdd_io", 1800000UL, 1800000UL, 6000, },
+	{ "vdd_ana", 1800000UL, 1800000UL, 6000, true },
+	{ "vcc_spi", 1800000UL, 1800000UL, 10, true },
+	{ "vdd_io", 1800000UL, 1800000UL, 6000, true },
 };
 
 struct fpc1020_data {
@@ -102,64 +110,40 @@ struct fpc1020_data {
 
 static struct kernfs_node *soc_symlink = NULL;
 
-static inline int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
+static inline int vreg_setup(struct fpc1020_data *fpc1020, fpc_rails_t fpc_rail,
 			     bool enable)
 {
-	size_t i;
 	int rc;
-	struct regulator *vreg;
+	struct regulator *vreg = fpc1020->vreg[fpc_rail];
 	struct device *dev = fpc1020->dev;
 
-	for (i = 0; i < ARRAY_SIZE(fpc1020->vreg); i++) {
-		const char *n = vreg_conf[i].name;
-		if (!strcmp(n, name))
-			goto found;
-	}
+	if (!vreg)
+		return -EINVAL;
 
-	dev_err(dev, "Regulator %s not found\n", name);
-
-	return -EINVAL;
-
-found:
-	vreg = fpc1020->vreg[i];
 	if (enable) {
-		if (!vreg) {
-			vreg = regulator_get(dev, name);
-			if (IS_ERR(vreg)) {
-				dev_err(dev, "Unable to get %s\n", name);
-				return PTR_ERR(vreg);
-			}
-		}
-
 		if (regulator_count_voltages(vreg) > 0) {
-			rc = regulator_set_voltage(vreg, vreg_conf[i].vmin,
-					vreg_conf[i].vmax);
+			rc = regulator_set_voltage(vreg,
+					vreg_conf[fpc_rail].vmin,
+					vreg_conf[fpc_rail].vmax);
 			if (rc)
 				dev_err(dev,
 					"Unable to set voltage on %s, %d\n",
-					name, rc);
+					vreg_conf[fpc_rail].name, rc);
 		}
 
-		rc = regulator_set_load(vreg, vreg_conf[i].ua_load);
+		rc = regulator_set_load(vreg, vreg_conf[fpc_rail].ua_load);
 		if (rc < 0)
 			dev_err(dev, "Unable to set current on %s, %d\n",
-					name, rc);
+					vreg_conf[fpc_rail].name, rc);
 
 		rc = regulator_enable(vreg);
 		if (rc) {
-			dev_err(dev, "error enabling %s: %d\n", name, rc);
-			regulator_put(vreg);
-			vreg = NULL;
+			dev_err(dev, "error enabling %s: %d\n",
+				vreg_conf[fpc_rail].name, rc);
 		}
-		fpc1020->vreg[i] = vreg;
 	} else {
-		if (vreg) {
-			if (regulator_is_enabled(vreg))
-				regulator_disable(vreg);
-
-			regulator_put(vreg);
-			fpc1020->vreg[i] = NULL;
-		}
+		if (regulator_is_enabled(vreg))
+			regulator_disable(vreg);
 		rc = 0;
 	}
 
@@ -357,15 +341,15 @@ static inline int device_prepare(struct fpc1020_data *fpc1020, bool enable)
 		fpc1020->prepared = true;
 		select_pin_ctl(fpc1020, "fpc1020_reset_reset");
 
-		rc = vreg_setup(fpc1020, "vcc_spi", true);
+		rc = vreg_setup(fpc1020, VCC_SPI, true);
 		if (rc)
 			goto exit;
 
-		rc = vreg_setup(fpc1020, "vdd_io", true);
+		rc = vreg_setup(fpc1020, VDD_IO, true);
 		if (rc)
 			goto exit_1;
 
-		rc = vreg_setup(fpc1020, "vdd_ana", true);
+		rc = vreg_setup(fpc1020, VDD_ANA, true);
 		if (rc)
 			goto exit_2;
 
@@ -383,11 +367,11 @@ static inline int device_prepare(struct fpc1020_data *fpc1020, bool enable)
 
 		usleep_range(PWR_ON_SLEEP_MIN_US, PWR_ON_SLEEP_MAX_US);
 
-		(void)vreg_setup(fpc1020, "vdd_ana", false);
+		(void)vreg_setup(fpc1020, VDD_ANA, false);
 exit_2:
-		(void)vreg_setup(fpc1020, "vdd_io", false);
+		(void)vreg_setup(fpc1020, VDD_IO, false);
 exit_1:
-		(void)vreg_setup(fpc1020, "vcc_spi", false);
+		(void)vreg_setup(fpc1020, VCC_SPI, false);
 exit:
 		fpc1020->prepared = false;
 	} else
@@ -635,6 +619,30 @@ static const struct input_device_id ids[] = {
 };
 #endif
 
+static inline int fpc1020_get_regulators(struct fpc1020_data *fpc1020)
+{
+	struct device *dev = fpc1020->dev;
+	unsigned short i = 0;
+
+	for (i = 0; i < FPC_VREG_MAX; i++) {
+		if (!vreg_conf[i].is_optional)
+			fpc1020->vreg[i] = devm_regulator_get_optional(
+						dev, vreg_conf[i].name);
+		else
+			fpc1020->vreg[i] = devm_regulator_get(
+						dev, vreg_conf[i].name);
+
+		if (IS_ERR_OR_NULL(fpc1020->vreg[i])) {
+			fpc1020->vreg[i] = NULL;
+			dev_err(dev, "CRITICAL: Cannot get %s regulator.\n",
+				vreg_conf[i].name);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static inline int fpc1020_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -670,6 +678,10 @@ static inline int fpc1020_probe(struct platform_device *pdev)
 		dev_err(dev, "no of node found\n");
 		return -EINVAL;
 	}
+
+	rc = fpc1020_get_regulators(fpc1020);
+	if (rc)
+		goto exit;
 
 	rc = fpc1020_request_named_gpio(fpc1020, "fpc,gpio_irq",
 					&fpc1020->irq_gpio);
@@ -786,9 +798,9 @@ static inline int fpc1020_remove(struct platform_device *pdev)
 	sysfs_remove_group(&pdev->dev.kobj, &attribute_group);
 	mutex_destroy(&fpc1020->lock);
 	wakeup_source_unregister(fpc1020->ttw_ws);
-	(void)vreg_setup(fpc1020, "vdd_ana", false);
-	(void)vreg_setup(fpc1020, "vdd_io", false);
-	(void)vreg_setup(fpc1020, "vcc_spi", false);
+	(void)vreg_setup(fpc1020, VDD_ANA, false);
+	(void)vreg_setup(fpc1020, VDD_IO, false);
+	(void)vreg_setup(fpc1020, VCC_SPI, false);
 
 	return 0;
 }
