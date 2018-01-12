@@ -625,10 +625,8 @@ static int fg_get_battery_temp(struct fg_dev *fg, int *val)
 
 	temp = ((buf[1] & BATT_TEMP_MSB_MASK) << 8) |
 		(buf[0] & BATT_TEMP_LSB_MASK);
-	temp = DIV_ROUND_CLOSEST(temp, 4);
-
-	/* Value is in Kelvin; Convert it to deciDegC */
-	temp = (temp - 273) * 10;
+	/* Value is in 0.25Kelvin; Convert it to deciDegC */
+	*val = DIV_ROUND_CLOSEST((temp - 273*4) * 10, 4);
 #ifdef CONFIG_MACH_LONGCHEER
 #ifdef CONFIG_MACH_XIAOMI_TULIP
 	if (temp < -40) {
@@ -689,7 +687,6 @@ static int fg_get_battery_temp(struct fg_dev *fg, int *val)
 	}
 #endif
 #endif
-	*val = temp;
 	return 0;
 }
 
