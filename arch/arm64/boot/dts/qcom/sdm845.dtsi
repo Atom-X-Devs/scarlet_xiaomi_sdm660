@@ -382,12 +382,6 @@
 		};
 	};
 
-	firmware {
-		scm {
-			compatible = "qcom,scm-sdm845", "qcom,scm";
-		};
-	};
-
 	adsp_pas: remoteproc-adsp {
 		compatible = "qcom,sdm845-adsp-pas";
 
