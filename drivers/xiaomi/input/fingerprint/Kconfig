@@ -1,0 +1,17 @@
+#
+# Fingerprint driver configuration
+#
+
+config INPUT_FINGERPRINT
+	bool "Fingerprints"
+	help
+	  Say Y here, and a list of supported fingerprints will be displayed.
+	  This option doesn't affect the kernel.
+
+	  If unsure, say Y.
+
+config FPC_FINGERPRINT
+	tristate "fpc1020 fingerprint driver"
+	depends on INPUT_FINGERPRINT
+	help
+	 This adds support for fpc1020 fingerprint driver.
