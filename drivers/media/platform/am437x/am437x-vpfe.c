@@ -2426,7 +2426,6 @@ static struct vpfe_config *
 vpfe_get_pdata(struct platform_device *pdev)
 {
 	struct device_node *endpoint = NULL;
-	struct v4l2_fwnode_endpoint bus_cfg;
 	struct vpfe_subdev_info *sdinfo;
 	struct vpfe_config *pdata;
 	unsigned int flags;
@@ -2443,6 +2442,7 @@ vpfe_get_pdata(struct platform_device *pdev)
 		return NULL;
 
 	for (i = 0; ; i++) {
+		struct v4l2_fwnode_endpoint bus_cfg = { .bus_type = 0 };
 		struct device_node *rem;
 
 		endpoint = of_graph_get_next_endpoint(pdev->dev.of_node,
