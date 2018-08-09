@@ -826,6 +826,33 @@ ap_ts_i2c: &i2c14 {
 			  "";
 };
 
+&pm8998_adc {
+	adc-chan@ADC5_AMUX_THM1_100K_PU {
+		reg = <ADC5_AMUX_THM1_100K_PU>;
+		label = "sdm_temp";
+	};
+
+	adc-chan@ADC5_AMUX_THM2_100K_PU {
+		reg = <ADC5_AMUX_THM2_100K_PU>;
+		label = "quiet_temp";
+	};
+
+	adc-chan@ADC5_AMUX_THM3_100K_PU {
+		reg = <ADC5_AMUX_THM3_100K_PU>;
+		label = "lte_temp_1";
+	};
+
+	adc-chan@ADC5_AMUX_THM4_100K_PU {
+		reg = <ADC5_AMUX_THM4_100K_PU>;
+		label = "lte_temp_2";
+	};
+
+	adc-chan@ADC5_AMUX_THM5_100K_PU {
+		reg = <ADC5_AMUX_THM5_100K_PU>;
+		label = "charger_temp";
+	};
+};
+
 &pm8998_gpio {
 	gpio-line-names = "",
 			  "",
