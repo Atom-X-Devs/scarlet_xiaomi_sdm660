@@ -431,6 +431,15 @@
 		dma-ranges = <0 0 0 0 0x10 0>;
 		compatible = "simple-bus";
 
+		// HACK: the below is here until all peripherals vote properly
+		// NOT FOR UPSTREAM!
+		maxvoter {
+			compatible = "qcom,maxvoter";
+			power-domains = <&rpmhpd SDM845_MX>,
+					<&rpmhpd SDM845_CX>;
+			power-domain-names = "mx", "cx";
+		};
+
 		gcc: clock-controller@100000 {
 			compatible = "qcom,gcc-sdm845";
 			reg = <0 0x00100000 0 0x1f0000>;
