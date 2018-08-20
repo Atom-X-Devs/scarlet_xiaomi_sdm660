@@ -36,6 +36,7 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_CMD_VFD_HUP, /* virtio_wl_ctrl_vfd */
 	VIRTIO_WL_CMD_VFD_NEW_DMABUF, /* virtio_wl_ctrl_vfd_new */
 	VIRTIO_WL_CMD_VFD_DMABUF_SYNC, /* virtio_wl_ctrl_vfd_dmabuf_sync */
+	VIRTIO_WL_CMD_VFD_SEND_FOREIGN_ID, /* virtio_wl_ctrl_vfd_send + data */
 
 	VIRTIO_WL_RESP_OK = 0x1000,
 	VIRTIO_WL_RESP_VFD_NEW = 0x1001, /* virtio_wl_ctrl_vfd_new */
@@ -91,10 +92,30 @@ struct virtio_wl_ctrl_vfd_new {
 	} dmabuf;
 };
 
+
+enum virtio_wl_ctrl_vfd_send_kind {
+	/* The id after this one indicates an ordinary vfd_id. */
+	VIRTIO_WL_CTRL_VFD_SEND_KIND_LOCAL,
+	/* The id after this one is a virtio-gpu resource id. */
+	VIRTIO_WL_CTRL_VFD_SEND_KIND_VIRTGPU,
+};
+
+struct virtio_wl_ctrl_vfd_send_vfd {
+	__le32 kind; /* virtio_wl_ctrl_vfd_send_kind */
+	__le32 id;
+};
+
 struct virtio_wl_ctrl_vfd_send {
 	struct virtio_wl_ctrl_hdr hdr;
 	__le32 vfd_id;
 	__le32 vfd_count; /* struct is followed by this many IDs */
+
+	/*
+	 * If hdr.type == VIRTIO_WL_CMD_VFD_SEND_FOREIGN_ID, there is a
+	 * vfd_count array of virtio_wl_ctrl_vfd_send_vfd. Otherwise, there is a
+	 * vfd_count array of vfd_ids.
+	 */
+
 	/* the remainder is raw data */
 };
 
