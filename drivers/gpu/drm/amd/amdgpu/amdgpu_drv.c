@@ -901,14 +901,6 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
 		return -ENODEV;
 	}
 
-	/*
-	 * Initialize amdkfd before starting radeon. If it was not loaded yet,
-	 * defer radeon probing
-	 */
-	ret = amdgpu_amdkfd_init();
-	if (ret == -EPROBE_DEFER)
-		return ret;
-
 	/* Get rid of things like offb */
 	ret = drm_fb_helper_remove_conflicting_pci_framebuffers(pdev, 0, "amdgpudrmfb");
 	if (ret)
@@ -1249,6 +1241,10 @@ static int __init amdgpu_init(void)
 	pdriver = &amdgpu_kms_pci_driver;
 	driver->num_ioctls = amdgpu_max_kms_ioctl;
 	amdgpu_register_atpx_handler();
+
+	/* Ignore KFD init failures. Normal when CONFIG_HSA_AMD is not set. */
+	amdgpu_amdkfd_init();
+
 	/* let modprobe override vga console setting */
 	return pci_register_driver(pdriver);
 
