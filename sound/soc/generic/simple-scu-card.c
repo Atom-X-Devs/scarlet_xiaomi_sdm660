@@ -24,6 +24,7 @@ struct simple_card_data {
 	struct snd_soc_codec_conf codec_conf;
 	struct simple_dai_props {
 		struct asoc_simple_dai dai;
+		struct snd_soc_dai_link_component codecs;
 	} *dai_props;
 	struct snd_soc_dai_link *dai_link;
 	struct asoc_simple_card_data adata;
@@ -110,11 +111,13 @@ static int asoc_simple_card_dai_link_of(struct device_node *link,
 
 	if (is_fe) {
 		int is_single_links = 0;
+		struct snd_soc_dai_link_component *codecs;
 
 		/* BE is dummy */
-		dai_link->codec_of_node		= NULL;
-		dai_link->codec_dai_name	= "snd-soc-dummy-dai";
-		dai_link->codec_name		= "snd-soc-dummy";
+		codecs			= dai_link->codecs;
+		codecs->of_node		= NULL;
+		codecs->dai_name	= "snd-soc-dummy-dai";
+		codecs->name		= "snd-soc-dummy";
 
 		/* FE settings */
 		dai_link->dynamic		= 1;
@@ -156,14 +159,14 @@ static int asoc_simple_card_dai_link_of(struct device_node *link,
 
 		ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 							"be.%s",
-							dai_link->codec_dai_name);
+							dai_link->codecs->dai_name);
 		if (ret < 0)
 			return ret;
 
 		/* check "prefix" from top node */
 		snd_soc_of_parse_audio_prefix(card,
 					      &priv->codec_conf,
-					      dai_link->codec_of_node,
+					      dai_link->codecs->of_node,
 					      PREFIX "prefix");
 		/* check "prefix" from each node if top doesn't have */
 		if (!priv->codec_conf.of_node)
@@ -260,7 +263,7 @@ static int asoc_simple_card_probe(struct platform_device *pdev)
 	struct snd_soc_card *card;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
-	int num, ret;
+	int num, ret, i;
 
 	/* Allocate the private data */
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
@@ -273,6 +276,17 @@ static int asoc_simple_card_probe(struct platform_device *pdev)
 	dai_link  = devm_kcalloc(dev, num, sizeof(*dai_link), GFP_KERNEL);
 	if (!dai_props || !dai_link)
 		return -ENOMEM;
+
+	/*
+	 * Use snd_soc_dai_link_component instead of legacy style
+	 * It is codec only. but cpu/platform will be supported in the future.
+	 * see
+	 *	soc-core.c :: snd_soc_init_multicodec()
+	 */
+	for (i = 0; i < num; i++) {
+		dai_link[i].codecs	= &dai_props[i].codecs;
+		dai_link[i].num_codecs	= 1;
+	}
 
 	priv->dai_props				= dai_props;
 	priv->dai_link				= dai_link;
