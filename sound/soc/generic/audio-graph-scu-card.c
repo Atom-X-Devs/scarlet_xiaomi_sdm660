@@ -25,7 +25,9 @@
 struct graph_card_data {
 	struct snd_soc_card snd_card;
 	struct snd_soc_codec_conf codec_conf;
-	struct asoc_simple_dai *dai_props;
+	struct graph_dai_props {
+		struct asoc_simple_dai dai;
+	} *dai_props;
 	struct snd_soc_dai_link *dai_link;
 	struct asoc_simple_card_data adata;
 };
@@ -41,18 +43,18 @@ static int asoc_graph_card_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct graph_card_data *priv = snd_soc_card_get_drvdata(rtd->card);
-	struct asoc_simple_dai *dai_props = graph_priv_to_props(priv, rtd->num);
+	struct graph_dai_props *dai_props = graph_priv_to_props(priv, rtd->num);
 
-	return asoc_simple_card_clk_enable(dai_props);
+	return asoc_simple_card_clk_enable(&dai_props->dai);
 }
 
 static void asoc_graph_card_shutdown(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct graph_card_data *priv = snd_soc_card_get_drvdata(rtd->card);
-	struct asoc_simple_dai *dai_props = graph_priv_to_props(priv, rtd->num);
+	struct graph_dai_props *dai_props = graph_priv_to_props(priv, rtd->num);
 
-	asoc_simple_card_clk_disable(dai_props);
+	asoc_simple_card_clk_disable(&dai_props->dai);
 }
 
 static const struct snd_soc_ops asoc_graph_card_ops = {
@@ -65,7 +67,7 @@ static int asoc_graph_card_dai_init(struct snd_soc_pcm_runtime *rtd)
 	struct graph_card_data *priv =	snd_soc_card_get_drvdata(rtd->card);
 	struct snd_soc_dai *dai;
 	struct snd_soc_dai_link *dai_link;
-	struct asoc_simple_dai *dai_props;
+	struct graph_dai_props *dai_props;
 	int num = rtd->num;
 
 	dai_link	= graph_priv_to_link(priv, num);
@@ -74,7 +76,7 @@ static int asoc_graph_card_dai_init(struct snd_soc_pcm_runtime *rtd)
 				rtd->cpu_dai :
 				rtd->codec_dai;
 
-	return asoc_simple_card_init_dai(dai, dai_props);
+	return asoc_simple_card_init_dai(dai, &dai_props->dai);
 }
 
 static int asoc_graph_card_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -94,7 +96,7 @@ static int asoc_graph_card_dai_link_of(struct device_node *ep,
 {
 	struct device *dev = graph_priv_to_dev(priv);
 	struct snd_soc_dai_link *dai_link = graph_priv_to_link(priv, idx);
-	struct asoc_simple_dai *dai_props = graph_priv_to_props(priv, idx);
+	struct graph_dai_props *dai_props = graph_priv_to_props(priv, idx);
 	struct snd_soc_card *card = graph_priv_to_card(priv);
 	struct device_node *node = of_graph_get_port_parent(ep);
 	int ret;
@@ -113,7 +115,7 @@ static int asoc_graph_card_dai_link_of(struct device_node *ep,
 		if (ret)
 			return ret;
 
-		ret = asoc_simple_card_parse_clk_cpu(dev, ep, dai_link, dai_props);
+		ret = asoc_simple_card_parse_clk_cpu(dev, ep, dai_link, &dai_props->dai);
 		if (ret < 0)
 			return ret;
 
@@ -140,7 +142,7 @@ static int asoc_graph_card_dai_link_of(struct device_node *ep,
 		if (ret < 0)
 			return ret;
 
-		ret = asoc_simple_card_parse_clk_codec(dev, ep, dai_link, dai_props);
+		ret = asoc_simple_card_parse_clk_codec(dev, ep, dai_link, &dai_props->dai);
 		if (ret < 0)
 			return ret;
 
@@ -163,7 +165,7 @@ static int asoc_graph_card_dai_link_of(struct device_node *ep,
 						     PREFIX "prefix");
 	}
 
-	ret = asoc_simple_card_of_parse_tdm(ep, dai_props);
+	ret = asoc_simple_card_of_parse_tdm(ep, &dai_props->dai);
 	if (ret)
 		return ret;
 
@@ -324,7 +326,7 @@ static int asoc_graph_card_probe(struct platform_device *pdev)
 {
 	struct graph_card_data *priv;
 	struct snd_soc_dai_link *dai_link;
-	struct asoc_simple_dai *dai_props;
+	struct graph_dai_props *dai_props;
 	struct device *dev = &pdev->dev;
 	struct snd_soc_card *card;
 	int num, ret;
