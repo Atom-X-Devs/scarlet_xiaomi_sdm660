@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (c) 2018 Google LLC
+ */
+
+/dts-v1/;
+#include "mt8183-kukui.dtsi"
+
+/ {
+	model = "MediaTek kukui rev1 board";
+	compatible = "google,kukui-rev1", "google,kukui", "mediatek,mt8183";
+};
