@@ -160,6 +160,13 @@
 };
 
 &pio {
+	h1_int_od_l: h1_int_od_l {
+		pins1 {
+			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;
+			input-enable;
+		};
+	};
+
 	i2c0_pins: i2c0 {
 		pins_bus {
 			pinmux = <PINMUX_GPIO82__FUNC_SDA0>,
@@ -414,12 +421,16 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi_pins_0>;
 	mediatek,pad-select = <0>;
-	status = "disabled";
+	status = "okay";
 
-	spidev0: spi@0 {
-		compatible = "linux,spidev";
+	cr50@0 {
+		compatible = "google,cr50";
 		reg = <0>;
 		spi-max-frequency = <1000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&h1_int_od_l>;
+		interrupt-parent = <&pio>;
+		interrupts = <153 IRQ_TYPE_EDGE_RISING>;
 	};
 };
 
