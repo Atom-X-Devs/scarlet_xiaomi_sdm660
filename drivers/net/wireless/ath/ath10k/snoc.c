@@ -1180,6 +1180,7 @@ int ath10k_snoc_fw_indication(struct ath10k *ar, u64 type)
 
 	switch (type) {
 	case ATH10K_QMI_EVENT_FW_READY_IND:
+		bus_params.dev_type = ATH10K_DEV_TYPE_LL;
 		bus_params.chip_id = ar_snoc->target_info.soc_version;
 		ret = ath10k_core_register(ar, &bus_params);
 		if (ret) {
