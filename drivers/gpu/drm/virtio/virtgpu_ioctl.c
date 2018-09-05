@@ -288,7 +288,7 @@ static int virtio_gpu_resource_create_ioctl(struct drm_device *dev, void *data,
 		rc_3d.nr_samples = cpu_to_le32(rc->nr_samples);
 		rc_3d.flags = cpu_to_le32(rc->flags);
 
-		virtio_gpu_cmd_resource_create_3d(vgdev, &rc_3d, NULL);
+		virtio_gpu_cmd_resource_create_3d(vgdev, qobj, &rc_3d, NULL);
 		ret = virtio_gpu_object_attach(vgdev, qobj, res_id, &fence);
 		if (ret) {
 			ttm_eu_backoff_reservation(&ticket, &validate_list);
@@ -334,20 +334,41 @@ fail_id:
 static int virtio_gpu_resource_info_ioctl(struct drm_device *dev, void *data,
 					  struct drm_file *file_priv)
 {
+	struct virtio_gpu_device *vgdev = dev->dev_private;
 	struct drm_virtgpu_resource_info *ri = data;
 	struct drm_gem_object *gobj = NULL;
 	struct virtio_gpu_object *qobj = NULL;
+	int ret = 0;
 
 	gobj = drm_gem_object_lookup(file_priv, ri->bo_handle);
 	if (gobj == NULL)
 		return -ENOENT;
 
 	qobj = gem_to_virtio_gpu_obj(gobj);
-
-	ri->size = qobj->gem_base.size;
 	ri->res_handle = qobj->hw_res_handle;
+	ri->size = qobj->gem_base.size;
+
+	if (!qobj->create_callback_done) {
+		ret = wait_event_interruptible(vgdev->resp_wq,
+					       qobj->create_callback_done);
+		if (ret)
+			goto out;
+	}
+
+	if (qobj->num_planes) {
+		int i;
+
+		ri->num_planes = qobj->num_planes;
+		for (i = 0; i < qobj->num_planes; i++) {
+			ri->strides[i] = qobj->strides[i];
+			ri->offsets[i] = qobj->offsets[i];
+		}
+	}
+
+	ri->format_modifier = qobj->format_modifier;
+out:
 	drm_gem_object_put_unlocked(gobj);
-	return 0;
+	return ret;
 }
 
 static int virtio_gpu_transfer_from_host_ioctl(struct drm_device *dev,
