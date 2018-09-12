@@ -160,6 +160,14 @@
 };
 
 &pio {
+	ec_ap_int_odl: ec_ap_int_odl {
+		pins1 {
+			pinmux = <PINMUX_GPIO151__FUNC_GPIO151>;
+			input-enable;
+			bias-pull-up;
+		};
+	};
+
 	h1_int_od_l: h1_int_od_l {
 		pins1 {
 			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;
@@ -451,12 +459,23 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi_pins_2>;
 	mediatek,pad-select = <0>;
-	status = "disabled";
+	status = "okay";
 
-	spidev2: spi@0 {
-		compatible = "linux,spidev";
+	cros_ec: ec@0 {
+		compatible = "google,cros-ec-spi";
 		reg = <0>;
-		spi-max-frequency = <1000000>;
+		spi-max-frequency = <3000000>;
+		interrupt-parent = <&pio>;
+		interrupts = <151 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_ap_int_odl>;
+
+		i2c_tunnel: i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
 	};
 };
 
