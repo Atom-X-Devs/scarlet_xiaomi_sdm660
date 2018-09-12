@@ -5336,6 +5336,14 @@ L:	linux-edac@vger.kernel.org
 S:	Maintained
 F:	drivers/edac/pnd2_edac.[ch]
 
+EDAC-QCOM
+M:	Channagoud Kadabi <ckadabi@codeaurora.org>
+M:	Venkata Narendra Kumar Gutta <vnkgutta@codeaurora.org>
+L:	linux-arm-msm@vger.kernel.org
+L:	linux-edac@vger.kernel.org
+S:	Maintained
+F:	drivers/edac/qcom_edac.c
+
 EDAC-R82600
 M:	Tim Small <tim@buttersideup.com>
 L:	linux-edac@vger.kernel.org
