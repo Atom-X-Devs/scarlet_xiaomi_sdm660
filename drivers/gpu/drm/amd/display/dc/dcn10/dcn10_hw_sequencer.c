@@ -1570,8 +1570,8 @@ static void mmhub_read_vm_context0_settings(struct dcn10_hubp *hubp1,
 static void dcn10_program_pte_vm(struct dce_hwseq *hws, struct hubp *hubp)
 {
 	struct dcn10_hubp *hubp1 = TO_DCN10_HUBP(hubp);
-	struct vm_system_aperture_param apt = { {{ 0 } } };
-	struct vm_context0_param vm0 = { { { 0 } } };
+	struct vm_system_aperture_param apt = { };
+	struct vm_context0_param vm0 = { };
 
 	mmhub_read_vm_system_aperture_settings(hubp1, &apt, hws);
 	mmhub_read_vm_context0_settings(hubp1, &vm0, hws);
@@ -1900,7 +1900,7 @@ static void update_dpp(struct dpp *dpp, struct dc_plane_state *plane_state)
 static void dcn10_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx)
 {
 	struct hubp *hubp = pipe_ctx->plane_res.hubp;
-	struct mpcc_blnd_cfg blnd_cfg = {0};
+	struct mpcc_blnd_cfg blnd_cfg = { };
 	bool per_pixel_alpha = pipe_ctx->plane_state->per_pixel_alpha && pipe_ctx->bottom_pipe;
 	int mpcc_id;
 	struct mpcc *new_mpcc;
