@@ -716,6 +716,10 @@
 				"subsys_mfg_cg";
 
 			power-domains = <&scpsys MT8183_POWER_DOMAIN_MFG_CORE0>;
+
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <15>;
 		};
 
 		gpu_core1: mali_gpu_core1 {
