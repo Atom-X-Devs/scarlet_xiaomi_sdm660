@@ -311,6 +311,7 @@ enum net_bridge_opts {
 	BROPT_NF_CALL_IPTABLES,
 	BROPT_NF_CALL_IP6TABLES,
 	BROPT_NF_CALL_ARPTABLES,
+	BROPT_GROUP_ADDR_SET,
 };
 
 struct net_bridge {
@@ -354,7 +355,6 @@ struct net_bridge {
 	unsigned long			bridge_ageing_time;
 
 	u8				group_addr[ETH_ALEN];
-	bool				group_addr_set;
 
 	enum {
 		BR_NO_STP, 		/* no spanning tree */
