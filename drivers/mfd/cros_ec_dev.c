@@ -855,6 +855,7 @@ static struct platform_driver cros_ec_dev_driver = {
 	.driver = {
 		.name = DRV_NAME,
 	},
+	.id_table = cros_ec_id,
 	.probe = ec_device_probe,
 	.remove = ec_device_remove,
 };
