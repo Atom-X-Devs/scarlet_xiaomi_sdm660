@@ -472,7 +472,7 @@
 
 		i2c_tunnel: i2c-tunnel {
 			compatible = "google,cros-ec-i2c-tunnel";
-			google,remote-bus = <4>;
+			google,remote-bus = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
@@ -536,3 +536,7 @@
 &uart0 {
 	status = "okay";
 };
+
+#include <arm/cros-ec-keyboard.dtsi>
+#include <arm/cros-ec-sbs.dtsi>
+
