@@ -10,3 +10,13 @@
 	model = "MediaTek kukui rev1 board";
 	compatible = "google,kukui-rev1", "google,kukui", "mediatek,mt8183";
 };
+
+/* Touch reset pin is active-high on rev1. */
+&touchscreen {
+	reset-gpios = <&pio 156 0>;
+};
+
+&touch_pin_reset {
+	/delete-property/ output-low;
+	output-high;
+};
