@@ -992,6 +992,7 @@ struct ath10k {
 
 	atomic_t restart_count;
 
+	bool nlo_enabled;
 	bool p2p;
 
 	struct {
