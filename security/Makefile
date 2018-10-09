@@ -12,6 +12,7 @@ subdir-$(CONFIG_SECURITY_YAMA)		+= yama
 subdir-$(CONFIG_SECURITY_LOADPIN)	+= loadpin
 subdir-$(CONFIG_SECURITY_SAFESETID)	+= safesetid
 subdir-$(CONFIG_SECURITY_CHROMIUMOS)	+= chromiumos
+subdir-$(CONFIG_SECURITY_CONTAINER_MONITOR) += container
 
 # always enable default capabilities
 obj-y					+= commoncap.o
@@ -30,6 +31,7 @@ obj-$(CONFIG_SECURITY_YAMA)		+= yama/
 obj-$(CONFIG_SECURITY_LOADPIN)		+= loadpin/
 obj-$(CONFIG_SECURITY_SAFESETID)	+= safesetid/
 obj-$(CONFIG_CGROUP_DEVICE)		+= device_cgroup.o
+obj-$(CONFIG_SECURITY_CONTAINER_MONITOR) += container/
 
 # Object integrity file lists
 subdir-$(CONFIG_INTEGRITY)		+= integrity

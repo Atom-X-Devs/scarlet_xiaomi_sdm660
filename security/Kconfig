@@ -247,6 +247,7 @@ source security/loadpin/Kconfig
 source security/yama/Kconfig
 source security/safesetid/Kconfig
 source security/chromiumos/Kconfig
+source security/container/Kconfig
 
 source security/integrity/Kconfig
 
