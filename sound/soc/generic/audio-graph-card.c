@@ -318,7 +318,8 @@ static int asoc_graph_card_dai_link_of(struct device_node *cpu_ep,
 	if (ret < 0)
 		return ret;
 
-	of_property_read_u32(rcpu_ep, "mclk-fs", &dai_props->mclk_fs);
+	of_property_read_u32(cpu_ep,   "mclk-fs", &dai_props->mclk_fs);
+	of_property_read_u32(codec_ep, "mclk-fs", &dai_props->mclk_fs);
 
 	ret = asoc_simple_card_parse_graph_cpu(cpu_ep, dai_link);
 	if (ret < 0)
