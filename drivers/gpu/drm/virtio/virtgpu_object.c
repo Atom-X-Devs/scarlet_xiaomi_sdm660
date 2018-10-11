@@ -23,6 +23,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <linux/dma-buf.h>
 #include "virtgpu_drv.h"
 
 static void virtio_gpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
@@ -172,3 +173,22 @@ int virtio_gpu_object_wait(struct virtio_gpu_object *bo, bool no_wait)
 	return r;
 }
 
+int virtio_gpu_dma_buf_to_handle(struct dma_buf *dma_buf, bool no_wait,
+				 uint32_t *handle)
+{
+	struct virtio_gpu_object *qobj;
+	struct virtio_gpu_device *vgdev;
+
+	if (dma_buf->ops != &virtgpu_dmabuf_ops)
+		return -EINVAL;
+
+	qobj = gem_to_virtio_gpu_obj(dma_buf->priv);
+	vgdev = (struct virtio_gpu_device *)qobj->gem_base.dev->dev_private;
+	if (!qobj->create_callback_done && !no_wait)
+		wait_event(vgdev->resp_wq, qobj->create_callback_done);
+	if (!qobj->create_callback_done)
+		return -ETIMEDOUT;
+
+	*handle = qobj->hw_res_handle;
+	return 0;
+}
