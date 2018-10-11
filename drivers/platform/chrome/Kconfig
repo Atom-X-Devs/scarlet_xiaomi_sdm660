@@ -118,4 +118,16 @@ config CROS_KBD_LED_BACKLIGHT
 	  To compile this driver as a module, choose M here: the
 	  module will be called cros_kbd_led_backlight.
 
+config CROS_USBPD_LOGGER
+	tristate "Logging driver for USB PD charger"
+	depends on CHARGER_CROS_USBPD
+	default y
+	select RTC_LIB
+	help
+	  This option enables support for logging event data for the USB PD charger
+	  available in the Embedded Controller on select Chrome OS systems.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cros_usbpd_logger.
+
 endif # CHROMEOS_PLATFORMS
