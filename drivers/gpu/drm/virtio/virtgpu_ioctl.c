@@ -260,7 +260,7 @@ static int virtio_gpu_resource_create_ioctl(struct drm_device *dev, void *data,
 	obj = &qobj->gem_base;
 
 	if (!vgdev->has_virgl_3d) {
-		virtio_gpu_cmd_create_resource(vgdev, res_id, rc->format,
+		virtio_gpu_cmd_create_resource(vgdev, qobj, res_id, rc->format,
 					       rc->width, rc->height);
 
 		ret = virtio_gpu_object_attach(vgdev, qobj, res_id, NULL);
