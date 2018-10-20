@@ -88,9 +88,7 @@ static struct alt_sys_call_table default_table;
  * If an alt_syscall table allows prctl(), override it to prevent a process
  * from changing its syscall table.
  */
-static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
-                                     unsigned long arg3, unsigned long arg4,
-                                     unsigned long arg5);
+static asmlinkage long alt_sys_prctl(struct pt_regs *regs);
 
 #ifdef CONFIG_COMPAT
 #define SYSCALL_WHITELIST_COMPAT(x)                                     \

@@ -36,34 +36,21 @@
  * Note that the prio returned by getpriority has been offset by 20.
  * (returns 40..1 instead of -20..19)
  */
-static asmlinkage long android_getpriority(int which, int who);
+static asmlinkage long android_getpriority(struct pt_regs *regs);
 /* Android does not get to call keyctl. */
-static asmlinkage long android_keyctl(int cmd, unsigned long arg2,
-                                      unsigned long arg3, unsigned long arg4,
-                                      unsigned long arg5);
+static asmlinkage long android_keyctl(struct pt_regs *regs);
 /* Make sure nothing sets a nice value more favorable than -10. */
-static asmlinkage long android_setpriority(int which, int who, int niceval);
-static asmlinkage long
-android_sched_setscheduler(pid_t pid, int policy,
-                           struct sched_param __user *param);
-static asmlinkage long android_sched_setparam(pid_t pid,
-                                              struct sched_param __user *param);
-static asmlinkage int __maybe_unused
-android_socket(int domain, int type, int socket);
-static asmlinkage long
-android_perf_event_open(struct perf_event_attr __user *attr_uptr,
-                        pid_t pid, int cpu, int group_fd, unsigned long flags);
-static asmlinkage long android_adjtimex(struct timex __user *buf);
-static asmlinkage long android_clock_adjtime(const clockid_t which_clock,
-                                             struct timex __user *buf);
-static asmlinkage long android_getcpu(unsigned __user *cpu,
-                                      unsigned __user *node,
-                                      struct getcpu_cache __user *tcache);
+static asmlinkage long android_setpriority(struct pt_regs *regs);
+static asmlinkage long android_sched_setscheduler(struct pt_regs *regs);
+static asmlinkage long android_sched_setparam(struct pt_regs *regs);
+static asmlinkage int __maybe_unused android_socket(struct pt_regs *regs);
+static asmlinkage long android_perf_event_open(struct pt_regs *regs);
+static asmlinkage long android_adjtimex(struct pt_regs *regs);
+static asmlinkage long android_clock_adjtime(struct pt_regs *regs);
+static asmlinkage long android_getcpu(struct pt_regs *regs);
 #ifdef CONFIG_COMPAT
-static asmlinkage long android_compat_adjtimex(struct compat_timex __user *buf);
-static asmlinkage long
-android_compat_clock_adjtime(const clockid_t which_clock,
-                             struct compat_timex __user *buf);
+static asmlinkage long android_compat_adjtimex(struct pt_regs *regs);
+static asmlinkage long android_compat_clock_adjtime(struct pt_regs *regs);
 #endif /* CONFIG_COMPAT */
 
 static struct syscall_whitelist_entry android_whitelist[] = {
