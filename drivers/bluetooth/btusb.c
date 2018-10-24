@@ -30,6 +30,7 @@
 #include <linux/of_irq.h>
 #include <linux/suspend.h>
 #include <asm/unaligned.h>
+#include <linux/delay.h>
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
@@ -1747,6 +1748,16 @@ static int btusb_setup_intel(struct hci_dev *hdev)
 
 	BT_DBG("%s", hdev->name);
 
+	/* Observed race condition during controller recovery mechanism
+	 * resulting the controller not responding to the reset command.
+	 *
+	 * To avoid such race condition need a delay of 30ms soon after the
+	 * USB re-enumeration and before sending the Reset command which shall
+	 * allow controller to completely recover and process the Reset command.
+	 */
+	BT_DBG("Delay 30ms to avoid race condition");
+	mdelay(30);
+
 	/* The controller has a bug with the first HCI command sent to it
 	 * returning number of completed commands as zero. This would stall the
 	 * command processing in the Bluetooth core.
@@ -1838,6 +1849,11 @@ static int btusb_setup_intel(struct hci_dev *hdev)
 						 &disable_patch);
 		if (ret < 0)
 			goto exit_mfg_deactivate;
+		/* For each memory write controller need at least 2 ms to
+		 * realize the write is complete before it receives one
+		 * more write.
+		 */
+		mdelay(2);
 	}
 
 	release_firmware(fw);
@@ -1847,7 +1863,10 @@ static int btusb_setup_intel(struct hci_dev *hdev)
 
 	/* Patching completed successfully and disable the manufacturer mode
 	 * with reset and activate the downloaded firmware patches.
+	 * 8ms delay - Once firmware patch download complete, controller needs
+	 * 8ms to validate the patches.
 	 */
+	mdelay(8);
 	err = btintel_exit_mfg(hdev, true, true);
 	if (err)
 		return err;
@@ -3096,6 +3115,7 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		set_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks);
+		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
 	}
 

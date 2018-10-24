@@ -102,6 +102,7 @@ struct mgmt_rp_read_index_list {
 #define MGMT_SETTING_CONFIGURATION	0x00004000
 #define MGMT_SETTING_STATIC_ADDRESS	0x00008000
 #define MGMT_SETTING_PHY_CONFIGURATION  0x00010000
+#define MGMT_SETTING_ADVERTISING_INTERVALS	0x00020000
 
 #define MGMT_OP_READ_INFO		0x0004
 #define MGMT_READ_INFO_SIZE		0
@@ -653,6 +654,13 @@ struct mgmt_cp_set_phy_confguration {
 	__le32	selected_phys;
 } __packed;
 #define MGMT_SET_PHY_CONFIGURATION_SIZE	4
+
+#define MGMT_OP_SET_ADVERTISING_INTERVALS	0x0044
+struct mgmt_cp_set_advertising_intervals {
+	__le16	min_interval;
+	__le16	max_interval;
+} __packed;
+#define MGMT_SET_ADVERTISING_INTERVALS_SIZE	4
 
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
