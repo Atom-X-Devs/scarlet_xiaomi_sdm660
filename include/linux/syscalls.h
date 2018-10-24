@@ -1159,6 +1159,10 @@ static inline int ksys_fadvise64_64(int fd, loff_t offset, loff_t len,
 	return -EINVAL;
 }
 #endif
+
+int ksys_prctl(int option, unsigned long arg2, unsigned long arg3,
+	       unsigned long arg4, unsigned long arg5);
+
 unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 			      unsigned long prot, unsigned long flags,
 			      unsigned long fd, unsigned long pgoff);
@@ -1292,5 +1296,23 @@ static inline unsigned int ksys_personality(unsigned int personality)
 
 	return old;
 }
+
+#ifdef CONFIG_ALT_SYSCALL
+
+/* Only used with ALT_SYSCALL enabled */
+
+int ksys_prctl(int option, unsigned long arg2, unsigned long arg3,
+	       unsigned long arg4, unsigned long arg5);
+int ksys_setpriority(int which, int who, int niceval);
+int ksys_getpriority(int which, int who);
+int ksys_perf_event_open(
+		struct perf_event_attr __user *attr_uptr,
+		pid_t pid, int cpu, int group_fd, unsigned long flags);
+int ksys_adjtimex(struct timex __user *txc_p);
+int ksys_clock_adjtime(clockid_t which_clock,
+		       struct timex __user *tx);
+int ksys_getcpu(unsigned __user *cpu, unsigned __user *node, struct getcpu_cache __user *cache);
+
+#endif /* CONFIG_ALT_SYSCALL */
 
 #endif
