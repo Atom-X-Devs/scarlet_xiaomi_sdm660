@@ -1471,14 +1471,32 @@ static int hidinput_open(struct input_dev *dev)
 {
 	struct hid_device *hid = input_get_drvdata(dev);
 
-	return hid_hw_open(hid);
+	return !dev->inhibited ? hid_hw_open(hid) : 0;
 }
 
 static void hidinput_close(struct input_dev *dev)
 {
 	struct hid_device *hid = input_get_drvdata(dev);
 
-	hid_hw_close(hid);
+	if (!dev->inhibited)
+		hid_hw_close(hid);
+}
+
+static int hidinput_inhibit(struct input_dev *dev)
+{
+	struct hid_device *hid = input_get_drvdata(dev);
+
+	if (dev->users)
+		hid_hw_close(hid);
+
+	return 0;
+}
+
+static int hidinput_uninhibit(struct input_dev *dev)
+{
+	struct hid_device *hid = input_get_drvdata(dev);
+
+	return dev->users ? hid_hw_open(hid) : 0;
 }
 
 static void report_features(struct hid_device *hid)
@@ -1569,6 +1587,8 @@ static struct hid_input *hidinput_allocate(struct hid_device *hid,
 	input_dev->event = hidinput_input_event;
 	input_dev->open = hidinput_open;
 	input_dev->close = hidinput_close;
+	input_dev->inhibit = hidinput_inhibit;
+	input_dev->uninhibit = hidinput_uninhibit;
 	input_dev->setkeycode = hidinput_setkeycode;
 	input_dev->getkeycode = hidinput_getkeycode;
 
@@ -1827,3 +1847,48 @@ void hidinput_disconnect(struct hid_device *hid)
 }
 EXPORT_SYMBOL_GPL(hidinput_disconnect);
 
+/**
+ * hid_scroll_counter_handle_scroll() - Send high- and low-resolution scroll
+ *                                      events given a high-resolution wheel
+ *                                      movement.
+ * @counter: a hid_scroll_counter struct describing the wheel.
+ * @hi_res_value: the movement of the wheel, in the mouse's high-resolution
+ *                units.
+ *
+ * Given a high-resolution movement, this function converts the movement into
+ * microns and emits high-resolution scroll events for the input device. It also
+ * uses the multiplier from &struct hid_scroll_counter to emit low-resolution
+ * scroll events when appropriate for backwards-compatibility with userspace
+ * input libraries.
+ */
+void hid_scroll_counter_handle_scroll(struct hid_scroll_counter *counter,
+				      int hi_res_value)
+{
+	int low_res_scroll_amount;
+	/* Some wheels will rest 7/8ths of a notch from the previous notch
+	 * after slow movement, so we want the threshold for low-res events to
+	 * be in the middle of the notches (e.g. after 4/8ths) as opposed to on
+	 * the notches themselves (8/8ths).
+	 */
+	int threshold = counter->resolution_multiplier / 2;
+
+	input_report_rel(counter->dev, REL_WHEEL_HI_RES,
+			 hi_res_value * counter->microns_per_hi_res_unit);
+
+	counter->remainder += hi_res_value;
+	if (abs(counter->remainder) >= threshold) {
+		/* Add (or subtract) 1 because we want to trigger when the wheel
+		 * is half-way to the next notch (i.e. scroll 1 notch after a
+		 * 1/2 notch movement, 2 notches after a 1 1/2 notch movement,
+		 * etc.).
+		 */
+		low_res_scroll_amount =
+			counter->remainder / counter->resolution_multiplier
+			+ (hi_res_value > 0 ? 1 : -1);
+		input_report_rel(counter->dev, REL_WHEEL,
+				 low_res_scroll_amount);
+		counter->remainder -=
+			low_res_scroll_amount * counter->resolution_multiplier;
+	}
+}
+EXPORT_SYMBOL_GPL(hid_scroll_counter_handle_scroll);
