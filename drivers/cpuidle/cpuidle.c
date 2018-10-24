@@ -128,10 +128,14 @@ int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
 }
 
 #ifdef CONFIG_SUSPEND
-static void enter_s2idle_proper(struct cpuidle_driver *drv,
+static int cpuidle_freeze_error;
+
+static int enter_s2idle_proper(struct cpuidle_driver *drv,
 				struct cpuidle_device *dev, int index)
+
 {
 	ktime_t time_start, time_end;
+	int ret;
 
 	time_start = ns_to_ktime(local_clock());
 
@@ -147,7 +151,7 @@ static void enter_s2idle_proper(struct cpuidle_driver *drv,
 	 * suspended is generally unsafe.
 	 */
 	stop_critical_timings();
-	drv->states[index].enter_s2idle(dev, drv, index);
+	ret = drv->states[index].enter_s2idle(dev, drv, index);
 	WARN_ON(!irqs_disabled());
 	/*
 	 * timekeeping_resume() that will be called by tick_unfreeze() for the
@@ -161,6 +165,8 @@ static void enter_s2idle_proper(struct cpuidle_driver *drv,
 
 	dev->states_usage[index].s2idle_time += ktime_us_delta(time_end, time_start);
 	dev->states_usage[index].s2idle_usage++;
+
+	return ret;
 }
 
 /**
@@ -173,7 +179,7 @@ static void enter_s2idle_proper(struct cpuidle_driver *drv,
  */
 int cpuidle_enter_s2idle(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 {
-	int index;
+	int index, ret = 0;
 
 	/*
 	 * Find the deepest state with ->enter_s2idle present, which guarantees
@@ -182,9 +188,26 @@ int cpuidle_enter_s2idle(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	 */
 	index = find_deepest_state(drv, dev, UINT_MAX, 0, true);
 	if (index > 0)
-		enter_s2idle_proper(drv, dev, index);
+		ret = enter_s2idle_proper(drv, dev, index);
+
+	if (ret < 0) {
+		cpuidle_freeze_error = ret;
+		pm_system_wakeup();
+	}
 
 	return index;
+}
+
+void cpuidle_prepare_freeze(void)
+{
+	cpuidle_freeze_error = 0;
+	cpuidle_resume();
+}
+
+int cpuidle_complete_freeze(void)
+{
+	cpuidle_pause();
+	return cpuidle_freeze_error;
 }
 #endif /* CONFIG_SUSPEND */
 
