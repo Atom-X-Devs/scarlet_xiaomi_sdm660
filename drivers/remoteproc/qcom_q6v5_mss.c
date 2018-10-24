@@ -1,5 +1,5 @@
 /*
- * Qualcomm Peripheral Image Loader
+ * Qualcomm self-authenticating modem subsystem remoteproc driver
  *
  * Copyright (C) 2016 Linaro Ltd.
  * Copyright (C) 2014 Sony Mobile Communications AB
@@ -721,6 +721,7 @@ static int q6v5_mpss_load(struct q6v5 *qproc)
 	}
 
 	mpss_reloc = relocate ? min_addr : qproc->mpss_phys;
+	qproc->mpss_reloc = mpss_reloc;
 	/* Load firmware segments */
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		phdr = &phdrs[i];
@@ -1066,7 +1067,7 @@ static int q6v5_init_clocks(struct device *dev, struct clk **clks,
 static int q6v5_init_reset(struct q6v5 *qproc)
 {
 	qproc->mss_restart = devm_reset_control_get_exclusive(qproc->dev,
-							      NULL);
+							      "mss_restart");
 	if (IS_ERR(qproc->mss_restart)) {
 		dev_err(qproc->dev, "failed to acquire mss restart\n");
 		return PTR_ERR(qproc->mss_restart);
@@ -1131,6 +1132,9 @@ static int q6v5_probe(struct platform_device *pdev)
 	desc = of_device_get_match_data(&pdev->dev);
 	if (!desc)
 		return -EINVAL;
+
+	if (desc->need_mem_protection && !qcom_scm_is_available())
+		return -EPROBE_DEFER;
 
 	rproc = rproc_alloc(&pdev->dev, pdev->name, &q6v5_ops,
 			    desc->hexagon_mba_image, sizeof(*qproc));
@@ -1368,11 +1372,11 @@ static struct platform_driver q6v5_driver = {
 	.probe = q6v5_probe,
 	.remove = q6v5_remove,
 	.driver = {
-		.name = "qcom-q6v5-pil",
+		.name = "qcom-q6v5-mss",
 		.of_match_table = q6v5_of_match,
 	},
 };
 module_platform_driver(q6v5_driver);
 
-MODULE_DESCRIPTION("Peripheral Image Loader for Hexagon");
+MODULE_DESCRIPTION("Qualcomm Self-authenticating modem remoteproc driver");
 MODULE_LICENSE("GPL v2");
