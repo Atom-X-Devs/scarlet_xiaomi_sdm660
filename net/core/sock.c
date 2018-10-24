@@ -119,6 +119,9 @@
 #include <linux/static_key.h>
 #include <linux/memcontrol.h>
 #include <linux/prefetch.h>
+#include <linux/cred.h>
+#include <linux/uidgid.h>
+#include <linux/android_aid.h>
 
 #include <linux/uaccess.h>
 
@@ -195,6 +198,40 @@ bool sk_net_capable(const struct sock *sk, int cap)
 	return sk_ns_capable(sk, sock_net(sk)->user_ns, cap);
 }
 EXPORT_SYMBOL(sk_net_capable);
+
+static bool in_android_group(struct user_namespace *user, gid_t gid)
+{
+	kgid_t kgid = make_kgid(user, gid);
+
+	if (!gid_valid(kgid))
+		return false;
+	return in_egroup_p(kgid);
+}
+
+bool inet_sk_allowed(struct net *net, gid_t gid)
+{
+	if (!net->core.sysctl_android_paranoid ||
+	    ns_capable(net->user_ns, CAP_NET_RAW))
+		return true;
+	return in_android_group(net->user_ns, gid);
+}
+EXPORT_SYMBOL(inet_sk_allowed);
+
+bool android_ns_capable(struct net *net, int cap)
+{
+	if (ns_capable(net->user_ns, cap))
+		return true;
+	if (!net->core.sysctl_android_paranoid)
+		return false;
+	if (cap == CAP_NET_RAW &&
+	    in_android_group(net->user_ns, AID_NET_RAW))
+		return true;
+	if (cap == CAP_NET_ADMIN &&
+	    in_android_group(net->user_ns, AID_NET_ADMIN))
+		return true;
+	return false;
+}
+EXPORT_SYMBOL(android_ns_capable);
 
 /*
  * Each address family might have different locking rules, so we have
@@ -531,7 +568,7 @@ static int sock_setbindtodevice(struct sock *sk, char __user *optval,
 
 	/* Sorry... */
 	ret = -EPERM;
-	if (!ns_capable(net->user_ns, CAP_NET_RAW))
+	if (!android_ns_capable(net, CAP_NET_RAW))
 		goto out;
 
 	ret = -EINVAL;
