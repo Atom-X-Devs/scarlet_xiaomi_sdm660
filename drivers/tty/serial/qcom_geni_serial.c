@@ -89,9 +89,9 @@
 #define MAX_LOOPBACK_CFG	3
 
 #ifdef CONFIG_CONSOLE_POLL
-#define RX_BYTES_PW 1
+#define CONSOLE_RX_BYTES_PW 1
 #else
-#define RX_BYTES_PW 4
+#define CONSOLE_RX_BYTES_PW 4
 #endif
 
 struct qcom_geni_serial_port {
@@ -851,6 +851,25 @@ static int qcom_geni_serial_port_setup(struct uart_port *uport)
 {
 	struct qcom_geni_serial_port *port = to_dev_port(uport, uport);
 	unsigned int rxstale = DEFAULT_BITS_PER_CHAR * STALE_TIMEOUT;
+	u32 proto;
+
+	if (uart_console(uport)) {
+		port->tx_bytes_pw = 1;
+		port->rx_bytes_pw = CONSOLE_RX_BYTES_PW;
+	} else {
+		port->tx_bytes_pw = 4;
+		port->rx_bytes_pw = 4;
+	}
+
+	proto = geni_se_read_proto(&port->se);
+	if (proto != GENI_SE_UART) {
+		dev_err(uport->dev, "Invalid FW loaded, proto: %d\n", proto);
+		return -ENXIO;
+	}
+
+	qcom_geni_serial_stop_rx(uport);
+
+	get_tx_fifo_size(port);
 
 	set_rfr_wm(port);
 	writel_relaxed(rxstale, uport->membase + SE_UART_RX_STALE_CNT);
@@ -874,30 +893,19 @@ static int qcom_geni_serial_port_setup(struct uart_port *uport)
 			return -ENOMEM;
 	}
 	port->setup = true;
+
 	return 0;
 }
 
 static int qcom_geni_serial_startup(struct uart_port *uport)
 {
 	int ret;
-	u32 proto;
 	struct qcom_geni_serial_port *port = to_dev_port(uport, uport);
 
 	scnprintf(port->name, sizeof(port->name),
 		  "qcom_serial_%s%d",
 		(uart_console(uport) ? "console" : "uart"), uport->line);
 
-	if (!uart_console(uport)) {
-		port->tx_bytes_pw = 4;
-		port->rx_bytes_pw = RX_BYTES_PW;
-	}
-	proto = geni_se_read_proto(&port->se);
-	if (proto != GENI_SE_UART) {
-		dev_err(uport->dev, "Invalid FW loaded, proto: %d\n", proto);
-		return -ENXIO;
-	}
-
-	get_tx_fifo_size(port);
 	if (!port->setup) {
 		ret = qcom_geni_serial_port_setup(uport);
 		if (ret)
@@ -1056,6 +1064,7 @@ static int __init qcom_geni_console_setup(struct console *co, char *options)
 	int bits = 8;
 	int parity = 'n';
 	int flow = 'n';
+	int ret;
 
 	if (co->index >= GENI_UART_CONS_PORTS  || co->index < 0)
 		return -ENXIO;
@@ -1071,21 +1080,10 @@ static int __init qcom_geni_console_setup(struct console *co, char *options)
 	if (unlikely(!uport->membase))
 		return -ENXIO;
 
-	if (geni_se_resources_on(&port->se)) {
-		dev_err(port->se.dev, "Error turning on resources\n");
-		return -ENXIO;
-	}
-
-	if (unlikely(geni_se_read_proto(&port->se) != GENI_SE_UART)) {
-		geni_se_resources_off(&port->se);
-		return -ENXIO;
-	}
-
 	if (!port->setup) {
-		port->tx_bytes_pw = 1;
-		port->rx_bytes_pw = RX_BYTES_PW;
-		qcom_geni_serial_stop_rx(uport);
-		qcom_geni_serial_port_setup(uport);
+		ret = qcom_geni_serial_port_setup(uport);
+		if (ret)
+			return ret;
 	}
 
 	if (options)
@@ -1203,10 +1201,11 @@ static void qcom_geni_serial_pm(struct uart_port *uport,
 {
 	struct qcom_geni_serial_port *port = to_dev_port(uport, uport);
 
+	/* If we've never been called, treat it as off */
+	if (old_state == UART_PM_STATE_UNDEFINED)
+		old_state = UART_PM_STATE_OFF;
+
 	if (new_state == UART_PM_STATE_ON && old_state == UART_PM_STATE_OFF)
-		geni_se_resources_on(&port->se);
-	else if (!uart_console(uport) && (new_state == UART_PM_STATE_ON &&
-				old_state == UART_PM_STATE_UNDEFINED))
 		geni_se_resources_on(&port->se);
 	else if (new_state == UART_PM_STATE_OFF &&
 			old_state == UART_PM_STATE_ON)
@@ -1327,49 +1326,25 @@ static int qcom_geni_serial_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int __maybe_unused qcom_geni_serial_sys_suspend_noirq(struct device *dev)
+static int __maybe_unused qcom_geni_serial_sys_suspend(struct device *dev)
 {
 	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
 	struct uart_port *uport = &port->uport;
 
-	if (uart_console(uport)) {
-		uart_suspend_port(uport->private_data, uport);
-	} else {
-		struct uart_state *state = uport->state;
-		/*
-		 * If the port is open, deny system suspend.
-		 */
-		if (state->pm_state == UART_PM_STATE_ON)
-			return -EBUSY;
-	}
-
-	return 0;
+	return uart_suspend_port(uport->private_data, uport);
 }
 
-static int __maybe_unused qcom_geni_serial_sys_resume_noirq(struct device *dev)
+static int __maybe_unused qcom_geni_serial_sys_resume(struct device *dev)
 {
 	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
 	struct uart_port *uport = &port->uport;
 
-	if (uart_console(uport) &&
-			console_suspend_enabled && uport->suspended) {
-		uart_resume_port(uport->private_data, uport);
-		/*
-		 * uart_suspend_port() invokes port shutdown which in turn
-		 * frees the irq. uart_resume_port invokes port startup which
-		 * performs request_irq. The request_irq auto-enables the IRQ.
-		 * In addition, resume_noirq implicitly enables the IRQ and
-		 * leads to an unbalanced IRQ enable warning. Disable the IRQ
-		 * before returning so that the warning is suppressed.
-		 */
-		disable_irq(uport->irq);
-	}
-	return 0;
+	return uart_resume_port(uport->private_data, uport);
 }
 
 static const struct dev_pm_ops qcom_geni_serial_pm_ops = {
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(qcom_geni_serial_sys_suspend_noirq,
-					qcom_geni_serial_sys_resume_noirq)
+	SET_SYSTEM_SLEEP_PM_OPS(qcom_geni_serial_sys_suspend,
+					qcom_geni_serial_sys_resume)
 };
 
 static const struct of_device_id qcom_geni_serial_match_table[] = {
