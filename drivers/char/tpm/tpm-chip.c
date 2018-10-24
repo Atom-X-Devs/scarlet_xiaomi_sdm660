@@ -178,10 +178,6 @@ static void tpm_devs_release(struct device *dev)
  * Issues a TPM2_Shutdown command prior to loss of power, as required by the
  * TPM 2.0 spec.
  * Then, calls bus- and device- specific shutdown code.
- *
- * XXX: This codepath relies on the fact that sysfs is not enabled for
- * TPM2: sysfs uses an implicit lock on chip->ops, so this could race if TPM2
- * has sysfs support enabled before TPM sysfs's implicit locking is fixed.
  */
 static int tpm_class_shutdown(struct device *dev)
 {
@@ -378,7 +374,7 @@ static void tpm_del_legacy_sysfs(struct tpm_chip *chip)
 {
 	struct attribute **i;
 
-	if (chip->flags & (TPM_CHIP_FLAG_TPM2 | TPM_CHIP_FLAG_VIRTUAL))
+	if (chip->flags & TPM_CHIP_FLAG_VIRTUAL)
 		return;
 
 	sysfs_remove_link(&chip->dev.parent->kobj, "ppi");
@@ -396,7 +392,7 @@ static int tpm_add_legacy_sysfs(struct tpm_chip *chip)
 	struct attribute **i;
 	int rc;
 
-	if (chip->flags & (TPM_CHIP_FLAG_TPM2 | TPM_CHIP_FLAG_VIRTUAL))
+	if (chip->flags & TPM_CHIP_FLAG_VIRTUAL)
 		return 0;
 
 	rc = __compat_only_sysfs_link_entry_to_kobj(
@@ -433,6 +429,7 @@ static int tpm_add_hwrng(struct tpm_chip *chip)
 		 "tpm-rng-%d", chip->dev_num);
 	chip->hwrng.name = chip->hwrng_name;
 	chip->hwrng.read = tpm_hwrng_read;
+	chip->hwrng.quality = 1000;
 	return hwrng_register(&chip->hwrng);
 }
 

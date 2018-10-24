@@ -466,6 +466,11 @@ static ssize_t tpm_try_transmit(struct tpm_chip *chip,
 		return -E2BIG;
 	}
 
+	if (test_bit(0, &chip->is_suspended)) {
+		dev_warn(&chip->dev, "blocking transmit while suspended\n");
+		return -EAGAIN;
+	}
+
 	if (!(flags & TPM_TRANSMIT_UNLOCKED) && !(flags & TPM_TRANSMIT_NESTED))
 		mutex_lock(&chip->tpm_mutex);
 
@@ -1147,11 +1152,8 @@ int tpm1_auto_startup(struct tpm_chip *chip)
 	rc = tpm_get_timeouts(chip);
 	if (rc)
 		goto out;
-	rc = tpm_do_selftest(chip);
-	if (rc) {
-		dev_err(&chip->dev, "TPM self test failed\n");
-		goto out;
-	}
+	if (tpm_do_selftest(chip))
+		dev_err(&chip->dev, "TPM self test failed - ignoring\n");
 
 	return rc;
 out:
@@ -1212,6 +1214,7 @@ int tpm_pm_suspend(struct device *dev)
 
 	if (chip->flags & TPM_CHIP_FLAG_TPM2) {
 		tpm2_shutdown(chip, TPM2_SU_STATE);
+		set_bit(0, &chip->is_suspended);
 		return 0;
 	}
 
@@ -1248,6 +1251,9 @@ int tpm_pm_suspend(struct device *dev)
 		dev_warn(&chip->dev, "TPM savestate took %dms\n",
 			 try * TPM_TIMEOUT_RETRY);
 
+	if (!rc)
+		set_bit(0, &chip->is_suspended);
+
 	return rc;
 }
 EXPORT_SYMBOL_GPL(tpm_pm_suspend);
@@ -1263,6 +1269,7 @@ int tpm_pm_resume(struct device *dev)
 	if (chip == NULL)
 		return -ENODEV;
 
+	clear_bit(0, &chip->is_suspended);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tpm_pm_resume);
