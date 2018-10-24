@@ -62,6 +62,7 @@ enum {
 struct cros_ec_sensors_core_state {
 	struct cros_ec_device *ec;
 	struct mutex cmd_lock;
+	struct iio_dev *indio_dev;
 
 	struct cros_ec_command *msg;
 	struct ec_params_motion_sense param;
@@ -78,6 +79,13 @@ struct cros_ec_sensors_core_state {
 				    unsigned long scan_mask, s16 *data);
 
 	int curr_sampl_freq;
+
+	/* Min and Max Sampling Frequency in mHz */
+	u32 min_freq;
+	u32 max_freq;
+
+	/* event fifo size represented in number of events */
+	u32 fifo_max_event_count;
 };
 
 /**
@@ -176,5 +184,6 @@ extern const struct dev_pm_ops cros_ec_sensors_pm_ops;
 
 /* List of extended channel specification for all sensors */
 extern const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[];
+extern const struct iio_chan_spec_ext_info cros_ec_sensors_limited_info[];
 
 #endif  /* __CROS_EC_SENSORS_CORE_H */
