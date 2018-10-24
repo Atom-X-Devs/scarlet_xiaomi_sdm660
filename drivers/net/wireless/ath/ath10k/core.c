@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/firmware.h>
 #include <linux/of.h>
+#include <linux/property.h>
 #include <linux/dmi.h>
 #include <linux/ctype.h>
 #include <asm/byteorder.h>
@@ -91,6 +92,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rx_ring_fill_level = HTT_RX_RING_FILL_LEVEL,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA988X_HW_2_0_VERSION,
@@ -124,6 +127,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9887_HW_1_0_VERSION,
@@ -157,6 +162,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -189,6 +196,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -221,6 +230,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_3_0_VERSION,
@@ -253,6 +264,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_3_2_VERSION,
@@ -288,6 +301,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = true,
 	},
 	{
 		.id = QCA99X0_HW_2_0_DEV_VERSION,
@@ -326,6 +341,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9984_HW_1_0_DEV_VERSION,
@@ -369,6 +386,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9888_HW_2_0_DEV_VERSION,
@@ -411,6 +430,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9377_HW_1_0_DEV_VERSION,
@@ -443,6 +464,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9377_HW_1_1_DEV_VERSION,
@@ -477,6 +500,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = true,
 	},
 	{
 		.id = QCA4019_HW_1_0_DEV_VERSION,
@@ -516,6 +541,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = false,
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
+		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = WCN3990_HW_1_0_DEV_VERSION,
@@ -539,6 +566,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.per_ce_irq = true,
 		.shadow_reg_support = true,
 		.rri_on_ddr = true,
+		.hw_filter_reset_required = false,
+		.fw_diag_ce_download = false,
 	},
 };
 
@@ -1135,17 +1164,27 @@ static int ath10k_download_fw(struct ath10k *ar)
 		   "boot uploading firmware image %pK len %d\n",
 		   data, data_len);
 
-	ret = ath10k_bmi_fast_download(ar, address, data, data_len);
-	if (ret) {
-		ath10k_err(ar, "failed to download firmware: %d\n",
-			   ret);
-		return ret;
+	/* Check if device supports to download firmware via
+	 * diag copy engine. Downloading firmware via diag CE
+	 * greatly reduces the time to download firmware.
+	 */
+	if (ar->hw_params.fw_diag_ce_download) {
+		ret = ath10k_hw_diag_fast_download(ar, address,
+						   data, data_len);
+		if (ret == 0)
+			/* firmware upload via diag ce was successful */
+			return 0;
+
+		ath10k_warn(ar,
+			    "failed to upload firmware via diag ce, trying BMI: %d",
+			    ret);
 	}
 
-	return ret;
+	return ath10k_bmi_fast_download(ar, address,
+					data, data_len);
 }
 
-static void ath10k_core_free_board_files(struct ath10k *ar)
+void ath10k_core_free_board_files(struct ath10k *ar)
 {
 	if (!IS_ERR(ar->normal_mode_fw.board))
 		release_firmware(ar->normal_mode_fw.board);
@@ -1154,6 +1193,7 @@ static void ath10k_core_free_board_files(struct ath10k *ar)
 	ar->normal_mode_fw.board_data = NULL;
 	ar->normal_mode_fw.board_len = 0;
 }
+EXPORT_SYMBOL(ath10k_core_free_board_files);
 
 static void ath10k_core_free_firmware_files(struct ath10k *ar)
 {
@@ -1440,6 +1480,14 @@ static int ath10k_core_create_board_name(struct ath10k *ar, char *name,
 		goto out;
 	}
 
+	if (ar->id.qmi_ids_valid) {
+		scnprintf(name, name_len,
+			  "bus=%s,qmi-board-id=%x",
+			  ath10k_bus_str(ar->hif.bus),
+			  ar->id.qmi_board_id);
+		goto out;
+	}
+
 	scnprintf(name, name_len,
 		  "bus=%s,vendor=%04x,device=%04x,subsystem-vendor=%04x,subsystem-device=%04x%s",
 		  ath10k_bus_str(ar->hif.bus),
@@ -1451,7 +1499,7 @@ out:
 	return 0;
 }
 
-static int ath10k_core_fetch_board_file(struct ath10k *ar)
+int ath10k_core_fetch_board_file(struct ath10k *ar)
 {
 	char boardname[100], fallback_boardname[100];
 	int ret;
@@ -1489,6 +1537,7 @@ success:
 	ath10k_dbg(ar, ATH10K_DBG_BOOT, "using board api %d\n", ar->bd_api);
 	return 0;
 }
+EXPORT_SYMBOL(ath10k_core_fetch_board_file);
 
 int ath10k_core_fetch_firmware_api_n(struct ath10k *ar, const char *name,
 				     struct ath10k_fw_file *fw_file)
@@ -2405,7 +2454,8 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 	 * possible to implicitly make it correct by creating a dummy vdev and
 	 * then deleting it.
 	 */
-	if (mode == ATH10K_FIRMWARE_MODE_NORMAL) {
+	if (ar->hw_params.hw_filter_reset_required &&
+	    mode == ATH10K_FIRMWARE_MODE_NORMAL) {
 		status = ath10k_core_reset_rx_filter(ar);
 		if (status) {
 			ath10k_err(ar,
@@ -2601,6 +2651,8 @@ static int ath10k_core_probe_fw(struct ath10k *ar)
 
 		ath10k_debug_print_board_info(ar);
 	}
+
+	device_get_mac_address(ar->dev, ar->mac_addr, sizeof(ar->mac_addr));
 
 	ret = ath10k_core_init_firmware_features(ar);
 	if (ret) {
