@@ -296,13 +296,6 @@ PHONY += vdso_install
 vdso_install:
 	$(Q)$(MAKE) $(build)=arch/x86/entry/vdso $@
 
-archprepare: checkbin
-checkbin:
-ifndef CC_HAVE_ASM_GOTO
-	@echo Compiler lacks asm-goto support.
-	@exit 1
-endif
-
 archclean:
 	$(Q)rm -rf $(objtree)/arch/i386
 	$(Q)rm -rf $(objtree)/arch/x86_64

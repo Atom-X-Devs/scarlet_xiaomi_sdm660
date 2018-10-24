@@ -598,7 +598,7 @@ struct icl_mg_phy_ddi_buf_trans {
 	u32 cri_txdeemph_override_17_12;
 };
 
-static const struct icl_mg_phy_ddi_buf_trans icl_mg_phy_ddi_translations[] = {
+static const struct icl_mg_phy_ddi_buf_trans icl_mg_phy_ddi_translations[] __maybe_unused = {
 				/* Voltage swing  pre-emphasis */
 	{ 0x0, 0x1B, 0x00 },	/* 0              0   */
 	{ 0x0, 0x23, 0x08 },	/* 0              1   */
