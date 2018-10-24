@@ -239,6 +239,19 @@ config SND_SOC_INTEL_BXT_RT298_MACH
 	   Say Y or m if you have such a device. This is a recommended option.
 	   If unsure select "N".
 
+config SND_SOC_INTEL_CNL_MAX98373_MACH
+	tristate "ASoC Audio driver for CNL with MAX98373 in I2S Mode"
+	select SND_SOC_MAX98373
+	select SND_SOC_INTEL_SST
+	depends on SND_SOC_INTEL_SKYLAKE
+	select SND_SOC_DMIC
+	select SND_SOC_HDAC_HDMI
+	help
+	  This adds support for ASoC machine driver for CNL and codec MAX98373. This
+	  will create an alsa sound card.
+	  Say Y if you have such a device.
+	  If unsure select "N".
+
 config SND_SOC_INTEL_KBL_RT5663_MAX98927_MACH
 	tristate "KBL with RT5663 and MAX98927 in I2S Mode"
 	depends on MFD_INTEL_LPSS && I2C && ACPI
@@ -298,3 +311,16 @@ config SND_SOC_INTEL_GLK_RT5682_MAX98357A_MACH
 endif ## SND_SOC_INTEL_SKYLAKE
 
 endif ## SND_SOC_INTEL_MACH
+
+config SND_SOC_INTEL_CNL_RT274_MACH
+	tristate "ASoC Audio driver for Cannonlake with RT274 I2S mode"
+	depends on X86 && ACPI && I2C
+	select SND_SOC_INTEL_SST
+	depends on SND_SOC_INTEL_SKYLAKE
+	select SND_SOC_RT274
+	select SND_SOC_DMIC
+	help
+	   This adds support for ASoC machine driver for Cannonlake platform
+	   with RT274 I2S audio codec.
+	   Say Y if you have such a device.
+	   If unsure select "N".
