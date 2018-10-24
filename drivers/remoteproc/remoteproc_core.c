@@ -1122,6 +1122,44 @@ int rproc_coredump_add_segment(struct rproc *rproc, dma_addr_t da, size_t size)
 EXPORT_SYMBOL(rproc_coredump_add_segment);
 
 /**
+ * rproc_coredump_add_custom_segment() - add custom coredump segment
+ * @rproc:	handle of a remote processor
+ * @da:		device address
+ * @size:	size of segment
+ * @dumpfn:	custom dump function called for each segment during coredump
+ * @priv:	private data
+ *
+ * Add device memory to the list of segments to be included in the coredump
+ * and associate the segment with the given custom dump function and private
+ * data.
+ *
+ * Return: 0 on success, negative errno on error.
+ */
+int rproc_coredump_add_custom_segment(struct rproc *rproc,
+				      dma_addr_t da, size_t size,
+				      void (*dumpfn)(struct rproc *rproc,
+						     struct rproc_dump_segment *segment,
+						     void *dest),
+				      void *priv)
+{
+	struct rproc_dump_segment *segment;
+
+	segment = kzalloc(sizeof(*segment), GFP_KERNEL);
+	if (!segment)
+		return -ENOMEM;
+
+	segment->da = da;
+	segment->size = size;
+	segment->priv = priv;
+	segment->dump = dumpfn;
+
+	list_add_tail(&segment->node, &rproc->dump_segments);
+
+	return 0;
+}
+EXPORT_SYMBOL(rproc_coredump_add_custom_segment);
+
+/**
  * rproc_coredump() - perform coredump
  * @rproc:	rproc handle
  *
@@ -1183,14 +1221,18 @@ static void rproc_coredump(struct rproc *rproc)
 		phdr->p_flags = PF_R | PF_W | PF_X;
 		phdr->p_align = 0;
 
-		ptr = rproc_da_to_va(rproc, segment->da, segment->size);
-		if (!ptr) {
-			dev_err(&rproc->dev,
-				"invalid coredump segment (%pad, %zu)\n",
-				&segment->da, segment->size);
-			memset(data + offset, 0xff, segment->size);
+		if (segment->dump) {
+			segment->dump(rproc, segment, data + offset);
 		} else {
-			memcpy(data + offset, ptr, segment->size);
+			ptr = rproc_da_to_va(rproc, segment->da, segment->size);
+			if (!ptr) {
+				dev_err(&rproc->dev,
+					"invalid coredump segment (%pad, %zu)\n",
+					&segment->da, segment->size);
+				memset(data + offset, 0xff, segment->size);
+			} else {
+				memcpy(data + offset, ptr, segment->size);
+			}
 		}
 
 		offset += phdr->p_filesz;
