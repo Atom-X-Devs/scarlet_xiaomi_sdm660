@@ -151,7 +151,11 @@
 			  "TS_INT_L",
 			  "AP_SUSPEND_L",
 			  "SDM_GRFC_3",
-			  "BIOS_FLASH_WP_R_L",
+			  /*
+			   * AP_FLASH_WP_L is crossystem ABI. Rev3 schematics
+			   * call it BIOS_FLASH_WP_R_L.
+			   */
+			  "AP_FLASH_WP_L",
 			  "H1_AP_INT_ODL",
 			  "QLINK_REQ",
 			  "QLINK_EN",
