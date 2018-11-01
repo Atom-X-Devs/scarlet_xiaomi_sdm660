@@ -210,7 +210,7 @@ static int ec_device_open(struct inode *inode, struct file *filp)
 	return retval;
 }
 
-static unsigned int ec_device_poll(struct file *filp, poll_table *wait)
+static __poll_t ec_device_poll(struct file *filp, poll_table *wait)
 {
 	struct cros_ec_priv *priv = filp->private_data;
 
