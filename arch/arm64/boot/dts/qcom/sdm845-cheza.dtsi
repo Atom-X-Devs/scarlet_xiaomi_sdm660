@@ -782,21 +782,15 @@ ap_ts_i2c: &i2c14 {
 		       "gpio47", "gpio48";
 	};
 
-	pinconf-tx {
-		/* We'll drive 46 (RTS) and 47 (TX), so no pull */
-		pins = "gpio46", "gpio47";
+	pinconf {
+		/*
+		 * - We'll drive 46 (RTS) and 47 (TX), so no pull
+		 * - The Bluetooth module will always drive 45 (CTS) and
+		 *   48 (RX) so no pulls there either.
+		 */
+		pins = "gpio45", "gpio46", "gpio47", "gpio48";
 		drive-strength = <2>;
 		bias-disable;
-	};
-
-	pinconf-rx {
-		/*
-		 * Put a pull on 45 (CTS) and 48 (RX) in case other side
-		 * stop driving.
-		 */
-		pins = "gpio45", "gpio48";
-		drive-strength = <2>;
-		bias-pull-up;
 	};
 };
 
