@@ -32,7 +32,7 @@
 
 static DECLARE_WAIT_QUEUE_HEAD(low_mem_wait);
 static atomic_t low_mem_state = ATOMIC_INIT(0);
-unsigned low_mem_margin_mb = 50;
+static unsigned low_mem_margin_mb = 50;
 bool low_mem_margin_enabled = true;
 unsigned long low_mem_minfree;
 unsigned int low_mem_ram_vs_swap_weight = 4;
@@ -72,7 +72,7 @@ static int low_mem_notify_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static unsigned int low_mem_notify_poll(struct file *file, poll_table *wait)
+static __poll_t low_mem_notify_poll(struct file *file, poll_table *wait)
 {
 	unsigned int ret = 0;
 
