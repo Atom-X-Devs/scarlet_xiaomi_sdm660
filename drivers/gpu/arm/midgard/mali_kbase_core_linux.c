@@ -3134,23 +3134,41 @@ static int power_control_init(struct platform_device *pdev)
 {
 	struct kbase_device *kbdev = to_kbase_device(&pdev->dev);
 	int err = 0;
+	const char **reg_names;
+#if defined(CONFIG_REGULATOR)
+	int i;
+#endif
 
 	if (!kbdev)
 		return -ENODEV;
 
+	kbdev->regulator_num = of_property_count_strings(kbdev->dev->of_node,
+		"supply-names");
+
+	reg_names = kcalloc(kbdev->regulator_num, sizeof(char *), GFP_KERNEL);
+
+	if (of_property_read_string_array(kbdev->dev->of_node, "supply-names",
+		reg_names, kbdev->regulator_num) < 0) {
+		dev_err(&pdev->dev, "Failed to get supply names\n");
+		err = -EINVAL;
+		goto fail;
+	}
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)) && defined(CONFIG_OF) \
 			&& defined(CONFIG_REGULATOR)
-	kbdev->regulator = regulator_get_optional(kbdev->dev, "mali");
-	if (IS_ERR_OR_NULL(kbdev->regulator)) {
-		err = PTR_ERR(kbdev->regulator);
-		kbdev->regulator = NULL;
-		if (err == -EPROBE_DEFER) {
-			dev_err(&pdev->dev, "Failed to get regulator\n");
-			return err;
+	for (i = 0; i < kbdev->regulator_num; i++) {
+		kbdev->regulator[i] = regulator_get_optional(kbdev->dev, reg_names[i]);
+		if (IS_ERR_OR_NULL(kbdev->regulator[i])) {
+			err = PTR_ERR(kbdev->regulator[i]);
+			kbdev->regulator[i] = NULL;
+			if (err == -EPROBE_DEFER) {
+				dev_err(&pdev->dev, "Failed to get regulator\n");
+				goto fail;
+			}
+			dev_info(kbdev->dev,
+				"Continuing without %s regulator control\n", reg_names[i]);
+			/* Allow probe to continue without regulator */
 		}
-		dev_info(kbdev->dev,
-			"Continuing without Mali regulator control\n");
-		/* Allow probe to continue without regulator */
 	}
 #endif /* LINUX_VERSION_CODE >= 3, 12, 0 */
 
@@ -3178,6 +3196,15 @@ static int power_control_init(struct platform_device *pdev)
 	/* Register the OPPs if they are available in device tree */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) \
 	|| defined(LSK_OPPV2_BACKPORT)
+#if defined(CONFIG_REGULATOR)
+	kbdev->dev_opp_table = dev_pm_opp_set_regulators(kbdev->dev, reg_names, 2);
+	if (IS_ERR(kbdev->dev_opp_table)) {
+		err = PTR_ERR(kbdev->dev_opp_table);
+		kbdev->dev_opp_table = NULL;
+		dev_err(kbdev->dev, "Failed to set regulators for GPU err: %d\n",
+			err);
+	}
+#endif /* CONFIG_REGULATOR */
 	err = dev_pm_opp_of_add_table(kbdev->dev);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0))
 	err = of_init_opp_table(kbdev->dev);
@@ -3187,6 +3214,8 @@ static int power_control_init(struct platform_device *pdev)
 	if (err)
 		dev_dbg(kbdev->dev, "OPP table not found\n");
 #endif /* CONFIG_OF && CONFIG_PM_OPP */
+
+	kfree(reg_names);
 
 	return 0;
 
@@ -3198,17 +3227,22 @@ if (kbdev->clock != NULL) {
 }
 
 #ifdef CONFIG_REGULATOR
-	if (NULL != kbdev->regulator) {
-		regulator_put(kbdev->regulator);
-		kbdev->regulator = NULL;
+	for (i = 0; i < kbdev->regulator_num; i++) {
+		if (NULL != kbdev->regulator[i]) {
+			regulator_put(kbdev->regulator[i]);
+			kbdev->regulator[i] = NULL;
+		}
 	}
 #endif
+
+	kfree(reg_names);
 
 	return err;
 }
 
 static void power_control_term(struct kbase_device *kbdev)
 {
+	int i;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) || \
 		defined(LSK_OPPV2_BACKPORT)
 	dev_pm_opp_of_remove_table(kbdev->dev);
@@ -3224,11 +3258,20 @@ static void power_control_term(struct kbase_device *kbdev)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)) && defined(CONFIG_OF) \
 			&& defined(CONFIG_REGULATOR)
-	if (kbdev->regulator) {
-		regulator_put(kbdev->regulator);
-		kbdev->regulator = NULL;
+	for (i = 0; i < kbdev->regulator_num; i++) {
+		if (kbdev->regulator[i]) {
+			regulator_put(kbdev->regulator[i]);
+			kbdev->regulator[i] = NULL;
+		}
 	}
 #endif /* LINUX_VERSION_CODE >= 3, 12, 0 */
+
+#ifdef CONFIG_REGULATOR
+	if (kbdev->dev_opp_table != NULL) {
+		dev_pm_opp_put_regulators(kbdev->dev_opp_table);
+		kbdev->dev_opp_table = NULL;
+	}
+#endif
 }
 
 #ifdef MALI_KBASE_BUILD
