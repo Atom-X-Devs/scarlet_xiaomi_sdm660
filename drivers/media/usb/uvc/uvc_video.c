@@ -1649,7 +1649,8 @@ static int uvc_alloc_urb_buffers(struct uvc_streaming *stream,
 /*
  * Uninitialize isochronous/bulk URBs and free transfer buffers.
  */
-static void uvc_uninit_video(struct uvc_streaming *stream, int free_buffers)
+static void uvc_video_stop_transfer(struct uvc_streaming *stream,
+				    int free_buffers)
 {
 	struct uvc_urb *uvc_urb;
 
@@ -1726,7 +1727,7 @@ static int uvc_init_video_isoc(struct uvc_streaming *stream,
 
 		urb = usb_alloc_urb(npackets, gfp_flags);
 		if (urb == NULL) {
-			uvc_uninit_video(stream, 1);
+			uvc_video_stop_transfer(stream, 1);
 			return -ENOMEM;
 		}
 
@@ -1794,7 +1795,7 @@ static int uvc_init_video_bulk(struct uvc_streaming *stream,
 
 		urb = usb_alloc_urb(0, gfp_flags);
 		if (urb == NULL) {
-			uvc_uninit_video(stream, 1);
+			uvc_video_stop_transfer(stream, 1);
 			return -ENOMEM;
 		}
 
@@ -1814,7 +1815,8 @@ static int uvc_init_video_bulk(struct uvc_streaming *stream,
 /*
  * Initialize isochronous/bulk URBs and allocate transfer buffers.
  */
-static int uvc_init_video(struct uvc_streaming *stream, gfp_t gfp_flags)
+static int uvc_video_start_transfer(struct uvc_streaming *stream,
+				    gfp_t gfp_flags)
 {
 	struct usb_interface *intf = stream->intf;
 	struct usb_host_endpoint *ep;
@@ -1902,7 +1904,7 @@ static int uvc_init_video(struct uvc_streaming *stream, gfp_t gfp_flags)
 		if (ret < 0) {
 			uvc_printk(KERN_ERR, "Failed to submit URB %u "
 					"(%d).\n", i, ret);
-			uvc_uninit_video(stream, 1);
+			uvc_video_stop_transfer(stream, 1);
 			return ret;
 		}
 	}
@@ -1933,7 +1935,7 @@ int uvc_video_suspend(struct uvc_streaming *stream)
 		return 0;
 
 	stream->frozen = 1;
-	uvc_uninit_video(stream, 0);
+	uvc_video_stop_transfer(stream, 0);
 	usb_set_interface(stream->dev->udev, stream->intfnum, 0);
 	return 0;
 }
@@ -1969,7 +1971,7 @@ int uvc_video_resume(struct uvc_streaming *stream, int reset)
 	if (ret < 0)
 		return ret;
 
-	return uvc_init_video(stream, GFP_NOIO);
+	return uvc_video_start_transfer(stream, GFP_NOIO);
 }
 
 /* ------------------------------------------------------------------------
@@ -2097,7 +2099,7 @@ int uvc_video_start_streaming(struct uvc_streaming *stream)
 	if (ret < 0)
 		goto error_commit;
 
-	ret = uvc_init_video(stream, GFP_KERNEL);
+	ret = uvc_video_start_transfer(stream, GFP_KERNEL);
 	if (ret < 0)
 		goto error_video;
 
@@ -2113,7 +2115,7 @@ error_commit:
 
 void uvc_video_stop_streaming(struct uvc_streaming *stream)
 {
-	uvc_uninit_video(stream, 1);
+	uvc_video_stop_transfer(stream, 1);
 
 	if (stream->intf->num_altsetting > 1) {
 		usb_set_interface(stream->dev->udev, stream->intfnum, 0);
