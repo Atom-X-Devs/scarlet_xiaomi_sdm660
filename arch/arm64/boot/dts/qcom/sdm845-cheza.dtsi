@@ -979,8 +979,22 @@ ap_ts_i2c: &i2c14 {
 	/*
 	 * pinctrl settings for pins that have no real owners.
 	 */
-	pinctrl-names = "default";
-	pinctrl-0 = <&bios_flash_wp_r_l>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&bios_flash_wp_r_l>,
+		    <&ap_suspend_l_deassert>;
+
+	pinctrl-1 = <&bios_flash_wp_r_l>,
+		    <&ap_suspend_l_assert>;
+
+	/*
+	 * Hogs prevent usermode from changing the value. A GPIO can be both
+	 * here and in the pinctrl section.
+	 */
+	ap-suspend-l-hog {
+		gpio-hog;
+		gpios = <126 GPIO_ACTIVE_LOW>;
+		output-low;
+	};
 
 	ap_edp_bklten: ap-edp-bklten {
 		pinmux {
@@ -1244,6 +1258,26 @@ ap_ts_i2c: &i2c14 {
 			 */
 			drive-strength = <8>;
 			output-high; /* active low reset */
+		};
+	};
+
+	ap_suspend_l_assert: ap_suspend_l_assert {
+		config {
+			pins = "gpio126";
+			function = "gpio";
+			bias-no-pull;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	ap_suspend_l_deassert: ap_suspend_l_deassert {
+		config {
+			pins = "gpio126";
+			function = "gpio";
+			bias-no-pull;
+			drive-strength = <2>;
+			output-high;
 		};
 	};
 };
