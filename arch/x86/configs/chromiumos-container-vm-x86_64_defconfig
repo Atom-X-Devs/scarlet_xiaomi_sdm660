@@ -2787,7 +2787,8 @@ CONFIG_INOTIFY_USER=y
 # CONFIG_QUOTA is not set
 # CONFIG_AUTOFS4_FS is not set
 # CONFIG_AUTOFS_FS is not set
-# CONFIG_FUSE_FS is not set
+CONFIG_FUSE_FS=y
+CONFIG_CUSE=y
 # CONFIG_OVERLAY_FS is not set
 
 #
