@@ -388,6 +388,7 @@ static const struct mtk_mmsys_driver_data mt2701_mmsys_driver_data = {
 	.ext_len = ARRAY_SIZE(mt2701_mtk_ddp_ext),
 	.reg_data = &mt2701_mmsys_reg_data,
 	.shadow_register = true,
+	.clk_drv_name = "clk-mt2701-mm",
 };
 
 static const struct mtk_mmsys_driver_data mt2712_mmsys_driver_data = {
@@ -406,6 +407,7 @@ static const struct mtk_mmsys_driver_data mt8173_mmsys_driver_data = {
 	.ext_path = mt8173_mtk_ddp_ext,
 	.ext_len = ARRAY_SIZE(mt8173_mtk_ddp_ext),
 	.reg_data = &mt8173_mmsys_reg_data,
+	.clk_drv_name = "clk-mt8173-mm",
 };
 
 static const struct mtk_mmsys_driver_data mt8183_mmsys_driver_data = {
@@ -748,6 +750,24 @@ static int mtk_drm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	/*
+	 * For legacy reasons we need to probe the clock driver via
+	 * a platfomr device. This is outdated and should not be used
+	 * in newer SoCs.
+	 */
+	if (private->data->clk_drv_name) {
+		private->clk_dev = platform_device_register_data(dev,
+						private->data->clk_drv_name, -1,
+						NULL, 0);
+
+		if (IS_ERR(private->clk_dev)) {
+			pr_err("failed to register %s platform device\n",
+						private->data->clk_drv_name);
+
+			return PTR_ERR(private->clk_dev);
+		}
+	}
+
 	/* Iterate over sibling DISP function blocks */
 	for_each_child_of_node(dev->of_node->parent, node) {
 		const struct of_device_id *of_id;
@@ -850,6 +870,9 @@ static int mtk_drm_remove(struct platform_device *pdev)
 	of_node_put(private->mutex_node);
 	for (i = 0; i < DDP_COMPONENT_ID_MAX; i++)
 		of_node_put(private->comp_node[i]);
+
+	if (private->clk_dev)
+		platform_device_unregister(private->clk_dev);
 
 	return 0;
 }
