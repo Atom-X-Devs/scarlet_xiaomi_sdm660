@@ -22,25 +22,6 @@
 #define DPU_POWER_EVENT_DISABLE	BIT(0)
 #define DPU_POWER_EVENT_ENABLE	BIT(1)
 
-/**
- * struct dpu_power_client: stores the power client for dpu driver
- * @name:	name of the client
- * @refcount:	current refcount if multiple modules are using same
- *              same client for enable/disable. Power module will
- *              aggregate the refcount and vote accordingly for this
- *              client.
- * @id:		assigned during create. helps for debugging.
- * @list:	list to attach power handle master list
- * @active:	inidcates the state of dpu power handle
- */
-struct dpu_power_client {
-	char name[MAX_CLIENT_NAME_LEN];
-	short refcount;
-	u32 id;
-	struct list_head list;
-	bool active;
-};
-
 /*
  * struct dpu_power_event - local event registration structure
  * @client_name: name of the client registering
@@ -61,13 +42,11 @@ struct dpu_power_event {
 
 /**
  * struct dpu_power_handle: power handle main struct
- * @client_clist: master list to store all clients
  * @phandle_lock: lock to synchronize the enable/disable
  * @dev: pointer to device structure
  * @event_list: current power handle event list
  */
 struct dpu_power_handle {
-	struct list_head power_client_clist;
 	struct mutex phandle_lock;
 	struct device *dev;
 	struct list_head event_list;
@@ -92,35 +71,13 @@ void dpu_power_resource_deinit(struct platform_device *pdev,
 	struct dpu_power_handle *pdata);
 
 /**
- * dpu_power_client_create() - create the client on power handle
- * @pdata:  power handle containing the resources
- * @client_name: new client name for registration
- *
- * Return: error code.
- */
-struct dpu_power_client *dpu_power_client_create(struct dpu_power_handle *pdata,
-	char *client_name);
-
-/**
- * dpu_power_client_destroy() - destroy the client on power handle
- * @pdata:  power handle containing the resources
- * @client_name: new client name for registration
- *
- * Return: none
- */
-void dpu_power_client_destroy(struct dpu_power_handle *phandle,
-	struct dpu_power_client *client);
-
-/**
  * dpu_power_resource_enable() - enable/disable the power resources
  * @pdata:  power handle containing the resources
- * @client: client information to enable/disable its vote
  * @enable: boolean request for enable/disable
  *
  * Return: error code.
  */
-int dpu_power_resource_enable(struct dpu_power_handle *pdata,
-	struct dpu_power_client *pclient, bool enable);
+int dpu_power_resource_enable(struct dpu_power_handle *pdata, bool enable);
 
 /**
  * dpu_power_handle_register_event - register a callback function for an event.
