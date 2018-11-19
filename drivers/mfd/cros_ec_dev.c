@@ -219,7 +219,7 @@ static __poll_t ec_device_poll(struct file *filp, poll_table *wait)
 	if (list_empty(&priv->events))
 		return 0;
 
-	return POLLIN | POLLRDNORM;
+	return EPOLLIN | EPOLLRDNORM;
 }
 
 static int ec_device_release(struct inode *inode, struct file *filp)
