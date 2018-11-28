@@ -853,8 +853,7 @@ finish_pending:
 int
 virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
 				  struct virtio_gpu_object *bo,
-				  struct virtio_gpu_resource_create_3d *rc_3d,
-				  struct virtio_gpu_fence *fence)
+				  struct virtio_gpu_resource_create_3d *rc_3d)
 {
 	struct virtio_gpu_resource_create_3d *cmd_p;
 	struct virtio_gpu_vbuffer *vbuf;
@@ -877,8 +876,7 @@ virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
 	vbuf->data_buf = bo;
 	bo->create_callback_done = false;
 	drm_gem_object_get(&bo->gem_base);
-
-	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
+	virtio_gpu_queue_ctrl_buffer(vgdev, vbuf);
 	bo->created = true;
 	return 0;
 }
