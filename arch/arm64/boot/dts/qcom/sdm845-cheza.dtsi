@@ -37,7 +37,7 @@
 	reserved-memory {
 		rmtfs@88f00000 {
 			compatible = "qcom,rmtfs-mem";
-			reg = <0x0 0x88f00000 0x0 0x200000>;
+			reg = <0x0 0x88f00000 0x0 0x800000>;
 			no-map;
 
 			qcom,client-id = <1>;
@@ -153,6 +153,10 @@
 			};
 		};
 	};
+};
+
+&mpss_region {
+	reg = <0 0x8e000000 0 0x8000000>;
 };
 
 &qspi {
