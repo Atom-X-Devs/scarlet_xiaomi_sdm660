@@ -599,6 +599,18 @@ ap_ts_i2c: &i2c14 {
 	status = "okay";
 };
 
+&sdhc_2 {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdc2_clk &sdc2_cmd &sdc2_data &sd_cd_odl>;
+
+	vmmc-supply = <&src_pp2950_l21a>;
+	vqmmc-supply = <&vddpx_2>;
+
+	cd-gpios = <&tlmm 44 GPIO_ACTIVE_LOW>;
+};
+
 &spi0 {
 	status = "okay";
 	spi-max-frequency = <3000000>;  /* TODO: Drop this? */
@@ -1120,6 +1132,47 @@ ap_ts_i2c: &i2c14 {
 			 * remove "output-high" here.
 			 */
 			output-high;
+		};
+	};
+
+	sdc2_clk: sdc2-clk {
+		pinconf {
+			pins = "sdc2_clk";
+			bias-disable;
+
+			/*
+			 * It seems that mmc_test reports errors if drive
+			 * strength is not 16.
+			 */
+			drive-strength = <16>;
+		};
+	};
+
+	sdc2_cmd: sdc2-cmd {
+		pinconf {
+			pins = "sdc2_cmd";
+			bias-pull-up;
+			drive-strength = <16>;
+		};
+	};
+
+	sdc2_data: sdc2-data {
+		pinconf {
+			pins = "sdc2_data";
+			bias-pull-up;
+			drive-strength = <16>;
+		};
+	};
+
+	sd_cd_odl: sd-cd-odl {
+		pinmux {
+			pins = "gpio44";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio44";
+			bias-pull-up;
 		};
 	};
 
