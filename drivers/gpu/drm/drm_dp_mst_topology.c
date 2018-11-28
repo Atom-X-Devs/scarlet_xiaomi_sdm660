@@ -36,6 +36,7 @@
 #include <drm/drm_fixed.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_crtc_helper.h>
 
 #include "drm_dp_mst_topology_internal.h"
 
@@ -2408,7 +2409,7 @@ static void drm_dp_send_link_address(struct drm_dp_mst_topology_mgr *mgr,
 			for (i = 0; i < txmsg->reply.u.link_addr.nports; i++) {
 				drm_dp_add_port(mstb, mgr->dev, &txmsg->reply.u.link_addr.ports[i]);
 			}
-			(*mgr->cbs->hotplug)(mgr);
+			drm_kms_helper_hotplug_event(mgr->dev);
 		}
 	} else {
 		mstb->link_address_sent = false;
@@ -3256,7 +3257,7 @@ static int drm_dp_mst_handle_up_req(struct drm_dp_mst_topology_mgr *mgr)
 			drm_dp_update_port(mstb, &msg.u.conn_stat);
 
 			DRM_DEBUG_KMS("Got CSN: pn: %d ldps:%d ddps: %d mcs: %d ip: %d pdt: %d\n", msg.u.conn_stat.port_number, msg.u.conn_stat.legacy_device_plug_status, msg.u.conn_stat.displayport_device_plug_status, msg.u.conn_stat.message_capability_status, msg.u.conn_stat.input_port, msg.u.conn_stat.peer_device_type);
-			(*mgr->cbs->hotplug)(mgr);
+			drm_kms_helper_hotplug_event(mgr->dev);
 
 		} else if (msg.req_type == DP_RESOURCE_STATUS_NOTIFY) {
 			drm_dp_send_up_ack_reply(mgr, mgr->mst_primary, msg.req_type, seqno, false);
@@ -4024,7 +4025,7 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 		send_hotplug = true;
 	}
 	if (send_hotplug)
-		(*mgr->cbs->hotplug)(mgr);
+		drm_kms_helper_hotplug_event(mgr->dev);
 }
 
 static struct drm_private_state *
