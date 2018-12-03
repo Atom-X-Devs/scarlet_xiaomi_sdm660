@@ -3222,6 +3222,14 @@ struct __ec_todo_packed ec_result_keyscan_seq_ctrl {
  */
 #define EC_CMD_GET_NEXT_EVENT 0x0067
 
+#define EC_MKBP_HAS_MORE_EVENTS_SHIFT 7
+
+/* EC can provide more MKBP events to host */
+#define EC_MKBP_HAS_MORE_EVENTS (1 << EC_MKBP_HAS_MORE_EVENTS_SHIFT)
+
+/* The mask to apply to get the raw event type */
+#define EC_MKBP_EVENT_TYPE_MASK ((1 << EC_MKBP_HAS_MORE_EVENTS_SHIFT) - 1)
+
 enum ec_mkbp_event {
 	/* Keyboard matrix changed. The event data is the new matrix state. */
 	EC_MKBP_EVENT_KEY_MATRIX = 0,
@@ -3261,6 +3269,13 @@ enum ec_mkbp_event {
 
 	/* Number of MKBP events */
 	EC_MKBP_EVENT_COUNT,
+
+	/*
+	 * Maximum possible event type
+	 * The most significant bit of event type is used to indicate that
+	 * the EC has multiple events for the AP to serve
+	 */
+	EC_MKBP_EVENT_MAX_TYPE = EC_MKBP_EVENT_TYPE_MASK,
 };
 
 union __ec_align_offset1 ec_response_get_next_data {
