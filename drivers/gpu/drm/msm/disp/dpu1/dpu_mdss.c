@@ -13,6 +13,11 @@
 /* Max BW defined in KBps */
 #define MAX_BW				6800000
 
+struct dpu_irq_controller {
+	unsigned long enabled_mask;
+	struct irq_domain *domain;
+};
+
 struct dpu_mdss {
 	struct msm_mdss base;
 	void __iomem *mmio;
