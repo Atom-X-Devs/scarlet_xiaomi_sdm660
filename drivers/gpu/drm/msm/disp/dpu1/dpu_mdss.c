@@ -194,6 +194,7 @@ static void dpu_mdss_destroy(struct drm_device *dev)
 	struct dss_module_power *mp = &dpu_mdss->mp;
 	int i;
 
+	pm_runtime_suspend(dev->dev);
 	pm_runtime_disable(dev->dev);
 	_dpu_mdss_irq_domain_fini(dpu_mdss);
 	free_irq(platform_get_irq(pdev, 0), dpu_mdss);
