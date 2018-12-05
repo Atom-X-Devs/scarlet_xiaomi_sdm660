@@ -473,12 +473,12 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi_pins_1>;
 	mediatek,pad-select = <0>;
-	status = "disabled";
+	status = "okay";
 
-	spidev1: spi@0 {
-		compatible = "linux,spidev";
+	spi@0 {
+		compatible = "winbond,w25q64dw", "jedec,spi-nor";
 		reg = <0>;
-		spi-max-frequency = <1000000>;
+		spi-max-frequency = <25000000>;
 	};
 };
 
