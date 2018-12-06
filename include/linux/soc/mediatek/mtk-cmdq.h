@@ -15,6 +15,12 @@
 
 struct cmdq_pkt;
 
+struct cmdq_client_reg {
+	u8 subsys;
+	u16 offset;
+	u16 size;
+};
+
 struct cmdq_client {
 	spinlock_t lock;
 	u32 pkt_cnt;
@@ -141,5 +147,19 @@ int cmdq_pkt_flush_async(struct cmdq_pkt *pkt, cmdq_async_flush_cb cb,
  * commands have been done.
  */
 int cmdq_pkt_flush(struct cmdq_pkt *pkt);
+
+/**
+ * cmdq_dev_get_client_reg() - parse cmdq client reg from the device node of CMDQ client
+ * @dev:	device of CMDQ mailbox clienti
+ * @client_reg: CMDQ client reg pointer
+ * @idx:	the index of desired reg
+ *
+ * Return: 0 for success; else the error code is returned
+ *
+ * Help CMDQ client pasing the cmdq client reg
+ * from the device node of CMDQ client.
+ */
+int cmdq_dev_get_client_reg(struct device *dev,
+			    struct cmdq_client_reg *client_reg, int idx);
 
 #endif	/* __MTK_CMDQ_H__ */
