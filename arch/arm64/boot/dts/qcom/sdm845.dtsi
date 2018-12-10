@@ -1027,6 +1027,8 @@
 			lanes-per-direction = <2>;
 			power-domains = <&gcc UFS_PHY_GDSC>;
 
+			iommus = <&apps_smmu 0x100 0xf>;
+
 			clock-names =
 				"core_clk",
 				"bus_aggr_clk",
