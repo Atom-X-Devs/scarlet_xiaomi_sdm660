@@ -268,20 +268,6 @@ static struct arm_smmu_option_prop arm_smmu_options[] = {
 	{ 0, NULL},
 };
 
-static inline int arm_smmu_rpm_get(struct arm_smmu_device *smmu)
-{
-	if (pm_runtime_enabled(smmu->dev))
-		return pm_runtime_get_sync(smmu->dev);
-
-	return 0;
-}
-
-static inline void arm_smmu_rpm_put(struct arm_smmu_device *smmu)
-{
-	if (pm_runtime_enabled(smmu->dev))
-		pm_runtime_put(smmu->dev);
-}
-
 static struct arm_smmu_domain *to_smmu_domain(struct iommu_domain *dom)
 {
 	return container_of(dom, struct arm_smmu_domain, domain);
@@ -933,13 +919,9 @@ static void arm_smmu_destroy_domain_context(struct iommu_domain *domain)
 	struct arm_smmu_domain *smmu_domain = to_smmu_domain(domain);
 	struct arm_smmu_device *smmu = smmu_domain->smmu;
 	struct arm_smmu_cfg *cfg = &smmu_domain->cfg;
-	int ret, irq;
+	int irq;
 
 	if (!smmu || domain->type == IOMMU_DOMAIN_IDENTITY)
-		return;
-
-	ret = arm_smmu_rpm_get(smmu);
-	if (ret < 0)
 		return;
 
 	/*
@@ -956,8 +938,6 @@ static void arm_smmu_destroy_domain_context(struct iommu_domain *domain)
 
 	free_io_pgtable_ops(smmu_domain->pgtbl_ops);
 	__arm_smmu_free_bitmap(smmu->context_map, cfg->cbndx);
-
-	arm_smmu_rpm_put(smmu);
 }
 
 static struct iommu_domain *arm_smmu_domain_alloc(unsigned type)
@@ -1239,15 +1219,10 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		return -ENODEV;
 
 	smmu = fwspec_smmu(fwspec);
-
-	ret = arm_smmu_rpm_get(smmu);
-	if (ret < 0)
-		return ret;
-
 	/* Ensure that the domain is finalised */
 	ret = arm_smmu_init_domain_context(domain, smmu);
 	if (ret < 0)
-		goto rpm_put;
+		return ret;
 
 	/*
 	 * Sanity check the domain. We don't support domains across
@@ -1257,62 +1232,41 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		dev_err(dev,
 			"cannot attach to SMMU %s whilst already attached to domain on SMMU %s\n",
 			dev_name(smmu_domain->smmu->dev), dev_name(smmu->dev));
-		ret = -EINVAL;
-		goto rpm_put;
+		return -EINVAL;
 	}
 
 	/* Looks ok, so add the device to the domain */
-	ret = arm_smmu_domain_add_master(smmu_domain, fwspec);
-
-rpm_put:
-	arm_smmu_rpm_put(smmu);
-	return ret;
+	return arm_smmu_domain_add_master(smmu_domain, fwspec);
 }
 
 static int arm_smmu_map(struct iommu_domain *domain, unsigned long iova,
 			phys_addr_t paddr, size_t size, int prot)
 {
 	struct io_pgtable_ops *ops = to_smmu_domain(domain)->pgtbl_ops;
-	struct arm_smmu_device *smmu = to_smmu_domain(domain)->smmu;
-	int ret;
 
 	if (!ops)
 		return -ENODEV;
 
-	arm_smmu_rpm_get(smmu);
-	ret = ops->map(ops, iova, paddr, size, prot);
-	arm_smmu_rpm_put(smmu);
-
-	return ret;
+	return ops->map(ops, iova, paddr, size, prot);
 }
 
 static size_t arm_smmu_unmap(struct iommu_domain *domain, unsigned long iova,
 			     size_t size)
 {
 	struct io_pgtable_ops *ops = to_smmu_domain(domain)->pgtbl_ops;
-	struct arm_smmu_device *smmu = to_smmu_domain(domain)->smmu;
-	size_t ret;
 
 	if (!ops)
 		return 0;
 
-	arm_smmu_rpm_get(smmu);
-	ret = ops->unmap(ops, iova, size);
-	arm_smmu_rpm_put(smmu);
-
-	return ret;
+	return ops->unmap(ops, iova, size);
 }
 
 static void arm_smmu_iotlb_sync(struct iommu_domain *domain)
 {
 	struct arm_smmu_domain *smmu_domain = to_smmu_domain(domain);
-	struct arm_smmu_device *smmu = smmu_domain->smmu;
 
-	if (smmu_domain->tlb_ops) {
-		arm_smmu_rpm_get(smmu);
+	if (smmu_domain->tlb_ops)
 		smmu_domain->tlb_ops->tlb_sync(smmu_domain);
-		arm_smmu_rpm_put(smmu);
-	}
 }
 
 static phys_addr_t arm_smmu_iova_to_phys_hard(struct iommu_domain *domain,
@@ -1459,13 +1413,7 @@ static int arm_smmu_add_device(struct device *dev)
 	while (i--)
 		cfg->smendx[i] = INVALID_SMENDX;
 
-	ret = arm_smmu_rpm_get(smmu);
-	if (ret < 0)
-		goto out_cfg_free;
-
 	ret = arm_smmu_master_alloc_smes(dev);
-	arm_smmu_rpm_put(smmu);
-
 	if (ret)
 		goto out_cfg_free;
 
@@ -1485,7 +1433,7 @@ static void arm_smmu_remove_device(struct device *dev)
 	struct iommu_fwspec *fwspec = dev->iommu_fwspec;
 	struct arm_smmu_master_cfg *cfg;
 	struct arm_smmu_device *smmu;
-	int ret;
+
 
 	if (!fwspec || fwspec->ops != &arm_smmu_ops)
 		return;
@@ -1493,15 +1441,8 @@ static void arm_smmu_remove_device(struct device *dev)
 	cfg  = fwspec->iommu_priv;
 	smmu = cfg->smmu;
 
-	ret = arm_smmu_rpm_get(smmu);
-	if (ret < 0)
-		return;
-
 	iommu_device_unlink(&smmu->iommu, dev);
 	arm_smmu_master_free_smes(fwspec);
-
-	arm_smmu_rpm_put(smmu);
-
 	iommu_group_remove_device(dev);
 	kfree(fwspec->iommu_priv);
 	iommu_fwspec_free(dev);
@@ -2246,17 +2187,6 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	arm_smmu_test_smr_masks(smmu);
 
 	/*
-	 * We want to avoid touching dev->power.lock in fastpaths unless
-	 * it's really going to do something useful - pm_runtime_enabled()
-	 * can serve as an ideal proxy for that decision. So, conditionally
-	 * enable pm_runtime.
-	 */
-	if (dev->pm_domain) {
-		pm_runtime_set_active(dev);
-		pm_runtime_enable(dev);
-	}
-
-	/*
 	 * For ACPI and generic DT bindings, an SMMU will be probed before
 	 * any device which might need it, so we want the bus ops in place
 	 * ready to handle default domain setup as soon as any SMMU exists.
@@ -2291,17 +2221,10 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	if (!bitmap_empty(smmu->context_map, ARM_SMMU_MAX_CBS))
 		dev_err(&pdev->dev, "removing device with active domains!\n");
 
-	arm_smmu_rpm_get(smmu);
 	/* Turn the thing off */
 	writel(sCR0_CLIENTPD, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sCR0);
-	arm_smmu_rpm_put(smmu);
 
-	if (pm_runtime_enabled(smmu->dev))
-		pm_runtime_force_suspend(smmu->dev);
-	else
-		clk_bulk_disable(smmu->num_clks, smmu->clks);
-
-	clk_bulk_unprepare(smmu->num_clks, smmu->clks);
+	clk_bulk_disable_unprepare(smmu->num_clks, smmu->clks);
 
 	return 0;
 }
