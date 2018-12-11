@@ -29,12 +29,12 @@
 #define BCM_TCS_CMD_VOTE_Y_SHFT		0
 #define BCM_TCS_CMD_VOTE_Y_MASK		0xfffc000
 
-#define BCM_TCS_CMD(commit, valid, vote_x, vote_y) \
-	(((commit) << BCM_TCS_CMD_COMMIT_SHFT) |\
-	((valid) << BCM_TCS_CMD_VALID_SHFT) |\
-	((cpu_to_le32(vote_x) &\
-	BCM_TCS_CMD_VOTE_MASK) << BCM_TCS_CMD_VOTE_X_SHFT) |\
-	((cpu_to_le32(vote_y) &\
+#define BCM_TCS_CMD(commit, valid, vote_x, vote_y)		\
+	(((commit) << BCM_TCS_CMD_COMMIT_SHFT) |		\
+	((valid) << BCM_TCS_CMD_VALID_SHFT) |			\
+	((cpu_to_le32(vote_x) &					\
+	BCM_TCS_CMD_VOTE_MASK) << BCM_TCS_CMD_VOTE_X_SHFT) |	\
+	((cpu_to_le32(vote_y) &					\
 	BCM_TCS_CMD_VOTE_MASK) << BCM_TCS_CMD_VOTE_Y_SHFT))
 
 #define to_qcom_provider(_provider) \
@@ -48,15 +48,15 @@ struct qcom_icc_provider {
 };
 
 /**
- * struct bcm_db - Auxiliary data pertaining to each Bus Clock Manager(BCM)
+ * struct bcm_db - Auxiliary data pertaining to each Bus Clock Manager (BCM)
  * @unit: divisor used to convert bytes/sec bw value to an RPMh msg
  * @width: multiplier used to convert bytes/sec bw value to an RPMh msg
  * @vcd: virtual clock domain that this bcm belongs to
  * @reserved: reserved field
  */
 struct bcm_db {
-	u32 unit;
-	u16 width;
+	__le32 unit;
+	__le16 width;
 	u8 vcd;
 	u8 reserved;
 };
@@ -94,7 +94,7 @@ struct qcom_icc_node {
 
 /**
  * struct qcom_icc_bcm - Qualcomm specific hardware accelerator nodes
- * known as Bus Clock Manager(BCM)
+ * known as Bus Clock Manager (BCM)
  * @name: the bcm node name used to fetch BCM data from command db
  * @type: latency or bandwidth bcm
  * @addr: address offsets used when voting to RPMH
@@ -487,7 +487,9 @@ static struct qcom_icc_desc sdm845_rsc_hlos = {
 static int qcom_icc_bcm_init(struct qcom_icc_bcm *bcm, struct device *dev)
 {
 	struct qcom_icc_node *qn;
-	int ret, i;
+	const struct bcm_db *data;
+	size_t data_count;
+	int i;
 
 	bcm->addr = cmd_db_read_addr(bcm->name);
 	if (!bcm->addr) {
@@ -496,27 +498,26 @@ static int qcom_icc_bcm_init(struct qcom_icc_bcm *bcm, struct device *dev)
 		return -EINVAL;
 	}
 
-	if (cmd_db_read_aux_data_len(bcm->name) < sizeof(struct bcm_db)) {
+	data = cmd_db_read_aux_data(bcm->name, &data_count);
+	if (IS_ERR(data)) {
+		dev_err(dev, "%s command db read error (%ld)\n",
+			bcm->name, PTR_ERR(data));
+		return PTR_ERR(data);
+	}
+	if (!data_count) {
 		dev_err(dev, "%s command db missing or partial aux data\n",
 			bcm->name);
 		return -EINVAL;
 	}
 
-	ret = cmd_db_read_aux_data(bcm->name, (u8 *)&bcm->aux_data,
-				   sizeof(struct bcm_db));
-	if (ret < 0) {
-		dev_err(dev, "%s command db read error (%d)\n",
-			bcm->name, ret);
-		return ret;
-	}
-
-	bcm->aux_data.unit = le32_to_cpu(bcm->aux_data.unit);
-	bcm->aux_data.width = le16_to_cpu(bcm->aux_data.width);
+	bcm->aux_data.unit = le32_to_cpu(data->unit);
+	bcm->aux_data.width = le16_to_cpu(data->width);
+	bcm->aux_data.vcd = data->vcd;
+	bcm->aux_data.reserved = data->reserved;
 
 	/*
 	 * Link Qnodes to their respective BCMs
 	 */
-
 	for (i = 0; i < bcm->num_nodes; i++) {
 		qn = bcm->nodes[i];
 		qn->bcms[qn->num_bcms] = bcm;
@@ -555,7 +556,8 @@ inline void tcs_cmd_gen(struct tcs_cmd *cmd, u64 vote_x, u64 vote_y,
 }
 
 static void tcs_list_gen(struct list_head *bcm_list,
-			 struct tcs_cmd *tcs_list, int *n)
+			 struct tcs_cmd tcs_list[SDM845_MAX_VCD],
+			 int n[SDM845_MAX_VCD])
 {
 	struct qcom_icc_bcm *bcm;
 	bool commit;
@@ -765,7 +767,7 @@ static int qnoc_probe(struct platform_device *pdev)
 		icc_node_add(node, provider);
 
 		dev_dbg(&pdev->dev, "registered node %p %s %d\n", node,
-			    qnodes[i]->name, node->id);
+			qnodes[i]->name, node->id);
 
 		/* populate links */
 		for (j = 0; j < qnodes[i]->num_links; j++)
