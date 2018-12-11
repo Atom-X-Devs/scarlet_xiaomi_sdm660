@@ -251,11 +251,11 @@ out:
 	return ret;
 }
 
-/* of_icc_xlate_onecell() - Xlate function using a single index.
+/* of_icc_xlate_onecell() - Translate function using a single index.
  * @spec: OF phandle args to map into an interconnect node.
  * @data: private data (pointer to struct icc_onecell_data)
  *
- * This is a generic xlate function that can be used to model simple
+ * This is a generic translate function that can be used to model simple
  * interconnect providers that have one device tree node and provide
  * multiple interconnect nodes. A single cell is used as an index into
  * an array of icc nodes specified in the icc_onecell_data struct when
@@ -291,7 +291,7 @@ static struct icc_node *of_icc_get_from_provider(struct of_phandle_args *spec)
 	struct icc_node *node = ERR_PTR(-EPROBE_DEFER);
 	struct icc_provider *provider;
 
-	if (!spec)
+	if (!spec || spec->args_count != 1)
 		return ERR_PTR(-EINVAL);
 
 	mutex_lock(&icc_lock);
@@ -311,13 +311,12 @@ static struct icc_node *of_icc_get_from_provider(struct of_phandle_args *spec)
  * @dev: device pointer for the consumer device
  * @name: interconnect path name
  *
- * This function will search for a path two endpoints and return an
- * icc_path handle on success. Use icc_put() to release constraints when
- * they are not needed anymore.
+ * This function will search for a path between two endpoints and return an
+ * icc_path handle on success. Use icc_put() to release constraints when they
+ * are not needed anymore.
  * If the interconnect API is disabled, NULL is returned and the consumer
  * drivers will still build. Drivers are free to handle this specifically,
- * but they don't have to. NULL is also returned when the "interconnects"
- * DT property is missing.
+ * but they don't have to.
  *
  * Return: icc_path pointer on success or ERR_PTR() on error. NULL is returned
  * when the API is disabled or the "interconnects" DT property is missing.
@@ -345,7 +344,7 @@ struct icc_path *of_icc_get(struct device *dev, const char *name)
 
 	/*
 	 * We use a combination of phandle and specifier for endpoint. For now
-	 * lets support only global ids and extend this is the future if needed
+	 * lets support only global ids and extend this in the future if needed
 	 * without breaking DT compatibility.
 	 */
 	if (name) {
@@ -362,9 +361,6 @@ struct icc_path *of_icc_get(struct device *dev, const char *name)
 
 	of_node_put(src_args.np);
 
-	if (!src_args.args_count || src_args.args_count > 1)
-		return ERR_PTR(-EINVAL);
-
 	ret = of_parse_phandle_with_args(np, "interconnects",
 					 "#interconnect-cells", idx * 2 + 1,
 					 &dst_args);
@@ -372,9 +368,6 @@ struct icc_path *of_icc_get(struct device *dev, const char *name)
 		return ERR_PTR(ret);
 
 	of_node_put(dst_args.np);
-
-	if (!dst_args.args_count || dst_args.args_count > 1)
-		return ERR_PTR(-EINVAL);
 
 	src_node = of_icc_get_from_provider(&src_args);
 
