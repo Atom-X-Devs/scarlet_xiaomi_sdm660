@@ -56,5 +56,5 @@ Example:
 	sdhci@7864000 {
 		...
 		interconnects = <&pnoc MASTER_SDCC_1 &bimc SLAVE_EBI_CH0>;
-		interconnect-names = "sdhc-ddr";
+		interconnect-names = "sdhc-mem";
 	};
