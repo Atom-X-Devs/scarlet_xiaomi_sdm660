@@ -2066,7 +2066,7 @@
 				#clock-cells = <1>;
 			};
 
-			qnoc: qnoc {
+			rsc_hlos: interconnect {
 				compatible = "qcom,sdm845-rsc-hlos";
 				#interconnect-cells = <1>;
 			};
