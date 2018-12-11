@@ -204,7 +204,7 @@ out:
  * We want the path to honor all bandwidth requests, so the average and peak
  * bandwidth requirements from each consumer are aggregated at each node.
  * The aggregation is platform specific, so each platform can customize it by
- * implementing it's own aggregate() function.
+ * implementing its own aggregate() function.
  */
 
 static int aggregate_requests(struct icc_node *node)
@@ -228,23 +228,24 @@ static int apply_constraints(struct icc_path *path)
 	int ret = -EINVAL;
 	int i;
 
-	for (i = 0; i < path->num_nodes; i++, prev = next) {
-		struct icc_provider *p;
-
+	for (i = 0; i < path->num_nodes; i++) {
 		next = path->reqs[i].node;
+
 		/*
 		 * Both endpoints should be valid master-slave pairs of the
 		 * same interconnect provider that will be configured.
 		 */
-		if (!prev || next->provider != prev->provider)
+		if (!prev || next->provider != prev->provider) {
+			prev = next;
 			continue;
-
-		p = next->provider;
+		}
 
 		/* set the constraints */
-		ret = p->set(prev, next);
+		ret = next->provider->set(prev, next);
 		if (ret)
 			goto out;
+
+		prev = next;
 	}
 out:
 	return ret;
@@ -442,7 +443,8 @@ int icc_set(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 
 	ret = apply_constraints(path);
 	if (ret)
-		pr_debug("interconnect: error applying constraints (%d)", ret);
+		pr_debug("interconnect: error applying constraints (%d)\n",
+			 ret);
 
 	mutex_unlock(&icc_lock);
 
@@ -531,24 +533,21 @@ static struct icc_node *icc_node_create_nolock(int id)
 	/* check if node already exists */
 	node = node_find(id);
 	if (node)
-		goto out;
+		return node;
 
 	node = kzalloc(sizeof(*node), GFP_KERNEL);
-	if (!node) {
-		node = ERR_PTR(-ENOMEM);
-		goto out;
-	}
+	if (!node)
+		return ERR_PTR(-ENOMEM);
 
 	id = idr_alloc(&icc_idr, node, id, id + 1, GFP_KERNEL);
-	if (WARN(id < 0, "couldn't get idr")) {
+	if (id < 0) {
+		WARN(1, "%s: couldn't get idr\n", __func__);
 		kfree(node);
-		node = ERR_PTR(id);
-		goto out;
+		return ERR_PTR(id);
 	}
 
 	node->id = id;
 
-out:
 	return node;
 }
 
@@ -678,8 +677,7 @@ int icc_link_destroy(struct icc_node *src, struct icc_node *dst)
 
 	src->links[slot] = src->links[--src->num_links];
 
-	new = krealloc(src->links,
-		       (src->num_links) * sizeof(*src->links),
+	new = krealloc(src->links, src->num_links * sizeof(*src->links),
 		       GFP_KERNEL);
 	if (new)
 		src->links = new;
@@ -791,6 +789,6 @@ static void __exit icc_exit(void)
 module_init(icc_init);
 module_exit(icc_exit);
 
-MODULE_AUTHOR("Georgi Djakov <georgi.djakov@linaro.org");
+MODULE_AUTHOR("Georgi Djakov <georgi.djakov@linaro.org>");
 MODULE_DESCRIPTION("Interconnect Driver Core");
 MODULE_LICENSE("GPL v2");

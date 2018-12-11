@@ -11,13 +11,14 @@
 #include <linux/types.h>
 
 /* macros for converting to icc units */
-#define bps_to_icc(x)	(1)
+#define Bps_to_icc(x)	((x) / 1000)
 #define kBps_to_icc(x)	(x)
-#define MBps_to_icc(x)	(x * 1000)
-#define GBps_to_icc(x)	(x * 1000 * 1000)
-#define kbps_to_icc(x)	(x / 8 + ((x) % 8 ? 1 : 0))
-#define Mbps_to_icc(x)	(x * 1000 / 8 )
-#define Gbps_to_icc(x)	(x * 1000 * 1000 / 8)
+#define MBps_to_icc(x)	((x) * 1000)
+#define GBps_to_icc(x)	((x) * 1000 * 1000)
+#define bps_to_icc(x)	(1)
+#define kbps_to_icc(x)	((x) / 8 + ((x) % 8 ? 1 : 0))
+#define Mbps_to_icc(x)	((x) * 1000 / 8)
+#define Gbps_to_icc(x)	((x) * 1000 * 1000 / 8)
 
 struct icc_path;
 struct device;
