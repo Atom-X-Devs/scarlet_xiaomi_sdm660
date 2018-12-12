@@ -38,7 +38,6 @@ static int ec_major;
 
 static const struct attribute_group *cros_ec_groups[] = {
 	&cros_ec_attr_group,
-	&cros_ec_vbc_attr_group,
 #if IS_ENABLED(CONFIG_MFD_CROS_EC_PD_UPDATE)
 	&cros_ec_pd_attr_group,
 #endif
@@ -624,6 +623,7 @@ static const struct mfd_cell cros_usbpd_charger_cells[] = {
 
 static const struct mfd_cell cros_ec_platform_cells[] = {
 	{ .name = "cros-ec-lightbar" },
+	{ .name = "cros-ec-vbc" },
 };
 
 static int ec_device_probe(struct platform_device *pdev)
