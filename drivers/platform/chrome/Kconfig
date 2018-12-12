@@ -145,6 +145,17 @@ config CROS_KBD_LED_BACKLIGHT
 	  To compile this driver as a module, choose M here: the
 	  module will be called cros_kbd_led_backlight.
 
+config CROS_EC_LIGHTBAR
+	tristate "Chromebook Pixel's lightbar support"
+	depends on MFD_CROS_EC_CHARDEV
+	default MFD_CROS_EC_CHARDEV
+	help
+	  This option exposes the Chromebook Pixel's lightbar to
+	  userspace.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cros_ec_lightbar.
+
 config CROS_USBPD_LOGGER
 	tristate "Logging driver for USB PD charger"
 	depends on CHARGER_CROS_USBPD

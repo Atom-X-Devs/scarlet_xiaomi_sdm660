@@ -38,7 +38,6 @@ static int ec_major;
 
 static const struct attribute_group *cros_ec_groups[] = {
 	&cros_ec_attr_group,
-	&cros_ec_lightbar_attr_group,
 	&cros_ec_vbc_attr_group,
 #if IS_ENABLED(CONFIG_MFD_CROS_EC_PD_UPDATE)
 	&cros_ec_pd_attr_group,
@@ -552,20 +551,8 @@ error:
 	kfree(msg);
 }
 
-static const struct mfd_cell cros_ec_cec_cells[] = {
-	{ .name = "cros-ec-cec" }
-};
-
-static const struct mfd_cell cros_ec_rtc_cells[] = {
-	{ .name = "cros-ec-rtc" }
-};
-
-static const struct mfd_cell cros_usbpd_charger_cells[] = {
-	{ .name = "cros-usbpd-charger" },
-	{ .name = "cros-usbpd-logger" },
-};
-
 #define CROS_EC_SENSOR_LEGACY_NUM 2
+
 static struct mfd_cell cros_ec_accel_legacy_cells[CROS_EC_SENSOR_LEGACY_NUM];
 
 static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
@@ -621,6 +608,23 @@ static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
 	if (ret)
 		dev_err(ec_dev->dev, "failed to add EC sensors\n");
 }
+
+static const struct mfd_cell cros_ec_cec_cells[] = {
+	{ .name = "cros-ec-cec" }
+};
+
+static const struct mfd_cell cros_ec_rtc_cells[] = {
+	{ .name = "cros-ec-rtc" }
+};
+
+static const struct mfd_cell cros_usbpd_charger_cells[] = {
+	{ .name = "cros-usbpd-charger" },
+	{ .name = "cros-usbpd-logger" },
+};
+
+static const struct mfd_cell cros_ec_platform_cells[] = {
+	{ .name = "cros-ec-lightbar" },
+};
 
 static int ec_device_probe(struct platform_device *pdev)
 {
@@ -743,15 +747,21 @@ static int ec_device_probe(struct platform_device *pdev)
 				retval);
 	}
 
-	/* Take control of the lightbar from the EC. */
-	lb_manual_suspend_ctrl(ec, 1);
-
 	/* We can now add the sysfs class, we know which parameter to show */
 	retval = cdev_device_add(&ec->cdev, &ec->class_dev);
 	if (retval) {
 		dev_err(dev, "cdev_device_add failed => %d\n", retval);
 		goto failed;
 	}
+
+	retval = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO,
+				 cros_ec_platform_cells,
+				 ARRAY_SIZE(cros_ec_platform_cells),
+				 NULL, 0, NULL);
+	if (retval)
+		dev_warn(ec->dev,
+			 "failed to add cros-ec platform devices: %d\n",
+			 retval);
 
 	if (cros_ec_debugfs_init(ec))
 		dev_warn(dev, "failed to create debugfs directory\n");
@@ -766,9 +776,6 @@ failed:
 static int ec_device_remove(struct platform_device *pdev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(&pdev->dev);
-
-	/* Let the EC take over the lightbar again. */
-	lb_manual_suspend_ctrl(ec, 0);
 
 	cros_ec_debugfs_remove(ec);
 
@@ -798,8 +805,6 @@ static __maybe_unused int ec_device_suspend(struct device *dev)
 
 	cros_ec_debugfs_suspend(ec);
 
-	lb_suspend(ec);
-
 	return 0;
 }
 
@@ -808,8 +813,6 @@ static __maybe_unused int ec_device_resume(struct device *dev)
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
 
 	cros_ec_debugfs_resume(ec);
-
-	lb_resume(ec);
 
 	return 0;
 }
