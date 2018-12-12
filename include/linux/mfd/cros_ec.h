@@ -383,7 +383,4 @@ s64 cros_ec_get_time_ns(void);
  */
 bool cros_ec_handle_event(struct cros_ec_device *ec_dev);
 
-/* sysfs stuff */
-extern struct attribute_group cros_ec_attr_group;
-
 #endif /* __LINUX_MFD_CROS_EC_H */
