@@ -253,7 +253,7 @@ static void perf_domain_debug(const struct cpumask *cpu_map,
 	if (!sched_debug() || !pd)
 		return;
 
-	printk(KERN_DEBUG "root_domain %*pbl: ", cpumask_pr_args(cpu_map));
+	printk(KERN_DEBUG "root_domain %*pbl:", cpumask_pr_args(cpu_map));
 
 	while (pd) {
 		printk(KERN_CONT " pd%d:{ cpus=%*pbl nr_cstate=%d }",
