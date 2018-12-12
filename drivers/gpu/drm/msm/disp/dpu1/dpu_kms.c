@@ -352,7 +352,7 @@ void dpu_kms_encoder_enable(struct drm_encoder *encoder)
 
 	if (crtc && crtc->state->active) {
 		trace_dpu_kms_enc_enable(DRMID(crtc));
-		dpu_crtc_commit_kickoff(crtc);
+		dpu_crtc_commit_kickoff(crtc, false);
 	}
 }
 
@@ -369,7 +369,8 @@ static void dpu_kms_commit(struct msm_kms *kms, struct drm_atomic_state *state)
 
 		if (crtc->state->active) {
 			trace_dpu_kms_commit(DRMID(crtc));
-			dpu_crtc_commit_kickoff(crtc);
+			dpu_crtc_commit_kickoff(crtc,
+						state->legacy_cursor_update);
 		}
 	}
 }
@@ -788,6 +789,9 @@ static int _dpu_kms_mmu_init(struct dpu_kms *dpu_kms)
 	if (!domain)
 		return 0;
 
+	domain->geometry.aperture_start = 0x1000;
+	domain->geometry.aperture_end = 0xffffffff;
+
 	aspace = msm_gem_address_space_create(dpu_kms->dev->dev,
 			domain, "dpu1");
 	if (IS_ERR(aspace)) {
@@ -856,20 +860,20 @@ static int dpu_kms_hw_init(struct msm_kms *kms)
 
 	if (!kms) {
 		DPU_ERROR("invalid kms\n");
-		goto end;
+		return rc;
 	}
 
 	dpu_kms = to_dpu_kms(kms);
 	dev = dpu_kms->dev;
 	if (!dev) {
 		DPU_ERROR("invalid device\n");
-		goto end;
+		return rc;
 	}
 
 	rc = dpu_dbg_init(&dpu_kms->pdev->dev);
 	if (rc) {
 		DRM_ERROR("failed to init dpu dbg: %d\n", rc);
-		goto end;
+		return rc;
 	}
 
 	priv = dev->dev_private;
@@ -1050,7 +1054,6 @@ error:
 	_dpu_kms_hw_destroy(dpu_kms);
 dbg_destroy:
 	dpu_dbg_destroy();
-end:
 	return rc;
 }
 
@@ -1155,7 +1158,7 @@ static int __maybe_unused dpu_runtime_suspend(struct device *dev)
 	ddev = dpu_kms->dev;
 	if (!ddev) {
 		DPU_ERROR("invalid drm_device\n");
-		goto exit;
+		return rc;
 	}
 
 	rc = dpu_power_resource_enable(&dpu_kms->phandle,
@@ -1167,7 +1170,6 @@ static int __maybe_unused dpu_runtime_suspend(struct device *dev)
 	if (rc)
 		DPU_ERROR("clock disable failed rc:%d\n", rc);
 
-exit:
 	return rc;
 }
 
@@ -1182,13 +1184,13 @@ static int __maybe_unused dpu_runtime_resume(struct device *dev)
 	ddev = dpu_kms->dev;
 	if (!ddev) {
 		DPU_ERROR("invalid drm_device\n");
-		goto exit;
+		return rc;
 	}
 
 	rc = msm_dss_enable_clk(mp->clk_config, mp->num_clk, true);
 	if (rc) {
 		DPU_ERROR("clock enable failed rc:%d\n", rc);
-		goto exit;
+		return rc;
 	}
 
 	rc = dpu_power_resource_enable(&dpu_kms->phandle,
@@ -1196,7 +1198,6 @@ static int __maybe_unused dpu_runtime_resume(struct device *dev)
 	if (rc)
 		DPU_ERROR("resource enable failed: %d\n", rc);
 
-exit:
 	return rc;
 }
 

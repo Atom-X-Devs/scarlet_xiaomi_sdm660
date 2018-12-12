@@ -264,13 +264,7 @@ static inline int dpu_crtc_get_mixer_height(struct dpu_crtc *dpu_crtc,
  */
 static inline int dpu_crtc_frame_pending(struct drm_crtc *crtc)
 {
-	struct dpu_crtc *dpu_crtc;
-
-	if (!crtc)
-		return -EINVAL;
-
-	dpu_crtc = to_dpu_crtc(crtc);
-	return atomic_read(&dpu_crtc->frame_pending);
+	return crtc ? atomic_read(&to_dpu_crtc(crtc)->frame_pending) : -EINVAL;
 }
 
 /**
@@ -283,8 +277,9 @@ int dpu_crtc_vblank(struct drm_crtc *crtc, bool en);
 /**
  * dpu_crtc_commit_kickoff - trigger kickoff of the commit for this crtc
  * @crtc: Pointer to drm crtc object
+ * @async: true if the commit is asynchronous, false otherwise
  */
-void dpu_crtc_commit_kickoff(struct drm_crtc *crtc);
+void dpu_crtc_commit_kickoff(struct drm_crtc *crtc, bool async);
 
 /**
  * dpu_crtc_complete_commit - callback signalling completion of current commit
@@ -327,13 +322,7 @@ enum dpu_intf_mode dpu_crtc_get_intf_mode(struct drm_crtc *crtc);
 static inline enum dpu_crtc_client_type dpu_crtc_get_client_type(
 						struct drm_crtc *crtc)
 {
-	struct dpu_crtc_state *cstate =
-			crtc ? to_dpu_crtc_state(crtc->state) : NULL;
-
-	if (!cstate)
-		return NRT_CLIENT;
-
-	return RT_CLIENT;
+	return crtc && crtc->state ? RT_CLIENT : NRT_CLIENT;
 }
 
 /**

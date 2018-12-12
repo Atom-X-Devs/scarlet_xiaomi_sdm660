@@ -65,23 +65,17 @@ static bool _dpu_core_perf_crtc_is_power_on(struct drm_crtc *crtc)
 static bool _dpu_core_video_mode_intf_connected(struct drm_crtc *crtc)
 {
 	struct drm_crtc *tmp_crtc;
-	bool intf_connected = false;
-
-	if (!crtc)
-		goto end;
 
 	drm_for_each_crtc(tmp_crtc, crtc->dev) {
 		if ((dpu_crtc_get_intf_mode(tmp_crtc) == INTF_MODE_VIDEO) &&
 				_dpu_core_perf_crtc_is_power_on(tmp_crtc)) {
 			DPU_DEBUG("video interface connected crtc:%d\n",
 				tmp_crtc->base.id);
-			intf_connected = true;
-			goto end;
+			return true;
 		}
 	}
 
-end:
-	return intf_connected;
+	return false;
 }
 
 static void _dpu_core_perf_calc_crtc(struct dpu_kms *kms,

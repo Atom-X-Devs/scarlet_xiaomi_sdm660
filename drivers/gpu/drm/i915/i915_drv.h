@@ -635,6 +635,8 @@ struct i915_psr {
 	u8 sink_sync_latency;
 	ktime_t last_entry_attempt;
 	ktime_t last_exit;
+	bool sink_not_reliable;
+	bool irq_aux_error;
 };
 
 enum intel_pch {

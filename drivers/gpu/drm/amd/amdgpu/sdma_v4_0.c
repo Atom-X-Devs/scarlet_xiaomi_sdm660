@@ -148,6 +148,7 @@ static const struct soc15_reg_golden golden_settings_sdma0_4_2[] =
 	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_RLC7_RB_RPTR_ADDR_LO, 0xfffffffd, 0x00000001),
 	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_RLC7_RB_WPTR_POLL_CNTL, 0xfffffff7, 0x00403000),
 	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_UTCL1_PAGE, 0x000003ff, 0x000003c0),
+	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_UTCL1_WATERMK, 0xFE000000, 0x00000000),
 };
 
 static const struct soc15_reg_golden golden_settings_sdma1_4_2[] = {
@@ -177,6 +178,7 @@ static const struct soc15_reg_golden golden_settings_sdma1_4_2[] = {
 	SOC15_REG_GOLDEN_VALUE(SDMA1, 0, mmSDMA1_RLC7_RB_RPTR_ADDR_LO, 0xfffffffd, 0x00000001),
 	SOC15_REG_GOLDEN_VALUE(SDMA1, 0, mmSDMA1_RLC7_RB_WPTR_POLL_CNTL, 0xfffffff7, 0x00403000),
 	SOC15_REG_GOLDEN_VALUE(SDMA1, 0, mmSDMA1_UTCL1_PAGE, 0x000003ff, 0x000003c0),
+	SOC15_REG_GOLDEN_VALUE(SDMA1, 0, mmSDMA1_UTCL1_WATERMK, 0xFE000000, 0x00000000),
 };
 
 static const struct soc15_reg_golden golden_settings_sdma_rv1[] =
@@ -818,7 +820,7 @@ sdma_v4_1_update_power_gating(struct amdgpu_device *adev, bool enable)
 	uint32_t def, data;
 
 	if (enable && (adev->pg_flags & AMD_PG_SUPPORT_SDMA)) {
-		/* disable idle interrupt */
+		/* enable idle interrupt */
 		def = data = RREG32(SOC15_REG_OFFSET(SDMA0, 0, mmSDMA0_CNTL));
 		data |= SDMA0_CNTL__CTXEMPTY_INT_ENABLE_MASK;
 
@@ -1364,6 +1366,9 @@ static int sdma_v4_0_hw_init(void *handle)
 	int r;
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
+	if (adev->asic_type == CHIP_RAVEN && adev->powerplay.pp_funcs->set_powergating_by_smu)
+		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_SDMA, false);
+
 	sdma_v4_0_init_golden_registers(adev);
 
 	r = sdma_v4_0_start(adev);
@@ -1380,6 +1385,9 @@ static int sdma_v4_0_hw_fini(void *handle)
 
 	sdma_v4_0_ctx_switch_enable(adev, false);
 	sdma_v4_0_enable(adev, false);
+
+	if (adev->asic_type == CHIP_RAVEN && adev->powerplay.pp_funcs->set_powergating_by_smu)
+		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_SDMA, true);
 
 	return 0;
 }
