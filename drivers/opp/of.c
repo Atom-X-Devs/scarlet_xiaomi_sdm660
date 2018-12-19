@@ -1058,6 +1058,7 @@ int of_dev_pm_opp_get_cpu_power(unsigned long *mW, unsigned long *KHz, int cpu)
 	struct device_node *np;
 	u32 cap;
 	u64 tmp;
+	int ret;
 
 	cpu_dev = get_cpu_device(cpu);
 	if (!cpu_dev)
@@ -1067,7 +1068,9 @@ int of_dev_pm_opp_get_cpu_power(unsigned long *mW, unsigned long *KHz, int cpu)
 	if (!np)
 		return -EINVAL;
 
-	if (of_property_read_u32(np, "dynamic-power-coefficient", &cap))
+	ret = of_property_read_u32(np, "dynamic-power-coefficient", &cap);
+	of_node_put(np);
+	if (ret)
 		return -EINVAL;
 
 	Hz = *KHz * 1000;
