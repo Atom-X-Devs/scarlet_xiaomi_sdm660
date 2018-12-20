@@ -136,8 +136,8 @@ static int
 set_voltages(struct kbase_device *kbdev, unsigned long *target_volt, int inc)
 {
 	unsigned long step_volt[REGULATOR_NUM];
-	ssize_t first, step;
-	ssize_t i;
+	int first, step;
+	int i;
 	int err;
 
 	for (i = 0; i < kbdev->regulator_num; ++i)
