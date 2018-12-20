@@ -1550,6 +1550,8 @@
 
 			operating-points-v2 = <&gpu_opp_table>;
 
+			interconnects = <&rsc_hlos MASTER_GFX3D &rsc_hlos SLAVE_EBI1>;
+
 			qcom,gmu = <&gmu>;
 
 			gpu_opp_table: opp-table {
