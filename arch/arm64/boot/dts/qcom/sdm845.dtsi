@@ -1898,6 +1898,11 @@
 			interrupt-controller;
 			#interrupt-cells = <1>;
 
+			interconnects = <&rsc_hlos MASTER_MDP0 &rsc_hlos SLAVE_EBI1>,
+					<&rsc_hlos MASTER_MDP1 &rsc_hlos SLAVE_EBI1>;
+
+			interconnect-names = "mdp0-mem", "mdp1-mem";
+
 			iommus = <&apps_smmu 0x880 0x8>,
 			         <&apps_smmu 0xc80 0x8>;
 
