@@ -683,6 +683,9 @@
  *	@cred contains the cred of the process where the signal originated, or
  *	NULL if the current task is the originator.
  *	Return 0 if permission is granted.
+ * @task_exit:
+ *      Called early when a task is exiting before all state is lost.
+ *      @p contains the task_struct for process.
  * @task_prctl:
  *	Check permission before performing a process control operation on the
  *	current process.
@@ -1610,6 +1613,7 @@ union security_list_options {
 	int (*task_movememory)(struct task_struct *p);
 	int (*task_kill)(struct task_struct *p, struct siginfo *info,
 				int sig, const struct cred *cred);
+	void (*task_exit)(struct task_struct *p);
 	int (*task_prctl)(int option, unsigned long arg2, unsigned long arg3,
 				unsigned long arg4, unsigned long arg5);
 	void (*task_to_inode)(struct task_struct *p, struct inode *inode);
@@ -1897,6 +1901,7 @@ struct security_hook_heads {
 	struct hlist_head task_getscheduler;
 	struct hlist_head task_movememory;
 	struct hlist_head task_kill;
+	struct hlist_head task_exit;
 	struct hlist_head task_prctl;
 	struct hlist_head task_to_inode;
 	struct hlist_head ipc_permission;
