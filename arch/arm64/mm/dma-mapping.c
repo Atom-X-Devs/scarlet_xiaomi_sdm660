@@ -37,6 +37,9 @@ static int swiotlb __ro_after_init;
 static pgprot_t __get_dma_pgprot(unsigned long attrs, pgprot_t prot,
 				 bool coherent)
 {
+	if (attrs & DMA_ATTR_NON_CONSISTENT)
+		return prot;
+
 	if (!coherent || (attrs & DMA_ATTR_WRITE_COMBINE))
 		return pgprot_writecombine(prot);
 	return prot;
