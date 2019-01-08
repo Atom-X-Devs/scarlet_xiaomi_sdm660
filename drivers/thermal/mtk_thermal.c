@@ -159,6 +159,9 @@
 #define MT7622_NUM_SENSORS_PER_ZONE	1
 #define MT7622_TS1	0
 
+/* The maximum number of banks */
+#define MAX_NUM_ZONES		8
+
 struct mtk_thermal;
 
 struct thermal_bank_cfg {
@@ -178,7 +181,7 @@ struct mtk_thermal_data {
 	const int *sensor_mux_values;
 	const int *msr;
 	const int *adcpnp;
-	struct thermal_bank_cfg bank_data[];
+	struct thermal_bank_cfg bank_data[MAX_NUM_ZONES];
 };
 
 struct mtk_thermal {
@@ -197,7 +200,7 @@ struct mtk_thermal {
 	s32 vts[MT8173_NUM_SENSORS];
 
 	const struct mtk_thermal_data *conf;
-	struct mtk_thermal_bank banks[];
+	struct mtk_thermal_bank banks[MAX_NUM_ZONES];
 };
 
 /* MT8173 thermal sensor data */
