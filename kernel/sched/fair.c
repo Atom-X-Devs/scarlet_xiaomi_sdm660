@@ -6875,7 +6875,7 @@ static unsigned long cpu_util_next(int cpu, struct task_struct *p, int dst_cpu)
 	 * util_avg should already be correct.
 	 */
 	if (task_cpu(p) == cpu && dst_cpu != cpu)
-		util = max_t(long, util - task_util(p), 0);
+		sub_positive(&util, task_util(p));
 	else if (task_cpu(p) != cpu && dst_cpu == cpu)
 		util += task_util(p);
 
@@ -6894,7 +6894,7 @@ static unsigned long cpu_util_next(int cpu, struct task_struct *p, int dst_cpu)
 		util = max(util, util_est);
 	}
 
-	return min_t(unsigned long, util, capacity_orig_of(cpu));
+	return min(util, capacity_orig_of(cpu));
 }
 
 /*
@@ -6904,13 +6904,13 @@ static unsigned long cpu_util_next(int cpu, struct task_struct *p, int dst_cpu)
  * to compute what would be the energy if we decided to actually migrate that
  * task.
  */
-static long compute_energy(struct task_struct *p, int dst_cpu,
-							struct perf_domain *pd)
+static long
+compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
 {
 	long util, max_util, sum_util, energy = 0;
 	int cpu;
 
-	while (pd) {
+	for (; pd; pd = pd->next) {
 		max_util = sum_util = 0;
 		/*
 		 * The capacity state of CPUs of the current rd can be driven by
@@ -6925,13 +6925,12 @@ static long compute_energy(struct task_struct *p, int dst_cpu,
 		for_each_cpu_and(cpu, perf_domain_span(pd), cpu_online_mask) {
 			util = cpu_util_next(cpu, p, dst_cpu);
 			util += cpu_util_rt(cpu_rq(cpu));
-			util = schedutil_freq_util(cpu, util, ENERGY_UTIL);
+			util = schedutil_energy_util(cpu, util);
 			max_util = max(util, max_util);
 			sum_util += util;
 		}
 
-		energy += em_pd_energy(pd->obj, max_util, sum_util);
-		pd = pd->next;
+		energy += em_pd_energy(pd->em_pd, max_util, sum_util);
 	}
 
 	return energy;
@@ -6943,7 +6942,7 @@ static void select_max_spare_cap_cpus(struct sched_domain *sd, cpumask_t *cpus,
 	unsigned long spare_cap, max_spare_cap, util, cpu_cap;
 	int cpu, max_spare_cap_cpu;
 
-	while (pd) {
+	for (; pd; pd = pd->next) {
 		max_spare_cap_cpu = -1;
 		max_spare_cap = 0;
 
@@ -6970,8 +6969,6 @@ static void select_max_spare_cap_cpus(struct sched_domain *sd, cpumask_t *cpus,
 
 		if (max_spare_cap_cpu >= 0)
 			cpumask_set_cpu(max_spare_cap_cpu, cpus);
-
-		pd = pd->next;
 	}
 }
 
@@ -7005,13 +7002,25 @@ static DEFINE_PER_CPU(cpumask_t, energy_cpus);
  * not so much from breaking the tie between identical CPUs. That's also the
  * reason why EAS is enabled in the topology code only for systems where
  * SD_ASYM_CPUCAPACITY is set.
+ *
+ * NOTE: Forkees are not accepted in the energy-aware wake-up path because
+ * they don't have any useful utilization data yet and it's not possible to
+ * forecast their impact on energy consumption. Consequently, they will be
+ * placed by find_idlest_cpu() on the least loaded CPU, which might turn out
+ * to be energy-inefficient in some use-cases. The alternative would be to
+ * bias new tasks towards specific types of CPUs first, or to try to infer
+ * their util_avg from the parent task, but those heuristics could hurt
+ * other use-cases too. So, until someone finds a better way to solve this,
+ * let's keep things simple by re-using the existing slow path.
  */
-static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
-					struct perf_domain *pd, int sync)
+
+static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sync)
 {
 	unsigned long prev_energy = ULONG_MAX, best_energy = ULONG_MAX;
+	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
 	int weight, cpu, best_energy_cpu = prev_cpu;
 	unsigned long cur_energy;
+	struct perf_domain *pd;
 	struct sched_domain *sd;
 	cpumask_t *candidates;
 
@@ -7021,10 +7030,10 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 			return cpu;
 	}
 
-	sync_entity_load_avg(&p->se);
-
-	if (!task_util_est(p))
-		return prev_cpu;
+	rcu_read_lock();
+	pd = rcu_dereference(rd->pd);
+	if (!pd || READ_ONCE(rd->overutilized))
+		goto fail;
 
 	/*
 	 * Energy-aware wake-up happens on the lowest sched_domain starting
@@ -7034,7 +7043,11 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	while (sd && !cpumask_test_cpu(prev_cpu, sched_domain_span(sd)))
 		sd = sd->parent;
 	if (!sd)
-		return prev_cpu;
+		goto fail;
+
+	sync_entity_load_avg(&p->se);
+	if (!task_util_est(p))
+		goto unlock;
 
 	/* Pre-select a set of candidate CPUs. */
 	candidates = this_cpu_ptr(&energy_cpus);
@@ -7048,13 +7061,15 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	/* Bail out if no candidate was found. */
 	weight = cpumask_weight(candidates);
 	if (!weight)
-		return prev_cpu;
+		goto unlock;
 
 	/* If there is only one sensible candidate, select it now. */
 	cpu = cpumask_first(candidates);
 	if (weight == 1 && ((schedtune_prefer_idle(p) && idle_cpu(cpu)) ||
-			    (cpu == prev_cpu)))
-		return cpu;
+			    (cpu == prev_cpu))) {
+		best_energy_cpu = cpu;
+		goto unlock;
+	}
 
 	if (cpumask_test_cpu(prev_cpu, &p->cpus_allowed))
 		prev_energy = best_energy = compute_energy(p, prev_cpu, pd);
@@ -7071,16 +7086,25 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 			best_energy_cpu = cpu;
 		}
 	}
+unlock:
+	rcu_read_unlock();
 
 	/*
 	 * Pick the best CPU if prev_cpu cannot be used, or if it saves at
 	 * least 6% of the energy used by prev_cpu.
 	 */
-	if (prev_energy == ULONG_MAX ||
-			(prev_energy - best_energy) > (prev_energy >> 4))
+	if (prev_energy == ULONG_MAX)
+		return best_energy_cpu;
+
+	if ((prev_energy - best_energy) > (prev_energy >> 4))
 		return best_energy_cpu;
 
 	return prev_cpu;
+
+fail:
+	rcu_read_unlock();
+
+	return -1;
 }
 
 /*
@@ -7105,44 +7129,26 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	int want_affine = 0;
 	int sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
 
-	rcu_read_lock();
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
 
-		/*
-		 * Forkees are not accepted in the energy-aware wake-up path
-		 * because they don't have any useful utilization data yet and
-		 * it's not possible to forecast their impact on energy
-		 * consumption. Consequently, they will be placed by
-		 * find_idlest_cpu() on the least loaded CPU, which might turn
-		 * out to be energy-inefficient in some use-cases. The
-		 * alternative would be to bias new tasks towards specific types
-		 * of CPUs first, or to try to infer their util_avg from the
-		 * parent task, but those heuristics could hurt other use-cases
-		 * too. So, until someone finds a better way to solve this,
-		 * let's keep things simple by re-using the existing slow path.
-		 */
-		if (sched_feat(ENERGY_AWARE)) {
-			struct root_domain *rd = cpu_rq(cpu)->rd;
-			struct perf_domain *pd = rcu_dereference(rd->pd);
-
-			if (!pd || READ_ONCE(rd->overutilized))
-				goto affine;
-
+		if (static_branch_unlikely(&sched_energy_present)) {
 			if (schedtune_prefer_idle(p) && !sched_feat(EAS_PREFER_IDLE) && !sync)
 				goto sd_loop;
 
-			new_cpu = find_energy_efficient_cpu(p, prev_cpu, pd, sync);
-			goto unlock;
+			new_cpu = find_energy_efficient_cpu(p, prev_cpu, sync);
+			if (new_cpu >= 0)
+				return new_cpu;
+			new_cpu = prev_cpu;
 		}
 
-affine:
 		want_affine = !wake_wide(p, sibling_count_hint) &&
 			      !wake_cap(p, cpu, prev_cpu) &&
 			      cpumask_test_cpu(cpu, &p->cpus_allowed);
 	}
 
 sd_loop:
+	rcu_read_lock();
 	for_each_domain(cpu, tmp) {
 		if (!(tmp->flags & SD_LOAD_BALANCE))
 			break;
@@ -7177,7 +7183,6 @@ sd_loop:
 		if (want_affine)
 			current->recent_used_cpu = cpu;
 	}
-unlock:
 	rcu_read_unlock();
 
 	return new_cpu;
@@ -9224,7 +9229,7 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	 */
 	update_sd_lb_stats(env, &sds);
 
-	if (sched_feat(ENERGY_AWARE)) {
+	if (static_branch_unlikely(&sched_energy_present)) {
 		struct root_domain *rd = env->dst_rq->rd;
 
 		if (rcu_dereference(rd->pd) && !READ_ONCE(rd->overutilized))

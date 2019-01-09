@@ -231,12 +231,10 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
  * required to meet deadlines.
  */
 unsigned long schedutil_freq_util(int cpu, unsigned long util,
-				  enum schedutil_type type)
+				  unsigned long max, enum schedutil_type type)
 {
 	struct rq *rq = cpu_rq(cpu);
-	unsigned long irq, max;
-
-	max = arch_scale_cpu_capacity(NULL, cpu);
+	unsigned long irq;
 
 	if (sched_feat(SUGOV_RT_MAX_FREQ) && type == FREQUENCY_UTIL &&
 						rt_rq_is_runnable(&rq->rt))
@@ -316,11 +314,12 @@ static unsigned long sugov_get_util(struct sugov_cpu *sg_cpu)
 {
 	struct rq *rq = cpu_rq(sg_cpu->cpu);
 	unsigned long util = boosted_cpu_util(sg_cpu->cpu, cpu_util_rt(rq));
+	unsigned long max = arch_scale_cpu_capacity(NULL, sg_cpu->cpu);
 
-	sg_cpu->max = arch_scale_cpu_capacity(NULL, sg_cpu->cpu);
+	sg_cpu->max = max;
 	sg_cpu->bw_dl = cpu_bw_dl(rq);
 
-	return schedutil_freq_util(sg_cpu->cpu, util, FREQUENCY_UTIL);
+	return schedutil_freq_util(sg_cpu->cpu, util, max, FREQUENCY_UTIL);
 }
 
 /**
@@ -992,15 +991,15 @@ fs_initcall(sugov_register);
 
 #ifdef CONFIG_ENERGY_MODEL
 extern bool sched_energy_update;
-static DEFINE_MUTEX(rebuild_sd_mutex);
+extern struct mutex sched_energy_mutex;
 
 static void rebuild_sd_workfn(struct work_struct *work)
 {
-	mutex_lock(&rebuild_sd_mutex);
+	mutex_lock(&sched_energy_mutex);
 	sched_energy_update = true;
 	rebuild_sched_domains();
 	sched_energy_update = false;
-	mutex_unlock(&rebuild_sd_mutex);
+	mutex_unlock(&sched_energy_mutex);
 }
 static DECLARE_WORK(rebuild_sd_work, rebuild_sd_workfn);
 

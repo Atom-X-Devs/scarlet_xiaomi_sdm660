@@ -203,6 +203,7 @@ sd_parent_degenerate(struct sched_domain *sd, struct sched_domain *parent)
 
 DEFINE_STATIC_KEY_FALSE(sched_energy_present);
 #if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
+DEFINE_MUTEX(sched_energy_mutex);
 bool sched_energy_update;
 
 static void free_pd(struct perf_domain *pd)
@@ -241,7 +242,7 @@ static struct perf_domain *pd_init(int cpu)
 	pd = kzalloc(sizeof(*pd), GFP_KERNEL);
 	if (!pd)
 		return NULL;
-	pd->obj = obj;
+	pd->em_pd = obj;
 
 	return pd;
 }
@@ -258,7 +259,7 @@ static void perf_domain_debug(const struct cpumask *cpu_map,
 		printk(KERN_CONT " pd%d:{ cpus=%*pbl nr_cstate=%d }",
 				cpumask_first(perf_domain_span(pd)),
 				cpumask_pr_args(perf_domain_span(pd)),
-				em_pd_nr_cap_states(pd->obj));
+				em_pd_nr_cap_states(pd->em_pd));
 		pd = pd->next;
 	}
 
@@ -288,7 +289,7 @@ static void sched_energy_set(bool has_eas)
 
 /*
  * EAS can be used on a root domain if it meets all the following conditions:
- *    1. the ENERGY_AWARE sched_feat is enabled;
+ *    1. an Energy Model (EM) is available;
  *    2. the SD_ASYM_CPUCAPACITY flag is set in the sched_domain hierarchy.
  *    3. the EM complexity is low enough to keep scheduling overheads low;
  *    4. schedutil is driving the frequency of all CPUs of the rd;
@@ -341,8 +342,12 @@ static bool build_perf_domains(const struct cpumask *cpu_map)
 			goto free;
 		gov = policy->governor;
 		cpufreq_cpu_put(policy);
-		if (gov != &schedutil_gov)
+		if (gov != &schedutil_gov) {
+			if (rd->pd)
+				pr_warn("rd %*pbl: Disabling EAS, schedutil is mandatory\n",
+						cpumask_pr_args(cpu_map));
 			goto free;
+		}
 
 		/* Create the new pd and add it to the local list. */
 		tmp = pd_init(i);
@@ -356,13 +361,12 @@ static bool build_perf_domains(const struct cpumask *cpu_map)
 		 * complexity check.
 		 */
 		nr_pd++;
-		nr_cs += em_pd_nr_cap_states(pd->obj);
+		nr_cs += em_pd_nr_cap_states(pd->em_pd);
 	}
 
 	/* Bail out if the Energy Model complexity is too high. */
 	if (nr_pd * (nr_cs + nr_cpus) > EM_MAX_COMPLEXITY) {
-		if (sched_debug())
-			pr_info("rd %*pbl: EM complexity is too high\n ",
+		WARN(1, "rd %*pbl: Failed to start EAS, EM complexity is too high\n",
 						cpumask_pr_args(cpu_map));
 		goto free;
 	}
