@@ -1255,6 +1255,9 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 		if (!force_reclaim)
 			references = page_check_references(page, sc);
+		else if (kstaled_is_enabled())
+			references = kstaled_get_age(page) ?
+				     PAGEREF_ACTIVATE : PAGEREF_RECLAIM;
 
 		switch (references) {
 		case PAGEREF_ACTIVATE:
@@ -1315,6 +1318,9 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto keep_locked;
 		}
 
+		if (kstaled_is_enabled() && kstaled_get_age(page))
+			goto activate_locked;
+
 		/*
 		 * The page is mapped into the page tables of one or more
 		 * processes. Try to unmap it here.
@@ -1329,6 +1335,9 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto activate_locked;
 			}
 		}
+
+		if (kstaled_is_enabled() && kstaled_get_age(page))
+			goto activate_locked;
 
 		if (PageDirty(page)) {
 			/*
@@ -1478,7 +1487,8 @@ activate_locked:
 			try_to_free_swap(page);
 		VM_BUG_ON_PAGE(PageActive(page), page);
 		if (!PageMlocked(page)) {
-			SetPageActive(page);
+			if (!kstaled_is_enabled())
+				SetPageActive(page);
 			pgactivate++;
 			count_memcg_page_event(page, PGACTIVATE);
 		}
@@ -1606,6 +1616,7 @@ int __isolate_lru_page(struct page *page, isolate_mode_t mode)
 		 * sure the page is not being freed elsewhere -- the
 		 * page release code relies on it.
 		 */
+		kstaled_clear_age(page);
 		ClearPageLRU(page);
 		ret = 0;
 	}
@@ -1667,6 +1678,11 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 	unsigned long skipped = 0;
 	unsigned long scan, total_scan, nr_pages;
 	LIST_HEAD(pages_skipped);
+
+	if (kstaled_ring_inuse(lruvec_pgdat(lruvec))) {
+		*nr_scanned = 0;
+		return 0;
+	}
 
 	scan = 0;
 	for (total_scan = 0;
@@ -1778,6 +1794,7 @@ int isolate_lru_page(struct page *page)
 		if (PageLRU(page)) {
 			int lru = page_lru(page);
 			get_page(page);
+			kstaled_clear_age(page);
 			ClearPageLRU(page);
 			del_page_from_lru_list(page, lruvec, lru);
 			ret = 0;
@@ -1850,6 +1867,10 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 		lruvec = mem_cgroup_page_lruvec(page, pgdat);
 
 		SetPageLRU(page);
+		if (kstaled_get_age(page)) {
+			ClearPageReclaim(page);
+			kstaled_set_age(page);
+		}
 		lru = page_lru(page);
 		add_page_to_lru_list(page, lruvec, lru);
 
@@ -1859,6 +1880,7 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 			reclaim_stat->recent_rotated[file] += numpages;
 		}
 		if (put_page_testzero(page)) {
+			kstaled_clear_age(page);
 			__ClearPageLRU(page);
 			__ClearPageActive(page);
 			del_page_from_lru_list(page, lruvec, lru);
@@ -1878,6 +1900,65 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 	 */
 	list_splice(&pages_to_free, page_list);
 }
+
+#ifdef CONFIG_KSTALED
+unsigned long node_shrink_list(struct pglist_data *node, struct list_head *list,
+			       unsigned long isolated, bool file, gfp_t gfp_mask)
+{
+	unsigned long reclaimed;
+	struct lruvec *lruvec = node_lruvec(node);
+	struct scan_control sc = {
+		.gfp_mask = gfp_mask,
+		.may_writepage = 1,
+		.may_unmap = 1,
+		.may_swap = 1,
+	};
+
+	VM_BUG_ON(!isolated);
+	VM_BUG_ON(list_empty(list));
+
+	if (file) {
+		set_bit(PGDAT_DIRTY, &node->flags);
+		set_bit(PGDAT_WRITEBACK, &node->flags);
+		clear_bit(PGDAT_CONGESTED, &node->flags);
+	}
+
+	reclaimed = shrink_page_list(list, node, &sc, 0, NULL, true);
+
+	spin_lock_irq(&node->lru_lock);
+
+	putback_inactive_pages(lruvec, list);
+	__mod_node_page_state(node, NR_ISOLATED_ANON + file, -isolated);
+	if (current_is_kswapd())
+		__count_vm_events(PGSTEAL_KSWAPD, reclaimed);
+	else
+		__count_vm_events(PGSTEAL_DIRECT, reclaimed);
+
+	spin_unlock_irq(&node->lru_lock);
+
+	free_unref_page_list(list);
+
+	if (file)
+		wakeup_flusher_threads(WB_REASON_VMSCAN);
+
+	return reclaimed;
+}
+
+inline unsigned long node_shrink_slab(struct pglist_data *node,
+				      unsigned long scanned,
+				      unsigned long total,
+				      gfp_t gfp_mask)
+{
+	int i;
+
+	for (i = 0; i < DEF_PRIORITY; i++) {
+		if (total >> i <= scanned)
+			break;
+	}
+
+	return shrink_slab(gfp_mask, node->node_id, NULL, i);
+}
+#endif
 
 /*
  * If a kernel thread (such as nfsd for loop-back mounts) services
@@ -3249,6 +3330,10 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		.may_swap = 1,
 	};
 
+	if (kstaled_is_enabled())
+		return kstaled_direct_reclaim(zonelist->_zonerefs->zone,
+					      order, sc.gfp_mask);
+
 	/*
 	 * scan_control uses s8 fields for order, priority, and reclaim_idx.
 	 * Confirm they are large enough for max values.
@@ -3840,6 +3925,9 @@ void wakeup_kswapd(struct zone *zone, gfp_t gfp_flags, int order,
 {
 	pg_data_t *pgdat;
 
+	if (kstaled_is_enabled())
+		return;
+
 	if (!managed_zone(zone))
 		return;
 
@@ -4225,6 +4313,7 @@ void check_move_unevictable_pages(struct pagevec *pvec)
 			VM_BUG_ON_PAGE(PageActive(page), page);
 			ClearPageUnevictable(page);
 			del_page_from_lru_list(page, lruvec, LRU_UNEVICTABLE);
+			kstaled_set_age(page);
 			add_page_to_lru_list(page, lruvec, lru);
 			pgrescued++;
 		}
