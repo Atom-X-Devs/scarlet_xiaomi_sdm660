@@ -1177,7 +1177,7 @@ static void __init_discard_policy(struct f2fs_sb_info *sbi,
 					DEF_MIN_DISCARD_ISSUE_TIME;
 		}
 	} else if (discard_type == DPOLICY_FORCE) {
-		dpolicy->min_interval = dcc->min_discard_issue_time;
+		dpolicy->min_interval = 1;
 		dpolicy->mid_interval = dcc->mid_discard_issue_time;
 		dpolicy->max_interval = dcc->max_discard_issue_time;
 		dpolicy->io_aware = false;
