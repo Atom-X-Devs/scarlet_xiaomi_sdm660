@@ -626,6 +626,11 @@ ap_ts_i2c: &i2c14 {
 	status = "okay";
 };
 
+&mss_pil {
+	firmware-name = "qcom/sdm845-mss/google-cheza/mba.mbn",
+			"qcom/sdm845-mss/google-cheza/modem.mdt";
+};
+
 &qupv3_id_0 {
 	status = "okay";
 };
