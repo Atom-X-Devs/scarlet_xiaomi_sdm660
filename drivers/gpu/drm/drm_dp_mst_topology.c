@@ -1183,11 +1183,13 @@ static void drm_dp_add_port(struct drm_dp_mst_branch *mstb,
 
 	if (old_ddps != port->ddps) {
 		if (port->ddps) {
-			if (!port->input)
-				drm_dp_send_enum_path_resources(mstb->mgr, mstb, port);
+			if (!port->input) {
+				drm_dp_send_enum_path_resources(mstb->mgr,
+								mstb, port);
+			}
 		} else {
 			port->available_pbn = 0;
-			}
+		}
 	}
 
 	if (old_pdt != port->pdt && !port->input) {
@@ -1201,8 +1203,11 @@ static void drm_dp_add_port(struct drm_dp_mst_branch *mstb,
 	if (created && !port->input) {
 		char proppath[255];
 
-		build_mst_prop_path(mstb, port->port_num, proppath, sizeof(proppath));
-		port->connector = (*mstb->mgr->cbs->add_connector)(mstb->mgr, port, proppath);
+		build_mst_prop_path(mstb, port->port_num, proppath,
+				    sizeof(proppath));
+		port->connector = (*mstb->mgr->cbs->add_connector)(mstb->mgr,
+								   port,
+								   proppath);
 		if (!port->connector) {
 			/* remove it from the port list */
 			mutex_lock(&mstb->mgr->lock);
@@ -1215,7 +1220,8 @@ static void drm_dp_add_port(struct drm_dp_mst_branch *mstb,
 		if ((port->pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
 		     port->pdt == DP_PEER_DEVICE_SST_SINK) &&
 		    port->port_num >= DP_MST_LOGICAL_PORT_0) {
-			port->cached_edid = drm_get_edid(port->connector, &port->aux.ddc);
+			port->cached_edid = drm_get_edid(port->connector,
+							 &port->aux.ddc);
 			drm_connector_set_tile_property(port->connector);
 		}
 		(*mstb->mgr->cbs->register_connector)(port->connector);
