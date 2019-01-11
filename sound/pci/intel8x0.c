@@ -2655,8 +2655,6 @@ static int intel8x0_suspend(struct device *dev)
 	int i;
 
 	snd_power_change_state(card, SNDRV_CTL_POWER_D3hot);
-	for (i = 0; i < chip->pcm_devs; i++)
-		snd_pcm_suspend_all(chip->pcm[i]);
 	/* clear nocache */
 	if (chip->fix_nocache) {
 		for (i = 0; i < chip->bdbars_count; i++) {
