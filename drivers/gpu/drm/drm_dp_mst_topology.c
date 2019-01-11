@@ -2094,10 +2094,6 @@ static int drm_dp_payload_send_msg(struct drm_dp_mst_topology_mgr *mgr,
 	u8 sinks[DRM_DP_MAX_SDP_STREAMS];
 	int i;
 
-	port = drm_dp_mst_topology_get_port_validated(mgr, port);
-	if (!port)
-		return -EINVAL;
-
 	port_num = port->port_num;
 	mstb = drm_dp_mst_topology_get_mstb_validated(mgr, port->parent);
 	if (!mstb) {
@@ -2105,10 +2101,8 @@ static int drm_dp_payload_send_msg(struct drm_dp_mst_topology_mgr *mgr,
 							       port->parent,
 							       &port_num);
 
-		if (!mstb) {
-			drm_dp_mst_topology_put_port(port);
+		if (!mstb)
 			return -EINVAL;
-		}
 	}
 
 	txmsg = kzalloc(sizeof(*txmsg), GFP_KERNEL);
@@ -2145,7 +2139,6 @@ static int drm_dp_payload_send_msg(struct drm_dp_mst_topology_mgr *mgr,
 	kfree(txmsg);
 fail_put:
 	drm_dp_mst_topology_put_mstb(mstb);
-	drm_dp_mst_topology_put_port(port);
 	return ret;
 }
 
@@ -2250,15 +2243,16 @@ static int drm_dp_destroy_payload_step2(struct drm_dp_mst_topology_mgr *mgr,
  */
 int drm_dp_update_payload_part1(struct drm_dp_mst_topology_mgr *mgr)
 {
-	int i, j;
-	int cur_slots = 1;
 	struct drm_dp_payload req_payload;
 	struct drm_dp_mst_port *port;
+	int i, j;
+	int cur_slots = 1;
 
 	mutex_lock(&mgr->payload_lock);
 	for (i = 0; i < mgr->max_payloads; i++) {
 		struct drm_dp_vcpi *vcpi = mgr->proposed_vcpis[i];
 		struct drm_dp_payload *payload = &mgr->payloads[i];
+		bool put_port = false;
 
 		/* solve the current payloads - compare to the hw ones
 		   - update the hw view */
@@ -2266,12 +2260,20 @@ int drm_dp_update_payload_part1(struct drm_dp_mst_topology_mgr *mgr)
 		if (vcpi) {
 			port = container_of(vcpi, struct drm_dp_mst_port,
 					    vcpi);
-			port = drm_dp_mst_topology_get_port_validated(mgr,
-								      port);
-			if (!port) {
-				mutex_unlock(&mgr->payload_lock);
-				return -EINVAL;
+
+			/* Validated ports don't matter if we're releasing
+			 * VCPI
+			 */
+			if (vcpi->num_slots) {
+				port = drm_dp_mst_topology_get_port_validated(
+				    mgr, port);
+				if (!port) {
+					mutex_unlock(&mgr->payload_lock);
+					return -EINVAL;
+				}
+				put_port = true;
 			}
+
 			req_payload.num_slots = vcpi->num_slots;
 			req_payload.vcpi = vcpi->vcpi;
 		} else {
@@ -2303,7 +2305,7 @@ int drm_dp_update_payload_part1(struct drm_dp_mst_topology_mgr *mgr)
 		}
 		cur_slots += req_payload.num_slots;
 
-		if (port)
+		if (put_port)
 			drm_dp_mst_topology_put_port(port);
 	}
 
@@ -3112,6 +3114,8 @@ bool drm_dp_mst_allocate_vcpi(struct drm_dp_mst_topology_mgr *mgr,
 	DRM_DEBUG_KMS("initing vcpi for pbn=%d slots=%d\n",
 		      pbn, port->vcpi.num_slots);
 
+	/* Keep port allocated until it's payload has been removed */
+	drm_dp_mst_get_port_malloc(port);
 	drm_dp_mst_topology_put_port(port);
 	return true;
 out:
@@ -3141,11 +3145,12 @@ EXPORT_SYMBOL(drm_dp_mst_get_vcpi_slots);
  */
 void drm_dp_mst_reset_vcpi_slots(struct drm_dp_mst_topology_mgr *mgr, struct drm_dp_mst_port *port)
 {
-	port = drm_dp_mst_topology_get_port_validated(mgr, port);
-	if (!port)
-		return;
+	/*
+	 * A port with VCPI will remain allocated until it's VCPI is
+	 * released, no verified ref needed
+	 */
+
 	port->vcpi.num_slots = 0;
-	drm_dp_mst_topology_put_port(port);
 }
 EXPORT_SYMBOL(drm_dp_mst_reset_vcpi_slots);
 
@@ -3157,16 +3162,17 @@ EXPORT_SYMBOL(drm_dp_mst_reset_vcpi_slots);
 void drm_dp_mst_deallocate_vcpi(struct drm_dp_mst_topology_mgr *mgr,
 				struct drm_dp_mst_port *port)
 {
-	port = drm_dp_mst_topology_get_port_validated(mgr, port);
-	if (!port)
-		return;
+	/*
+	 * A port with VCPI will remain allocated until it's VCPI is
+	 * released, no verified ref needed
+	 */
 
 	drm_dp_mst_put_payload_id(mgr, port->vcpi.vcpi);
 	port->vcpi.num_slots = 0;
 	port->vcpi.pbn = 0;
 	port->vcpi.aligned_pbn = 0;
 	port->vcpi.vcpi = 0;
-	drm_dp_mst_topology_put_port(port);
+	drm_dp_mst_put_port_malloc(port);
 }
 EXPORT_SYMBOL(drm_dp_mst_deallocate_vcpi);
 
