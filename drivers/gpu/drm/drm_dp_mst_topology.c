@@ -3513,10 +3513,11 @@ static void drm_dp_mst_destroy_state(struct drm_private_obj *obj,
 	kfree(mst_state);
 }
 
-static const struct drm_private_state_funcs mst_state_funcs = {
+const struct drm_private_state_funcs drm_dp_mst_topology_state_funcs = {
 	.atomic_duplicate_state = drm_dp_mst_duplicate_state,
 	.atomic_destroy_state = drm_dp_mst_destroy_state,
 };
+EXPORT_SYMBOL(drm_dp_mst_topology_state_funcs);
 
 /**
  * drm_atomic_get_mst_topology_state: get MST topology state
@@ -3600,7 +3601,7 @@ int drm_dp_mst_topology_mgr_init(struct drm_dp_mst_topology_mgr *mgr,
 
 	drm_atomic_private_obj_init(dev, &mgr->base,
 				    &mst_state->base,
-				    &mst_state_funcs);
+				    &drm_dp_mst_topology_state_funcs);
 
 	return 0;
 }
