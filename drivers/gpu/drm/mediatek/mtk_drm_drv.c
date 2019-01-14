@@ -604,6 +604,8 @@ static struct drm_driver mtk_drm_driver = {
 	.gem_prime_mmap = mtk_drm_gem_mmap_buf,
 	.ioctls = mtk_ioctls,
 	.num_ioctls = ARRAY_SIZE(mtk_ioctls),
+	.gem_prime_vmap = mtk_drm_gem_prime_vmap,
+	.gem_prime_vunmap = mtk_drm_gem_prime_vunmap,
 	.fops = &mtk_drm_fops,
 
 	.name = DRIVER_NAME,
