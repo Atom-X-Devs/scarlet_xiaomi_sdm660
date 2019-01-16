@@ -1016,12 +1016,12 @@
 			};
 		};
 
-		ufshc1: ufshc@1d84000 {
+		ufs_mem_hc: ufshc@1d84000 {
 			compatible = "qcom,sdm845-ufshc", "qcom,ufshc",
 				     "jedec,ufs-2.0";
 			reg = <0x1d84000 0x2500>;
 			interrupts = <GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>;
-			phys = <&ufsphy1_lanes>;
+			phys = <&ufs_mem_phy_lanes>;
 			phy-names = "ufsphy";
 			lanes-per-direction = <2>;
 			power-domains = <&gcc UFS_PHY_GDSC>;
@@ -1054,13 +1054,10 @@
 				<0 0>,
 				<0 0>;
 
-			resets = <&gcc GCC_UFS_PHY_BCR>;
-			reset-names = "rst";
-
 			status = "disabled";
 		};
 
-		ufsphy1: phy@1d87000 {
+		ufs_mem_phy: phy@1d87000 {
 			compatible = "qcom,sdm845-qmp-ufs-phy";
 			reg = <0x1d87000 0x18c>;
 			#address-cells = <1>;
@@ -1073,7 +1070,7 @@
 
 			status = "disabled";
 
-			ufsphy1_lanes: lanes@1d87400 {
+			ufs_mem_phy_lanes: lanes@1d87400 {
 				reg = <0x1d87400 0x108>,
 				      <0x1d87600 0x1e0>,
 				      <0x1d87c00 0x1dc>,
