@@ -1536,7 +1536,7 @@
 			compatible = "qcom,adreno-630.2", "qcom,adreno";
 			#stream-id-cells = <16>;
 
-			reg = <0x5000000 0x40000>, <0x509e000 0x10>;
+			reg = <0 0x05000000 0 0x40000>, <0 0x0509e000 0 0x10>;
 			reg-names = "kgsl_3d0_reg_memory", "cx_mem";
 
 			/*
@@ -1594,7 +1594,7 @@
 
 		adreno_smmu: iommu@5040000 {
 			compatible = "qcom,sdm845-smmu-v2", "qcom,smmu-v2";
-			reg = <0x5040000 0x10000>;
+			reg = <0 0x05040000 0 0x10000>;
 			#iommu-cells = <1>;
 			#global-interrupts = <2>;
 			interrupts = <GIC_SPI 229 IRQ_TYPE_LEVEL_HIGH>,
@@ -1617,9 +1617,9 @@
 		gmu: gmu@506a000 {
 			compatible="qcom,adreno-gmu-630.2", "qcom,adreno-gmu";
 
-			reg = <0x506a000 0x30000>,
-				<0xb280000 0x10000>,
-				<0xb480000 0x10000>;
+			reg = <0 0x0506a000 0 0x30000>,
+				<0 0x0b280000 0 0x10000>,
+				<0 0x0b480000 0 0x10000>;
 			reg-names = "gmu", "gmu_pdc", "gmu_pdc_seq";
 
 			interrupts = <GIC_SPI 304 IRQ_TYPE_LEVEL_HIGH>,
