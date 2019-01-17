@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2018, Linaro Ltd.
+ * Copyright (c) 2018-2019, Linaro Ltd.
  * Author: Georgi Djakov <georgi.djakov@linaro.org>
  */
 
@@ -29,7 +29,7 @@ struct icc_path *icc_get(struct device *dev, const int src_id,
 			 const int dst_id);
 struct icc_path *of_icc_get(struct device *dev, const char *name);
 void icc_put(struct icc_path *path);
-int icc_set(struct icc_path *path, u32 avg_bw, u32 peak_bw);
+int icc_set_bw(struct icc_path *path, u32 avg_bw, u32 peak_bw);
 
 #else
 
@@ -49,7 +49,7 @@ static inline void icc_put(struct icc_path *path)
 {
 }
 
-static inline int icc_set(struct icc_path *path, u32 avg_bw, u32 peak_bw)
+static inline int icc_set_bw(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 {
 	return 0;
 }

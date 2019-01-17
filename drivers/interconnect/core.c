@@ -2,7 +2,7 @@
 /*
  * Interconnect framework core driver
  *
- * Copyright (c) 2018, Linaro Ltd.
+ * Copyright (c) 2017-2019, Linaro Ltd.
  * Author: Georgi Djakov <georgi.djakov@linaro.org>
  */
 
@@ -398,7 +398,7 @@ struct icc_path *of_icc_get(struct device *dev, const char *name)
 EXPORT_SYMBOL_GPL(of_icc_get);
 
 /**
- * icc_set() - set constraints on an interconnect path between two endpoints
+ * icc_set_bw() - set bandwidth constraints on an interconnect path
  * @path: reference to the path returned by icc_get()
  * @avg_bw: average bandwidth in kilobytes per second
  * @peak_bw: peak bandwidth in kilobytes per second
@@ -412,7 +412,7 @@ EXPORT_SYMBOL_GPL(of_icc_get);
  *
  * Returns 0 on success, or an appropriate error code otherwise.
  */
-int icc_set(struct icc_path *path, u32 avg_bw, u32 peak_bw)
+int icc_set_bw(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 {
 	struct icc_node *node;
 	size_t i;
@@ -443,7 +443,7 @@ int icc_set(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(icc_set);
+EXPORT_SYMBOL_GPL(icc_set_bw);
 
 /**
  * icc_get() - return a handle for path between two endpoints
@@ -502,7 +502,7 @@ void icc_put(struct icc_path *path)
 	if (!path || WARN_ON(IS_ERR(path)))
 		return;
 
-	ret = icc_set(path, 0, 0);
+	ret = icc_set_bw(path, 0, 0);
 	if (ret)
 		pr_err("%s: error (%d)\n", __func__, ret);
 
@@ -766,21 +766,6 @@ int icc_provider_del(struct icc_provider *provider)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(icc_provider_del);
-
-static int __init icc_init(void)
-{
-	icc_debugfs_dir = debugfs_create_dir("interconnect", NULL);
-	debugfs_create_file("interconnect_summary", 0444,
-			    icc_debugfs_dir, NULL, &icc_summary_fops);
-	return 0;
-}
-
-static void __exit icc_exit(void)
-{
-	debugfs_remove_recursive(icc_debugfs_dir);
-}
-module_init(icc_init);
-module_exit(icc_exit);
 
 MODULE_AUTHOR("Georgi Djakov <georgi.djakov@linaro.org>");
 MODULE_DESCRIPTION("Interconnect Driver Core");
