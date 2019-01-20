@@ -3056,3 +3056,6 @@ OBJS_DIRS := $(dir $(OBJS)) \
 CLEAN_DIRS := $(addsuffix *.o,$(sort $(OBJS_DIRS))) \
 	      $(addsuffix .*.o.cmd,$(sort $(OBJS_DIRS)))
 clean-files := $(CLEAN_DIRS)
+
+subdir-ccflags-y += -Os
+subdir-ccflags-y += -g0
