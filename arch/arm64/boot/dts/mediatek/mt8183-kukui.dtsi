@@ -547,6 +547,36 @@
 			bias-disable;
 		};
 	};
+
+	uart0_pin: uart0default {
+		pins_rx {
+			pinmux = <PINMUX_GPIO95__FUNC_URXD0>;
+			input-enable;
+			bias-pull-up;
+		};
+		pins_tx {
+			pinmux = <PINMUX_GPIO96__FUNC_UTXD0>;
+		};
+	};
+
+	uart1_pin: uart1default {
+		pins_rx {
+			pinmux = <PINMUX_GPIO121__FUNC_URXD1>;
+			input-enable;
+			bias-pull-up;
+		};
+		pins_tx {
+			pinmux = <PINMUX_GPIO115__FUNC_UTXD1>;
+		};
+		pins_rts {
+			pinmux = <PINMUX_GPIO47__FUNC_URTS1>;
+			output-enable;
+		};
+		pins_cts {
+			pinmux = <PINMUX_GPIO46__FUNC_UCTS1>;
+			input-enable;
+		};
+	};
 };
 
 &pwm0 {
@@ -673,6 +703,14 @@
 };
 
 &uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_pin>;
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart1_pin>;
 	status = "okay";
 
 	bluetooth: qca6174-bt {
