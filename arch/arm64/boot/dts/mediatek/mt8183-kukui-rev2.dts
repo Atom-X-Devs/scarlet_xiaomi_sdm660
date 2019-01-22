@@ -298,3 +298,8 @@
 		};
 	};
 };
+
+&scp_pins {
+	/* EINT pins are used for other purpose on rev2. */
+	/delete-node/ pins_eint;
+};

@@ -240,3 +240,14 @@
 		reset-gpios = <&pio 156 0>;
 	};
 };
+
+&i2c6 {
+	status = "disabled";
+};
+
+&scp_pins {
+	pins_scp_uart {
+		pinmux = <PINMUX_GPIO11__FUNC_TP_URXD1_AO>,
+			 <PINMUX_GPIO12__FUNC_TP_UTXD1_AO>;
+	};
+};

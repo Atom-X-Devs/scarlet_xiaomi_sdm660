@@ -72,6 +72,20 @@
 			alignment = <0 0x10000>;
 			alloc-ranges = <0 0x40000000 0 0x60000000>;
 		};
+
+		reserve-memory-vpu_share {
+			compatible = "mediatek,reserve-memory-vpu_share";
+			no-map;
+			size = <0 0x01400000>; /*20 MB share mem size */
+			alignment = <0 0x1000000>;
+			alloc-ranges = <0 0x50000000 0 0x10000000>;
+		};
+
+		scp_mem_reserved: scp_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0 0x50000000 0 0x2900000>;
+			no-map;
+		};
 	};
 };
 
@@ -485,6 +499,19 @@
 		};
 	};
 
+	scp_pins: scp {
+		pins_eint {
+			pinmux = <PINMUX_GPIO5__FUNC_TP_GPIO5_AO>,
+				 <PINMUX_GPIO6__FUNC_TP_GPIO6_AO>,
+				 <PINMUX_GPIO7__FUNC_TP_GPIO7_AO>;
+		};
+
+		pins_scp_uart {
+			pinmux = <PINMUX_GPIO110__FUNC_TP_URXD1_AO>,
+				 <PINMUX_GPIO112__FUNC_TP_UTXD1_AO>;
+		};
+	};
+
 	spi_pins_0: spi0@0 {
 		pins_spi{
 			pinmux = <PINMUX_GPIO85__FUNC_SPI0_MI>,
@@ -583,6 +610,17 @@
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&pwm0_pin_default>;
+};
+
+&scp {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&scp_pins>;
+
+	cros_ec {
+		compatible = "google,cros-ec-rpmsg";
+		mtk,rpmsg-name = "cros-ec-rpmsg";
+	};
 };
 
 &scpsys {
