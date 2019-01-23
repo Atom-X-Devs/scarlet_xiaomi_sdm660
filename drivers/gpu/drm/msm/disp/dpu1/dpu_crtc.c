@@ -1389,21 +1389,14 @@ static int dpu_crtc_debugfs_state_show(struct seq_file *s, void *v)
 {
 	struct drm_crtc *crtc = (struct drm_crtc *) s->private;
 	struct dpu_crtc *dpu_crtc = to_dpu_crtc(crtc);
-	int i;
 
 	seq_printf(s, "client type: %d\n", dpu_crtc_get_client_type(crtc));
 	seq_printf(s, "intf_mode: %d\n", dpu_crtc_get_intf_mode(crtc));
 	seq_printf(s, "core_clk_rate: %llu\n",
 			dpu_crtc->cur_perf.core_clk_rate);
-	for (i = DPU_POWER_HANDLE_DBUS_ID_MNOC;
-			i < DPU_POWER_HANDLE_DBUS_ID_MAX; i++) {
-		seq_printf(s, "bw_ctl[%s]: %llu\n",
-				dpu_power_handle_get_dbus_name(i),
-				dpu_crtc->cur_perf.bw_ctl[i]);
-		seq_printf(s, "max_per_pipe_ib[%s]: %llu\n",
-				dpu_power_handle_get_dbus_name(i),
-				dpu_crtc->cur_perf.max_per_pipe_ib[i]);
-	}
+	seq_printf(s, "bw_ctl: %llu\n", dpu_crtc->cur_perf.bw_ctl);
+	seq_printf(s, "max_per_pipe_ib: %llu\n",
+				dpu_crtc->cur_perf.max_per_pipe_ib);
 
 	return 0;
 }

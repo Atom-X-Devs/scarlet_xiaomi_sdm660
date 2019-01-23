@@ -24,20 +24,6 @@
 #include "dpu_power_handle.h"
 #include "dpu_trace.h"
 
-static const char *data_bus_name[DPU_POWER_HANDLE_DBUS_ID_MAX] = {
-	[DPU_POWER_HANDLE_DBUS_ID_MNOC] = "qcom,dpu-data-bus",
-	[DPU_POWER_HANDLE_DBUS_ID_LLCC] = "qcom,dpu-llcc-bus",
-	[DPU_POWER_HANDLE_DBUS_ID_EBI] = "qcom,dpu-ebi-bus",
-};
-
-const char *dpu_power_handle_get_dbus_name(u32 bus_id)
-{
-	if (bus_id < DPU_POWER_HANDLE_DBUS_ID_MAX)
-		return data_bus_name[bus_id];
-
-	return NULL;
-}
-
 static void dpu_power_event_trigger_locked(struct dpu_power_handle *phandle,
 		u32 event_type)
 {
@@ -66,7 +52,6 @@ struct dpu_power_client *dpu_power_client_create(
 
 	mutex_lock(&phandle->phandle_lock);
 	strlcpy(client->name, client_name, MAX_CLIENT_NAME_LEN);
-	client->usecase_ndx = VOTE_INDEX_DISABLE;
 	client->id = id;
 	client->active = true;
 	pr_debug("client %s created:%pK id :%d\n", client_name,
@@ -143,8 +128,6 @@ int dpu_power_resource_enable(struct dpu_power_handle *phandle,
 	struct dpu_power_client *pclient, bool enable)
 {
 	bool changed = false;
-	u32 max_usecase_ndx = VOTE_INDEX_DISABLE, prev_usecase_ndx;
-	struct dpu_power_client *client;
 	u32 event_type;
 
 	if (!phandle || !pclient) {
@@ -153,31 +136,19 @@ int dpu_power_resource_enable(struct dpu_power_handle *phandle,
 	}
 
 	mutex_lock(&phandle->phandle_lock);
-	if (enable)
+	if (enable) {
 		pclient->refcount++;
-	else if (pclient->refcount)
+		if (pclient->refcount == 1)
+			changed = true;
+	} else if (pclient->refcount) {
 		pclient->refcount--;
-
-	if (pclient->refcount)
-		pclient->usecase_ndx = VOTE_INDEX_LOW;
-	else
-		pclient->usecase_ndx = VOTE_INDEX_DISABLE;
-
-	list_for_each_entry(client, &phandle->power_client_clist, list) {
-		if (client->usecase_ndx < VOTE_INDEX_MAX &&
-		    client->usecase_ndx > max_usecase_ndx)
-			max_usecase_ndx = client->usecase_ndx;
+		if (!pclient->refcount)
+			changed = true;
 	}
 
-	if (phandle->current_usecase_ndx != max_usecase_ndx) {
-		changed = true;
-		prev_usecase_ndx = phandle->current_usecase_ndx;
-		phandle->current_usecase_ndx = max_usecase_ndx;
-	}
-
-	pr_debug("%pS: changed=%d current idx=%d request client %s id:%u enable:%d refcount:%d\n",
-		__builtin_return_address(0), changed, max_usecase_ndx,
-		pclient->name, pclient->id, enable, pclient->refcount);
+	pr_debug("%pS:changed=%d client %s id:%u enable:%d refcount:%d\n",
+		__builtin_return_address(0), changed, pclient->name,
+		pclient->id, enable, pclient->refcount);
 
 	if (!changed)
 		goto end;

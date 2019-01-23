@@ -30,8 +30,8 @@
  * @core_clk_rate: core clock rate request
  */
 struct dpu_core_perf_params {
-	u64 max_per_pipe_ib[DPU_POWER_HANDLE_DBUS_ID_MAX];
-	u64 bw_ctl[DPU_POWER_HANDLE_DBUS_ID_MAX];
+	u64 max_per_pipe_ib;
+	u64 bw_ctl;
 	u64 core_clk_rate;
 };
 
