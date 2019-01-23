@@ -3775,7 +3775,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 
 	err = kbase_backend_early_init(kbdev);
 	if (err) {
-		dev_err(kbdev->dev, "Early backend initialization failed\n");
+		if (err != -EPROBE_DEFER)
+			dev_err(kbdev->dev,
+				"Early backend initialization failed\n");
 		kbase_platform_device_remove(pdev);
 		return err;
 	}

@@ -232,11 +232,8 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 	int err = 0, i;
 	unsigned long volt;
 
-	if (!probe_gpu_core1_dev || !probe_gpu_core2_dev) {
-		dev_err(kbdev->dev,
-		"Wait for other power domain ret: %d\n", -EPROBE_DEFER);
+	if (!probe_gpu_core1_dev || !probe_gpu_core2_dev)
 		return -EPROBE_DEFER;
-	}
 
 	for (i = 0; i < kbdev->regulator_num; i++)
 		if (kbdev->regulator[i] == NULL)
