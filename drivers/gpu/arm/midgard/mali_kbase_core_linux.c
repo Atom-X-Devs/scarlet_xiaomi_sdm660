@@ -3182,14 +3182,6 @@ static int power_control_init(struct platform_device *pdev)
 		}
 		dev_info(kbdev->dev, "Continuing without Mali clock control\n");
 		/* Allow probe to continue without clock. */
-	} else {
-		err = clk_prepare_enable(kbdev->clock);
-		if (err) {
-			dev_err(kbdev->dev,
-				"Failed to prepare and enable clock (%d)\n",
-				err);
-			goto fail;
-		}
 	}
 
 #if defined(CONFIG_OF) && defined(CONFIG_PM_OPP)
@@ -3251,7 +3243,6 @@ static void power_control_term(struct kbase_device *kbdev)
 #endif
 
 	if (kbdev->clock) {
-		clk_disable_unprepare(kbdev->clock);
 		clk_put(kbdev->clock);
 		kbdev->clock = NULL;
 	}
