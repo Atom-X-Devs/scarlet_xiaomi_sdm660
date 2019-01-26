@@ -1613,7 +1613,9 @@ static void vop_win_init(struct vop *vop)
 
 		vop_win->data = win_data;
 		vop_win->vop = vop;
-		vop_win->yuv2yuv_data = &vop_data->win_yuv2yuv[i];
+
+		if (vop_data->win_yuv2yuv)
+			vop_win->yuv2yuv_data = &vop_data->win_yuv2yuv[i];
 	}
 }
 
