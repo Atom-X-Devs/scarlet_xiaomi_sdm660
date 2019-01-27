@@ -2405,8 +2405,11 @@ static void grow_halt_poll_ns(struct kvm_vcpu *vcpu)
 
 	old = val = vcpu->halt_poll_ns;
 	grow = READ_ONCE(halt_poll_ns_grow);
+	if (!grow)
+		goto out;
+
 	/* 10us base */
-	if (val == 0 && grow)
+	if (val == 0)
 		val = 10000;
 	else
 		val *= grow;
@@ -2415,6 +2418,7 @@ static void grow_halt_poll_ns(struct kvm_vcpu *vcpu)
 		val = halt_poll_ns;
 
 	vcpu->halt_poll_ns = val;
+out:
 	trace_kvm_halt_poll_ns_grow(vcpu->vcpu_id, val, old);
 }
 
