@@ -320,7 +320,7 @@ static int platform_init(struct kbase_device *kbdev)
 
 	err = mali_mfgsys_init(kbdev, mfg);
 	if (err)
-		return err;
+		goto platform_init_err;
 
 	kbdev->platform_context = mfg;
 	pm_runtime_enable(kbdev->dev);
@@ -328,23 +328,27 @@ static int platform_init(struct kbase_device *kbdev)
 	err = clk_set_parent(mfg->clk_mux, mfg->clk_sub_parent);
 	if (err) {
 		dev_err(kbdev->dev, "Failed to select sub clock src\n");
-		return err;
+		goto platform_init_err;
 	}
 
 	err = clk_set_rate(mfg->clk_main_parent, GPU_FREQ_KHZ_MAX * 1000);
 	if (err) {
 		dev_err(kbdev->dev, "Failed to set clock %d kHz\n",
 				GPU_FREQ_KHZ_MAX);
-		return err;
+		goto platform_init_err;
 	}
 
 	err = clk_set_parent(mfg->clk_mux, mfg->clk_main_parent);
 	if (err) {
 		dev_err(kbdev->dev, "Failed to select main clock src\n");
-		return err;
+		goto platform_init_err;
 	}
 
 	return 0;
+
+platform_init_err:
+	kfree(mfg);
+	return err;
 }
 
 static void platform_term(struct kbase_device *kbdev)
