@@ -17,8 +17,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define pr_fmt(fmt) "cros_ec_sysfs: " fmt
-
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/device.h>
