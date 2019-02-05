@@ -139,16 +139,16 @@ int wilco_ec_transfer(struct wilco_ec_device *ec, struct wilco_ec_message *msg,
 	/* Start the command */
 	outb(EC_MAILBOX_START_COMMAND, ec->io_command->start);
 
-	/* Wait for it to complete */
-	if (wilco_ec_response_timed_out(ec)) {
-		dev_dbg(ec->dev, "response timed out\n");
-		return -ETIMEDOUT;
-	}
-
 	/* For some commands (eg shutdown) the EC will not respond, that's OK */
 	if (msg->flags & WILCO_EC_FLAG_NO_RESPONSE) {
 		dev_dbg(ec->dev, "EC does not respond to this command\n");
 		return 0;
+	}
+
+	/* Wait for it to complete */
+	if (wilco_ec_response_timed_out(ec)) {
+		dev_dbg(ec->dev, "response timed out\n");
+		return -ETIMEDOUT;
 	}
 
 	/* Check result */
