@@ -2268,6 +2268,8 @@ __poll_t vb2_core_poll(struct vb2_queue *q, struct file *file,
 	if (q->is_output && !(req_events & (EPOLLOUT | EPOLLWRNORM)))
 		return 0;
 
+	poll_wait(file, &q->done_wq, wait);
+
 	/*
 	 * Start file I/O emulator only if streaming API has not been used yet.
 	 */
@@ -2319,8 +2321,6 @@ __poll_t vb2_core_poll(struct vb2_queue *q, struct file *file,
 		 */
 		if (q->last_buffer_dequeued)
 			return EPOLLIN | EPOLLRDNORM;
-
-		poll_wait(file, &q->done_wq, wait);
 	}
 
 	/*
