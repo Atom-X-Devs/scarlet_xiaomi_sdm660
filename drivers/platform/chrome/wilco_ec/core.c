@@ -9,8 +9,6 @@
  * - Initialize the register interface that is used by wilco_ec_mailbox()
  * - Create a platform device which is picked up by the debugfs driver
  * - Create a platform device which is picked up by the RTC driver
- * - Initialize the sysfs entries
- * - Set up event handling
  */
 
 #include <linux/acpi.h>
@@ -32,7 +30,7 @@ static struct resource *wilco_get_resource(struct platform_device *pdev,
 
 	res = platform_get_resource(pdev, IORESOURCE_IO, index);
 	if (!res) {
-		dev_dbg(dev, "couldn't find IO resource %d\n", index);
+		dev_dbg(dev, "Couldn't find IO resource %d\n", index);
 		return res;
 	}
 
