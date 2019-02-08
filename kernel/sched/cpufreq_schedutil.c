@@ -231,12 +231,10 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
  * required to meet deadlines.
  */
 unsigned long schedutil_freq_util(int cpu, unsigned long util,
-				  enum schedutil_type type)
+				  unsigned long max, enum schedutil_type type)
 {
+	unsigned long dl_util, irq;
 	struct rq *rq = cpu_rq(cpu);
-	unsigned long irq, max;
-
-	max = arch_scale_cpu_capacity(NULL, cpu);
 
 	if (sched_feat(SUGOV_RT_MAX_FREQ) && type == FREQUENCY_UTIL &&
 						rt_rq_is_runnable(&rq->rt))
@@ -257,29 +255,26 @@ unsigned long schedutil_freq_util(int cpu, unsigned long util,
 	 * to be delt with. The exact way of doing things depend on the calling
 	 * context.
 	 */
-	if (type == FREQUENCY_UTIL) {
-		/*
-		 * For frequency selection we do not make cpu_util_dl() a
-		 * permanent part of this sum because we want to use
-		 * cpu_bw_dl() later on, but we need to check if the
-		 * CFS+RT+DL sum is saturated (ie. no idle time) such
-		 * that we select f_max when there is no idle time.
-		 *
-		 * NOTE: numerical errors or stop class might cause us
-		 * to not quite hit saturation when we should --
-		 * something for later.
-		 */
-		if ((util + cpu_util_dl(rq)) >= max)
-			return max;
-	} else {
-		/*
-		 * OTOH, for energy computation we need the estimated
-		 * running time, so include util_dl and ignore dl_bw.
-		 */
-		util += cpu_util_dl(rq);
-		if (util >= max)
-			return max;
-	}
+	dl_util = cpu_util_dl(rq);
+
+	/*
+	 * For frequency selection we do not make cpu_util_dl() a permanent part
+	 * of this sum because we want to use cpu_bw_dl() later on, but we need
+	 * to check if the CFS+RT+DL sum is saturated (ie. no idle time) such
+	 * that we select f_max when there is no idle time.
+	 *
+	 * NOTE: numerical errors or stop class might cause us to not quite hit
+	 * saturation when we should -- something for later.
+	 */
+	if (util + dl_util >= max)
+		return max;
+
+	/*
+	 * OTOH, for energy computation we need the estimated running time, so
+	 * include util_dl and ignore dl_bw.
+	 */
+	if (type == ENERGY_UTIL)
+		util += dl_util;
 
 	/*
 	 * There is still idle time; further improve the number by using the
@@ -293,21 +288,18 @@ unsigned long schedutil_freq_util(int cpu, unsigned long util,
 	util = scale_irq_capacity(util, irq, max);
 	util += irq;
 
-	if (type == FREQUENCY_UTIL) {
-		/*
-		 * Bandwidth required by DEADLINE must always be granted
-		 * while, for FAIR and RT, we use blocked utilization of
-		 * IDLE CPUs as a mechanism to gracefully reduce the
-		 * frequency when no tasks show up for longer periods of
-		 * time.
-		 *
-		 * Ideally we would like to set bw_dl as min/guaranteed
-		 * freq and util + bw_dl as requested freq. However,
-		 * cpufreq is not yet ready for such an interface. So,
-		 * we only do the latter for now.
-		 */
+	/*
+	 * Bandwidth required by DEADLINE must always be granted while, for
+	 * FAIR and RT, we use blocked utilization of IDLE CPUs as a mechanism
+	 * to gracefully reduce the frequency when no tasks show up for longer
+	 * periods of time.
+	 *
+	 * Ideally we would like to set bw_dl as min/guaranteed freq and util +
+	 * bw_dl as requested freq. However, cpufreq is not yet ready for such
+	 * an interface. So, we only do the latter for now.
+	 */
+	if (type == FREQUENCY_UTIL)
 		util += cpu_bw_dl(rq);
-	}
 
 	return min(max, util);
 }
@@ -316,11 +308,12 @@ static unsigned long sugov_get_util(struct sugov_cpu *sg_cpu)
 {
 	struct rq *rq = cpu_rq(sg_cpu->cpu);
 	unsigned long util = boosted_cpu_util(sg_cpu->cpu, cpu_util_rt(rq));
+	unsigned long max = arch_scale_cpu_capacity(NULL, sg_cpu->cpu);
 
-	sg_cpu->max = arch_scale_cpu_capacity(NULL, sg_cpu->cpu);
+	sg_cpu->max = max;
 	sg_cpu->bw_dl = cpu_bw_dl(rq);
 
-	return schedutil_freq_util(sg_cpu->cpu, util, FREQUENCY_UTIL);
+	return schedutil_freq_util(sg_cpu->cpu, util, max, FREQUENCY_UTIL);
 }
 
 /**
@@ -992,15 +985,15 @@ fs_initcall(sugov_register);
 
 #ifdef CONFIG_ENERGY_MODEL
 extern bool sched_energy_update;
-static DEFINE_MUTEX(rebuild_sd_mutex);
+extern struct mutex sched_energy_mutex;
 
 static void rebuild_sd_workfn(struct work_struct *work)
 {
-	mutex_lock(&rebuild_sd_mutex);
+	mutex_lock(&sched_energy_mutex);
 	sched_energy_update = true;
 	rebuild_sched_domains();
 	sched_energy_update = false;
-	mutex_unlock(&rebuild_sd_mutex);
+	mutex_unlock(&sched_energy_mutex);
 }
 static DECLARE_WORK(rebuild_sd_work, rebuild_sd_workfn);
 

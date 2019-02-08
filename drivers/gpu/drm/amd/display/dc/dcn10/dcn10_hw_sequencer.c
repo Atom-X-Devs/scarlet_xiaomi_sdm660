@@ -91,9 +91,10 @@ static void log_mpc_crc(struct dc *dc,
 void dcn10_log_hubbub_state(struct dc *dc, struct dc_log_buffer_ctx *log_ctx)
 {
 	struct dc_context *dc_ctx = dc->ctx;
-	struct dcn_hubbub_wm wm = {0};
+	struct dcn_hubbub_wm wm;
 	int i;
 
+	memset(&wm, 0, sizeof(struct dcn_hubbub_wm));
 	hubbub1_wm_read_state(dc->res_pool->hubbub, &wm);
 
 	DTN_INFO("HUBBUB WM:      data_urgent  pte_meta_urgent"
@@ -997,7 +998,21 @@ static void dcn10_init_hw(struct dc *dc)
 	} else {
 
 		if (!dcb->funcs->is_accelerated_mode(dcb)) {
+			bool allow_self_fresh_force_enable =
+					hububu1_is_allow_self_refresh_enabled(dc->res_pool->hubbub);
+
 			bios_golden_init(dc);
+
+			/* WA for making DF sleep when idle after resume from S0i3.
+			 * DCHUBBUB_ARB_ALLOW_SELF_REFRESH_FORCE_ENABLE is set to 1 by
+			 * command table, if DCHUBBUB_ARB_ALLOW_SELF_REFRESH_FORCE_ENABLE = 0
+			 * before calling command table and it changed to 1 after,
+			 * it should be set back to 0.
+			 */
+			if (allow_self_fresh_force_enable == false &&
+					hububu1_is_allow_self_refresh_enabled(dc->res_pool->hubbub))
+				hubbub1_disable_allow_self_refresh(dc->res_pool->hubbub);
+
 			disable_vga(dc->hwseq);
 		}
 

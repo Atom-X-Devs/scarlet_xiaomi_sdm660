@@ -35,6 +35,10 @@ usage() {
 build_one() {
 	local arch=$1
 	local kernarch
+	local binutils_patch
+	local prefix
+	local compiler
+	local mid
 
 	# Map debian archs to kernel archs.
 	case "${arch}" in
@@ -45,6 +49,30 @@ build_one() {
 	echo ""
 	echo "***************************************"
 	echo "* Processing ${arch} (${kernarch}) ... "
+
+	if [[ "${arch}" == "arm64" ]]; then
+		prefix=aarch64
+		compiler=clang
+		cross="${prefix}-cros-linux-gnu"
+	elif [[ "${arch}" == "x86_64" ]]; then
+		prefix=x86_64
+		compiler=clang
+		cross="${prefix}-cros-linux-gnu"
+	elif [[ "${arch}" == "i386" ]]; then
+		# Not really supported
+		prefix=i686
+		compiler=gcc
+		cross="${prefix}-pc-linux-gnu"
+	elif [[ "${arch}" == "armel" ]]; then
+		prefix=armv7a
+		compiler=gcc
+		cross="${prefix}-cros-linux-gnueabi"
+	fi
+
+	set -- \
+		LD="${cross}-ld" \
+		CC="${cross}-${compiler}" \
+		CXX="${cross}-g++"
 
 	local O="$(pwd)/build/${arch}"
 	mkdir -p "${O}"
@@ -67,7 +95,7 @@ build_one() {
 		oldconfig|olddefconfig)
 			# Weed out incorrect config parameters
 			echo "* Run ${mode} on ${arch}/${config} ..."
-			make -j O="${O}" ARCH=${kernarch} "${mode}"
+			make -j O="${O}" ARCH=${kernarch} "$@" "${mode}"
 			;;
 		editconfig)
 			# Interactively edit config parameters
@@ -86,11 +114,11 @@ build_one() {
 			case ${REPLY} in
 			s|S)
 				echo "* Skip: running oldconfig"
-				make -j O="${O}" ARCH=${kernarch} oldconfig
+				make -j O="${O}" ARCH=${kernarch} "$@" oldconfig
 				;;
 			*)
 				echo "* Running menuconfig"
-				make -j O="${O}" ARCH=${kernarch} menuconfig
+				make -j O="${O}" ARCH=${kernarch} "$@" menuconfig
 				;;
 			esac
 			;;
@@ -105,8 +133,8 @@ build_one() {
 		        # likely formatted already at this point, however
 		        # this only take a split-second and could flag some
 		        # issues.
-			make -j O="${O}" ARCH=${kernarch} oldconfig
-			make -j O="${O}" ARCH=${kernarch} savedefconfig
+			make -j O="${O}" ARCH=${kernarch} "$@" oldconfig
+			make -j O="${O}" ARCH=${kernarch} "$@" savedefconfig
 			mv "${O}"/.config "CONFIGS/${arch}-${config}"
 			mv "${O}"/defconfig "CONFIGS/${arch}-${config}.def"
 		fi
@@ -157,6 +185,10 @@ main() {
 		esac
 	done
 	shift $(( OPTIND - 1 ))
+
+	if [[ ! -e /etc/cros_chroot_version ]]; then
+		die "You must run this command inside the chroot"
+	fi
 
 	# Process the remaining args.
 	local mode=$1

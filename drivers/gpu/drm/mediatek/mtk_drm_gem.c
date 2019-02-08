@@ -248,8 +248,8 @@ int mtk_gem_map_offset_ioctl(struct drm_device *drm, void *data,
 {
 	struct drm_mtk_gem_map_off *args = data;
 
-	return drm->driver->dumb_map_offset(file_priv, drm, args->handle,
-					    &args->offset);
+	return drm_gem_dumb_map_offset(file_priv, drm, args->handle,
+				       &args->offset);
 }
 
 int mtk_gem_create_ioctl(struct drm_device *dev, void *data,

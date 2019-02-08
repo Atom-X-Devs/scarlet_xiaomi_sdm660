@@ -10,6 +10,7 @@
 
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
+#include <linux/debugfs.h>
 #include <linux/energy_model.h>
 #include <linux/sched/topology.h>
 #include <linux/slab.h>
@@ -23,82 +24,60 @@ static DEFINE_PER_CPU(struct em_perf_domain *, em_data);
  */
 static DEFINE_MUTEX(em_pd_mutex);
 
-static struct kobject *em_kobject;
+#ifdef CONFIG_DEBUG_FS
+static struct dentry *rootdir;
 
-/* Getters for the attributes of em_perf_domain objects */
-struct em_pd_attr {
-	struct attribute attr;
-	ssize_t (*show)(struct em_perf_domain *pd, char *buf);
-	ssize_t (*store)(struct em_perf_domain *pd, const char *buf, size_t s);
-};
-
-#define EM_ATTR_LEN 13
-#define show_table_attr(_attr) \
-static ssize_t show_##_attr(struct em_perf_domain *pd, char *buf) \
-{ \
-	ssize_t cnt = 0; \
-	int i; \
-	for (i = 0; i < pd->nr_cap_states; i++) { \
-		if (cnt >= (ssize_t) (PAGE_SIZE / sizeof(char) \
-				      - (EM_ATTR_LEN + 2))) \
-			goto out; \
-		cnt += scnprintf(&buf[cnt], EM_ATTR_LEN + 1, "%lu ", \
-				 pd->table[i]._attr); \
-	} \
-out: \
-	cnt += sprintf(&buf[cnt], "\n"); \
-	return cnt; \
-}
-
-show_table_attr(power);
-show_table_attr(frequency);
-show_table_attr(cost);
-
-static ssize_t show_cpus(struct em_perf_domain *pd, char *buf)
+static void em_debug_create_cs(struct em_cap_state *cs, struct dentry *pd)
 {
-	return sprintf(buf, "%*pbl\n", cpumask_pr_args(to_cpumask(pd->cpus)));
+	struct dentry *d;
+	char name[24];
+
+	snprintf(name, sizeof(name), "cs:%lu", cs->frequency);
+
+	/* Create per-cs directory */
+	d = debugfs_create_dir(name, pd);
+	debugfs_create_ulong("frequency", 0444, d, &cs->frequency);
+	debugfs_create_ulong("power", 0444, d, &cs->power);
+	debugfs_create_ulong("cost", 0444, d, &cs->cost);
 }
 
-#define pd_attr(_name) em_pd_##_name##_attr
-#define define_pd_attr(_name) static struct em_pd_attr pd_attr(_name) = \
-		__ATTR(_name, 0444, show_##_name, NULL)
-
-define_pd_attr(power);
-define_pd_attr(frequency);
-define_pd_attr(cost);
-define_pd_attr(cpus);
-
-static struct attribute *em_pd_default_attrs[] = {
-	&pd_attr(power).attr,
-	&pd_attr(frequency).attr,
-	&pd_attr(cost).attr,
-	&pd_attr(cpus).attr,
-	NULL
-};
-
-#define to_pd(k) container_of(k, struct em_perf_domain, kobj)
-#define to_pd_attr(a) container_of(a, struct em_pd_attr, attr)
-
-static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
+static int em_debug_cpus_show(struct seq_file *s, void *unused)
 {
-	struct em_perf_domain *pd = to_pd(kobj);
-	struct em_pd_attr *pd_attr = to_pd_attr(attr);
-	ssize_t ret;
+	seq_printf(s, "%*pbl\n", cpumask_pr_args(to_cpumask(s->private)));
 
-	ret = pd_attr->show(pd, buf);
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(em_debug_cpus);
 
-	return ret;
+static void em_debug_create_pd(struct em_perf_domain *pd, int cpu)
+{
+	struct dentry *d;
+	char name[8];
+	int i;
+
+	snprintf(name, sizeof(name), "pd%d", cpu);
+
+	/* Create the directory of the performance domain */
+	d = debugfs_create_dir(name, rootdir);
+
+	debugfs_create_file("cpus", 0444, d, pd->cpus, &em_debug_cpus_fops);
+
+	/* Create a sub-directory for each capacity state */
+	for (i = 0; i < pd->nr_cap_states; i++)
+		em_debug_create_cs(&pd->table[i], d);
 }
 
-static const struct sysfs_ops em_pd_sysfs_ops = {
-	.show	= show,
-};
+static int __init em_debug_init(void)
+{
+	/* Create /sys/kernel/debug/energy_model directory */
+	rootdir = debugfs_create_dir("energy_model", NULL);
 
-static struct kobj_type ktype_em_pd = {
-	.sysfs_ops	= &em_pd_sysfs_ops,
-	.default_attrs	= em_pd_default_attrs,
-};
-
+	return 0;
+}
+core_initcall(em_debug_init);
+#else /* CONFIG_DEBUG_FS */
+static void em_debug_create_pd(struct em_perf_domain *pd, int cpu) {}
+#endif
 static struct em_perf_domain *em_create_pd(cpumask_t *span, int nr_states,
 						struct em_data_callback *cb)
 {
@@ -162,7 +141,7 @@ static struct em_perf_domain *em_create_pd(cpumask_t *span, int nr_states,
 		 */
 		opp_eff = freq / power;
 		if (opp_eff >= prev_opp_eff)
-			pr_warn("pd%d: hertz/watts ratio non-monotonically decreasing: OPP%d >= OPP%d\n",
+			pr_warn("pd%d: hertz/watts ratio non-monotonically decreasing: em_cap_state %d >= em_cap_state%d\n",
 					cpu, i, i - 1);
 		prev_opp_eff = opp_eff;
 	}
@@ -178,10 +157,7 @@ static struct em_perf_domain *em_create_pd(cpumask_t *span, int nr_states,
 	pd->nr_cap_states = nr_states;
 	cpumask_copy(to_cpumask(pd->cpus), span);
 
-	ret = kobject_init_and_add(&pd->kobj, &ktype_em_pd, em_kobject,
-				   "pd%u", cpu);
-	if (ret)
-		pr_err("pd%d: failed kobject_init_and_add(): %d\n", cpu, ret);
+	em_debug_create_pd(pd, cpu);
 
 	return pd;
 
@@ -236,15 +212,6 @@ int em_register_perf_domain(cpumask_t *span, unsigned int nr_states,
 	 */
 	mutex_lock(&em_pd_mutex);
 
-	if (!em_kobject) {
-		em_kobject = kobject_create_and_add("energy_model",
-						&cpu_subsys.dev_root->kobj);
-		if (!em_kobject) {
-			ret = -ENODEV;
-			goto unlock;
-		}
-	}
-
 	for_each_cpu(cpu, span) {
 		/* Make sure we don't register again an existing domain. */
 		if (READ_ONCE(per_cpu(em_data, cpu))) {
@@ -273,8 +240,14 @@ int em_register_perf_domain(cpumask_t *span, unsigned int nr_states,
 		goto unlock;
 	}
 
-	for_each_cpu(cpu, span)
-		WRITE_ONCE(per_cpu(em_data, cpu), pd);
+	for_each_cpu(cpu, span) {
+		/*
+		 * The per-cpu array can be read concurrently from em_cpu_get().
+		 * The barrier enforces the ordering needed to make sure readers
+		 * can only access well formed em_perf_domain structs.
+		 */
+		smp_store_release(per_cpu_ptr(&em_data, cpu), pd);
+	}
 
 	pr_debug("Created perf domain %*pbl\n", cpumask_pr_args(span));
 unlock:

@@ -792,4 +792,13 @@ config GUP_BENCHMARK
 config ARCH_HAS_PTE_SPECIAL
 	bool
 
+config MM_METRICS
+	bool "Collect additional memory statistics"
+	help
+	  Collect swap refault distances (seconds), swap read latencies and direct
+	  reclaim latencies (nanoseconds). They are provided userspace via
+	  /sys/kernel/debug/mm_metrics/{swap_refault,swap_latency,reclaim_latency}
+	  in histograms.
+	default n
+
 endmenu

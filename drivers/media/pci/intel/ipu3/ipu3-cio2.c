@@ -1066,8 +1066,8 @@ static int cio2_v4l2_querycap(struct file *file, void *fh,
 {
 	struct cio2_device *cio2 = video_drvdata(file);
 
-	strlcpy(cap->driver, CIO2_NAME, sizeof(cap->driver));
-	strlcpy(cap->card, CIO2_DEVICE_NAME, sizeof(cap->card));
+	strscpy(cap->driver, CIO2_NAME, sizeof(cap->driver));
+	strscpy(cap->card, CIO2_DEVICE_NAME, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info),
 		 "PCI:%s", pci_name(cio2->pci_dev));
 
@@ -1145,7 +1145,7 @@ cio2_video_enum_input(struct file *file, void *fh, struct v4l2_input *input)
 	if (input->index > 0)
 		return -EINVAL;
 
-	strlcpy(input->name, "camera", sizeof(input->name));
+	strscpy(input->name, "camera", sizeof(input->name));
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 
 	return 0;
@@ -1785,7 +1785,7 @@ static int cio2_pci_probe(struct pci_dev *pci_dev,
 	mutex_init(&cio2->lock);
 
 	cio2->media_dev.dev = &cio2->pci_dev->dev;
-	strlcpy(cio2->media_dev.model, CIO2_DEVICE_NAME,
+	strscpy(cio2->media_dev.model, CIO2_DEVICE_NAME,
 		sizeof(cio2->media_dev.model));
 	snprintf(cio2->media_dev.bus_info, sizeof(cio2->media_dev.bus_info),
 		 "PCI:%s", pci_name(cio2->pci_dev));
@@ -1846,12 +1846,12 @@ static void cio2_pci_remove(struct pci_dev *pci_dev)
 	struct cio2_device *cio2 = pci_get_drvdata(pci_dev);
 	unsigned int i;
 
+	media_device_unregister(&cio2->media_dev);
 	cio2_notifier_exit(cio2);
-	cio2_fbpt_exit_dummy(cio2);
 	for (i = 0; i < CIO2_QUEUES; i++)
 		cio2_queue_exit(cio2, &cio2->queue[i]);
+	cio2_fbpt_exit_dummy(cio2);
 	v4l2_device_unregister(&cio2->v4l2_dev);
-	media_device_unregister(&cio2->media_dev);
 	media_device_cleanup(&cio2->media_dev);
 	mutex_destroy(&cio2->lock);
 }

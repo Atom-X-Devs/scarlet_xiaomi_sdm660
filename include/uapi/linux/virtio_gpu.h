@@ -56,6 +56,7 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING,
 	VIRTIO_GPU_CMD_GET_CAPSET_INFO,
 	VIRTIO_GPU_CMD_GET_CAPSET,
+	VIRTIO_GPU_CMD_GET_RESOURCE_PLANE_INFO,
 
 	/* 3d commands */
 	VIRTIO_GPU_CMD_CTX_CREATE = 0x0200,
@@ -76,6 +77,7 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_RESP_OK_DISPLAY_INFO,
 	VIRTIO_GPU_RESP_OK_CAPSET_INFO,
 	VIRTIO_GPU_RESP_OK_CAPSET,
+	VIRTIO_GPU_RESP_OK_RESOURCE_PLANE_INFO,
 
 	/* error responses */
 	VIRTIO_GPU_RESP_ERR_UNSPEC = 0x1200,
@@ -289,6 +291,15 @@ struct virtio_gpu_get_capset {
 struct virtio_gpu_resp_capset {
 	struct virtio_gpu_ctrl_hdr hdr;
 	__u8 capset_data[];
+};
+
+/* VIRTIO_GPU_RESP_OK_RESOURCE_PLANE_INFO */
+struct virtio_gpu_resp_resource_plane_info {
+	struct virtio_gpu_ctrl_hdr hdr;
+	__le32 num_planes;
+	__le64 format_modifier;
+	__le32 strides[4];
+	__le32 offsets[4];
 };
 
 #define VIRTIO_GPU_EVENT_DISPLAY (1 << 0)

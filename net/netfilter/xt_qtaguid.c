@@ -2540,6 +2540,14 @@ int qtaguid_untag(struct socket *el_socket, bool kernel)
 	struct uid_tag_data *utd_entry;
 	struct proc_qtu_data *pqd_entry;
 
+	/* qtaguid_untag() may be called from inet_release(), which in turn
+	 * may be called from the error handler in setup_net() if creating
+	 * the network namespace failed. In this case, there is no guarantee
+	 * that qtaguid_net was ever initialized, and qtaguid_net may be NULL.
+	 */
+	if (!qtaguid_net)
+		return -EINVAL;
+
 	spin_lock_bh(&qtaguid_net->sock_tag_list_lock);
 	sock_tag_entry = get_sock_stat_nl(qtaguid_net, el_socket->sk);
 	if (!sock_tag_entry) {
