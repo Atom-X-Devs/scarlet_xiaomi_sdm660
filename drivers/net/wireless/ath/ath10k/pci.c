@@ -913,7 +913,6 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
 				    int nbytes)
 {
 	struct ath10k_pci *ar_pci = ath10k_pci_priv(ar);
-	struct ath10k_ce *ce = ath10k_ce_priv(ar);
 	int ret = 0;
 	u32 *buf;
 	unsigned int completed_nbytes, alloc_nbytes, remaining_bytes;
@@ -924,8 +923,7 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
 	void *data_buf = NULL;
 	int i;
 
-	spin_lock_bh(&ce->ce_lock);
-
+	mutex_lock(&ar_pci->ce_diag_mutex);
 	ce_diag = ar_pci->ce_diag;
 
 	/*
@@ -961,19 +959,17 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
 		nbytes = min_t(unsigned int, remaining_bytes,
 			       DIAG_TRANSFER_LIMIT);
 
-		ret = ce_diag->ops->ce_rx_post_buf(ce_diag, &ce_data, ce_data);
+		ret = ath10k_ce_rx_post_buf(ce_diag, &ce_data, ce_data);
 		if (ret != 0)
 			goto done;
 
 		/* Request CE to send from Target(!) address to Host buffer */
-		ret = ath10k_ce_send_nolock(ce_diag, NULL, (u32)address, nbytes, 0,
-					    0);
+		ret = ath10k_ce_send(ce_diag, NULL, (u32)address, nbytes, 0, 0);
 		if (ret)
 			goto done;
 
 		i = 0;
-		while (ath10k_ce_completed_send_next_nolock(ce_diag,
-							    NULL) != 0) {
+		while (ath10k_ce_completed_send_next(ce_diag, NULL) != 0) {
 			udelay(DIAG_ACCESS_CE_WAIT_US);
 			i += DIAG_ACCESS_CE_WAIT_US;
 
@@ -984,10 +980,8 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
 		}
 
 		i = 0;
-		while (ath10k_ce_completed_recv_next_nolock(ce_diag,
-							    (void **)&buf,
-							    &completed_nbytes)
-								!= 0) {
+		while (ath10k_ce_completed_recv_next(ce_diag, (void **)&buf,
+						     &completed_nbytes) != 0) {
 			udelay(DIAG_ACCESS_CE_WAIT_US);
 			i += DIAG_ACCESS_CE_WAIT_US;
 
@@ -1020,7 +1014,7 @@ done:
 		dma_free_coherent(ar->dev, alloc_nbytes, data_buf,
 				  ce_data_base);
 
-	spin_unlock_bh(&ce->ce_lock);
+	mutex_unlock(&ar_pci->ce_diag_mutex);
 
 	return ret;
 }
@@ -1068,7 +1062,6 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
 			      const void *data, int nbytes)
 {
 	struct ath10k_pci *ar_pci = ath10k_pci_priv(ar);
-	struct ath10k_ce *ce = ath10k_ce_priv(ar);
 	int ret = 0;
 	u32 *buf;
 	unsigned int completed_nbytes, alloc_nbytes, remaining_bytes;
@@ -1077,8 +1070,7 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
 	dma_addr_t ce_data_base = 0;
 	int i;
 
-	spin_lock_bh(&ce->ce_lock);
-
+	mutex_lock(&ar_pci->ce_diag_mutex);
 	ce_diag = ar_pci->ce_diag;
 
 	/*
@@ -1119,7 +1111,7 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
 		memcpy(data_buf, data, nbytes);
 
 		/* Set up to receive directly into Target(!) address */
-		ret = ce_diag->ops->ce_rx_post_buf(ce_diag, &address, address);
+		ret = ath10k_ce_rx_post_buf(ce_diag, &address, address);
 		if (ret != 0)
 			goto done;
 
@@ -1127,14 +1119,12 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
 		 * Request CE to send caller-supplied data that
 		 * was copied to bounce buffer to Target(!) address.
 		 */
-		ret = ath10k_ce_send_nolock(ce_diag, NULL, ce_data_base,
-					    nbytes, 0, 0);
+		ret = ath10k_ce_send(ce_diag, NULL, ce_data_base, nbytes, 0, 0);
 		if (ret != 0)
 			goto done;
 
 		i = 0;
-		while (ath10k_ce_completed_send_next_nolock(ce_diag,
-							    NULL) != 0) {
+		while (ath10k_ce_completed_send_next(ce_diag, NULL) != 0) {
 			udelay(DIAG_ACCESS_CE_WAIT_US);
 			i += DIAG_ACCESS_CE_WAIT_US;
 
@@ -1145,10 +1135,8 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
 		}
 
 		i = 0;
-		while (ath10k_ce_completed_recv_next_nolock(ce_diag,
-							    (void **)&buf,
-							    &completed_nbytes)
-								!= 0) {
+		while (ath10k_ce_completed_recv_next(ce_diag, (void **)&buf,
+						     &completed_nbytes) != 0) {
 			udelay(DIAG_ACCESS_CE_WAIT_US);
 			i += DIAG_ACCESS_CE_WAIT_US;
 
@@ -1183,7 +1171,7 @@ done:
 		ath10k_warn(ar, "failed to write diag value at 0x%x: %d\n",
 			    address, ret);
 
-	spin_unlock_bh(&ce->ce_lock);
+	mutex_unlock(&ar_pci->ce_diag_mutex);
 
 	return ret;
 }
@@ -3442,6 +3430,7 @@ int ath10k_pci_setup_resource(struct ath10k *ar)
 
 	spin_lock_init(&ce->ce_lock);
 	spin_lock_init(&ar_pci->ps_lock);
+	mutex_init(&ar_pci->ce_diag_mutex);
 
 	timer_setup(&ar_pci->rx_post_retry, ath10k_pci_rx_replenish_retry, 0);
 
