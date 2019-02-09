@@ -71,7 +71,7 @@ static int wilco_ec_probe(struct platform_device *pdev)
 			     ec->io_packet->start + EC_MAILBOX_DATA_SIZE);
 
 	/*
-	 * Register a child device that will be found by the RTC driver.
+	 * Register a child device that will be found by the debugfs driver.
 	 * Ignore failure.
 	 */
 	ec->debugfs_pdev = platform_device_register_data(dev,

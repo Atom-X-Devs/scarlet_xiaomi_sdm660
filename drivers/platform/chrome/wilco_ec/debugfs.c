@@ -136,8 +136,8 @@ static ssize_t raw_write(struct file *file, const char __user *user_buf,
 	ret = parse_hex_sentence(buf, kcount, request_data, TYPE_AND_DATA_SIZE);
 	if (ret < 0)
 		return ret;
-	/* Need at least two bytes for message type */
-	if (ret < 2)
+	/* Need at least two bytes for message type and one for command */
+	if (ret < 3)
 		return -EINVAL;
 
 	/* Clear response data buffer */
@@ -145,7 +145,7 @@ static ssize_t raw_write(struct file *file, const char __user *user_buf,
 
 	msg.type = request_data[0] << 8 | request_data[1];
 	msg.flags = WILCO_EC_FLAG_RAW;
-	msg.command = ret > 2 ? request_data[2] : 0;
+	msg.command = request_data[2];
 	msg.request_data = ret > 3 ? request_data + 3 : 0;
 	msg.request_size = ret - 3;
 	msg.response_data = debug_info->raw_data;
