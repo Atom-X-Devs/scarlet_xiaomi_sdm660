@@ -1,10 +1,10 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 4.19.13 Kernel Configuration
+# Linux/x86 4.19.20 Kernel Configuration
 #
 
 #
-# Compiler: gcc.real (4.9.2_cos_gg_4.9.2-r199-ac6128e0a17a52f011797f33ac3e7d6273a9368d_4.9.2-r199) 4.9.x 20150123 (prerelease)
+# Compiler: gcc.real (4.9.2_cos_gg_4.9.2-r201-ac6128e0a17a52f011797f33ac3e7d6273a9368d_4.9.2-r201) 4.9.x 20150123 (prerelease)
 #
 CONFIG_CC_IS_GCC=y
 CONFIG_GCC_VERSION=40900
@@ -461,7 +461,6 @@ CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_GOV_ATTR_SET=y
 CONFIG_CPU_FREQ_GOV_COMMON=y
 CONFIG_CPU_FREQ_STAT=y
-# CONFIG_CPU_FREQ_TIMES is not set
 # CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE is not set
 # CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE is not set
 # CONFIG_CPU_FREQ_DEFAULT_GOV_USERSPACE is not set
@@ -2530,6 +2529,7 @@ CONFIG_USB_XHCI_PCI=y
 # CONFIG_USB_ISP1301 is not set
 # CONFIG_USB_GADGET is not set
 # CONFIG_TYPEC is not set
+# CONFIG_USB_ROLE_SWITCH is not set
 # CONFIG_USB_ULPI_BUS is not set
 # CONFIG_UWB is not set
 # CONFIG_MMC is not set
