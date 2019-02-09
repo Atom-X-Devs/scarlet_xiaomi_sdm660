@@ -69,7 +69,7 @@ struct ec_rtc_write {
 	u8 weekday;
 } __packed;
 
-int wilco_ec_rtc_read(struct device *dev, struct rtc_time *tm)
+static int wilco_ec_rtc_read(struct device *dev, struct rtc_time *tm)
 {
 	struct wilco_ec_device *ec = dev_get_drvdata(dev->parent);
 	u8 param = EC_CMOS_TOD_READ;
@@ -103,7 +103,7 @@ int wilco_ec_rtc_read(struct device *dev, struct rtc_time *tm)
 	return 0;
 }
 
-int wilco_ec_rtc_write(struct device *dev, struct rtc_time *tm)
+static int wilco_ec_rtc_write(struct device *dev, struct rtc_time *tm)
 {
 	struct wilco_ec_device *ec = dev_get_drvdata(dev->parent);
 	struct ec_rtc_write rtc;
