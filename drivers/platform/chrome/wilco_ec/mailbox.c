@@ -123,8 +123,9 @@ static void wilco_ec_prepare(struct wilco_ec_message *msg,
  * Context: ec->mailbox_lock should be held while using this function.
  * Return: number of bytes received or negative error code on failure.
  */
-int wilco_ec_transfer(struct wilco_ec_device *ec, struct wilco_ec_message *msg,
-		      struct wilco_ec_request *rq)
+static int wilco_ec_transfer(struct wilco_ec_device *ec,
+			     struct wilco_ec_message *msg,
+			     struct wilco_ec_request *rq)
 {
 	struct wilco_ec_response *rs;
 	u8 checksum;
