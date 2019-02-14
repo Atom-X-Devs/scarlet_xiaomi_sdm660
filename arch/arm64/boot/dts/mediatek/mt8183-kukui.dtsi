@@ -130,6 +130,21 @@
 	};
 };
 
+&ssusb {
+	dr_mode = "host";
+	vusb33-supply = <&mt6358_vusb_reg>;
+	status = "okay";
+};
+
+&usb_host {
+	vusb33-supply = <&mt6358_vusb_reg>;
+	status = "okay";
+};
+
+&u3phy {
+	status = "okay";
+};
+
 &uart0 {
 	status = "okay";
 };
