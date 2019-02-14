@@ -256,6 +256,10 @@
 	};
 };
 
+&scpsys {
+	mfg-supply = <&mt6358_vgpu_reg>;
+};
+
 &ssusb {
 	dr_mode = "host";
 	vusb33-supply = <&mt6358_vusb_reg>;
