@@ -14,6 +14,19 @@
 		serial0 = &uart0;
 	};
 
+	backlight_lcd0: backlight_lcd0 {
+		compatible = "pwm-backlight";
+		pwms = <&pwm0 0 26000>;
+		power-supply = <&bl_pp5000>;
+		enable-gpios = <&pio 176 0>;
+		brightness-levels = <
+			0 64 128 192 256 320 384 448
+			512 576 640 704 768 832 896 960
+			1023>;
+		default-brightness-level = <9>;
+		status = "okay";
+	};
+
 	memory@40000000 {
 		device_type = "memory";
 		reg = <0 0x40000000 0 0x80000000>;
@@ -21,6 +34,24 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
+	};
+
+	lcd_pp3300: regulator@1 {
+		compatible = "regulator-fixed";
+		regulator-name = "lcd_pp3300";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	bl_pp5000: regulator@2 {
+		compatible = "regulator-fixed";
+		regulator-name = "bl_pp5000";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		regulator-boot-on;
 	};
 
 	reserved_memory: reserved-memory {
@@ -35,6 +66,35 @@
 			size = <0 0x110000>; /* 1M + 64K */
 			alignment = <0 0x10000>;
 			alloc-ranges = <0 0x40000000 0 0x60000000>;
+		};
+	};
+};
+
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	panel: panel@0 {
+		compatible = "innolux,p079zca";
+		reg = <0>;
+		enable-gpios = <&pio 45 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&panel_pins_default>;
+		power-supply = <&lcd_pp3300>;
+		backlight = <&backlight_lcd0>;
+		status = "okay";
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+
+	ports {
+		port {
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
 		};
 	};
 };
@@ -125,6 +185,10 @@
 	pinctrl-0 = <&i2c8_pins>;
 	status = "okay";
 	clock-frequency = <100000>;
+};
+
+&mipi_tx0 {
+	status = "okay";
 };
 
 &mmc0 {
@@ -371,6 +435,25 @@
 		};
 	};
 
+	panel_pins_default: panel_pins_default {
+		panel_reset {
+			pinmux = <PINMUX_GPIO45__FUNC_GPIO45>;
+			output-low;
+			bias-pull-up;
+		};
+	};
+
+	pwm0_pin_default: pwm0_pin_default {
+		pins1 {
+			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
+			output-high;
+			bias-pull-up;
+		};
+		pins2 {
+			pinmux = <PINMUX_GPIO43__FUNC_DISP_PWM>;
+		};
+	};
+
 	spi_pins_0: spi0@0 {
 		pins_spi{
 			pinmux = <PINMUX_GPIO85__FUNC_SPI0_MI>,
@@ -446,6 +529,12 @@
 			output-low;
 		};
 	};
+};
+
+&pwm0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm0_pin_default>;
 };
 
 &scpsys {
