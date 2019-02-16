@@ -6571,6 +6571,8 @@ void intel_connector_destroy(struct drm_connector *connector)
 
 	kfree(intel_connector->detect_edid);
 
+	intel_hdcp_cleanup(intel_connector);
+
 	if (!IS_ERR_OR_NULL(intel_connector->edid))
 		kfree(intel_connector->edid);
 
@@ -15544,6 +15546,8 @@ int intel_modeset_init(struct drm_device *dev)
 	intel_update_czclk(dev_priv);
 	intel_modeset_init_hw(dev);
 
+	intel_hdcp_component_init(dev_priv);
+
 	if (dev_priv->max_cdclk_freq == 0)
 		intel_update_max_cdclk(dev_priv);
 
@@ -16296,6 +16300,8 @@ void intel_modeset_cleanup(struct drm_device *dev)
 
 	/* flush any delayed tasks or pending work */
 	flush_scheduled_work();
+
+	intel_hdcp_component_fini(dev_priv);
 
 	drm_mode_config_cleanup(dev);
 
