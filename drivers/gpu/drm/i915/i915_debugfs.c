@@ -2777,7 +2777,6 @@ static int
 i915_edp_psr_debug_set(void *data, u64 val)
 {
 	struct drm_i915_private *dev_priv = data;
-	struct drm_modeset_acquire_ctx ctx;
 	int ret;
 
 	if (!CAN_PSR(dev_priv))
@@ -2787,18 +2786,7 @@ i915_edp_psr_debug_set(void *data, u64 val)
 
 	intel_runtime_pm_get(dev_priv);
 
-	drm_modeset_acquire_init(&ctx, DRM_MODESET_ACQUIRE_INTERRUPTIBLE);
-
-retry:
-	ret = intel_psr_set_debugfs_mode(dev_priv, &ctx, val);
-	if (ret == -EDEADLK) {
-		ret = drm_modeset_backoff(&ctx);
-		if (!ret)
-			goto retry;
-	}
-
-	drm_modeset_drop_locks(&ctx);
-	drm_modeset_acquire_fini(&ctx);
+	ret = intel_psr_debug_set(dev_priv, val);
 
 	intel_runtime_pm_put(dev_priv);
 
