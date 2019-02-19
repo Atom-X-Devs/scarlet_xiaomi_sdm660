@@ -781,10 +781,10 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 				ret = -EINVAL;
 				goto put_files;
 			} else {
+				struct dma_buf *dma_buf = ERR_PTR(-EINVAL);
 #ifdef SEND_VIRTGPU_RESOURCES
-				struct dma_buf *dma_buf =
-					dma_buf_get(vfd_fds[i]);
-				if (dma_buf) {
+				dma_buf = dma_buf_get(vfd_fds[i]);
+				if (!IS_ERR(dma_buf)) {
 					fdput(vfd_file);
 					virtgpu_dma_bufs[i] = dma_buf;
 					foreign_id = true;
@@ -793,7 +793,7 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 				}
 #endif
 				fdput(vfd_file);
-				ret = -EINVAL;
+				ret = PTR_ERR(dma_buf);
 				goto put_files;
 			}
 		}
