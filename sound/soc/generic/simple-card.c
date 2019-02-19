@@ -446,6 +446,7 @@ static int simple_for_each_link(struct simple_priv *priv,
 	struct device_node *node;
 	uintptr_t dpcm_selectable = (uintptr_t)of_device_get_match_data(dev);
 	bool is_top = 0;
+	int ret = 0;
 
 	/* Check if it has dai-link */
 	node = of_get_child_by_name(top, PREFIX "dai-link");
@@ -460,13 +461,14 @@ static int simple_for_each_link(struct simple_priv *priv,
 		struct device_node *codec;
 		struct device_node *np;
 		int num = of_get_child_count(node);
-		int ret;
 
 		/* get codec */
 		codec = of_get_child_by_name(node, is_top ?
 					     PREFIX "codec" : "codec");
-		if (!codec)
-			return -ENODEV;
+		if (!codec) {
+			ret = -ENODEV;
+			goto error;
+		}
 
 		of_node_put(codec);
 
@@ -490,14 +492,18 @@ static int simple_for_each_link(struct simple_priv *priv,
 			else
 				ret = func_noml(priv, np, codec, li, is_top);
 
-			if (ret < 0)
-				return ret;
+			if (ret < 0) {
+				of_node_put(np);
+				goto error;
+			}
 		}
 
 		node = of_get_next_child(top, node);
 	} while (!is_top && node);
 
-	return 0;
+ error:
+	of_node_put(node);
+	return ret;
 }
 
 static int simple_parse_aux_devs(struct device_node *node,
