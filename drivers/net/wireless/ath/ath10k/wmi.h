@@ -4970,7 +4970,7 @@ enum wmi_rate_preamble {
 #define ATH10K_HW_BA_FAIL(flags)	(((flags) >> 1) & 0x3)
 
 #define ATH10K_VHT_MCS_NUM	10
-#define ATH10K_BW_NUM		4
+#define ATH10K_BW_NUM		6
 #define ATH10K_NSS_NUM		4
 #define ATH10K_LEGACY_NUM	12
 #define ATH10K_GI_NUM		2
