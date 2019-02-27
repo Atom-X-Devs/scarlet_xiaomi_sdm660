@@ -476,8 +476,7 @@ static inline dma_addr_t vb2_dc_pfn_to_dma(struct device *dev, unsigned long pfn
 #endif
 
 static void *vb2_dc_get_userptr(struct device *dev, unsigned long vaddr,
-	unsigned long size, enum dma_data_direction dma_dir,
-	unsigned long attrs)
+	unsigned long size, enum dma_data_direction dma_dir)
 {
 	struct vb2_dc_buf *buf;
 	struct frame_vector *vec;

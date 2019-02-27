@@ -220,8 +220,7 @@ static void vb2_dma_sg_finish(void *buf_priv)
 
 static void *vb2_dma_sg_get_userptr(struct device *dev, unsigned long vaddr,
 				    unsigned long size,
-				    enum dma_data_direction dma_dir,
-				    unsigned long dma_attrs)
+				    enum dma_data_direction dma_dir)
 {
 	struct vb2_dma_sg_buf *buf;
 	struct sg_table *sgt;
