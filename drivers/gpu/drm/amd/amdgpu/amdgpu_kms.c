@@ -40,6 +40,30 @@
 #include "amdgpu_gem.h"
 #include "amdgpu_display.h"
 
+static void amdgpu_unregister_gpu_instance(struct amdgpu_device *adev)
+{
+	struct amdgpu_gpu_instance *gpu_instance;
+	int i;
+
+	mutex_lock(&mgpu_info.mutex);
+
+	for (i = 0; i < mgpu_info.num_gpu; i++) {
+		gpu_instance = &(mgpu_info.gpu_ins[i]);
+		if (gpu_instance->adev == adev) {
+			mgpu_info.gpu_ins[i] =
+				mgpu_info.gpu_ins[mgpu_info.num_gpu - 1];
+			mgpu_info.num_gpu--;
+			if (adev->flags & AMD_IS_APU)
+				mgpu_info.num_apu--;
+			else
+				mgpu_info.num_dgpu--;
+			break;
+		}
+	}
+
+	mutex_unlock(&mgpu_info.mutex);
+}
+
 /**
  * amdgpu_driver_unload_kms - Main unload function for KMS.
  *
@@ -54,6 +78,8 @@ void amdgpu_driver_unload_kms(struct drm_device *dev)
 
 	if (adev == NULL)
 		return;
+
+	amdgpu_unregister_gpu_instance(adev);
 
 	if (adev->rmmio == NULL)
 		goto done_free;
@@ -73,6 +99,31 @@ void amdgpu_driver_unload_kms(struct drm_device *dev)
 done_free:
 	kfree(adev);
 	dev->dev_private = NULL;
+}
+
+static void amdgpu_register_gpu_instance(struct amdgpu_device *adev)
+{
+	struct amdgpu_gpu_instance *gpu_instance;
+
+	mutex_lock(&mgpu_info.mutex);
+
+	if (mgpu_info.num_gpu >= MAX_GPU_INSTANCE) {
+		DRM_ERROR("Cannot register more gpu instance\n");
+		mutex_unlock(&mgpu_info.mutex);
+		return;
+	}
+
+	gpu_instance = &(mgpu_info.gpu_ins[mgpu_info.num_gpu]);
+	gpu_instance->adev = adev;
+	gpu_instance->mgpu_fan_enabled = 0;
+
+	mgpu_info.num_gpu++;
+	if (adev->flags & AMD_IS_APU)
+		mgpu_info.num_apu++;
+	else
+		mgpu_info.num_dgpu++;
+
+	mutex_unlock(&mgpu_info.mutex);
 }
 
 /**
@@ -169,6 +220,7 @@ int amdgpu_driver_load_kms(struct drm_device *dev, unsigned long flags)
 		pm_runtime_put_autosuspend(dev->dev);
 	}
 
+	amdgpu_register_gpu_instance(adev);
 out:
 	if (r) {
 		/* balance pm_runtime_get_sync in amdgpu_driver_unload_kms */
@@ -414,9 +466,6 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
 
 	if (!info->return_size || !info->return_pointer)
 		return -EINVAL;
-
-	/* Ensure IB tests are run on ring */
-	flush_delayed_work(&adev->late_init_work);
 
 	switch (info->query) {
 	case AMDGPU_INFO_ACCEL_WORKING:
@@ -897,6 +946,9 @@ int amdgpu_driver_open_kms(struct drm_device *dev, struct drm_file *file_priv)
 	struct amdgpu_device *adev = dev->dev_private;
 	struct amdgpu_fpriv *fpriv;
 	int r, pasid;
+
+	/* Ensure IB tests are run on ring */
+	flush_delayed_work(&adev->late_init_work);
 
 	file_priv->driver_priv = NULL;
 

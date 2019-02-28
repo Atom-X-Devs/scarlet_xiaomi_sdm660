@@ -1175,12 +1175,14 @@ out:
 int ath10k_snoc_fw_indication(struct ath10k *ar, u64 type)
 {
 	struct ath10k_snoc *ar_snoc = ath10k_snoc_priv(ar);
+	struct ath10k_bus_params bus_params;
 	int ret;
 
 	switch (type) {
 	case ATH10K_QMI_EVENT_FW_READY_IND:
-		ret = ath10k_core_register(ar,
-					   ar_snoc->target_info.soc_version);
+		bus_params.dev_type = ATH10K_DEV_TYPE_LL;
+		bus_params.chip_id = ar_snoc->target_info.soc_version;
+		ret = ath10k_core_register(ar, &bus_params);
 		if (ret) {
 			ath10k_err(ar, "failed to register driver core: %d\n",
 				   ret);

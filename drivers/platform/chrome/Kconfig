@@ -56,6 +56,8 @@ config CHROMEOS_TBMC
 	  To compile this driver as a module, choose M here: the
 	  module will be called chromeos_tbmc.
 
+source "drivers/platform/chrome/wilco_ec/Kconfig"
+
 config CROS_EC_CTL
         tristate
 

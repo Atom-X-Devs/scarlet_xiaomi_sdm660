@@ -41,7 +41,7 @@
 #include <sound/hdaudio.h>
 #include <sound/hda_i915.h>
 #include <sound/hda_chmap.h>
-#include "hda_codec.h"
+#include <sound/hda_codec.h>
 #include "hda_local.h"
 #include "hda_jack.h"
 
@@ -2142,7 +2142,7 @@ static int generic_hdmi_build_jack(struct hda_codec *codec, int pcm_idx)
 		strncat(hdmi_str, " Phantom",
 			sizeof(hdmi_str) - strlen(hdmi_str) - 1);
 	ret = snd_hda_jack_add_kctl(codec, per_pin->pin_nid, hdmi_str,
-				    phantom_jack);
+				    phantom_jack, 0, NULL);
 	if (ret < 0)
 		return ret;
 	jack = snd_hda_jack_tbl_get(codec, per_pin->pin_nid);

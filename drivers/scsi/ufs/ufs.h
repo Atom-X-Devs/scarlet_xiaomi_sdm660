@@ -388,7 +388,7 @@ enum ufs_ref_clk_freq {
 };
 
 struct ufs_ref_clk {
-	u32 freq_hz;
+	unsigned long freq_hz;
 	enum ufs_ref_clk_freq val;
 };
 

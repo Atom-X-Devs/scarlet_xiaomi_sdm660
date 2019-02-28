@@ -916,7 +916,7 @@ static int intel_ddi_hdmi_level(struct drm_i915_private *dev_priv, enum port por
 	level = dev_priv->vbt.ddi_port_info[port].hdmi_level_shift;
 
 	if (IS_ICELAKE(dev_priv)) {
-		if (port == PORT_A || port == PORT_B)
+		if (intel_port_is_combophy(dev_priv, port))
 			icl_get_combo_buf_trans(dev_priv, port,
 						INTEL_OUTPUT_HDMI, &n_entries);
 		else
@@ -1085,7 +1085,7 @@ static uint32_t icl_pll_to_ddi_pll_sel(struct intel_encoder *encoder,
 			return DDI_CLK_SEL_TBT_810;
 		default:
 			MISSING_CASE(clock);
-			break;
+			return DDI_CLK_SEL_NONE;
 		}
 	case DPLL_ID_ICL_MGPLL1:
 	case DPLL_ID_ICL_MGPLL2:
@@ -1535,7 +1535,7 @@ static void icl_ddi_clock_get(struct intel_encoder *encoder,
 	uint32_t pll_id;
 
 	pll_id = intel_get_shared_dpll_id(dev_priv, pipe_config->shared_dpll);
-	if (port == PORT_A || port == PORT_B) {
+	if (intel_port_is_combophy(dev_priv, port)) {
 		if (intel_crtc_has_type(pipe_config, INTEL_OUTPUT_HDMI))
 			link_clock = cnl_calc_wrpll_link(dev_priv, pll_id);
 		else
@@ -2235,7 +2235,7 @@ u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder)
 	int n_entries;
 
 	if (IS_ICELAKE(dev_priv)) {
-		if (port == PORT_A || port == PORT_B)
+		if (intel_port_is_combophy(dev_priv, port))
 			icl_get_combo_buf_trans(dev_priv, port, encoder->type,
 						&n_entries);
 		else
@@ -2669,9 +2669,10 @@ static void icl_ddi_vswing_sequence(struct intel_encoder *encoder,
 				    u32 level,
 				    enum intel_output_type type)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	enum port port = encoder->port;
 
-	if (port == PORT_A || port == PORT_B)
+	if (intel_port_is_combophy(dev_priv, port))
 		icl_combo_phy_ddi_vswing_sequence(encoder, level, type);
 	else
 		icl_mg_phy_ddi_vswing_sequence(encoder, link_clock, level);
@@ -2732,6 +2733,21 @@ uint32_t ddi_signal_levels(struct intel_dp *intel_dp)
 	return DDI_BUF_TRANS_SELECT(level);
 }
 
+static inline
+uint32_t icl_dpclka_cfgcr0_clk_off(struct drm_i915_private *dev_priv,
+				   enum port port)
+{
+	if (intel_port_is_combophy(dev_priv, port)) {
+		return ICL_DPCLKA_CFGCR0_DDI_CLK_OFF(port);
+	} else if (intel_port_is_tc(dev_priv, port)) {
+		enum tc_port tc_port = intel_port_to_tc(dev_priv, port);
+
+		return ICL_DPCLKA_CFGCR0_TC_CLK_OFF(tc_port);
+	}
+
+	return 0;
+}
+
 void icl_map_plls_to_ports(struct drm_crtc *crtc,
 			   struct intel_crtc_state *crtc_state,
 			   struct drm_atomic_state *old_state)
@@ -2755,16 +2771,16 @@ void icl_map_plls_to_ports(struct drm_crtc *crtc,
 		mutex_lock(&dev_priv->dpll_lock);
 
 		val = I915_READ(DPCLKA_CFGCR0_ICL);
-		WARN_ON((val & DPCLKA_CFGCR0_DDI_CLK_OFF(port)) == 0);
+		WARN_ON((val & icl_dpclka_cfgcr0_clk_off(dev_priv, port)) == 0);
 
-		if (port == PORT_A || port == PORT_B) {
+		if (intel_port_is_combophy(dev_priv, port)) {
 			val &= ~DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);
 			val |= DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, port);
 			I915_WRITE(DPCLKA_CFGCR0_ICL, val);
 			POSTING_READ(DPCLKA_CFGCR0_ICL);
 		}
 
-		val &= ~DPCLKA_CFGCR0_DDI_CLK_OFF(port);
+		val &= ~icl_dpclka_cfgcr0_clk_off(dev_priv, port);
 		I915_WRITE(DPCLKA_CFGCR0_ICL, val);
 
 		mutex_unlock(&dev_priv->dpll_lock);
@@ -2792,7 +2808,7 @@ void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
 		mutex_lock(&dev_priv->dpll_lock);
 		I915_WRITE(DPCLKA_CFGCR0_ICL,
 			   I915_READ(DPCLKA_CFGCR0_ICL) |
-			   DPCLKA_CFGCR0_DDI_CLK_OFF(port));
+			   icl_dpclka_cfgcr0_clk_off(dev_priv, port));
 		mutex_unlock(&dev_priv->dpll_lock);
 	}
 }
@@ -2810,7 +2826,7 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 	mutex_lock(&dev_priv->dpll_lock);
 
 	if (IS_ICELAKE(dev_priv)) {
-		if (port >= PORT_C)
+		if (!intel_port_is_combophy(dev_priv, port))
 			I915_WRITE(DDI_CLK_SEL(port),
 				   icl_pll_to_ddi_pll_sel(encoder, pll));
 	} else if (IS_CANNONLAKE(dev_priv)) {
@@ -2852,7 +2868,7 @@ static void intel_ddi_clk_disable(struct intel_encoder *encoder)
 	enum port port = encoder->port;
 
 	if (IS_ICELAKE(dev_priv)) {
-		if (port >= PORT_C)
+		if (!intel_port_is_combophy(dev_priv, port))
 			I915_WRITE(DDI_CLK_SEL(port), DDI_CLK_SEL_NONE);
 	} else if (IS_CANNONLAKE(dev_priv)) {
 		I915_WRITE(DPCLKA_CFGCR0, I915_READ(DPCLKA_CFGCR0) |
@@ -2947,7 +2963,7 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 
 	intel_ddi_enable_pipe_clock(crtc_state);
 
-	intel_dig_port->set_infoframes(&encoder->base,
+	intel_dig_port->set_infoframes(encoder,
 				       crtc_state->has_infoframe,
 				       crtc_state, conn_state);
 }
@@ -3046,7 +3062,7 @@ static void intel_ddi_post_disable_hdmi(struct intel_encoder *encoder,
 	struct intel_digital_port *dig_port = enc_to_dig_port(&encoder->base);
 	struct intel_hdmi *intel_hdmi = &dig_port->hdmi;
 
-	dig_port->set_infoframes(&encoder->base, false,
+	dig_port->set_infoframes(encoder, false,
 				 old_crtc_state, old_conn_state);
 
 	intel_ddi_disable_pipe_clock(old_crtc_state);
@@ -3138,6 +3154,26 @@ static void intel_enable_ddi_dp(struct intel_encoder *encoder,
 		intel_audio_codec_enable(encoder, crtc_state, conn_state);
 }
 
+static i915_reg_t
+gen9_chicken_trans_reg_by_port(struct drm_i915_private *dev_priv,
+			       enum port port)
+{
+	static const i915_reg_t regs[] = {
+		[PORT_A] = CHICKEN_TRANS_EDP,
+		[PORT_B] = CHICKEN_TRANS_A,
+		[PORT_C] = CHICKEN_TRANS_B,
+		[PORT_D] = CHICKEN_TRANS_C,
+		[PORT_E] = CHICKEN_TRANS_A,
+	};
+
+	WARN_ON(INTEL_GEN(dev_priv) < 9);
+
+	if (WARN_ON(port < PORT_A || port > PORT_E))
+		port = PORT_A;
+
+	return regs[port];
+}
+
 static void intel_enable_ddi_hdmi(struct intel_encoder *encoder,
 				  const struct intel_crtc_state *crtc_state,
 				  const struct drm_connector_state *conn_state)
@@ -3161,17 +3197,10 @@ static void intel_enable_ddi_hdmi(struct intel_encoder *encoder,
 		 * the bits affect a specific DDI port rather than
 		 * a specific transcoder.
 		 */
-		static const enum transcoder port_to_transcoder[] = {
-			[PORT_A] = TRANSCODER_EDP,
-			[PORT_B] = TRANSCODER_A,
-			[PORT_C] = TRANSCODER_B,
-			[PORT_D] = TRANSCODER_C,
-			[PORT_E] = TRANSCODER_A,
-		};
-		enum transcoder transcoder = port_to_transcoder[port];
+		i915_reg_t reg = gen9_chicken_trans_reg_by_port(dev_priv, port);
 		u32 val;
 
-		val = I915_READ(CHICKEN_TRANS(transcoder));
+		val = I915_READ(reg);
 
 		if (port == PORT_E)
 			val |= DDIE_TRAINING_OVERRIDE_ENABLE |
@@ -3180,8 +3209,8 @@ static void intel_enable_ddi_hdmi(struct intel_encoder *encoder,
 			val |= DDI_TRAINING_OVERRIDE_ENABLE |
 				DDI_TRAINING_OVERRIDE_VALUE;
 
-		I915_WRITE(CHICKEN_TRANS(transcoder), val);
-		POSTING_READ(CHICKEN_TRANS(transcoder));
+		I915_WRITE(reg, val);
+		POSTING_READ(reg);
 
 		udelay(1);
 
@@ -3192,7 +3221,7 @@ static void intel_enable_ddi_hdmi(struct intel_encoder *encoder,
 			val &= ~(DDI_TRAINING_OVERRIDE_ENABLE |
 				 DDI_TRAINING_OVERRIDE_VALUE);
 
-		I915_WRITE(CHICKEN_TRANS(transcoder), val);
+		I915_WRITE(reg, val);
 	}
 
 	/* In HDMI/DVI mode, the port width, and swing/emphasis values
@@ -3390,7 +3419,7 @@ void intel_ddi_get_config(struct intel_encoder *encoder,
 		pipe_config->has_hdmi_sink = true;
 		intel_dig_port = enc_to_dig_port(&encoder->base);
 
-		if (intel_dig_port->infoframe_enabled(&encoder->base, pipe_config))
+		if (intel_dig_port->infoframe_enabled(encoder, pipe_config))
 			pipe_config->has_infoframe = true;
 
 		if ((temp & TRANS_DDI_HDMI_SCRAMBLING_MASK) ==

@@ -46,6 +46,9 @@
 #include "ppinterrupt.h"
 #include "pp_overdriver.h"
 #include "pp_thermal.h"
+#include "soc15_common.h"
+#include "smuio/smuio_9_0_offset.h"
+#include "smuio/smuio_9_0_sh_mask.h"
 
 static void vega20_set_default_registry_data(struct pp_hwmgr *hwmgr)
 {
@@ -1474,6 +1477,19 @@ static int vega20_init_max_sustainable_clocks(struct pp_hwmgr *hwmgr)
 	return 0;
 }
 
+static int vega20_enable_mgpu_fan_boost(struct pp_hwmgr *hwmgr)
+{
+	int result;
+
+	result = smum_send_msg_to_smc(hwmgr,
+		PPSMC_MSG_SetMGpuFanBoostLimitRpm);
+	PP_ASSERT_WITH_CODE(!result,
+			"[EnableMgpuFan] Failed to enable mgpu fan boost!",
+			return result);
+
+	return 0;
+}
+
 static void vega20_init_powergate_state(struct pp_hwmgr *hwmgr)
 {
 	struct vega20_hwmgr *data =
@@ -1543,6 +1559,14 @@ static int vega20_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
 	PP_ASSERT_WITH_CODE(!result,
 			"[EnableDPMTasks] Failed to populate umdpstate clocks!",
 			return result);
+
+	result = smum_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_GetPptLimit,
+			POWER_SOURCE_AC << 16);
+	PP_ASSERT_WITH_CODE(!result,
+			"[GetPptLimit] get default PPT limit failed!",
+			return result);
+	hwmgr->power_limit =
+		hwmgr->default_power_limit = smum_get_argument(hwmgr);
 
 	return 0;
 }
@@ -1907,6 +1931,8 @@ static int vega20_read_sensor(struct pp_hwmgr *hwmgr, int idx,
 			      void *value, int *size)
 {
 	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
+	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t val_vid;
 	int ret = 0;
 
 	switch (idx) {
@@ -1940,6 +1966,13 @@ static int vega20_read_sensor(struct pp_hwmgr *hwmgr, int idx,
 	case AMDGPU_PP_SENSOR_GPU_POWER:
 		*size = 16;
 		ret = vega20_get_gpu_power(hwmgr, (uint32_t *)value);
+		break;
+	case AMDGPU_PP_SENSOR_VDDGFX:
+		val_vid = (RREG32_SOC15(SMUIO, 0, mmSMUSVI0_TEL_PLANE0) &
+			SMUSVI0_TEL_PLANE0__SVI0_PLANE0_VDDCOR_MASK) >>
+			SMUSVI0_TEL_PLANE0__SVI0_PLANE0_VDDCOR__SHIFT;
+		*((uint32_t *)value) =
+			(uint32_t)convert_to_vddc((uint8_t)val_vid);
 		break;
 	case AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK:
 		ret = vega20_get_enabled_smc_features(hwmgr, (uint64_t *)value);
@@ -2267,6 +2300,25 @@ static uint32_t vega20_get_fan_control_mode(struct pp_hwmgr *hwmgr)
 		return AMD_FAN_CTRL_MANUAL;
 	else
 		return AMD_FAN_CTRL_AUTO;
+}
+
+static void vega20_set_fan_control_mode(struct pp_hwmgr *hwmgr, uint32_t mode)
+{
+	switch (mode) {
+	case AMD_FAN_CTRL_NONE:
+		vega20_fan_ctrl_set_fan_speed_percent(hwmgr, 100);
+		break;
+	case AMD_FAN_CTRL_MANUAL:
+		if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl))
+			vega20_fan_ctrl_stop_smc_fan_control(hwmgr);
+		break;
+	case AMD_FAN_CTRL_AUTO:
+		if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl))
+			vega20_fan_ctrl_start_smc_fan_control(hwmgr);
+		break;
+	default:
+		break;
+	}
 }
 
 static int vega20_get_dal_power_level(struct pp_hwmgr *hwmgr,
@@ -3123,6 +3175,34 @@ static int vega20_power_off_asic(struct pp_hwmgr *hwmgr)
 	return result;
 }
 
+static int conv_power_profile_to_pplib_workload(int power_profile)
+{
+	int pplib_workload = 0;
+
+	switch (power_profile) {
+	case PP_SMC_POWER_PROFILE_FULLSCREEN3D:
+		pplib_workload = WORKLOAD_PPLIB_FULL_SCREEN_3D_BIT;
+		break;
+	case PP_SMC_POWER_PROFILE_POWERSAVING:
+		pplib_workload = WORKLOAD_PPLIB_POWER_SAVING_BIT;
+		break;
+	case PP_SMC_POWER_PROFILE_VIDEO:
+		pplib_workload = WORKLOAD_PPLIB_VIDEO_BIT;
+		break;
+	case PP_SMC_POWER_PROFILE_VR:
+		pplib_workload = WORKLOAD_PPLIB_VR_BIT;
+		break;
+	case PP_SMC_POWER_PROFILE_COMPUTE:
+		pplib_workload = WORKLOAD_PPLIB_COMPUTE_BIT;
+		break;
+	case PP_SMC_POWER_PROFILE_CUSTOM:
+		pplib_workload = WORKLOAD_PPLIB_CUSTOM_BIT;
+		break;
+	}
+
+	return pplib_workload;
+}
+
 static int vega20_get_power_profile_mode(struct pp_hwmgr *hwmgr, char *buf)
 {
 	DpmActivityMonitorCoeffInt_t activity_monitor;
@@ -3158,14 +3238,14 @@ static int vega20_get_power_profile_mode(struct pp_hwmgr *hwmgr, char *buf)
 
 	for (i = 0; i <= PP_SMC_POWER_PROFILE_CUSTOM; i++) {
 		/* conv PP_SMC_POWER_PROFILE* to WORKLOAD_PPLIB_*_BIT */
-		workload_type = i + 1;
+		workload_type = conv_power_profile_to_pplib_workload(i);
 		result = vega20_get_activity_monitor_coeff(hwmgr,
 				(uint8_t *)(&activity_monitor), workload_type);
 		PP_ASSERT_WITH_CODE(!result,
 				"[GetPowerProfile] Failed to get activity monitor!",
 				return result);
 
-		size += sprintf(buf + size, "%2d(%14s%s)\n",
+		size += sprintf(buf + size, "%2d %14s%s:\n",
 			i, profile_name[i], (i == hwmgr->power_profile_mode) ? "*" : " ");
 
 		size += sprintf(buf + size, "%19s %d(%13s) %7d %7d %7d %7d %7d %7d %7d %7d %7d\n",
@@ -3231,9 +3311,14 @@ static int vega20_get_power_profile_mode(struct pp_hwmgr *hwmgr, char *buf)
 static int vega20_set_power_profile_mode(struct pp_hwmgr *hwmgr, long *input, uint32_t size)
 {
 	DpmActivityMonitorCoeffInt_t activity_monitor;
-	int result = 0;
+	int workload_type, result = 0;
 
 	hwmgr->power_profile_mode = input[size];
+
+	if (hwmgr->power_profile_mode > PP_SMC_POWER_PROFILE_CUSTOM) {
+		pr_err("Invalid power profile mode %d\n", hwmgr->power_profile_mode);
+		return -EINVAL;
+	}
 
 	if (hwmgr->power_profile_mode == PP_SMC_POWER_PROFILE_CUSTOM) {
 		if (size < 10)
@@ -3301,8 +3386,11 @@ static int vega20_set_power_profile_mode(struct pp_hwmgr *hwmgr, long *input, ui
 				return result);
 	}
 
+	/* conv PP_SMC_POWER_PROFILE* to WORKLOAD_PPLIB_*_BIT */
+	workload_type =
+		conv_power_profile_to_pplib_workload(hwmgr->power_profile_mode);
 	smum_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_SetWorkloadMask,
-						1 << hwmgr->power_profile_mode);
+						1 << workload_type);
 
 	return 0;
 }
@@ -3432,15 +3520,25 @@ static const struct pp_hwmgr_func vega20_hwmgr_funcs = {
 	.disable_smc_firmware_ctf =
 		vega20_thermal_disable_alert,
 	/* fan control related */
+	.get_fan_speed_percent =
+		vega20_fan_ctrl_get_fan_speed_percent,
+	.set_fan_speed_percent =
+		vega20_fan_ctrl_set_fan_speed_percent,
 	.get_fan_speed_info =
 		vega20_fan_ctrl_get_fan_speed_info,
 	.get_fan_speed_rpm =
 		vega20_fan_ctrl_get_fan_speed_rpm,
+	.set_fan_speed_rpm =
+		vega20_fan_ctrl_set_fan_speed_rpm,
 	.get_fan_control_mode =
 		vega20_get_fan_control_mode,
+	.set_fan_control_mode =
+		vega20_set_fan_control_mode,
 	/* smu memory related */
 	.notify_cac_buffer_info =
 		vega20_notify_cac_buffer_info,
+	.enable_mgpu_fan_boost =
+		vega20_enable_mgpu_fan_boost,
 };
 
 int vega20_hwmgr_init(struct pp_hwmgr *hwmgr)

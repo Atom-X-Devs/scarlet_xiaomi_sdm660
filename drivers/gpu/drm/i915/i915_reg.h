@@ -2095,8 +2095,12 @@ enum i915_power_well_id {
 
 /* ICL PHY DFLEX registers */
 #define PORT_TX_DFLEXDPMLE1		_MMIO(0x1638C0)
-#define   DFLEXDPMLE1_DPMLETC_MASK(n)	(0xf << (4 * (n)))
-#define   DFLEXDPMLE1_DPMLETC(n, x)	((x) << (4 * (n)))
+#define   DFLEXDPMLE1_DPMLETC_MASK(tc_port)	(0xf << (4 * (tc_port)))
+#define   DFLEXDPMLE1_DPMLETC_ML0(tc_port)	(1 << (4 * (tc_port)))
+#define   DFLEXDPMLE1_DPMLETC_ML1_0(tc_port)	(3 << (4 * (tc_port)))
+#define   DFLEXDPMLE1_DPMLETC_ML3(tc_port)	(8 << (4 * (tc_port)))
+#define   DFLEXDPMLE1_DPMLETC_ML3_2(tc_port)	(12 << (4 * (tc_port)))
+#define   DFLEXDPMLE1_DPMLETC_ML3_0(tc_port)	(15 << (4 * (tc_port)))
 
 /* BXT PHY Ref registers */
 #define _PORT_REF_DW3_A			0x16218C
@@ -4149,9 +4153,13 @@ enum {
 /* Bspec claims those aren't shifted but stay at 0x64800 */
 #define EDP_PSR_IMR				_MMIO(0x64834)
 #define EDP_PSR_IIR				_MMIO(0x64838)
-#define   EDP_PSR_ERROR(trans)			(1 << (((trans) * 8 + 10) & 31))
-#define   EDP_PSR_POST_EXIT(trans)		(1 << (((trans) * 8 + 9) & 31))
-#define   EDP_PSR_PRE_ENTRY(trans)		(1 << (((trans) * 8 + 8) & 31))
+#define   EDP_PSR_ERROR(shift)			(1 << ((shift) + 2))
+#define   EDP_PSR_POST_EXIT(shift)		(1 << ((shift) + 1))
+#define   EDP_PSR_PRE_ENTRY(shift)		(1 << (shift))
+#define   EDP_PSR_TRANSCODER_C_SHIFT		24
+#define   EDP_PSR_TRANSCODER_B_SHIFT		16
+#define   EDP_PSR_TRANSCODER_A_SHIFT		8
+#define   EDP_PSR_TRANSCODER_EDP_SHIFT		0
 
 #define EDP_PSR_AUX_CTL				_MMIO(dev_priv->psr_mmio_base + 0x10)
 #define   EDP_PSR_AUX_CTL_TIME_OUT_MASK		(3 << 26)
@@ -4195,7 +4203,7 @@ enum {
 #define   EDP_PSR_DEBUG_MASK_LPSP              (1 << 27)
 #define   EDP_PSR_DEBUG_MASK_MEMUP             (1 << 26)
 #define   EDP_PSR_DEBUG_MASK_HPD               (1 << 25)
-#define   EDP_PSR_DEBUG_MASK_DISP_REG_WRITE    (1 << 16)
+#define   EDP_PSR_DEBUG_MASK_DISP_REG_WRITE    (1 << 16) /* Reserved in ICL+ */
 #define   EDP_PSR_DEBUG_EXIT_ON_PIXEL_UNDERRUN (1 << 15) /* SKL+ */
 
 #define EDP_PSR2_CTL			_MMIO(0x6f900)
@@ -4232,7 +4240,7 @@ enum {
 #define  PSR_EVENT_FRONT_BUFFER_MODIFY		(1 << 9)
 #define  PSR_EVENT_WD_TIMER_EXPIRE		(1 << 8)
 #define  PSR_EVENT_PIPE_REGISTERS_UPDATE	(1 << 6)
-#define  PSR_EVENT_REGISTER_UPDATE		(1 << 5)
+#define  PSR_EVENT_REGISTER_UPDATE		(1 << 5) /* Reserved in ICL+ */
 #define  PSR_EVENT_HDCP_ENABLE			(1 << 4)
 #define  PSR_EVENT_KVMR_SESSION_ENABLE		(1 << 3)
 #define  PSR_EVENT_VBI_ENABLE			(1 << 2)
@@ -7317,9 +7325,10 @@ enum {
 #define  BDW_DPRS_MASK_VBLANK_SRD	(1 << 0)
 #define CHICKEN_PIPESL_1(pipe) _MMIO_PIPE(pipe, _CHICKEN_PIPESL_1_A, _CHICKEN_PIPESL_1_B)
 
-#define CHICKEN_TRANS_A         0x420c0
-#define CHICKEN_TRANS_B         0x420c4
-#define CHICKEN_TRANS(trans) _MMIO_TRANS(trans, CHICKEN_TRANS_A, CHICKEN_TRANS_B)
+#define CHICKEN_TRANS_A		_MMIO(0x420c0)
+#define CHICKEN_TRANS_B		_MMIO(0x420c4)
+#define CHICKEN_TRANS_C		_MMIO(0x420c8)
+#define CHICKEN_TRANS_EDP	_MMIO(0x420cc)
 #define  VSC_DATA_SEL_SOFTWARE_CONTROL	(1 << 25) /* GLK and CNL+ */
 #define  DDI_TRAINING_OVERRIDE_ENABLE	(1 << 19)
 #define  DDI_TRAINING_OVERRIDE_VALUE	(1 << 18)
@@ -7824,8 +7833,7 @@ enum {
 #define  CNP_RAWCLK_DIV_MASK	(0x3ff << 16)
 #define  CNP_RAWCLK_DIV(div)	((div) << 16)
 #define  CNP_RAWCLK_FRAC_MASK	(0xf << 26)
-#define  CNP_RAWCLK_FRAC(frac)	((frac) << 26)
-#define  ICP_RAWCLK_DEN(den)	((den) << 26)
+#define  CNP_RAWCLK_DEN(den)	((den) << 26)
 #define  ICP_RAWCLK_NUM(num)	((num) << 11)
 
 #define PCH_DPLL_TMR_CFG        _MMIO(0xc6208)
@@ -9339,6 +9347,9 @@ enum skl_power_gate {
 #define DPCLKA_CFGCR0_ICL			_MMIO(0x164280)
 #define  DPCLKA_CFGCR0_DDI_CLK_OFF(port)	(1 << ((port) ==  PORT_F ? 23 : \
 						      (port) + 10))
+#define  ICL_DPCLKA_CFGCR0_DDI_CLK_OFF(port)   (1 << ((port) + 10))
+#define  ICL_DPCLKA_CFGCR0_TC_CLK_OFF(tc_port) (1 << ((tc_port) == PORT_TC4 ? \
+						      21 : (tc_port) + 12))
 #define  DPCLKA_CFGCR0_DDI_CLK_SEL_SHIFT(port)	((port) == PORT_F ? 21 : \
 						(port) * 2)
 #define  DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port)	(3 << DPCLKA_CFGCR0_DDI_CLK_SEL_SHIFT(port))

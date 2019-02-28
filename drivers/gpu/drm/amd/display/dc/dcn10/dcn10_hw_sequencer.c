@@ -91,9 +91,10 @@ static void log_mpc_crc(struct dc *dc,
 void dcn10_log_hubbub_state(struct dc *dc, struct dc_log_buffer_ctx *log_ctx)
 {
 	struct dc_context *dc_ctx = dc->ctx;
-	struct dcn_hubbub_wm wm = {0};
+	struct dcn_hubbub_wm wm;
 	int i;
 
+	memset(&wm, 0, sizeof(struct dcn_hubbub_wm));
 	hubbub1_wm_read_state(dc->res_pool->hubbub, &wm);
 
 	DTN_INFO("HUBBUB WM:      data_urgent  pte_meta_urgent"
@@ -997,7 +998,21 @@ static void dcn10_init_hw(struct dc *dc)
 	} else {
 
 		if (!dcb->funcs->is_accelerated_mode(dcb)) {
+			bool allow_self_fresh_force_enable =
+					hububu1_is_allow_self_refresh_enabled(dc->res_pool->hubbub);
+
 			bios_golden_init(dc);
+
+			/* WA for making DF sleep when idle after resume from S0i3.
+			 * DCHUBBUB_ARB_ALLOW_SELF_REFRESH_FORCE_ENABLE is set to 1 by
+			 * command table, if DCHUBBUB_ARB_ALLOW_SELF_REFRESH_FORCE_ENABLE = 0
+			 * before calling command table and it changed to 1 after,
+			 * it should be set back to 0.
+			 */
+			if (allow_self_fresh_force_enable == false &&
+					hububu1_is_allow_self_refresh_enabled(dc->res_pool->hubbub))
+				hubbub1_disable_allow_self_refresh(dc->res_pool->hubbub);
+
 			disable_vga(dc->hwseq);
 		}
 
@@ -1212,7 +1227,8 @@ static bool dcn10_set_input_transfer_func(struct pipe_ctx *pipe_ctx,
 		tf = plane_state->in_transfer_func;
 
 	if (plane_state->gamma_correction &&
-		!plane_state->gamma_correction->is_identity
+		!dpp_base->ctx->dc->debug.always_use_regamma
+		&& !plane_state->gamma_correction->is_identity
 			&& dce_use_lut(plane_state->format))
 		dpp_base->funcs->dpp_program_input_lut(dpp_base, plane_state->gamma_correction);
 
@@ -2149,6 +2165,15 @@ static void dcn10_blank_pixel_data(
 	/* program otg blank color */
 	color_space = stream->output_color_space;
 	color_space_to_black_color(dc, color_space, &black_color);
+
+	/*
+	 * The way 420 is packed, 2 channels carry Y component, 1 channel
+	 * alternate between Cb and Cr, so both channels need the pixel
+	 * value for Y
+	 */
+	if (stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR420)
+		black_color.color_r_cr = black_color.color_g_y;
+
 
 	if (stream_res->tg->funcs->set_blank_color)
 		stream_res->tg->funcs->set_blank_color(
