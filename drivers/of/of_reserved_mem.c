@@ -34,7 +34,7 @@ int __init __weak early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 	phys_addr_t base;
 
 	end = !end ? MEMBLOCK_ALLOC_ANYWHERE : end;
-	base = memblock_find_in_range(size, align, start, end);
+	base = memblock_find_in_range(start, end, size, align);
 	if (!base)
 		return -ENOMEM;
 
