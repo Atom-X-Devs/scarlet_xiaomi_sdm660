@@ -279,6 +279,13 @@
 };
 
 &pio {
+	bt_pins: bt_pins {
+		pins_bt_en {
+			pinmux = <PINMUX_GPIO120__FUNC_GPIO120>;
+			output-low;
+		};
+	};
+
 	ec_ap_int_odl: ec_ap_int_odl {
 		pins1 {
 			pinmux = <PINMUX_GPIO151__FUNC_GPIO151>;
@@ -447,11 +454,6 @@
 
 		pins_wifi {
 			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
-			output-high;
-		};
-
-		pins_bt {
-			pinmux = <PINMUX_GPIO120__FUNC_GPIO120>;
 			output-high;
 		};
 	};
@@ -696,6 +698,16 @@
 
 &uart0 {
 	status = "okay";
+
+	bluetooth: qca6174-bt {
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_pins>;
+		status = "okay";
+		compatible = "qcom,qca6174-bt";
+		enable-gpios = <&pio 120 0>;
+		clocks = <&clk32k>;
+		firmware-name = "nvm_00440302_i2s.bin";
+	};
 };
 
 #include <arm/cros-ec-keyboard.dtsi>
