@@ -1525,6 +1525,16 @@ struct kbase_device {
 	struct kbase_devfreq_opp *opp_table;
 	int num_opps;
 	struct kbasep_pm_metrics last_devfreq_metrics;
+	struct {
+		void (*voltage_range_check)(struct kbase_device *kbdev,
+					    unsigned long *voltages);
+#ifdef CONFIG_REGULATOR
+		int (*set_voltages)(struct kbase_device *kbdev,
+				    unsigned long *voltages, bool inc);
+#endif
+		int (*set_frequency)(struct kbase_device *kbdev,
+				     unsigned long freq);
+	} devfreq_ops;
 #ifdef CONFIG_DEVFREQ_THERMAL
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	struct devfreq_cooling_device *devfreq_cooling;
