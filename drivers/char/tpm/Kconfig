@@ -192,7 +192,7 @@ config TCG_VTPM_PROXY
 
 config TCG_VIRTIO_VTPM
 	tristate "Virtio vTPM"
-	depends on TCG_TPM
+	depends on TCG_TPM && VIRTIO
 	---help---
 	  This driver provides the guest kernel side of TPM over Virtio. If
 	  you are building Linux to run inside of a hypervisor that supports
