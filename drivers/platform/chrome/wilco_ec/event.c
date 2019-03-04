@@ -142,7 +142,7 @@ static int enqueue_events(struct acpi_device *adev, const u8 *buf, u32 length)
 		word_size = num_words * sizeof(u16);
 		event_size = sizeof(*event) + word_size;
 		if (num_words > EC_ACPI_MAX_EVENT_DATA) {
-			dev_err(&adev->dev, "Too many event words: %d > %d\n",
+			dev_err(&adev->dev, "Too many event words: %zu > %d\n",
 				num_words, EC_ACPI_MAX_EVENT_DATA);
 			return -EOVERFLOW;
 		};
@@ -251,7 +251,7 @@ static __poll_t event_poll(struct file *filp, poll_table *wait)
 
 	poll_wait(filp, &dev_data->wq, wait);
 	if (!dev_data->exist)
-		return -ENODEV;
+		return EPOLLHUP;
 	if (!list_empty(&dev_data->events))
 		mask |= EPOLLIN | EPOLLRDNORM | EPOLLPRI;
 	return mask;
