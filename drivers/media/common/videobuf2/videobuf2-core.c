@@ -1470,6 +1470,12 @@ int vb2_core_qbuf(struct vb2_queue *q, unsigned int index, void *pb,
 
 	vb = q->bufs[index];
 
+	if (!req && vb->state != VB2_BUF_STATE_IN_REQUEST &&
+	    q->requires_requests) {
+		dprintk(1, "qbuf requires a request\n");
+		return -EBADR;
+	}
+
 	if ((req && q->uses_qbuf) ||
 	    (!req && vb->state != VB2_BUF_STATE_IN_REQUEST &&
 	     q->uses_requests)) {
@@ -2213,6 +2219,9 @@ int vb2_core_queue_init(struct vb2_queue *q)
 	    WARN_ON(!q->io_modes)	  ||
 	    WARN_ON(!q->ops->queue_setup) ||
 	    WARN_ON(!q->ops->buf_queue))
+		return -EINVAL;
+
+	if (WARN_ON(q->requires_requests && !q->supports_requests))
 		return -EINVAL;
 
 	INIT_LIST_HEAD(&q->queued_list);
