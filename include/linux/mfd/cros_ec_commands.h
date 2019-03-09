@@ -1295,6 +1295,8 @@ enum ec_feature_code {
 	EC_FEATURE_HOST_EVENT64 = 33,
 	/* EC supports CEC commands */
 	EC_FEATURE_CEC = 35,
+	/* The MCU is an Integrated Sensor Hub */
+	EC_FEATURE_ISH = 40,
 };
 
 #define EC_FEATURE_MASK_0(event_code) (1UL << (event_code % 32))

@@ -27,6 +27,7 @@
 #define CROS_EC_DEV_PD_NAME "cros_pd"
 #define CROS_EC_DEV_FP_NAME "cros_fp"
 #define CROS_EC_DEV_TP_NAME "cros_tp"
+#define CROS_EC_DEV_ISH_NAME "cros_ish"
 
 /*
  * The EC is unresponsive for a time after a reboot command.  Add a
