@@ -19,6 +19,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/platform_device.h>
 #include <linux/uaccess.h>
 
 #include <asm/cpu_device_id.h>
@@ -854,12 +855,59 @@ static const struct dmi_system_id pmc_core_dmi_table[]  = {
 	{}
 };
 
-static int __init pmc_core_probe(void)
+static int pmc_core_probe(struct platform_device *pdev)
 {
-	struct pmc_dev *pmcdev = &pmc;
-	const struct x86_cpu_id *cpu_id;
-	u64 slp_s0_addr;
+	struct pmc_dev *pmcdev = platform_get_drvdata(pdev);
 	int err;
+
+	pmcdev->regbase = ioremap(pmcdev->base_addr,
+				  pmcdev->map->regmap_length);
+	if (!pmcdev->regbase)
+		return -ENOMEM;
+
+	mutex_init(&pmcdev->lock);
+	pmcdev->pmc_xram_read_bit = pmc_core_check_read_lock_bit();
+
+	err = pmc_core_dbgfs_register(pmcdev);
+	if (err < 0) {
+		dev_warn(&pdev->dev, "debugfs register failed.\n");
+		iounmap(pmcdev->regbase);
+		return err;
+	}
+
+	dmi_check_system(pmc_core_dmi_table);
+	dev_info(&pdev->dev, " initialized\n");
+	return 0;
+}
+
+static int pmc_core_remove(struct platform_device *pdev)
+{
+	struct pmc_dev *pmcdev = platform_get_drvdata(pdev);
+
+	pmc_core_dbgfs_unregister(pmcdev);
+	mutex_destroy(&pmcdev->lock);
+	iounmap(pmcdev->regbase);
+	return 0;
+}
+
+static struct platform_driver pmc_core_driver = {
+	.driver = {
+		.name = "pmc_core",
+	},
+	.probe = pmc_core_probe,
+	.remove = pmc_core_remove,
+};
+
+static struct platform_device pmc_core_device = {
+	.name           = "pmc_core",
+};
+
+static int __init pmc_core_init(void)
+{
+	int ret;
+	const struct x86_cpu_id *cpu_id;
+	struct pmc_dev *pmcdev = &pmc;
+	u64 slp_s0_addr;
 
 	cpu_id = x86_match_cpu(intel_pmc_core_ids);
 	if (!cpu_id)
@@ -880,36 +928,31 @@ static int __init pmc_core_probe(void)
 	else
 		pmcdev->base_addr = slp_s0_addr - pmcdev->map->slp_s0_offset;
 
-	pmcdev->regbase = ioremap(pmcdev->base_addr,
-				  pmcdev->map->regmap_length);
-	if (!pmcdev->regbase)
-		return -ENOMEM;
+	platform_set_drvdata(&pmc_core_device, pmcdev);
 
-	mutex_init(&pmcdev->lock);
-	pmcdev->pmc_xram_read_bit = pmc_core_check_read_lock_bit();
+	ret = platform_device_register(&pmc_core_device);
+	if (ret)
+		return ret;
 
-	err = pmc_core_dbgfs_register(pmcdev);
-	if (err < 0) {
-		pr_warn(" debugfs register failed.\n");
-		iounmap(pmcdev->regbase);
-		return err;
-	}
+	ret = platform_driver_register(&pmc_core_driver);
+	if (ret)
+		goto out_remove_dev;
 
-	dmi_check_system(pmc_core_dmi_table);
-	pr_info(" initialized\n");
 	return 0;
-}
-module_init(pmc_core_probe)
 
-static void __exit pmc_core_remove(void)
+out_remove_dev:
+	platform_device_unregister(&pmc_core_device);
+	return ret;
+}
+
+static void __init pmc_core_exit(void)
 {
-	struct pmc_dev *pmcdev = &pmc;
-
-	pmc_core_dbgfs_unregister(pmcdev);
-	mutex_destroy(&pmcdev->lock);
-	iounmap(pmcdev->regbase);
+	platform_driver_unregister(&pmc_core_driver);
+	platform_device_unregister(&pmc_core_device);
 }
-module_exit(pmc_core_remove)
+
+module_init(pmc_core_init);
+module_exit(pmc_core_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Intel PMC Core Driver");
