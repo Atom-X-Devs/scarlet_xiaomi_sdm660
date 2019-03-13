@@ -1520,24 +1520,6 @@ drm_dp_mst_topology_put_mstb(struct drm_dp_mst_branch *mstb)
 	kref_put(&mstb->topology_kref, drm_dp_destroy_mst_branch_device);
 }
 
-static void drm_dp_port_teardown_pdt(struct drm_dp_mst_port *port, int old_pdt)
-{
-	struct drm_dp_mst_branch *mstb;
-
-	switch (old_pdt) {
-	case DP_PEER_DEVICE_DP_LEGACY_CONV:
-	case DP_PEER_DEVICE_SST_SINK:
-		/* remove i2c over sideband */
-		drm_dp_mst_unregister_i2c_bus(port);
-		break;
-	case DP_PEER_DEVICE_MST_BRANCHING:
-		mstb = port->mstb;
-		port->mstb = NULL;
-		drm_dp_mst_topology_put_mstb(mstb);
-		break;
-	}
-}
-
 static void drm_dp_destroy_port(struct kref *kref)
 {
 	struct drm_dp_mst_port *port =
@@ -1746,38 +1728,79 @@ static u8 drm_dp_calculate_rad(struct drm_dp_mst_port *port,
 	return parent_lct + 1;
 }
 
-/*
- * return sends link address for new mstb
- */
-static bool drm_dp_port_setup_pdt(struct drm_dp_mst_port *port)
+static int drm_dp_port_set_pdt(struct drm_dp_mst_port *port, u8 new_pdt)
 {
-	int ret;
-	u8 rad[6], lct;
-	bool send_link = false;
+	struct drm_dp_mst_topology_mgr *mgr = port->mgr;
+	struct drm_dp_mst_branch *mstb;
+	u8 rad[8], lct;
+	int ret = 0;
+
+	if (port->pdt == new_pdt)
+		return 0;
+
+	/* Teardown the old pdt, if there is one */
+	switch (port->pdt) {
+	case DP_PEER_DEVICE_DP_LEGACY_CONV:
+	case DP_PEER_DEVICE_SST_SINK:
+		/*
+		 * If the new PDT would also have an i2c bus, don't bother
+		 * with reregistering it
+		 */
+		if (new_pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
+		    new_pdt == DP_PEER_DEVICE_SST_SINK) {
+			port->pdt = new_pdt;
+			return 0;
+		}
+
+		/* remove i2c over sideband */
+		drm_dp_mst_unregister_i2c_bus(port);
+		break;
+	case DP_PEER_DEVICE_MST_BRANCHING:
+		mutex_lock(&mgr->lock);
+		drm_dp_mst_topology_put_mstb(port->mstb);
+		port->mstb = NULL;
+		mutex_unlock(&mgr->lock);
+		break;
+	}
+
+	port->pdt = new_pdt;
 	switch (port->pdt) {
 	case DP_PEER_DEVICE_DP_LEGACY_CONV:
 	case DP_PEER_DEVICE_SST_SINK:
 		/* add i2c over sideband */
 		ret = drm_dp_mst_register_i2c_bus(port);
 		break;
+
 	case DP_PEER_DEVICE_MST_BRANCHING:
 		lct = drm_dp_calculate_rad(port, rad);
-
-		port->mstb = drm_dp_add_mst_branch_device(lct, rad);
-		if (port->mstb) {
-			port->mstb->mgr = port->mgr;
-			port->mstb->port_parent = port;
-			/*
-			 * Make sure this port's memory allocation stays
-			 * around until it's child MSTB releases it
-			 */
-			drm_dp_mst_get_port_malloc(port);
-
-			send_link = true;
+		mstb = drm_dp_add_mst_branch_device(lct, rad);
+		if (!mstb) {
+			ret = -ENOMEM;
+			DRM_ERROR("Failed to create MSTB for port %p", port);
+			goto out;
 		}
+
+		mutex_lock(&mgr->lock);
+		port->mstb = mstb;
+		mstb->mgr = port->mgr;
+		mstb->port_parent = port;
+
+		/*
+		 * Make sure this port's memory allocation stays
+		 * around until its child MSTB releases it
+		 */
+		drm_dp_mst_get_port_malloc(port);
+		mutex_unlock(&mgr->lock);
+
+		/* And make sure we send a link address for this */
+		ret = 1;
 		break;
 	}
-	return send_link;
+
+out:
+	if (ret < 0)
+		port->pdt = DP_PEER_DEVICE_NONE;
+	return ret;
 }
 
 /**
@@ -1914,10 +1937,9 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 				    struct drm_device *dev,
 				    struct drm_dp_link_addr_reply_port *port_msg)
 {
+	struct drm_dp_mst_topology_mgr *mgr = mstb->mgr;
 	struct drm_dp_mst_port *port;
-	bool ret;
 	bool created = false;
-	int old_pdt = 0;
 	int old_ddps = 0;
 
 	port = drm_dp_get_port(mstb, port_msg->port_number);
@@ -1929,7 +1951,7 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 		kref_init(&port->malloc_kref);
 		port->parent = mstb;
 		port->port_num = port_msg->port_number;
-		port->mgr = mstb->mgr;
+		port->mgr = mgr;
 		port->aux.name = "DPMST";
 		port->aux.dev = dev->dev;
 		port->aux.is_remote = true;
@@ -1942,11 +1964,9 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 
 		created = true;
 	} else {
-		old_pdt = port->pdt;
 		old_ddps = port->ddps;
 	}
 
-	port->pdt = port_msg->peer_device_type;
 	port->input = port_msg->input_port;
 	port->mcs = port_msg->mcs;
 	port->ddps = port_msg->ddps;
@@ -1958,29 +1978,33 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 	/* manage mstb port lists with mgr lock - take a reference
 	   for this list */
 	if (created) {
-		mutex_lock(&mstb->mgr->lock);
+		mutex_lock(&mgr->lock);
 		drm_dp_mst_topology_get_port(port);
 		list_add(&port->next, &mstb->ports);
-		mutex_unlock(&mstb->mgr->lock);
+		mutex_unlock(&mgr->lock);
 	}
 
 	if (old_ddps != port->ddps) {
 		if (port->ddps) {
 			if (!port->input) {
-				drm_dp_send_enum_path_resources(mstb->mgr,
-								mstb, port);
+				drm_dp_send_enum_path_resources(mgr, mstb,
+								port);
 			}
 		} else {
 			port->available_pbn = 0;
 		}
 	}
 
-	if (old_pdt != port->pdt && !port->input) {
-		drm_dp_port_teardown_pdt(port, old_pdt);
-
-		ret = drm_dp_port_setup_pdt(port);
-		if (ret == true)
-			drm_dp_send_link_address(mstb->mgr, port->mstb);
+	if (!port->input) {
+		int ret = drm_dp_port_set_pdt(port,
+					      port_msg->peer_device_type);
+		if (ret == 1) {
+			drm_dp_send_link_address(mgr, port->mstb);
+		} else if (ret < 0) {
+			DRM_ERROR("Failed to change PDT on port %p: %d\n",
+				  port, ret);
+			goto fail;
+		}
 	}
 
 	if (created && !port->input) {
@@ -1988,18 +2012,11 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 
 		build_mst_prop_path(mstb, port->port_num, proppath,
 				    sizeof(proppath));
-		port->connector = (*mstb->mgr->cbs->add_connector)(mstb->mgr,
-								   port,
-								   proppath);
-		if (!port->connector) {
-			/* remove it from the port list */
-			mutex_lock(&mstb->mgr->lock);
-			list_del(&port->next);
-			mutex_unlock(&mstb->mgr->lock);
-			/* drop port list reference */
-			drm_dp_mst_topology_put_port(port);
-			goto out;
-		}
+		port->connector = (*mgr->cbs->add_connector)(mgr, port,
+							     proppath);
+		if (!port->connector)
+			goto fail;
+
 		if ((port->pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
 		     port->pdt == DP_PEER_DEVICE_SST_SINK) &&
 		    port->port_num >= DP_MST_LOGICAL_PORT_0) {
@@ -2007,7 +2024,8 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 							 &port->aux.ddc);
 			drm_connector_set_tile_property(port->connector);
 		}
-		(*mstb->mgr->cbs->register_connector)(port->connector);
+
+		(*mgr->cbs->register_connector)(port->connector);
 		if ((port->pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
 		     port->pdt == DP_PEER_DEVICE_SST_SINK)) {
 			int ret;
@@ -2017,8 +2035,19 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 		}
 	}
 
-out:
 	/* put reference to this port */
+	drm_dp_mst_topology_put_port(port);
+	return;
+
+fail:
+	/* Remove it from the port list */
+	mutex_lock(&mgr->lock);
+	list_del(&port->next);
+	mutex_unlock(&mgr->lock);
+
+	/* Drop the port list reference */
+	drm_dp_mst_topology_put_port(port);
+	/* And now drop our reference */
 	drm_dp_mst_topology_put_port(port);
 }
 
@@ -2027,16 +2056,14 @@ drm_dp_mst_handle_conn_stat(struct drm_dp_mst_branch *mstb,
 			    struct drm_dp_connection_status_notify *conn_stat)
 {
 	struct drm_dp_mst_port *port;
-	int old_pdt;
 	int old_ddps;
 	bool dowork = false;
+
 	port = drm_dp_get_port(mstb, conn_stat->port_number);
 	if (!port)
 		return;
 
 	old_ddps = port->ddps;
-	old_pdt = port->pdt;
-	port->pdt = conn_stat->peer_device_type;
 	port->mcs = conn_stat->message_capability_status;
 	port->ldps = conn_stat->legacy_device_plug_status;
 	port->ddps = conn_stat->displayport_device_plug_status;
@@ -2048,11 +2075,17 @@ drm_dp_mst_handle_conn_stat(struct drm_dp_mst_branch *mstb,
 			port->available_pbn = 0;
 		}
 	}
-	if (old_pdt != port->pdt && !port->input) {
-		drm_dp_port_teardown_pdt(port, old_pdt);
 
-		if (drm_dp_port_setup_pdt(port))
+	if (!port->input) {
+		int ret = drm_dp_port_set_pdt(port,
+					      conn_stat->peer_device_type);
+		if (ret == 1) {
 			dowork = true;
+		} else if (ret < 0) {
+			DRM_ERROR("Failed to change PDT for port %p: %d\n",
+				  port, ret);
+			dowork = false;
+		}
 	}
 
 	drm_dp_mst_topology_put_port(port);
@@ -4103,9 +4136,7 @@ drm_dp_delayed_destroy_port(struct drm_dp_mst_port *port)
 	if (port->connector)
 		port->mgr->cbs->destroy_connector(port->mgr, port->connector);
 
-	drm_dp_port_teardown_pdt(port, port->pdt);
-	port->pdt = DP_PEER_DEVICE_NONE;
-
+	drm_dp_port_set_pdt(port, DP_PEER_DEVICE_NONE);
 	drm_dp_mst_put_port_malloc(port);
 }
 
