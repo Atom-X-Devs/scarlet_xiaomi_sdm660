@@ -34,6 +34,13 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	clk32k: oscillator@1 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "clk32k";
+	};
+
 	lcd_pp3300: regulator@1 {
 		compatible = "regulator-fixed";
 		regulator-name = "lcd_pp3300";
