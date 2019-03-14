@@ -76,7 +76,7 @@ static int mtk_clk_mux_set_parent_lock(struct clk_hw *hw, u8 index)
 {
 	struct mtk_clk_mux *mux = to_mtk_clk_mux(hw);
 	u32 mask = GENMASK(mux->data->mux_width - 1, 0);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (mux->lock)
 		spin_lock_irqsave(mux->lock, flags);
@@ -99,7 +99,7 @@ static int mtk_clk_mux_set_parent_setclr_lock(struct clk_hw *hw, u8 index)
 	struct mtk_clk_mux *mux = to_mtk_clk_mux(hw);
 	u32 mask = GENMASK(mux->data->mux_width - 1, 0);
 	u32 val, orig;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (mux->lock)
 		spin_lock_irqsave(mux->lock, flags);
