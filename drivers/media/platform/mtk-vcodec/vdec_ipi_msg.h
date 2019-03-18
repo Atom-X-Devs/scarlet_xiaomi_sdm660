@@ -7,6 +7,8 @@
 #ifndef _VDEC_IPI_MSG_H_
 #define _VDEC_IPI_MSG_H_
 
+#include "linux/types.h"
+
 /**
  * enum vdec_ipi_msgid - message id between AP and VPU
  * @AP_IPIMSG_XXX	: AP to VPU cmd message id
