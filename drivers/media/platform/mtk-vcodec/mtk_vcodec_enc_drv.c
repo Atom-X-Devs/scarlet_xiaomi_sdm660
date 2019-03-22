@@ -246,6 +246,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	if (dev->fw_handler == NULL)
 		return -EINVAL;
 
+	dev->venc_pdata = of_device_get_match_data(&pdev->dev);
 	ret = mtk_vcodec_init_enc_pm(dev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to get mt vcodec clock source!");
@@ -280,21 +281,24 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto err_res;
 	}
+	disable_irq(dev->enc_irq);
 
-	dev->enc_lt_irq = platform_get_irq(pdev, 1);
-	ret = devm_request_irq(&pdev->dev,
-			       dev->enc_lt_irq, mtk_vcodec_enc_lt_irq_handler,
-			       0, pdev->name, dev);
-	if (ret) {
-		dev_err(&pdev->dev,
-			"Failed to install dev->enc_lt_irq %d (%d)",
-			dev->enc_lt_irq, ret);
-		ret = -EINVAL;
-		goto err_res;
+	if (dev->venc_pdata->has_lt_irq) {
+		dev->enc_lt_irq = platform_get_irq(pdev, 1);
+		ret = devm_request_irq(&pdev->dev,
+				       dev->enc_lt_irq,
+				       mtk_vcodec_enc_lt_irq_handler,
+				       0, pdev->name, dev);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Failed to install dev->enc_lt_irq %d (%d)",
+				dev->enc_lt_irq, ret);
+			ret = -EINVAL;
+			goto err_res;
+		}
+		disable_irq(dev->enc_lt_irq); /* VENC_LT */
 	}
 
-	disable_irq(dev->enc_irq);
-	disable_irq(dev->enc_lt_irq); /* VENC_LT */
 	mutex_init(&dev->enc_mutex);
 	mutex_init(&dev->dev_mutex);
 	spin_lock_init(&dev->irqlock);
@@ -373,8 +377,12 @@ err_res:
 	return ret;
 }
 
+static const struct mtk_vcodec_enc_pdata mt8173_pdata = {
+	.has_lt_irq = true,
+};
+
 static const struct of_device_id mtk_vcodec_enc_match[] = {
-	{.compatible = "mediatek,mt8173-vcodec-enc",},
+	{.compatible = "mediatek,mt8173-vcodec-enc", .data = &mt8173_pdata},
 	{},
 };
 MODULE_DEVICE_TABLE(of, mtk_vcodec_enc_match);

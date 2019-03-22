@@ -53,15 +53,20 @@ struct venc_ap_ipi_msg_init {
  * @vpu_inst_addr:	VPU encoder instance addr
  *			(struct venc_vp8_vsi/venc_h264_vsi *)
  * @param_id:	parameter id (venc_set_param_type)
- * @data_item:	number of items in the data array
+ * @num_data:	number of items in the data array
  * @data[8]:	data array to store the set parameters
  */
 struct venc_ap_ipi_msg_set_param {
 	uint32_t msg_id;
 	uint32_t vpu_inst_addr;
 	uint32_t param_id;
-	uint32_t data_item;
+	uint32_t num_data;
 	uint32_t data[8];
+};
+
+struct venc_ap_ipi_msg_set_param_ext {
+	struct venc_ap_ipi_msg_set_param base;
+	uint32_t data_ext[24];
 };
 
 /**
@@ -82,6 +87,12 @@ struct venc_ap_ipi_msg_enc {
 	uint32_t input_addr[3];
 	uint32_t bs_addr;
 	uint32_t bs_size;
+};
+
+struct venc_ap_ipi_msg_enc_ext {
+	struct venc_ap_ipi_msg_enc base;
+	uint32_t data_item;
+	uint32_t data[32];
 };
 
 /**
