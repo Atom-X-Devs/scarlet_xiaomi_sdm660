@@ -3195,7 +3195,8 @@ static int power_control_init(struct platform_device *pdev)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) \
 	|| defined(LSK_OPPV2_BACKPORT)
 #if defined(CONFIG_REGULATOR)
-	kbdev->dev_opp_table = dev_pm_opp_set_regulators(kbdev->dev, reg_names, 2);
+	kbdev->dev_opp_table = dev_pm_opp_set_regulators(kbdev->dev, reg_names,
+							 kbdev->regulator_num);
 	if (IS_ERR(kbdev->dev_opp_table)) {
 		err = PTR_ERR(kbdev->dev_opp_table);
 		kbdev->dev_opp_table = NULL;
