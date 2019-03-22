@@ -236,6 +236,7 @@ config VIDEO_MEDIATEK_VCODEC
 	select V4L2_MEM2MEM_DEV
 	select VIDEO_MEDIATEK_VPU
 	select MTK_SCP
+	select MEDIA_CONTROLLER
 	default n
 	---help---
 	    Mediatek video codec driver provides HW capability to
