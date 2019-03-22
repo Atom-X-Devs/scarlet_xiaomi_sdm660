@@ -330,7 +330,7 @@ static struct syscall_whitelist_entry complete_whitelist[] = {
 #endif
 
 	/* Exist for x86_64 and ARM64 but not ARM32 */
-#if !defined(CONFIG_ARM) && (defined(CONFIG_ARM64) || defined(CONFIG_X86_64))
+#if defined(CONFIG_ARM64) || defined(CONFIG_X86_64)
 	SYSCALL_ENTRY(fadvise64),
 	SYSCALL_ENTRY(fstat),
 	SYSCALL_ENTRY(migrate_pages),
@@ -342,7 +342,7 @@ static struct syscall_whitelist_entry complete_whitelist[] = {
 #endif
 
 	/* Unique to ARM32. */
-#if defined(CONFIG_ARM) && !defined(CONFIG_ARM64)
+#ifdef CONFIG_ARM
 	SYSCALL_ENTRY(arm_fadvise64_64),
 	SYSCALL_ENTRY(bdflush),
 	SYSCALL_ENTRY(fcntl64),
@@ -386,7 +386,7 @@ static struct syscall_whitelist_entry complete_whitelist[] = {
 #endif
 
 	/* Unique to ARM64. */
-#if defined(CONFIG_ARM64) && !defined(CONFIG_ARM)
+#ifdef CONFIG_ARM64
 	SYSCALL_ENTRY(nfsservctl),
 	SYSCALL_ENTRY(renameat2),
 #endif
