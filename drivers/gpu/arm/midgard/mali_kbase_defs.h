@@ -1166,7 +1166,7 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 #define DEVNAME_SIZE	16
 #if defined(CONFIG_REGULATOR)
-#define REGULATOR_NUM	2
+#define KBASE_MAX_REGULATORS	2
 #endif
 
 
@@ -1433,7 +1433,7 @@ struct kbase_device {
 	struct clk *clock;
 #ifdef CONFIG_REGULATOR
 	int regulator_num;
-	struct regulator *regulator[REGULATOR_NUM];
+	struct regulator *regulator[KBASE_MAX_REGULATORS];
 	struct opp_table *dev_opp_table;
 #endif
 	char devname[DEVNAME_SIZE];
@@ -1520,7 +1520,7 @@ struct kbase_device {
 	struct devfreq *devfreq;
 	unsigned long current_freq;
 	unsigned long current_nominal_freq;
-	unsigned long current_voltage[REGULATOR_NUM];
+	unsigned long current_voltage[KBASE_MAX_REGULATORS];
 	u64 current_core_mask;
 	struct kbase_devfreq_opp *opp_table;
 	int num_opps;

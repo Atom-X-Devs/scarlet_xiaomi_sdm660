@@ -126,7 +126,7 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	struct dev_pm_opp *opp;
 	unsigned long nominal_freq;
 	unsigned long freq = 0;
-	unsigned long target_volt[REGULATOR_NUM];
+	unsigned long target_volt[KBASE_MAX_REGULATORS];
 	int err, i;
 	u64 core_mask;
 

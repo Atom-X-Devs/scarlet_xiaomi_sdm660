@@ -3151,6 +3151,12 @@ static int power_control_init(struct platform_device *pdev)
 	kbdev->regulator_num = of_property_count_strings(kbdev->dev->of_node,
 		"supply-names");
 
+	if (kbdev->regulator_num > KBASE_MAX_REGULATORS) {
+		dev_err(&pdev->dev, "Too many regulators: %d > %d\n",
+			kbdev->regulator_num, KBASE_MAX_REGULATORS);
+		return -EINVAL;
+	}
+
 	reg_names = kcalloc(kbdev->regulator_num, sizeof(char *), GFP_KERNEL);
 
 	if (of_property_read_string_array(kbdev->dev->of_node, "supply-names",

@@ -366,7 +366,7 @@ static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
 static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 			bool inc)
 {
-	unsigned long step_volt[REGULATOR_NUM];
+	unsigned long step_volt[KBASE_MAX_REGULATORS];
 	int first, step;
 	int i;
 	int err;
