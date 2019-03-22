@@ -44,6 +44,11 @@ config ALT_SYSCALL_CHROMIUMOS
 	  using the alt-syscall infrastructure.  Alternate syscall tables
 	  can be selected with prctl(PR_ALT_SYSCALL).
 
+config ALT_SYSCALL_CHROMIUMOS_LEGACY_API
+       bool
+       default y
+       depends on ALT_SYSCALL_CHROMIUMOS && ARM
+
 config SECURITY_CHROMIUMOS_READONLY_PROC_SELF_MEM
 	bool "Force /proc/<pid>/mem paths to be read-only"
 	default y

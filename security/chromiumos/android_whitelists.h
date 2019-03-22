@@ -36,21 +36,22 @@
  * Note that the prio returned by getpriority has been offset by 20.
  * (returns 40..1 instead of -20..19)
  */
-static asmlinkage long android_getpriority(struct pt_regs *regs);
+DECL_ALT_SYS(android_getpriority, 2);
 /* Android does not get to call keyctl. */
-static asmlinkage long android_keyctl(struct pt_regs *regs);
+DECL_ALT_SYS(android_keyctl, 5);
 /* Make sure nothing sets a nice value more favorable than -10. */
-static asmlinkage long android_setpriority(struct pt_regs *regs);
-static asmlinkage long android_sched_setscheduler(struct pt_regs *regs);
-static asmlinkage long android_sched_setparam(struct pt_regs *regs);
-static asmlinkage int __maybe_unused android_socket(struct pt_regs *regs);
-static asmlinkage long android_perf_event_open(struct pt_regs *regs);
-static asmlinkage long android_adjtimex(struct pt_regs *regs);
-static asmlinkage long android_clock_adjtime(struct pt_regs *regs);
-static asmlinkage long android_getcpu(struct pt_regs *regs);
+DECL_ALT_SYS(android_setpriority, 3);
+DECL_ALT_SYS(android_sched_setscheduler, 3);
+DECL_ALT_SYS(android_sched_setparam, 2);
+DECL_ALT_SYS(android_socket, 3);
+DECL_ALT_SYS(android_perf_event_open, 5);
+DECL_ALT_SYS(android_adjtimex, 1);
+DECL_ALT_SYS(android_clock_adjtime, 2);
+DECL_ALT_SYS(android_getcpu, 3);
+
 #ifdef CONFIG_COMPAT
-static asmlinkage long android_compat_adjtimex(struct pt_regs *regs);
-static asmlinkage long android_compat_clock_adjtime(struct pt_regs *regs);
+DECL_ALT_SYS(android_compat_adjtimex, 1);
+DECL_ALT_SYS(android_compat_clock_adjtime, 2);
 #endif /* CONFIG_COMPAT */
 
 static struct syscall_whitelist_entry android_whitelist[] = {
