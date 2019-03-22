@@ -106,7 +106,6 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(getppid),
 	SYSCALL_ENTRY_ALT(getpriority, android_getpriority),
         SYSCALL_ENTRY(getrandom),
-	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getrusage),
 	SYSCALL_ENTRY(getsid),
 	SYSCALL_ENTRY(getsockname),
@@ -276,7 +275,6 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(rmdir),
 	SYSCALL_ENTRY(stat),
 	SYSCALL_ENTRY(symlink),
-	SYSCALL_ENTRY(time),
 	SYSCALL_ENTRY(unlink),
 	SYSCALL_ENTRY(ustat),
 	SYSCALL_ENTRY(utimes),
@@ -313,6 +311,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(getgroups),
 	SYSCALL_ENTRY(getresgid),
 	SYSCALL_ENTRY(getresuid),
+	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getuid),
 	SYSCALL_ENTRY(newfstatat),
 	SYSCALL_ENTRY(mmap),
@@ -324,13 +323,12 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(setreuid),
 	SYSCALL_ENTRY(setuid),
 	/*
-	 * chown(2), lchown(2), and select(2) are deprecated and not wired up
+	 * chown(2) and lchown(2) are deprecated and not wired up
 	 * on ARM64.
 	 */
 #ifndef CONFIG_ARM64
 	SYSCALL_ENTRY(chown),
 	SYSCALL_ENTRY(lchown),
-	SYSCALL_ENTRY(select),
 #endif
 #endif
 
@@ -378,7 +376,9 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 #ifdef CONFIG_X86_64
 	SYSCALL_ENTRY(arch_prctl),
 	SYSCALL_ENTRY(modify_ldt),
+	SYSCALL_ENTRY(select),
 	SYSCALL_ENTRY(set_thread_area),
+	SYSCALL_ENTRY(time),
 #endif
 
 }; /* end android_whitelist */
