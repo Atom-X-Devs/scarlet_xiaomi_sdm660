@@ -411,6 +411,12 @@ static int kbase_open(struct inode *inode, struct file *filp)
 	if (kbdev->infinite_cache_active_default)
 		kbase_ctx_flag_set(kctx, KCTX_INFINITE_CACHE);
 
+	/*
+	 * Allow large offsets as per commit be83bbf80682 ("mmap:
+	 * introduce sane default mmap limits")
+	 */
+	filp->f_mode |= FMODE_UNSIGNED_OFFSET;
+
 #ifdef CONFIG_DEBUG_FS
 	snprintf(kctx_name, 64, "%d_%d", kctx->tgid, kctx->id);
 
