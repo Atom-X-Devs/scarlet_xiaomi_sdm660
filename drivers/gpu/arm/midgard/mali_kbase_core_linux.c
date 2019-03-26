@@ -3140,7 +3140,7 @@ static int power_control_init(struct platform_device *pdev)
 {
 	struct kbase_device *kbdev = to_kbase_device(&pdev->dev);
 	int err = 0;
-	const char **reg_names;
+	const char *reg_names[KBASE_MAX_REGULATORS];
 #if defined(CONFIG_REGULATOR)
 	int i;
 #endif
@@ -3155,15 +3155,21 @@ static int power_control_init(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Too many regulators: %d > %d\n",
 			kbdev->regulator_num, KBASE_MAX_REGULATORS);
 		return -EINVAL;
+	} else if (kbdev->regulator_num == -EINVAL) {
+		/* The 'supply-names' is optional; if not there assume "mali" */
+		kbdev->regulator_num = 1;
+		reg_names[0] = "mali";
+	} else if (kbdev->regulator_num < 0) {
+		err = kbdev->regulator_num;
+	} else {
+		err = of_property_read_string_array(kbdev->dev->of_node,
+						    "supply-names", reg_names,
+						    kbdev->regulator_num);
 	}
 
-	reg_names = kcalloc(kbdev->regulator_num, sizeof(char *), GFP_KERNEL);
-
-	if (of_property_read_string_array(kbdev->dev->of_node, "supply-names",
-		reg_names, kbdev->regulator_num) < 0) {
-		dev_err(&pdev->dev, "Failed to get supply names\n");
-		err = -EINVAL;
-		goto fail;
+	if (err < 0) {
+		dev_err(&pdev->dev, "Error reading supply-names: %d\n", err);
+		return err;
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)) && defined(CONFIG_OF) \
@@ -3220,8 +3226,6 @@ static int power_control_init(struct platform_device *pdev)
 		dev_dbg(kbdev->dev, "OPP table not found\n");
 #endif /* CONFIG_OF && CONFIG_PM_OPP */
 
-	kfree(reg_names);
-
 	return 0;
 
 fail:
@@ -3239,8 +3243,6 @@ if (kbdev->clock != NULL) {
 		}
 	}
 #endif
-
-	kfree(reg_names);
 
 	return err;
 }
