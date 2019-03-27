@@ -219,7 +219,7 @@
 			gpio-ranges = <&pio 0 0 192>;
 			interrupt-controller;
 			interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
-			#interrupt-cells = <3>;
+			#interrupt-cells = <2>;
 		};
 
 		scpsys: syscon@10006000 {
