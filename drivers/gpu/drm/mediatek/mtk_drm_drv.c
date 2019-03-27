@@ -197,6 +197,7 @@ static const struct mtk_mmsys_driver_data mt2701_mmsys_driver_data = {
 	.main_len = ARRAY_SIZE(mt2701_mtk_ddp_main),
 	.ext_path = mt2701_mtk_ddp_ext,
 	.ext_len = ARRAY_SIZE(mt2701_mtk_ddp_ext),
+	.mmsys_id = MMSYS_MT2701,
 	.shadow_register = true,
 };
 
@@ -207,6 +208,7 @@ static const struct mtk_mmsys_driver_data mt2712_mmsys_driver_data = {
 	.ext_len = ARRAY_SIZE(mt2712_mtk_ddp_ext),
 	.third_path = mt2712_mtk_ddp_third,
 	.third_len = ARRAY_SIZE(mt2712_mtk_ddp_third),
+	.mmsys_id = MMSYS_MT2712,
 };
 
 static const struct mtk_mmsys_driver_data mt8173_mmsys_driver_data = {
@@ -214,6 +216,7 @@ static const struct mtk_mmsys_driver_data mt8173_mmsys_driver_data = {
 	.main_len = ARRAY_SIZE(mt8173_mtk_ddp_main),
 	.ext_path = mt8173_mtk_ddp_ext,
 	.ext_len = ARRAY_SIZE(mt8173_mtk_ddp_ext),
+	.mmsys_id = MMSYS_MT8173,
 };
 
 static int mtk_drm_kms_init(struct drm_device *drm)
@@ -471,6 +474,14 @@ static int mtk_drm_probe(struct platform_device *pdev)
 	mutex_init(&private->commit.lock);
 	INIT_WORK(&private->commit.work, mtk_atomic_work);
 	private->data = of_device_get_match_data(dev);
+
+	private->reg_data = mtk_ddp_get_mmsys_data(private->data->mmsys_id);
+	if (IS_ERR(private->reg_data)) {
+		ret = PTR_ERR(private->config_regs);
+		pr_info("Failed to get mmsys register data: %d\n",
+			ret);
+		return ret;
+	}
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	private->config_regs = devm_ioremap_resource(dev, mem);
