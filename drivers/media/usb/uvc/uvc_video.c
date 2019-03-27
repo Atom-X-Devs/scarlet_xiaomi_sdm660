@@ -677,8 +677,9 @@ void uvc_video_clock_update(struct uvc_streaming *stream,
 		return;
 
 	/*
-	 * We may get called if there are buffers done but not dequeued by the
-	 * user. Just bail out in that case.
+	 * We will get called from __vb2_queue_cancel() if there are buffers
+	 * done but not dequeued by the user, but the sample array has already
+	 * been released at that time. Just bail out in that case.
 	 */
 	if (!clock->samples)
 		return;
