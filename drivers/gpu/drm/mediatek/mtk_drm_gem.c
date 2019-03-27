@@ -166,6 +166,13 @@ int mtk_drm_gem_mmap_buf(struct drm_gem_object *obj, struct vm_area_struct *vma)
 	return mtk_drm_gem_object_mmap(obj, vma);
 }
 
+void *mtk_drm_gem_vmap_buf(struct drm_gem_object *obj)
+{
+	struct mtk_drm_gem_obj *mtk_gem = to_mtk_gem_obj(obj);
+
+	return mtk_gem->cookie;
+}
+
 int mtk_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct drm_gem_object *obj;
