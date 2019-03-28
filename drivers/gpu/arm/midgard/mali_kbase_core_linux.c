@@ -3175,17 +3175,13 @@ static int power_control_init(struct platform_device *pdev)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)) && defined(CONFIG_OF) \
 			&& defined(CONFIG_REGULATOR)
 	for (i = 0; i < kbdev->regulator_num; i++) {
-		kbdev->regulator[i] = regulator_get_optional(kbdev->dev, reg_names[i]);
-		if (IS_ERR_OR_NULL(kbdev->regulator[i])) {
+		kbdev->regulator[i] = regulator_get(kbdev->dev, reg_names[i]);
+		if (IS_ERR(kbdev->regulator[i])) {
 			err = PTR_ERR(kbdev->regulator[i]);
 			kbdev->regulator[i] = NULL;
-			if (err == -EPROBE_DEFER) {
+			if (err != -EPROBE_DEFER)
 				dev_err(&pdev->dev, "Failed to get regulator\n");
-				goto fail;
-			}
-			dev_info(kbdev->dev,
-				"Continuing without %s regulator control\n", reg_names[i]);
-			/* Allow probe to continue without regulator */
+			goto fail;
 		}
 	}
 #endif /* LINUX_VERSION_CODE >= 3, 12, 0 */
@@ -3212,7 +3208,7 @@ static int power_control_init(struct platform_device *pdev)
 	if (IS_ERR(kbdev->dev_opp_table)) {
 		err = PTR_ERR(kbdev->dev_opp_table);
 		kbdev->dev_opp_table = NULL;
-		dev_err(kbdev->dev, "Failed to set regulators for GPU err: %d\n",
+		dev_err(kbdev->dev, "Failed to init devfreq opp table: %d\n",
 			err);
 	}
 #endif /* CONFIG_REGULATOR */

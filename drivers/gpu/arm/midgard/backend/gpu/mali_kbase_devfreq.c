@@ -385,6 +385,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 		return -ENODEV;
 	}
 
+	/* Can't do devfreq without this table */
+	if (!kbdev->dev_opp_table) {
+		dev_err(kbdev->dev, "Uninitialized devfreq opp table\n");
+		return -ENODEV;
+	}
+
 	kbdev->current_freq = clk_get_rate(kbdev->clock);
 	kbdev->current_nominal_freq = kbdev->current_freq;
 
