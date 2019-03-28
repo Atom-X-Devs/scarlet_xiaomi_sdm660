@@ -248,6 +248,38 @@ struct devfreq_simple_ondemand_data {
 
 #if IS_ENABLED(CONFIG_DEVFREQ_GOV_PASSIVE)
 /**
+ * struct devfreq_cpu_state - holds the per-cpu state
+ * @freq:	holds the current frequency of the cpu.
+ * @min_freq:	holds the min frequency of the cpu.
+ * @max_freq:	holds the max frequency of the cpu.
+ * @first_cpu:	holds the cpumask of the first cpu of a policy.
+ *
+ * This structure stores the required cpu_state of a cpu.
+ * This is auto-populated by the governor.
+ */
+struct devfreq_cpu_state {
+	unsigned int freq;
+	unsigned int min_freq;
+	unsigned int max_freq;
+	unsigned int first_cpu;
+};
+
+/**
+ * struct devfreq_map - holds mapping from cpu frequency
+ * to devfreq frequency
+ * @cpu_khz:	holds the cpu frequency in Khz
+ * @dev_hz:	holds the devfreq device frequency in Hz
+ *
+ * This structure stores the lookup table between cpu
+ * and the devfreq device. This is auto-populated by the
+ * governor.
+ */
+struct devfreq_map {
+	unsigned int cpu_khz;
+	unsigned int dev_hz;
+};
+
+/**
  * struct devfreq_passive_data - void *data fed to struct devfreq
  *	and devfreq_add_device
  * @parent:	the devfreq instance of parent device.
@@ -260,11 +292,13 @@ struct devfreq_simple_ondemand_data {
  *			the next frequency, should use this callback.
  * @this:	the devfreq instance of own device.
  * @nb:		the notifier block for DEVFREQ_TRANSITION_NOTIFIER list
+ * @state:	holds the state min/max/current frequency of all online cpu's
+ * @map:	holds the maps between cpu frequency and device frequency
  *
  * The devfreq_passive_data have to set the devfreq instance of parent
  * device with governors except for the passive governor. But, don't need to
- * initialize the 'this' and 'nb' field because the devfreq core will handle
- * them.
+ * initialize the 'this', 'nb', 'state' and 'map' field because the devfreq
+ * core will handle them.
  */
 struct devfreq_passive_data {
 	/* Should set the devfreq instance of parent device */
@@ -273,9 +307,14 @@ struct devfreq_passive_data {
 	/* Optional callback to decide the next frequency of passvice device */
 	int (*get_target_freq)(struct devfreq *this, unsigned long *freq);
 
+	/* Should be set if the devfreq device wants to be scaled with cpu*/
+	u8 cpufreq_type;
+
 	/* For passive governor's internal use. Don't need to set them */
 	struct devfreq *this;
 	struct notifier_block nb;
+	struct devfreq_cpu_state *state[NR_CPUS];
+	struct devfreq_map **map;
 };
 #endif
 
