@@ -7,8 +7,6 @@
 # of such GNU licence.
 #
 
-ccflags-y += -I$(srctree)/drivers/staging/android
-
 ifeq ($(CONFIG_MALI_MIDGARD),y)
 	obj-y += platform/rk/mali_kbase_config_rk.o
 else ifeq ($(CONFIG_MALI_MIDGARD),m)
