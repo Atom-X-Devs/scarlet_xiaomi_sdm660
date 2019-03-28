@@ -355,8 +355,11 @@ void dev_pm_opp_of_cpumask_remove_table(const struct cpumask *cpumask);
 int dev_pm_opp_of_get_sharing_cpus(struct device *cpu_dev, struct cpumask *cpumask);
 struct device_node *dev_pm_opp_of_get_opp_desc_node(struct device *dev);
 struct device_node *dev_pm_opp_get_of_node(struct dev_pm_opp *opp);
+struct device_node *of_parse_required_opp(struct device_node *np, int index);
 int of_get_required_opp_performance_state(struct device_node *np, int index);
 void dev_pm_opp_of_register_em(struct cpumask *cpus);
+struct dev_pm_opp *dev_pm_opp_find_opp_of_np(struct opp_table *opp_table,
+					     struct device_node *opp_np);
 #else
 static inline int dev_pm_opp_of_add_table(struct device *dev)
 {
@@ -386,6 +389,11 @@ static inline int dev_pm_opp_of_get_sharing_cpus(struct device *cpu_dev, struct 
 	return -ENOTSUPP;
 }
 
+static inline struct dev_pm_opp *dev_pm_opp_find_opp_of_np(struct opp_table *opp_table, struct device_node *opp_np)
+{
+	return ERR_PTR(-ENOTSUPP);
+}
+
 static inline struct device_node *dev_pm_opp_of_get_opp_desc_node(struct device *dev)
 {
 	return NULL;
@@ -403,6 +411,11 @@ static inline void dev_pm_opp_of_register_em(struct cpumask *cpus)
 static inline int of_get_required_opp_performance_state(struct device_node *np, int index)
 {
 	return -ENOTSUPP;
+}
+
+static inline struct device_node *of_parse_required_opp(struct device_node *np, int index)
+{
+	return NULL;
 }
 #endif
 
