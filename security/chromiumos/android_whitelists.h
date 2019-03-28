@@ -54,7 +54,10 @@ static asmlinkage long android_compat_clock_adjtime(struct pt_regs *regs);
 #endif /* CONFIG_COMPAT */
 
 static struct syscall_whitelist_entry android_whitelist[] = {
+	SYSCALL_ENTRY(accept),
+	SYSCALL_ENTRY(accept4),
 	SYSCALL_ENTRY_ALT(adjtimex, android_adjtimex),
+	SYSCALL_ENTRY(bind),
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(capget),
 	SYSCALL_ENTRY(capset),
@@ -66,6 +69,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(clock_settime),
 	SYSCALL_ENTRY(clone),
 	SYSCALL_ENTRY(close),
+	SYSCALL_ENTRY(connect),
 	SYSCALL_ENTRY(dup),
 	SYSCALL_ENTRY(dup3),
 	SYSCALL_ENTRY(epoll_create1),
@@ -96,6 +100,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY_ALT(getcpu, android_getcpu),
 	SYSCALL_ENTRY(getcwd),
 	SYSCALL_ENTRY(getdents64),
+	SYSCALL_ENTRY(getpeername),
 	SYSCALL_ENTRY(getpgid),
 	SYSCALL_ENTRY(getpid),
 	SYSCALL_ENTRY(getppid),
@@ -104,6 +109,8 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getrusage),
 	SYSCALL_ENTRY(getsid),
+	SYSCALL_ENTRY(getsockname),
+	SYSCALL_ENTRY(getsockopt),
 	SYSCALL_ENTRY(gettid),
 	SYSCALL_ENTRY(gettimeofday),
 	SYSCALL_ENTRY(getxattr),
@@ -121,6 +128,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(lgetxattr),
 	SYSCALL_ENTRY(linkat),
 	SYSCALL_ENTRY(listxattr),
+	SYSCALL_ENTRY(listen),
 	SYSCALL_ENTRY(llistxattr),
 	SYSCALL_ENTRY(lremovexattr),
 	SYSCALL_ENTRY(lseek),
@@ -161,7 +169,9 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(readahead),
 	SYSCALL_ENTRY(readv),
 	SYSCALL_ENTRY(readlinkat),
+	SYSCALL_ENTRY(recvfrom),
 	SYSCALL_ENTRY(recvmmsg),
+	SYSCALL_ENTRY(recvmsg),
 	SYSCALL_ENTRY(remap_file_pages),
 	SYSCALL_ENTRY(removexattr),
 	SYSCALL_ENTRY(renameat),
@@ -186,6 +196,8 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(seccomp),
 	SYSCALL_ENTRY(sendfile),
 	SYSCALL_ENTRY(sendmmsg),
+	SYSCALL_ENTRY(sendmsg),
+	SYSCALL_ENTRY(sendto),
         SYSCALL_ENTRY(setdomainname),
 	SYSCALL_ENTRY(set_robust_list),
 	SYSCALL_ENTRY(set_tid_address),
@@ -195,10 +207,14 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY_ALT(setpriority, android_setpriority),
 	SYSCALL_ENTRY(setrlimit),
 	SYSCALL_ENTRY(setsid),
+	SYSCALL_ENTRY(setsockopt),
 	SYSCALL_ENTRY(settimeofday),
 	SYSCALL_ENTRY(setxattr),
+	SYSCALL_ENTRY(shutdown),
 	SYSCALL_ENTRY(signalfd4),
 	SYSCALL_ENTRY(sigaltstack),
+	SYSCALL_ENTRY_ALT(socket, android_socket),
+	SYSCALL_ENTRY(socketpair),
 	SYSCALL_ENTRY(splice),
 	SYSCALL_ENTRY(statfs),
 	SYSCALL_ENTRY(symlinkat),
@@ -268,41 +284,12 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 #endif
 
 	/*
-	 * waitpid(2) is deprecated on most architectures, but still exists
-	 * on IA32.
-	 */
-#ifdef CONFIG_X86_32
-	SYSCALL_ENTRY(waitpid),
-#endif
-
-	/* IA32 uses the common socketcall(2) entrypoint for socket calls. */
-#ifdef CONFIG_X86_32
-	SYSCALL_ENTRY(socketcall),
-#else
-	SYSCALL_ENTRY(accept),
-	SYSCALL_ENTRY(accept4),
-	SYSCALL_ENTRY(bind),
-	SYSCALL_ENTRY(connect),
-	SYSCALL_ENTRY(getpeername),
-	SYSCALL_ENTRY(getsockname),
-	SYSCALL_ENTRY(getsockopt),
-	SYSCALL_ENTRY(listen),
-	SYSCALL_ENTRY(recvfrom),
-	SYSCALL_ENTRY(recvmsg),
-	SYSCALL_ENTRY(sendmsg),
-	SYSCALL_ENTRY(sendto),
-	SYSCALL_ENTRY(setsockopt),
-	SYSCALL_ENTRY(shutdown),
-	SYSCALL_ENTRY_ALT(socket, android_socket),
-	SYSCALL_ENTRY(socketpair),
-	/*
 	 * recv(2)/send(2) are officially deprecated, but their entry-points
 	 * still exist on ARM.
 	 */
 #ifdef CONFIG_ARM
 	SYSCALL_ENTRY(recv),
 	SYSCALL_ENTRY(send),
-#endif
 #endif
 
 	/*
@@ -313,9 +300,6 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(arm_fadvise64_64),
 	SYSCALL_ENTRY(sync_file_range2),
 #else
-#ifdef CONFIG_X86_32
-	SYSCALL_ENTRY(fadvise64_64),
-#endif
 	SYSCALL_ENTRY(fadvise64),
 	SYSCALL_ENTRY(sync_file_range),
 #endif
@@ -350,8 +334,8 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 #endif
 #endif
 
-	/* 32-bit only syscalls. */
-#if defined(CONFIG_ARM) || defined(CONFIG_X86_32)
+	/* ARM32 only syscalls. */
+#if defined(CONFIG_ARM)
 	SYSCALL_ENTRY(chown32),
 	SYSCALL_ENTRY(fchown32),
 	SYSCALL_ENTRY(fcntl64),
@@ -390,15 +374,13 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(ugetrlimit),
 #endif
 
-	/* X86-specific syscalls. */
-#ifdef CONFIG_X86
+	/* X86_64-specific syscalls. */
+#ifdef CONFIG_X86_64
+	SYSCALL_ENTRY(arch_prctl),
 	SYSCALL_ENTRY(modify_ldt),
 	SYSCALL_ENTRY(set_thread_area),
 #endif
 
-#ifdef CONFIG_X86_64
-	SYSCALL_ENTRY(arch_prctl),
-#endif
 }; /* end android_whitelist */
 
 #ifdef CONFIG_COMPAT
@@ -649,31 +631,18 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(truncate64),
 	COMPAT_SYSCALL_ENTRY(ugetrlimit),
 
+#ifdef CONFIG_X86_64
 	/*
 	 * waitpid(2) is deprecated on most architectures, but still exists
 	 * on IA32.
 	 */
-#ifdef CONFIG_X86
 	COMPAT_SYSCALL_ENTRY(waitpid),
-#endif
-
-	/*
-	 * posix_fadvise(2) and sync_file_range(2) have ARM-specific wrappers
-	 * to deal with register alignment.
-	 */
-#ifdef CONFIG_ARM64
-	COMPAT_SYSCALL_ENTRY(arm_fadvise64_64),
-	COMPAT_SYSCALL_ENTRY(sync_file_range2),
-#else
-	COMPAT_SYSCALL_ENTRY(fadvise64_64),
-	COMPAT_SYSCALL_ENTRY(fadvise64),
-	COMPAT_SYSCALL_ENTRY(sync_file_range),
-#endif
 
 	/* IA32 uses the common socketcall(2) entrypoint for socket calls. */
-#ifdef CONFIG_X86
 	COMPAT_SYSCALL_ENTRY(socketcall),
-#else
+#endif
+
+#ifdef CONFIG_ARM64
 	COMPAT_SYSCALL_ENTRY(accept),
 	COMPAT_SYSCALL_ENTRY(accept4),
 	COMPAT_SYSCALL_ENTRY(bind),
@@ -695,6 +664,19 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 #endif
 
 	/*
+	 * posix_fadvise(2) and sync_file_range(2) have ARM-specific wrappers
+	 * to deal with register alignment.
+	 */
+#ifdef CONFIG_ARM64
+	COMPAT_SYSCALL_ENTRY(arm_fadvise64_64),
+	COMPAT_SYSCALL_ENTRY(sync_file_range2),
+#else
+	COMPAT_SYSCALL_ENTRY(fadvise64_64),
+	COMPAT_SYSCALL_ENTRY(fadvise64),
+	COMPAT_SYSCALL_ENTRY(sync_file_range),
+#endif
+
+	/*
 	 * getrlimit(2) and time(2) are deprecated and not wired in the ARM
          * compat table on ARM64.
 	 */
@@ -704,7 +686,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 #endif
 
 	/* x86-specific syscalls. */
-#ifdef CONFIG_X86
+#ifdef CONFIG_X86_64
 	COMPAT_SYSCALL_ENTRY(modify_ldt),
 	COMPAT_SYSCALL_ENTRY(set_thread_area),
 #endif
