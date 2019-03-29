@@ -1,0 +1,19 @@
+* Mediatek CCI frequency device
+
+Required properties:
+- compatible: should contain "mediatek,mt8183-cci" for cci devfreq
+
+- clocks: for cci devfreq
+
+- clock-names: for cci devfreq driver to reference
+
+- operating-points-v2: for cci devfreq opp table
+
+Example:
+	cci: cci {
+		compatible = "mediatek,cci";
+		clocks = <&apmixedsys CLK_APMIXED_CCIPLL>;
+		clock-names = "cci_clock";
+		operating-points-v2 = <&cci_opp>;
+	};
+
