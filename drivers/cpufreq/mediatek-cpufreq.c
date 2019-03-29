@@ -346,7 +346,7 @@ static int mtk_cpu_dvfs_info_init(struct mtk_cpu_dvfs_info *info, int cpu)
 		goto out_free_resources;
 	}
 
-	proc_reg = regulator_get_exclusive(cpu_dev, "proc");
+	proc_reg = regulator_get_optional(cpu_dev, "proc");
 	if (IS_ERR(proc_reg)) {
 		if (PTR_ERR(proc_reg) == -EPROBE_DEFER)
 			pr_warn("proc regulator for cpu%d not ready, retry.\n",
@@ -376,13 +376,17 @@ static int mtk_cpu_dvfs_info_init(struct mtk_cpu_dvfs_info *info, int cpu)
 		goto out_free_resources;
 	}
 
+	ret = clk_prepare_enable(inter_clk);
+	if (ret)
+		goto out_free_opp_table;
+
 	/* Search a safe voltage for intermediate frequency. */
 	rate = clk_get_rate(inter_clk);
 	opp = dev_pm_opp_find_freq_ceil(cpu_dev, &rate);
 	if (IS_ERR(opp)) {
 		pr_err("failed to get intermediate opp for cpu%d\n", cpu);
 		ret = PTR_ERR(opp);
-		goto out_free_opp_table;
+		goto out_disable_clock;
 	}
 	info->intermediate_voltage = dev_pm_opp_get_voltage(opp);
 	dev_pm_opp_put(opp);
@@ -400,6 +404,9 @@ static int mtk_cpu_dvfs_info_init(struct mtk_cpu_dvfs_info *info, int cpu)
 	info->need_voltage_tracking = !IS_ERR(sram_reg);
 
 	return 0;
+
+out_disable_clock:
+	clk_disable_unprepare(inter_clk);
 
 out_free_opp_table:
 	dev_pm_opp_of_cpumask_remove_table(&info->cpus);
@@ -543,6 +550,7 @@ static const struct of_device_id mtk_cpufreq_machines[] __initconst = {
 	{ .compatible = "mediatek,mt817x", },
 	{ .compatible = "mediatek,mt8173", },
 	{ .compatible = "mediatek,mt8176", },
+	{ .compatible = "mediatek,mt8183", },
 
 	{ }
 };
