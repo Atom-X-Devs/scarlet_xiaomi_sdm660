@@ -468,4 +468,5 @@ static inline void iwl_fw_error_collect(struct iwl_fw_runtime *fwrt)
 	}
 }
 
+void iwl_fw_error_print_fseq_regs(struct iwl_fw_runtime *fwrt);
 #endif  /* __iwl_fw_dbg_h__ */
