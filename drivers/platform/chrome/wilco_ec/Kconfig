@@ -26,4 +26,5 @@ config WILCO_EC_EVENTS
 	  If you say Y here, you get support for the EC to send events
 	  (such as power state changes) to userspace. The EC sends the events
 	  over ACPI, and a driver queues up the events to be read by a
-	  userspace daemon from /dev/wilco_event using read() and poll().
+	  userspace daemon from /dev/wilco_eventN (where N is some small
+	  positive integer) using read() and poll().
