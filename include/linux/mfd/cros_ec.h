@@ -126,6 +126,7 @@ struct cros_ec_command {
  * @mkbp_event_supported: 0 if MKBP not supported. Otherwise its value is
  *                        the maximum supported version of the MKBP host event
  *                        command + 1.
+ * @host_sleep_v1: True if this EC supports the sleep v1 command.
  * @event_notifier: Interrupt event notifier for transport devices.
  * @event_data: Raw payload transferred with the MKBP event.
  * @event_size: Size in bytes of the event data.
@@ -163,6 +164,7 @@ struct cros_ec_device {
 	struct mutex lock;
 	/* 0 == not supported, otherwise it supports version x - 1 */
 	u8 mkbp_event_supported;
+	bool host_sleep_v1;
 	struct blocking_notifier_head event_notifier;
 
 	struct ec_response_get_next_event_v1 event_data;
