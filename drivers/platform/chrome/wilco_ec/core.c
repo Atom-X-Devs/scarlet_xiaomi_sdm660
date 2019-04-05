@@ -144,8 +144,16 @@ static int wilco_ec_probe(struct platform_device *pdev)
 		}
 	}
 
+	ret = wilco_ec_add_sysfs(ec);
+	if (ret < 0) {
+		dev_err(dev, "Failed to create sysfs entries: %d", ret);
+		goto unregister_kbbl;
+	}
+
 	return 0;
 
+unregister_kbbl:
+	platform_device_unregister(ec->kbbl_pdev);
 unregister_rtc:
 	platform_device_unregister(ec->rtc_pdev);
 unregister_debugfs:
@@ -159,6 +167,7 @@ static int wilco_ec_remove(struct platform_device *pdev)
 {
 	struct wilco_ec_device *ec = platform_get_drvdata(pdev);
 
+	wilco_ec_remove_sysfs(ec);
 	platform_device_unregister(ec->kbbl_pdev);
 	platform_device_unregister(ec->rtc_pdev);
 	if (ec->debugfs_pdev)
