@@ -234,17 +234,13 @@ static void rk_pm_suspend_callback(struct kbase_device *kbdev)
 {
 	/*
 	 * Depending on power policy, the GPU might not be powered off at this
-	 * point. We have to call rk_pm_callback_power_off() here to make
-	 * sure it is before turning off the regulator. The function can be
-	 * called safely even if the GPU is already powered off.
+	 * point. We have to call rk_pm_callback_power_off() here.
 	 */
 	rk_pm_callback_power_off(kbdev);
-	rk_pm_disable_regulator(kbdev);
 }
 
 static void rk_pm_resume_callback(struct kbase_device *kbdev)
 {
-	rk_pm_enable_regulator(kbdev);
 	/*
 	 * Core will call rk_pm_enable_regulator() itself before attempting
 	 * to access the GPU, so no need to do it here.
