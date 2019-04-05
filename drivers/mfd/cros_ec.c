@@ -65,7 +65,7 @@ static irqreturn_t ec_irq_handler(int irq, void *data) {
 	return IRQ_WAKE_THREAD;
 }
 
-static bool ec_handle_event(struct cros_ec_device *ec_dev)
+bool cros_ec_handle_event(struct cros_ec_device *ec_dev)
 {
 	bool wake_event = true;
 	bool ec_has_more_events = false;
@@ -87,6 +87,7 @@ static bool ec_handle_event(struct cros_ec_device *ec_dev)
 	return ec_has_more_events;
 
 }
+EXPORT_SYMBOL(cros_ec_handle_event);
 
 static irqreturn_t ec_irq_thread(int irq, void *data)
 {
@@ -94,7 +95,7 @@ static irqreturn_t ec_irq_thread(int irq, void *data)
 	bool ec_has_more_events;
 
 	do {
-		ec_has_more_events = ec_handle_event(ec_dev);
+		ec_has_more_events = cros_ec_handle_event(ec_dev);
 	} while (ec_has_more_events);
 
 	return IRQ_HANDLED;
