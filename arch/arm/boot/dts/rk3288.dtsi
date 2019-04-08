@@ -639,6 +639,28 @@
 		status = "disabled";
 	};
 
+	dmc: dmc@ff610000 {
+		compatible = "rockchip,rk3288-dmc", "syscon";
+		reg = <0x0 0xff610000 0x0 0x3fc
+		       0x0 0xff620000 0x0 0x294
+		       0x0 0xff630000 0x0 0x3fc
+		       0x0 0xff640000 0x0 0x294>;
+		rockchip,cru = <&cru>;
+		rockchip,grf = <&grf>;
+		rockchip,pmu = <&pmu>;
+		rockchip,service_bus = <&service_bus>;
+		rockchip,sgrf = <&sgrf>;
+		rockchip,sram = <&ddr_sram>;
+		clocks = <&cru PCLK_DDRUPCTL0>, <&cru PCLK_PUBL0>,
+			 <&cru PCLK_DDRUPCTL1>, <&cru PCLK_PUBL1>,
+			 <&cru ARMCLK>;
+		clock-names = "pclk_ddrupctl0", "pclk_publ0",
+			      "pclk_ddrupctl1", "pclk_publ1",
+			      "arm_clk";
+		#cooling-cells = <2>; /* min followed by max */
+		status = "disabled";
+	};
+
 	i2c0: i2c@ff650000 {
 		compatible = "rockchip,rk3288-i2c";
 		reg = <0x0 0xff650000 0x0 0x1000>;
@@ -715,9 +737,15 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0 0x0 0xff700000 0x18000>;
+
 		smp-sram@0 {
 			compatible = "rockchip,rk3066-smp-sram";
 			reg = <0x00 0x10>;
+		};
+
+		ddr_sram: ddr-sram@1000 {
+			compatible = "rockchip,rk3288-ddr-sram";
+			reg = <0x1000 0x4000>;
 		};
 	};
 
@@ -1309,6 +1337,11 @@
 	qos_gpu_w: qos@ffaa0080 {
 		compatible = "syscon";
 		reg = <0x0 0xffaa0080 0x0 0x20>;
+	};
+
+	service_bus: syscon@ffac0000 {
+		compatible = "rockchip,rk3288-service-bus", "syscon";
+		reg = <0x0 0xffac0000 0x0 0x2000>;
 	};
 
 	qos_vio1_vop: qos@ffad0000 {
