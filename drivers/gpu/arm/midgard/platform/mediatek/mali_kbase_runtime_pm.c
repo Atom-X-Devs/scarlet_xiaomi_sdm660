@@ -472,6 +472,8 @@ static int platform_init(struct kbase_device *kbdev)
 #endif
 	kbdev->devfreq_ops.voltage_range_check = voltage_range_check;
 
+	return 0;
+
 platform_init_err:
 	kfree(mfg);
 	return err;
