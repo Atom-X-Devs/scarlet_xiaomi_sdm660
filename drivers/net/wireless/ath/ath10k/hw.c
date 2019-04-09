@@ -1130,4 +1130,8 @@ const struct ath10k_hw_ops qca6174_ops = {
 	.enable_pll_clk = ath10k_hw_qca6174_enable_pll_clock,
 };
 
+const struct ath10k_hw_ops qca6174_sdio_ops = {
+	.enable_pll_clk = ath10k_hw_qca6174_enable_pll_clock,
+};
+
 const struct ath10k_hw_ops wcn3990_ops = {};
