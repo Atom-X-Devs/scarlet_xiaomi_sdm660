@@ -88,6 +88,7 @@ struct audit_field {
 struct audit_task_info {
 	kuid_t			loginuid;
 	unsigned int		sessionid;
+	u64			contid;
 #ifdef CONFIG_AUDITSYSCALL
 	struct audit_context	*ctx;
 #endif
@@ -189,6 +190,15 @@ static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
 	return tsk->audit->sessionid;
 }
 
+extern int audit_set_contid(struct task_struct *tsk, u64 contid);
+
+static inline u64 audit_get_contid(struct task_struct *tsk)
+{
+	if (!tsk->audit)
+		return AUDIT_CID_UNSET;
+	return tsk->audit->contid;
+}
+
 extern u32 audit_enabled;
 #else /* CONFIG_AUDIT */
 static inline int audit_alloc(struct task_struct *task)
@@ -240,6 +250,12 @@ static inline int audit_log_task_context(struct audit_buffer *ab)
 static inline void audit_log_task_info(struct audit_buffer *ab,
 				       struct task_struct *tsk)
 { }
+
+static inline u64 audit_get_contid(struct task_struct *tsk)
+{
+	return AUDIT_CID_UNSET;
+}
+
 #define audit_enabled AUDIT_OFF
 #endif /* CONFIG_AUDIT */
 
@@ -608,6 +624,16 @@ static inline void audit_ptrace(struct task_struct *t)
 static inline bool audit_loginuid_set(struct task_struct *tsk)
 {
 	return uid_valid(audit_get_loginuid(tsk));
+}
+
+static inline bool audit_contid_valid(u64 contid)
+{
+	return contid != AUDIT_CID_UNSET;
+}
+
+static inline bool audit_contid_set(struct task_struct *tsk)
+{
+	return audit_contid_valid(audit_get_contid(tsk));
 }
 
 static inline void audit_log_string(struct audit_buffer *ab, const char *buf)
