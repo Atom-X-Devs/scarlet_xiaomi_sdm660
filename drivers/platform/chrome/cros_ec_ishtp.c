@@ -47,7 +47,8 @@ static const guid_t cros_ish_guid =
 struct header {
 	u8 channel;
 	u8 status;
-	u8 reserved[2];
+	u8 id;
+	u8 reserved;
 } __packed;
 
 struct cros_ish_out_msg {
@@ -90,6 +91,7 @@ DECLARE_RWSEM(init_lock);
  * @size:		Actual size of data received from firmware.
  * @error:		0 for success, negative error code for a
  *			failure in function process_recv().
+ * @expected_id:	Expected id for response that we are waiting on.
  * @received:		Set to true on receiving a valid firmware
  *			response to host command
  * @wait_queue:		Wait queue for Host firmware loading where the
@@ -101,6 +103,7 @@ struct response_info {
 	size_t max_size;
 	size_t size;
 	int error;
+	u8 expected_id;
 	bool received;
 	wait_queue_head_t wait_queue;
 };
@@ -165,6 +168,7 @@ static int ish_send(struct ishtp_cl_data *client_data,
 		    u8 *out_msg, size_t out_size,
 		    u8 *in_msg, size_t in_size)
 {
+	static u8 current_id;
 	int rv;
 	struct header *out_hdr = (struct header *)out_msg;
 	struct ishtp_cl *cros_ish_cl = client_data->cros_ish_cl;
@@ -177,7 +181,10 @@ static int ish_send(struct ishtp_cl_data *client_data,
 	client_data->response.data = in_msg;
 	client_data->response.max_size = in_size;
 	client_data->response.error = 0;
+	client_data->response.expected_id = ++current_id;
 	client_data->response.received = false;
+
+	out_hdr->id = client_data->response.expected_id;
 
 	rv = ishtp_cl_send(cros_ish_cl, out_msg, out_size);
 	if (rv) {
@@ -252,17 +259,23 @@ static void process_recv(struct ishtp_cl *cros_ish_cl,
 
 	switch (in_msg->hdr.channel) {
 	case CROS_EC_COMMAND:
+		if (client_data->response.received) {
+			dev_err(dev,
+				"Previous firmware message not yet processed\n");
+			goto end_error;
+		}
+
+		if (client_data->response.expected_id != in_msg->hdr.id) {
+			dev_err(dev,
+				"Dropping old response id %d\n",
+				in_msg->hdr.id);
+			goto end_error;
+		}
+
 		/* Sanity check */
 		if (!client_data->response.data) {
 			dev_err(dev,
 				"Receiving buffer is null. Should be allocated by calling function\n");
-			client_data->response.error = -EINVAL;
-			goto error_wake_up;
-		}
-
-		if (client_data->response.received) {
-			dev_err(dev,
-				"Previous firmware message not yet processed\n");
 			client_data->response.error = -EINVAL;
 			goto error_wake_up;
 		}
@@ -292,9 +305,10 @@ static void process_recv(struct ishtp_cl *cros_ish_cl,
 		memcpy(client_data->response.data,
 		       rb_in_proc->buffer.data, data_len);
 
+error_wake_up:
 		/* Set flag before waking up the caller */
 		client_data->response.received = true;
-error_wake_up:
+
 		/* Wake the calling thread */
 		wake_up_interruptible(&client_data->response.wait_queue);
 
