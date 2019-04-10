@@ -150,8 +150,20 @@ static int wilco_ec_probe(struct platform_device *pdev)
 		goto unregister_kbbl;
 	}
 
+	/* Register child device to be found by charger config driver. */
+	ec->charger_pdev = platform_device_register_data(dev, "wilco-charger",
+							 PLATFORM_DEVID_AUTO,
+							 NULL, 0);
+	if (IS_ERR(ec->charger_pdev)) {
+		dev_err(dev, "Failed to create charger platform device\n");
+		ret = PTR_ERR(ec->charger_pdev);
+		goto remove_sysfs;
+	}
+
 	return 0;
 
+remove_sysfs:
+	wilco_ec_remove_sysfs(ec);
 unregister_kbbl:
 	platform_device_unregister(ec->kbbl_pdev);
 unregister_rtc:
@@ -167,6 +179,7 @@ static int wilco_ec_remove(struct platform_device *pdev)
 {
 	struct wilco_ec_device *ec = platform_get_drvdata(pdev);
 
+	platform_device_unregister(ec->charger_pdev);
 	wilco_ec_remove_sysfs(ec);
 	platform_device_unregister(ec->kbbl_pdev);
 	platform_device_unregister(ec->rtc_pdev);
