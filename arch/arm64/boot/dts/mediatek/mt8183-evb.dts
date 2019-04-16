@@ -6,6 +6,7 @@
  */
 
 /dts-v1/;
+#include <dt-bindings/gpio/gpio.h>
 #include "mt8183.dtsi"
 #include "mt6358.dtsi"
 
@@ -24,6 +25,16 @@
 
 	chosen {
 		stdout-path = "serial0:921600n8";
+	};
+
+	usb_p0_vbus: regulator@0 {
+		compatible = "regulator-fixed";
+		regulator-name = "vbus";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&pio 42 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
 	};
 };
 
@@ -277,6 +288,16 @@
 	mediatek,pad-select = <0>;
 	status = "okay";
 
+};
+
+&ssusb {
+	vusb33-supply = <&mt6358_vusb_reg>;
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usb_host {
+	status = "okay";
 };
 
 &uart0 {
