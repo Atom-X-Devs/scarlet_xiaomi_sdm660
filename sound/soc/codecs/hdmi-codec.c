@@ -757,7 +757,7 @@ static int hdmi_codec_probe(struct platform_device *pdev)
 	int ret;
 
 	if (!hcd) {
-		dev_err(dev, "%s: No plalform data\n", __func__);
+		dev_err(dev, "%s: No platform data\n", __func__);
 		return -EINVAL;
 	}
 
