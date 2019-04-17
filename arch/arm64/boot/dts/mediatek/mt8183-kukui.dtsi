@@ -936,6 +936,25 @@
 		};
 	};
 
+	uart1_pin_sleep: uart1sleep {
+		pins_rx {
+			pinmux = <PINMUX_GPIO121__FUNC_GPIO121>;
+			input-enable;
+			bias-pull-up;
+		};
+		pins_tx {
+			pinmux = <PINMUX_GPIO115__FUNC_UTXD1>;
+		};
+		pins_rts {
+			pinmux = <PINMUX_GPIO47__FUNC_URTS1>;
+			output-enable;
+		};
+		pins_cts {
+			pinmux = <PINMUX_GPIO46__FUNC_UCTS1>;
+			input-enable;
+		};
+	};
+
 	wifi_pins_pwrseq: wifipwrseq {
 		pins_wifi_enable {
 			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
@@ -1141,9 +1160,12 @@
 };
 
 &uart1 {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&uart1_pin>;
+	pinctrl-1 = <&uart1_pin_sleep>;
 	status = "okay";
+	interrupts-extended = <&sysirq GIC_SPI 92 IRQ_TYPE_LEVEL_LOW>,
+			      <&pio 121 IRQ_TYPE_EDGE_FALLING>;
 
 	bluetooth: qca6174-bt {
 		pinctrl-names = "default";
