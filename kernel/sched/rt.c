@@ -1571,6 +1571,18 @@ static struct task_struct *_pick_next_task_rt(struct rq *rq)
 	return rt_task_of(rt_se);
 }
 
+static struct task_struct *pick_task_rt(struct rq *rq)
+{
+	struct task_struct *p;
+
+	if (!sched_rt_runnable(rq))
+		return NULL;
+
+	p = _pick_next_task_rt(rq);
+
+	return p;
+}
+
 static struct task_struct *
 pick_next_task_rt(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
@@ -1578,11 +1590,10 @@ pick_next_task_rt(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 
 	WARN_ON_ONCE(prev || rf);
 
-	if (!sched_rt_runnable(rq))
-		return NULL;
+	p = pick_task_rt(rq);
+	if (p)
+		set_next_task_rt(rq, p, true);
 
-	p = _pick_next_task_rt(rq);
-	set_next_task_rt(rq, p, true);
 	return p;
 }
 
@@ -2373,6 +2384,7 @@ const struct sched_class rt_sched_class = {
 
 #ifdef CONFIG_SMP
 	.balance		= balance_rt,
+	.pick_task		= pick_task_rt,
 	.select_task_rq		= select_task_rq_rt,
 	.set_cpus_allowed       = set_cpus_allowed_common,
 	.rq_online              = rq_online_rt,
