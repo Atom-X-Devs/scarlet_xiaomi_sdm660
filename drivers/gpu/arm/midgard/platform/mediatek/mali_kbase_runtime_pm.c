@@ -281,31 +281,11 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 			return err;
 		}
 		kbdev->current_voltage[i] = volt;
-
-		err = regulator_enable(kbdev->regulator[i]);
-		if (err < 0) {
-			dev_err(kbdev->dev,
-				"Regulator %d enable failed: %d\n", i, err);
-			return err;
-		}
 	}
 
 	mfg->is_powered = false;
 
 	return 0;
-}
-
-void mali_mfgsys_deinit(struct kbase_device *kbdev)
-{
-	int err, i;
-
-	for (i = 0; i < kbdev->regulator_num; i++) {
-		err = regulator_disable(kbdev->regulator[i]);
-		if (err < 0) {
-			dev_err(kbdev->dev,
-				"Regulator %d disable failed: %d\n", i, err);
-		}
-	}
 }
 
 static void voltage_range_check(struct kbase_device *kbdev,
@@ -485,7 +465,6 @@ static void platform_term(struct kbase_device *kbdev)
 
 	kfree(mfg);
 	kbdev->platform_context = NULL;
-	mali_mfgsys_deinit(kbdev);
 	pm_runtime_disable(kbdev->dev);
 }
 
