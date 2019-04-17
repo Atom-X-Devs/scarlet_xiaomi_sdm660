@@ -165,5 +165,5 @@ int wilco_ec_add_sysfs(struct wilco_ec_device *ec)
 
 void wilco_ec_remove_sysfs(struct wilco_ec_device *ec)
 {
-	sysfs_create_group(&ec->dev->kobj, &wilco_dev_attr_group);
+	sysfs_remove_group(&ec->dev->kobj, &wilco_dev_attr_group);
 }
