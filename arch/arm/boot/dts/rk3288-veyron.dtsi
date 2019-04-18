@@ -115,6 +115,31 @@
 	};
 };
 
+/*
+ * We reserve the big VOP for HDMI and the little VOP for eDP.
+ * Delete the other connections.
+ *
+ * This is _nearly_ always the ideal thing to do for veyron devices.
+ * The difference between the two VOPs is that the big VOP is more
+ * power hungry but can drive larger resolutions.  On veyron the panel
+ * is always low enough resolution that the little VOP can handle it.
+ *
+ * The only case where we'd benefit from doing things differently on
+ * veyron is if the internal panel is off (or we're on a box w/ no
+ * internal panel) and we happen to be driving a low resolution.  In
+ * such a case we could save power by using the little VOP.
+ *
+ * NOTE also that Chrome OS hacks also dedicate NPLL to the big VOP
+ * and thus the big VOP can achieve more pixel clocks which is good
+ * for HDMI displays.  We've chosen pixel clocks for the internal
+ * panels that are always achievable from the fixed PLLs.
+ */
+
+/delete-node/ &edp_in_vopb;
+/delete-node/ &hdmi_in_vopl;
+/delete-node/ &vopb_out_edp;
+/delete-node/ &vopl_out_hdmi;
+
 &cpu0 {
 	cpu0-supply = <&vdd_cpu>;
 };
