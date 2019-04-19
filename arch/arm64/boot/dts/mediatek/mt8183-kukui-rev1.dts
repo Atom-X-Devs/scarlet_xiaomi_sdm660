@@ -210,14 +210,33 @@
 		"",
 		"",
 		"";
+
+	touch_default: touchdefault {
+		pin_irq {
+			pinmux = <PINMUX_GPIO155__FUNC_GPIO155>;
+			input-enable;
+			bias-pull-up;
+		};
+
+		touch_pin_reset: pin_reset {
+			pinmux = <PINMUX_GPIO156__FUNC_GPIO156>;
+			output-high;
+		};
+	};
 };
 
-/* Touch reset pin is active-high on rev1. */
-&touchscreen {
-	reset-gpios = <&pio 156 0>;
-};
+&i2c0 {
+	status = "okay";
 
-&touch_pin_reset {
-	/delete-property/ output-low;
-	output-high;
+	touchscreen: touchscreen@10 {
+		compatible = "elan,ekth3500";
+		reg = <0x10>;
+		interrupt-parent = <&pio>;
+		interrupts = <155 IRQ_TYPE_LEVEL_LOW>;
+		int-gpio = <&pio 155 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touch_default>;
+
+		reset-gpios = <&pio 156 0>;
+	};
 };

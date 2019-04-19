@@ -165,18 +165,6 @@
 	clock-frequency = <400000>;
 	#address-cells = <1>;
 	#size-cells = <0>;
-
-	touchscreen: touchscreen@10 {
-		compatible = "elan,ekth3500";
-		reg = <0x10>;
-		interrupt-parent = <&pio>;
-		interrupts = <155 IRQ_TYPE_LEVEL_LOW>;
-		int-gpio = <&pio 155 0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&touch_default>;
-
-		reset-gpios = <&pio 156 1>;
-	};
 };
 
 &i2c1 {
@@ -557,19 +545,6 @@
 				 <PINMUX_GPIO15__FUNC_SPI5_MO>,
 				 <PINMUX_GPIO16__FUNC_SPI5_CLK>;
 			bias-disable;
-		};
-	};
-
-	touch_default: touchdefault {
-		pin_irq {
-			pinmux = <PINMUX_GPIO155__FUNC_GPIO155>;
-			input-enable;
-			bias-pull-up;
-		};
-
-		touch_pin_reset: pin_reset {
-			pinmux = <PINMUX_GPIO156__FUNC_GPIO156>;
-			output-low;
 		};
 	};
 };
