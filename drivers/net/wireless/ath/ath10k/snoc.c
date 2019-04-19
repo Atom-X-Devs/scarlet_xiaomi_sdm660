@@ -1220,7 +1220,7 @@ out:
 int ath10k_snoc_fw_indication(struct ath10k *ar, u64 type)
 {
 	struct ath10k_snoc *ar_snoc = ath10k_snoc_priv(ar);
-	struct ath10k_bus_params bus_params;
+	struct ath10k_bus_params bus_params = {};
 	int ret;
 
 	switch (type) {
