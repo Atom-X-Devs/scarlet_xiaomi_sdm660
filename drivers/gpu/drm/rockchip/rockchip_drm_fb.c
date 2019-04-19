@@ -19,6 +19,7 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
+#include <soc/rockchip/dmc-sync.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_fb.h"
@@ -163,12 +164,41 @@ rockchip_drm_psr_inhibit_put_state(struct drm_atomic_state *state)
 		rockchip_drm_psr_inhibit_put(encoder);
 }
 
+uint32_t rockchip_drm_get_vblank_ns(struct drm_display_mode *mode)
+{
+	uint64_t vblank_time = mode->vtotal - mode->vdisplay;
+
+	vblank_time *= (uint64_t)NSEC_PER_SEC * mode->htotal;
+	do_div(vblank_time, mode->clock * 1000);
+
+	return vblank_time;
+}
+
 static void
 rockchip_atomic_helper_commit_tail_rpm(struct drm_atomic_state *old_state)
 {
 	struct drm_device *dev = old_state->dev;
+	struct rockchip_drm_private *priv = dev->dev_private;
+	struct drm_crtc *crtc;
+	struct drm_display_mode *mode;
+	bool force_dmc_off = false;
+
+	drm_for_each_crtc(crtc, dev) {
+		if (crtc->state->active && crtc->state->mode_changed) {
+			mode = &crtc->state->adjusted_mode;
+			if (rockchip_drm_get_vblank_ns(mode) <
+			    DMC_MIN_VBLANK_NS)
+				force_dmc_off = true;
+		}
+	}
 
 	rockchip_drm_psr_inhibit_get_state(old_state);
+
+	/* If disabling dmc, disable it before committing mode set changes. */
+	if (force_dmc_off && !priv->dmc_disable_flag) {
+		rockchip_dmc_disable();
+		priv->dmc_disable_flag = true;
+	}
 
 	drm_atomic_helper_commit_modeset_disables(dev, old_state);
 
@@ -184,6 +214,11 @@ rockchip_atomic_helper_commit_tail_rpm(struct drm_atomic_state *old_state)
 	drm_atomic_helper_wait_for_vblanks(dev, old_state);
 
 	drm_atomic_helper_cleanup_planes(dev, old_state);
+
+	if (!force_dmc_off && priv->dmc_disable_flag) {
+		rockchip_dmc_enable();
+		priv->dmc_disable_flag = false;
+	}
 }
 
 static const struct drm_mode_config_helper_funcs rockchip_mode_config_helpers = {

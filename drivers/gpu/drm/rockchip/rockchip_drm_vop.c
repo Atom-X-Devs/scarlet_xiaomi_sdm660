@@ -36,6 +36,7 @@
 
 #include <linux/reset.h>
 #include <linux/delay.h>
+#include <soc/rockchip/dmc-sync.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_gem.h"
@@ -109,7 +110,10 @@ struct vop {
 	struct drm_flip_work fb_unref_work;
 	unsigned long pending;
 
+	ktime_t line_flag_timestamp;
 	struct completion line_flag_completion;
+	uint32_t vblank_time;
+	struct notifier_block dmc_nb;
 
 	const struct vop_data *data;
 
@@ -605,6 +609,7 @@ static void vop_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	WARN_ON(vop->event);
 
+	rockchip_dmc_put(&vop->dmc_nb);
 	mutex_lock(&vop->vop_lock);
 	drm_crtc_vblank_off(crtc);
 
@@ -911,6 +916,8 @@ static void vop_crtc_atomic_enable(struct drm_crtc *crtc,
 	uint32_t pin_pol, val;
 	int ret;
 
+	vop->vblank_time = rockchip_drm_get_vblank_ns(adjusted_mode);
+
 	mutex_lock(&vop->vop_lock);
 
 	WARN_ON(vop->event);
@@ -988,6 +995,27 @@ static void vop_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	VOP_REG_SET(vop, common, standby, 0);
 	mutex_unlock(&vop->vop_lock);
+	rockchip_dmc_get(&vop->dmc_nb);
+}
+
+static int dmc_notify(struct notifier_block *nb,
+		      unsigned long action,
+		      void *data)
+{
+	struct vop *vop = container_of(nb, struct vop, dmc_nb);
+	struct drm_crtc *crtc = &vop->crtc;
+	ktime_t *timeout = data;
+	int ret;
+
+	ret = rockchip_drm_wait_vact_end(crtc, 100);
+	*timeout = ktime_add_ns(vop->line_flag_timestamp, vop->vblank_time);
+	if (ret) {
+		dev_err(vop->dev, "%s: Line flag interrupt did not arrive\n",
+			__func__);
+		return NOTIFY_BAD;
+	}
+
+	return NOTIFY_STOP;
 }
 
 static bool vop_fs_irq_is_pending(struct vop *vop)
@@ -1257,6 +1285,7 @@ static irqreturn_t vop_isr(int irq, void *data)
 	}
 
 	if (active_irqs & LINE_FLAG_INTR) {
+		vop->line_flag_timestamp = ktime_get();
 		complete(&vop->line_flag_completion);
 		active_irqs &= ~LINE_FLAG_INTR;
 		ret = IRQ_HANDLED;
@@ -1636,6 +1665,7 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	spin_lock_init(&vop->reg_lock);
 	spin_lock_init(&vop->irq_lock);
 	mutex_init(&vop->vop_lock);
+	vop->dmc_nb.notifier_call = dmc_notify;
 
 	ret = vop_create_crtc(vop);
 	if (ret)
