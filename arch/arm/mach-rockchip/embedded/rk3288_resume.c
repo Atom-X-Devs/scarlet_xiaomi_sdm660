@@ -72,15 +72,9 @@ static void __noreturn rk3288_resume_c(void)
 		asm volatile("mcr p15, 0, %0, c15, c0, 1" : : "r" (tmp));
 		isb();
 	}
-	if (IS_ENABLED(CONFIG_ARM_ERRATA_FOOBAR)) {
+	if (IS_ENABLED(CONFIG_ARM_ERRATA_857271)) {
 		asm volatile("mrc p15, 0, %0, c15, c0, 1" : "=r" (tmp));
-		tmp |= (1 << 10);
-		asm volatile("mcr p15, 0, %0, c15, c0, 1" : : "r" (tmp));
-		isb();
-	}
-	if (IS_ENABLED(CONFIG_ARM_ERRATA_CR711784)) {
-		asm volatile("mrc p15, 0, %0, c15, c0, 1" : "=r" (tmp));
-		tmp |= (1 << 11);
+		tmp |= (3 << 10);
 		asm volatile("mcr p15, 0, %0, c15, c0, 1" : : "r" (tmp));
 		isb();
 	}
