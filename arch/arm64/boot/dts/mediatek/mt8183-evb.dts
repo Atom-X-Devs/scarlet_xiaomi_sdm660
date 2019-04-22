@@ -38,6 +38,10 @@
 	};
 };
 
+&auxadc {
+	status = "okay";
+};
+
 &gpu {
 	supply-names = "mali","mali_sram";
 	mali-supply = <&mt6358_vgpu_reg>;
