@@ -28,11 +28,12 @@ targets := rk3288_resume.o rk3288_ddr_resume.o \
 # Reset objcopy flags, ARM puts "-O binary" here.
 OBJCOPYFLAGS :=
 
+# Prevents link failures: __sanitizer_cov_trace_pc() is not linked in.
+KCOV_INSTRUMENT := n
+
 # Our embedded code can't handle this flag.
-ifeq ($(CONFIG_FUNCTION_TRACER),y)
-ORIG_CFLAGS := $(KBUILD_CFLAGS)
-KBUILD_CFLAGS = $(subst -pg, , $(ORIG_CFLAGS))
-endif
+CFLAGS_REMOVE_rk3288_resume.o = -pg
+CFLAGS_REMOVE_rk3288_ddr_resume.o = -pg
 
 KBUILD_CFLAGS += -fno-stack-protector -fPIC
 
@@ -50,6 +51,13 @@ $(obj)/rk3288_resume.bin: $(obj)/rk3288_resume.elf FORCE
 	$(call if_changed,objcopy)
 
 # Import the data into the kernel
-OBJCOPYFLAGS_rk3288_resume.bin.o += -B $(ARCH) -I binary -O elf32-littlearm
+OBJCOPYFLAGS_rk3288_resume.bin.o += -B $(ARCH) -I binary
+ifeq ($(CONFIG_CPU_BIG_ENDIAN),y)
+# Compile test only.
+# Big endian support is untested and is not expected to work.
+OBJCOPYFLAGS_rk3288_resume.bin.o += -O elf32-bigarm
+else
+OBJCOPYFLAGS_rk3288_resume.bin.o += -O elf32-littlearm
+endif
 $(obj)/rk3288_resume.bin.o: $(obj)/rk3288_resume.bin FORCE
 	$(call if_changed,objcopy)
