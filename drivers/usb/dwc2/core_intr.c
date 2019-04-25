@@ -445,7 +445,7 @@ static void dwc2_handle_wakeup_detected_intr(struct dwc2_hsotg *hsotg)
 			 * schedule it for later.
 			 */
 			if (hsotg->reset_phy_on_wake)
-				schedule_work(&hsotg->phy_reset_work);
+				dwc2_host_schedule_phy_reset(hsotg);
 
 			mod_timer(&hsotg->wkp_timer,
 				  jiffies + msecs_to_jiffies(71));
