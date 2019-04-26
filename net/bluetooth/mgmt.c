@@ -7066,10 +7066,10 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ read_ext_controller_info,MGMT_READ_EXT_INFO_SIZE,
 						HCI_MGMT_UNTRUSTED },
 	{ set_appearance,	   MGMT_SET_APPEARANCE_SIZE },
-	{ get_phy_configuration,   MGMT_GET_PHY_CONFIGURATION_SIZE },
-	{ set_phy_configuration,   MGMT_SET_PHY_CONFIGURATION_SIZE },
 	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
 	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
+	{ get_phy_configuration,   MGMT_GET_PHY_CONFIGURATION_SIZE },
+	{ set_phy_configuration,   MGMT_SET_PHY_CONFIGURATION_SIZE },
 };
 
 void mgmt_index_added(struct hci_dev *hdev)
