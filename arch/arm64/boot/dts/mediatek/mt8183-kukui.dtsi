@@ -59,6 +59,20 @@
 		regulator-boot-on;
 	};
 
+	mmc1_fixed_power: regulator@3 {
+		compatible = "regulator-fixed";
+		regulator-name = "mmc1_power";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	mmc1_fixed_io: regulator@4 {
+		compatible = "regulator-fixed";
+		regulator-name = "mmc1_io";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
 	reserved_memory: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -294,8 +308,8 @@
 	pinctrl-names = "default", "state_uhs";
 	pinctrl-0 = <&mmc1_pins_default>;
 	pinctrl-1 = <&mmc1_pins_uhs>;
-	vmmc-supply = <&mt6358_vmch_reg>;
-	vqmmc-supply = <&mt6358_vmc_reg>;
+	vmmc-supply = <&mmc1_fixed_power>;
+	vqmmc-supply = <&mmc1_fixed_io>;
 	bus-width = <4>;
 	max-frequency = <200000000>;
 	drv-type = <2>;
@@ -308,6 +322,8 @@
 	non-removable;
 	no-mmc;
 	no-sd;
+	assigned-clocks = <&topckgen CLK_TOP_MUX_MSDC30_1>;
+	assigned-clock-parents = <&topckgen CLK_TOP_MSDCPLL_D2>;
 };
 
 &mt6358_vdram2_reg {
@@ -520,7 +536,7 @@
 			mediatek,pull-down-adv = <10>;
 		};
 
-		pins_wifi {
+		pins_wlan_en {
 			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
 			output-high;
 		};
