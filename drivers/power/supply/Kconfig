@@ -656,6 +656,7 @@ config FUEL_GAUGE_SC27XX
 	tristate "Spreadtrum SC27XX fuel gauge driver"
 	depends on MFD_SC27XX_PMIC || COMPILE_TEST
 	depends on IIO
+	depends on BROKEN
 	help
 	 Say Y here to enable support for fuel gauge with SC27XX
 	 PMIC chips.
