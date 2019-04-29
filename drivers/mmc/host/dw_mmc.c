@@ -1664,13 +1664,28 @@ static void dw_mci_init_card(struct mmc_host *mmc, struct mmc_card *card)
 	}
 }
 
-static void __dw_mci_enable_sdio_irq(struct dw_mci_slot *slot, int enb)
+static void __dw_mci_enable_sdio_irq(struct dw_mci_slot *slot, bool enb,
+				     bool client_requested)
 {
 	struct dw_mci *host = slot->host;
 	unsigned long irqflags;
 	u32 int_mask;
 
 	spin_lock_irqsave(&host->irq_lock, irqflags);
+
+	/*
+	 * If we're being called directly from dw_mci_enable_sdio_irq()
+	 * (which means that the client driver actually wants to enable or
+	 * disable interrupts) then save the request.  Otherwise this
+	 * wasn't directly requested by the client and we should logically
+	 * AND it with the client request since we want to disable if
+	 * _either_ the client disabled OR we have some other reason to
+	 * disable temporarily.
+	 */
+	if (client_requested)
+		host->client_sdio_enb = enb;
+	else
+		enb &= host->client_sdio_enb;
 
 	/* Enable/disable Slot Specific SDIO interrupt */
 	int_mask = mci_readl(host, INTMASK);
@@ -1688,7 +1703,7 @@ static void dw_mci_enable_sdio_irq(struct mmc_host *mmc, int enb)
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
 
-	__dw_mci_enable_sdio_irq(slot, enb);
+	__dw_mci_enable_sdio_irq(slot, enb, true);
 
 	/* Avoid runtime suspending the device when SDIO IRQ is enabled */
 	if (enb)
@@ -1701,7 +1716,7 @@ static void dw_mci_ack_sdio_irq(struct mmc_host *mmc)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 
-	__dw_mci_enable_sdio_irq(slot, 1);
+	__dw_mci_enable_sdio_irq(slot, true, false);
 }
 
 static int dw_mci_execute_tuning(struct mmc_host *mmc, u32 opcode)
@@ -2734,7 +2749,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		if (pending & SDMMC_INT_SDIO(slot->sdio_id)) {
 			mci_writel(host, RINTSTS,
 				   SDMMC_INT_SDIO(slot->sdio_id));
-			__dw_mci_enable_sdio_irq(slot, 0);
+			__dw_mci_enable_sdio_irq(slot, false, false);
 			sdio_signal_irq(slot->mmc);
 		}
 
@@ -3424,6 +3439,8 @@ int dw_mci_runtime_suspend(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 
+	__dw_mci_enable_sdio_irq(host->slot, false, false);
+
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
@@ -3489,6 +3506,8 @@ int dw_mci_runtime_resume(struct device *dev)
 
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
+
+	__dw_mci_enable_sdio_irq(host->slot, true, false);
 
 	return 0;
 
