@@ -160,8 +160,21 @@ static int wilco_ec_probe(struct platform_device *pdev)
 		goto remove_sysfs;
 	}
 
+	/* Register child device to be found by charge scheduling driver. */
+	ec->charge_schedule_pdev = platform_device_register_data(dev,
+			"wilco-charge-schedule", PLATFORM_DEVID_NONE,
+			ec, sizeof(*ec));
+	if (IS_ERR(ec->charge_schedule_pdev)) {
+		dev_err(dev,
+			"Failed to create charge schedule platform device\n");
+		ret = PTR_ERR(ec->charge_schedule_pdev);
+		goto unregister_charge_config;
+	}
+
 	return 0;
 
+unregister_charge_config:
+	platform_device_unregister(ec->charger_pdev);
 remove_sysfs:
 	wilco_ec_remove_sysfs(ec);
 unregister_kbbl:
@@ -179,6 +192,7 @@ static int wilco_ec_remove(struct platform_device *pdev)
 {
 	struct wilco_ec_device *ec = platform_get_drvdata(pdev);
 
+	platform_device_unregister(ec->charge_schedule_pdev);
 	platform_device_unregister(ec->charger_pdev);
 	wilco_ec_remove_sysfs(ec);
 	platform_device_unregister(ec->kbbl_pdev);
