@@ -58,11 +58,6 @@ build_one() {
 		prefix=x86_64
 		compiler=clang
 		cross="${prefix}-cros-linux-gnu"
-	elif [[ "${arch}" == "i386" ]]; then
-		# Not really supported
-		prefix=i686
-		compiler=gcc
-		cross="${prefix}-pc-linux-gnu"
 	elif [[ "${arch}" == "armel" ]]; then
 		prefix=armv7a
 		compiler=gcc
