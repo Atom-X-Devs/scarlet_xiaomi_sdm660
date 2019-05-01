@@ -1,6 +1,6 @@
 config ARM_RK3288_DMC_DEVFREQ
 	bool "ARM RK3288 DMC DEVFREQ Driver"
-	depends on ARCH_ROCKCHIP
+	depends on ARCH_ROCKCHIP && ARM
 	select PM_OPP
 	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	help
