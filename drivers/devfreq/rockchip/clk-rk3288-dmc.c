@@ -1056,7 +1056,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	timeout = ktime_sub_ns(timeout, dmc_get_set_rate_time());
 	/* This can happen if a irq/softirq delays us long enough. */
 	if (ktime_compare(now, timeout) >= 0) {
-		dev_err(dmc->dev, "timeout before pausing cpus\n");
+		dev_dbg(dmc->dev, "timeout before pausing cpus\n");
 		ret = -ETIMEDOUT;
 		goto out_bh_disabled;
 	}
@@ -1072,7 +1072,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 		while (!params->is_cpux_paused(cpu)) {
 			now = ktime_get();
 			if (ktime_compare(now, timeout) >= 0) {
-				dev_err(dmc->dev,
+				dev_dbg(dmc->dev,
 					"pause cpu %d timeout\n", cpu);
 				params->set_major_cpu_paused(this_cpu, false);
 				ret = -ETIMEDOUT;
@@ -1087,7 +1087,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	if (ktime_compare(now, timeout) >= 0) {
 		params->set_major_cpu_paused(this_cpu, false);
 		local_irq_enable();
-		dev_err(dmc->dev, "timeout after pausing cpus\n");
+		dev_dbg(dmc->dev, "timeout after pausing cpus\n");
 		ret = -ETIMEDOUT;
 		goto out_bh_disabled;
 	}
@@ -1270,7 +1270,7 @@ int rk3288_dmcclk_set_rate(unsigned long req_rate)
 
 	ret = ddr_change_freq(dmc);
 	if (ret) {
-		dev_err(dmc->dev, "failed to change dmc freq\n");
+		dev_dbg(dmc->dev, "failed to change dmc freq\n");
 		return ret;
 	}
 
