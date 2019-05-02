@@ -18,22 +18,7 @@
 
 #include "zcomp.h"
 
-static const char * const backends[] = {
-	"lzo",
-#if IS_ENABLED(CONFIG_CRYPTO_LZ4)
-	"lz4",
-#endif
-#if IS_ENABLED(CONFIG_CRYPTO_LZ4HC)
-	"lz4hc",
-#endif
-#if IS_ENABLED(CONFIG_CRYPTO_842)
-	"842",
-#endif
-#if IS_ENABLED(CONFIG_CRYPTO_ZSTD)
-	"zstd",
-#endif
-	NULL
-};
+static const char * const backends[] = { CONFIG_ZRAM_DEFAULT_COMP_ALGORITHM, NULL };
 
 static void zcomp_strm_free(struct zcomp_strm *zstrm)
 {
