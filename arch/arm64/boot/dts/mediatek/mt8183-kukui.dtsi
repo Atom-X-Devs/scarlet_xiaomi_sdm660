@@ -131,6 +131,74 @@
 		/* Toggle WIFI_ENABLE to reset the chip. */
 		reset-gpios = <&pio 119 1>;
 	};
+
+	tboard_thermistor1: tboard_thermistor1 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&auxadc 0>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <    (-5000) 4241
+						0 4063
+						5000 3856
+						10000 3621
+						15000 3364
+						20000 3091
+						25000 2810
+						30000 2526
+						35000 2247
+						40000 1982
+						45000 1734
+						50000 1507
+						55000 1305
+						60000 1122
+						65000 964
+						70000 827
+						75000 710
+						80000 606
+						85000 519
+						90000 445
+						95000 382
+						100000 330
+						105000 284
+						110000 245
+						115000 213
+						120000 183
+						125000 161>;
+	};
+
+	tboard_thermistor2: tboard_thermistor2 {
+		compatible = "generic-adc-thermal";
+		#thermal-sensor-cells = <0>;
+		io-channels = <&auxadc 1>;
+		io-channel-names = "sensor-channel";
+		temperature-lookup-table = <    (-5000) 4241
+						0 4063
+						5000 3856
+						10000 3621
+						15000 3364
+						20000 3091
+						25000 2810
+						30000 2526
+						35000 2247
+						40000 1982
+						45000 1734
+						50000 1507
+						55000 1305
+						60000 1122
+						65000 964
+						70000 827
+						75000 710
+						80000 606
+						85000 519
+						90000 445
+						95000 382
+						100000 330
+						105000 284
+						110000 245
+						115000 213
+						120000 183
+						125000 161>;
+	};
 };
 
 &afe {
@@ -865,6 +933,20 @@
 	dr_mode = "host";
 	vusb33-supply = <&mt6358_vusb_reg>;
 	status = "okay";
+};
+
+&thermal_zones {
+	Tboard1 {
+		polling-delay = <1000>; /* milliseconds */
+		polling-delay-passive = <0>; /* milliseconds */
+		thermal-sensors = <&tboard_thermistor1>;
+	};
+
+	Tboard2 {
+		polling-delay = <1000>; /* milliseconds */
+		polling-delay-passive = <0>; /* milliseconds */
+		thermal-sensors = <&tboard_thermistor2>;
+	};
 };
 
 &usb_host {
