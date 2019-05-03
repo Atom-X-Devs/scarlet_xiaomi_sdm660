@@ -32,7 +32,6 @@ enum {
 
 /*
  * 4 16 bit channels are allowed.
- * Good enough for current sensors, they use up to 3 16 bit vectors.
  */
 #define CROS_EC_SAMPLE_SIZE  (sizeof(s64) * 2)
 

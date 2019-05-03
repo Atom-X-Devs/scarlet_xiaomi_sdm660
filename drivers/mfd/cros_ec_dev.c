@@ -535,6 +535,9 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 		case MOTIONSENSE_TYPE_LIGHT:
 			sensor_cells[id].name = "cros-ec-light";
 			break;
+		case MOTIONSENSE_TYPE_LIGHT_RGB:
+			/* Processed with cros-ec-light. */
+			continue;
 		case MOTIONSENSE_TYPE_ACTIVITY:
 			sensor_cells[id].name = "cros-ec-activity";
 			break;
