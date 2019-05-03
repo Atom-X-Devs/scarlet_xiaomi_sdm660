@@ -152,7 +152,7 @@ config CROS_USBPD_LOGGER
 	select RTC_LIB
 	help
 	  This option enables support for logging event data for the USB PD charger
-	  available in the Embedded Controller on select Chrome OS systems.
+	  available in the Embedded Controller on ChromeOS systems.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called cros_usbpd_logger.
