@@ -458,9 +458,11 @@ int intel_hdcp_validate_v_prime(struct intel_digital_port *intel_dig_port,
 
 /* Implements Part 2 of the HDCP authorization procedure */
 static
-int intel_hdcp_auth_downstream(struct intel_digital_port *intel_dig_port,
-			       const struct intel_hdcp_shim *shim)
+int intel_hdcp_auth_downstream(struct intel_connector *connector)
 {
+	struct intel_digital_port *intel_dig_port = conn_to_dig_port(connector);
+	const struct intel_hdcp_shim *shim = connector->hdcp.shim;
+	struct drm_device *dev = connector->base.dev;
 	u8 bstatus[2], num_downstream, *ksv_fifo;
 	int ret, i, tries = 3;
 
@@ -499,6 +501,11 @@ int intel_hdcp_auth_downstream(struct intel_digital_port *intel_dig_port,
 	if (ret)
 		goto err;
 
+	if (drm_hdcp_check_ksvs_revoked(dev, ksv_fifo, num_downstream)) {
+		DRM_ERROR("Revoked Ksv(s) in ksv_fifo\n");
+		return -EPERM;
+	}
+
 	/*
 	 * When V prime mismatches, DP Spec mandates re-read of
 	 * V prime atleast twice.
@@ -525,9 +532,12 @@ err:
 }
 
 /* Implements Part 1 of the HDCP authorization procedure */
-static int intel_hdcp_auth(struct intel_digital_port *intel_dig_port,
-			   const struct intel_hdcp_shim *shim)
+static int intel_hdcp_auth(struct intel_connector *connector)
 {
+	struct intel_digital_port *intel_dig_port = conn_to_dig_port(connector);
+	struct intel_hdcp *hdcp = &connector->hdcp;
+	struct drm_device *dev = connector->base.dev;
+	const struct intel_hdcp_shim *shim = hdcp->shim;
 	struct drm_i915_private *dev_priv;
 	enum port port;
 	unsigned long r0_prime_gen_start;
@@ -592,6 +602,11 @@ static int intel_hdcp_auth(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdcp_read_valid_bksv(intel_dig_port, shim, bksv.shim);
 	if (ret < 0)
 		return ret;
+
+	if (drm_hdcp_check_ksvs_revoked(dev, bksv.shim, 1)) {
+		DRM_ERROR("BKSV is revoked\n");
+		return -EPERM;
+	}
 
 	I915_WRITE(PORT_HDCP_BKSVLO(port), bksv.reg[0]);
 	I915_WRITE(PORT_HDCP_BKSVHI(port), bksv.reg[1]);
@@ -665,7 +680,7 @@ static int intel_hdcp_auth(struct intel_digital_port *intel_dig_port,
 	 */
 
 	if (repeater_present)
-		return intel_hdcp_auth_downstream(intel_dig_port, shim);
+		return intel_hdcp_auth_downstream(connector);
 
 	DRM_DEBUG_KMS("HDCP is enabled (no repeater present)\n");
 	return 0;
@@ -730,7 +745,7 @@ static int _intel_hdcp_enable(struct intel_connector *connector)
 
 	/* Incase of authentication failures, HDCP spec expects reauth. */
 	for (i = 0; i < tries; i++) {
-		ret = intel_hdcp_auth(conn_to_dig_port(connector), hdcp->shim);
+		ret = intel_hdcp_auth(connector);
 		if (!ret)
 			return 0;
 
