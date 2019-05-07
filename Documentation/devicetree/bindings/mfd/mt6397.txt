@@ -17,27 +17,22 @@ Documentation/devicetree/bindings/soc/mediatek/pwrap.txt
 This document describes the binding for MFD device and its sub module.
 
 Required properties:
-compatible:
-	"mediatek,mt6323" for PMIC MT6323
-	"mediatek,mt6358" for PMIC MT6358
-	"mediatek,mt6397" for PMIC MT6397
+compatible: "mediatek,mt6397" or "mediatek,mt6323"
 
 Optional subnodes:
 
 - rtc
 	Required properties:
-		- compatible: "mediatek,mt6397-rtc" or "mediatek,mt6358-rtc"
+		- compatible: "mediatek,mt6397-rtc"
 - regulators
 	Required properties:
 		- compatible: "mediatek,mt6397-regulator"
 	see Documentation/devicetree/bindings/regulator/mt6397-regulator.txt
-		- compatible: "mediatek,mt6358-regulator"
-	see Documentation/devicetree/bindings/regulator/mt6358-regulator.txt
 		- compatible: "mediatek,mt6323-regulator"
 	see Documentation/devicetree/bindings/regulator/mt6323-regulator.txt
 - codec
 	Required properties:
-		- compatible: "mediatek,mt6397-codec" or "mediatek,mt6358-sound"
+		- compatible: "mediatek,mt6397-codec"
 - clk
 	Required properties:
 		- compatible: "mediatek,mt6397-clk"
