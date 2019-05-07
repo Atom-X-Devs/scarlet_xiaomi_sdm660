@@ -126,7 +126,7 @@ int virtio_gpu_object_create(struct virtio_gpu_device *vgdev,
 
 	if (params->virgl) {
 		virtio_gpu_cmd_resource_create_3d(vgdev, bo, params, fence);
-	} else {
+	} else if (params->dumb) {
 		virtio_gpu_cmd_create_resource(vgdev, bo, params, fence);
 	}
 
