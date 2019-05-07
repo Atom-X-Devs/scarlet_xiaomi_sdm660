@@ -695,7 +695,13 @@ enum mgmt_set_event_mask_byte_7 {
 	MGMT_EVENT_MASK_LE_META				=  (1 << 6),
 };
 
-#define MGMT_OP_GET_PHY_CONFIGURATION	0x0046
+#define MGMT_OP_SET_BLOCKED_LTKS			0x0046
+struct mgmt_cp_set_blocked_ltks {
+	uint8_t	ltks[MAX_BLOCKED_LTKS][LTK_LENGTH];
+} __packed;
+#define MGMT_SET_BLOCKED_LTKS_CP_SIZE  (MAX_BLOCKED_LTKS * LTK_LENGTH)
+
+#define MGMT_OP_GET_PHY_CONFIGURATION	0x0047
 struct mgmt_rp_get_phy_confguration {
 	__le32	supported_phys;
 	__le32	configurable_phys;
@@ -732,7 +738,7 @@ struct mgmt_rp_get_phy_confguration {
 #define MGMT_PHY_LE_RX_MASK (MGMT_PHY_LE_1M_RX | MGMT_PHY_LE_2M_RX | \
 			     MGMT_PHY_LE_CODED_RX)
 
-#define MGMT_OP_SET_PHY_CONFIGURATION	0x0047
+#define MGMT_OP_SET_PHY_CONFIGURATION	0x0048
 struct mgmt_cp_set_phy_confguration {
 	__le32	selected_phys;
 } __packed;
