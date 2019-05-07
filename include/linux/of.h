@@ -652,6 +652,11 @@ static inline bool of_have_populated_dt(void)
 	return false;
 }
 
+static inline bool of_node_is_root(const struct device_node *node)
+{
+	return false;
+}
+
 static inline struct device_node *of_get_compatible_child(const struct device_node *parent,
 					const char *compatible)
 {
