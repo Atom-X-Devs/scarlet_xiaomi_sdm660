@@ -27,7 +27,7 @@
 #define RTC_BBPU		0x0000
 #define RTC_BBPU_CBUSY		BIT(6)
 
-#define RTC_WRTGR_DEFAULT	0x003c
+#define RTC_WRTGR		0x003c
 
 #define RTC_IRQ_STA		0x0002
 #define RTC_IRQ_STA_AL		BIT(0)
@@ -78,7 +78,6 @@ struct mt6397_rtc {
 	struct regmap		*regmap;
 	int			irq;
 	u32			addr_base;
-	u32			wrtgr_offset;
 };
 
 static int mtk_rtc_write_trigger(struct mt6397_rtc *rtc)
@@ -87,8 +86,7 @@ static int mtk_rtc_write_trigger(struct mt6397_rtc *rtc)
 	int ret;
 	u32 data;
 
-	ret = regmap_write(rtc->regmap,
-			   rtc->addr_base + rtc->wrtgr_offset, 1);
+	ret = regmap_write(rtc->regmap, rtc->addr_base + RTC_WRTGR, 1);
 	if (ret < 0)
 		return ret;
 
@@ -343,15 +341,6 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	rtc->addr_base = res->start;
 
-	res = platform_get_resource(pdev, IORESOURCE_REG, 0);
-	if (res) {
-		rtc->wrtgr_offset = res->start;
-		dev_info(&pdev->dev, "register offset:%d\n", rtc->wrtgr_offset);
-	} else {
-		rtc->wrtgr_offset = RTC_WRTGR_DEFAULT;
-		dev_err(&pdev->dev, "Failed to get register offset\n");
-	}
-
 	rtc->irq = platform_get_irq(pdev, 0);
 	if (rtc->irq < 0)
 		return rtc->irq;
@@ -425,7 +414,6 @@ static SIMPLE_DEV_PM_OPS(mt6397_pm_ops, mt6397_rtc_suspend,
 			mt6397_rtc_resume);
 
 static const struct of_device_id mt6397_rtc_of_match[] = {
-	{ .compatible = "mediatek,mt6358-rtc", },
 	{ .compatible = "mediatek,mt6397-rtc", },
 	{ }
 };
