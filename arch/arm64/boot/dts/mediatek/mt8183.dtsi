@@ -6,6 +6,7 @@
  */
 
 #include <dt-bindings/clock/mt8183-clk.h>
+#include <dt-bindings/gce/mt8183-gce.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/memory/mt8183-larb-port.h>
@@ -649,6 +650,16 @@
 			mediatek,larbs = <&larb0 &larb1 &larb2 &larb3
 					  &larb4 &larb5 &larb6>;
 			#iommu-cells = <1>;
+		};
+
+		gce: gce@10238000 {
+			compatible = "mediatek,mt8183-gce";
+			reg = <0 0x10238000 0 0x4000>;
+			interrupts = <GIC_SPI 162 IRQ_TYPE_LEVEL_LOW>;
+			#mbox-cells = <3>;
+			#subsys-cells = <3>;
+			clocks = <&infracfg CLK_INFRA_GCE>;
+			clock-names = "gce";
 		};
 
 		scp: scp@10500000 {
