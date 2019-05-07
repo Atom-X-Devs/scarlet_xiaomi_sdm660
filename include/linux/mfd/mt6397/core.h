@@ -15,14 +15,6 @@
 #ifndef __MFD_MT6397_CORE_H__
 #define __MFD_MT6397_CORE_H__
 
-#include <linux/notifier.h>
-
-enum chip_id {
-	MT6323_CHIP_ID = 0x23,
-	MT6391_CHIP_ID = 0x91,
-	MT6397_CHIP_ID = 0x97,
-};
-
 enum mt6397_irq_numbers {
 	MT6397_IRQ_SPKL_AB = 0,
 	MT6397_IRQ_SPKR_AB,
@@ -62,7 +54,6 @@ enum mt6397_irq_numbers {
 struct mt6397_chip {
 	struct device *dev;
 	struct regmap *regmap;
-	struct notifier_block pm_nb;
 	int irq;
 	struct irq_domain *irq_domain;
 	struct mutex irqlock;
@@ -71,9 +62,6 @@ struct mt6397_chip {
 	u16 irq_masks_cache[2];
 	u16 int_con[2];
 	u16 int_status[2];
-	u16 chip_id;
 };
-
-int mt6397_irq_init(struct mt6397_chip *mt6397);
 
 #endif /* __MFD_MT6397_CORE_H__ */
