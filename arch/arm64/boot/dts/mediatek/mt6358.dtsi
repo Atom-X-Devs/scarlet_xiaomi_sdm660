@@ -354,5 +354,9 @@
 				regulator-enable-ramp-delay = <540>;
 			};
 		};
+
+		mt6358rtc: mt6358rtc {
+			compatible = "mediatek,mt6358-rtc";
+		};
 	};
 };
