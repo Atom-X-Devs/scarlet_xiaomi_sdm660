@@ -87,6 +87,8 @@ struct rk3288_dmcfreq {
 	int err;
 
 	unsigned int dmc_disable_rate;
+
+	struct mutex cpufreq_mutex;
 };
 
 /*
@@ -219,10 +221,43 @@ static int rk3288_dmcfreq_set_voltage(unsigned long uV)
 	return ret;
 }
 
+static int rk3288_dmcfreq_cpufreq_notifier(struct notifier_block *nb,
+					   unsigned long event, void *data)
+{
+	struct cpufreq_policy *policy = data;
+
+	if (event != CPUFREQ_ADJUST)
+		return NOTIFY_DONE;
+
+	/* If we get the mutex we're not mid-transition; nothing to do */
+	if (mutex_trylock(&dmcfreq.cpufreq_mutex)) {
+		mutex_unlock(&dmcfreq.cpufreq_mutex);
+		return NOTIFY_DONE;
+	}
+
+	/*
+	 * Try to go to max freq if we're in a transition.  NOTE: when we
+	 * registered our notifier we passed a negative priority which means
+	 * we're lower than what cpu_cooling does (it leaves the default
+	 * priority of 0).  That means we run _after_ it and we end up being
+	 * able to override its throttling (we'll run _above_ the thermal
+	 * limits).  This should be OK because we'll quickly scale back down
+	 * and the thermal framework will compensate.
+	 */
+	cpufreq_verify_within_limits(policy, policy->cpuinfo.max_freq,
+				     policy->cpuinfo.max_freq);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block rk3288_dmcfreq_cpufreq_notifier_block = {
+	.notifier_call = rk3288_dmcfreq_cpufreq_notifier,
+	.priority = -100,
+};
+
 static void rk3288_dmcfreq_work(struct work_struct *work)
 {
 	struct device *dev = dmcfreq.clk_dev;
-	struct cpufreq_policy *policy;
 	unsigned long prev_rate = dmcfreq.rate;
 	unsigned long target_rate = dmcfreq.target_rate;
 	unsigned long volt = dmcfreq.volt;
@@ -241,25 +276,27 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	 * mutex that is locked/unlocked in both get/put_online_cpus.
 	 */
 	get_online_cpus();
-	/*
-	 * Go to max cpufreq and block other cpufreq changes since set_rate
-	 * needs to complete during vblank.
-	 */
-	policy = cpufreq_cpu_get(0);
-	if (!policy) {
-		dev_err(dev, "cpufreq policy does not exist\n");
-		goto cpufreq;
-	}
-	down_write(&policy->rwsem);
-	cpufreq_cur = cpufreq_quick_get(0);
 
-	/* If we're thermally throttled; can't change; it won't work */
-	if (policy->max < DMC_MIN_CPU_KHZ) {
-		dev_warn(dev, "CPU too slow for DMC (%d MHz)\n", policy->max);
+	/* Go to max cpufreq since set_rate needs to complete during vblank. */
+	mutex_lock(&dmcfreq.cpufreq_mutex);
+	cpufreq_update_policy(0);
+
+	/*
+	 * We expect our cpufreq notifier to be called last (because we mark
+	 * it as _low_ priority.  Thus we get to override everyone else.
+	 * ...but if we detect someone sneaks in and snipes us then bail.
+	 *
+	 * NOTE: we really don't expect this so it's just a paranoid check
+	 * really.  ...an, in fact, it's also not a perfect check.  It's only
+	 * checking the instantaneous CPU frequency and if they have the ability
+	 * to override us then could always do it later, so really if the
+	 * warning below is showing up we need to figure out what to do.
+	 */
+	cpufreq_cur = cpufreq_quick_get(0);
+	if (cpufreq_cur < DMC_MIN_CPU_KHZ) {
+		dev_warn(dev, "CPU too slow for DMC (%d MHz)\n", cpufreq_cur);
 		goto out;
 	}
-
-	__cpufreq_driver_target(policy, policy->max, CPUFREQ_RELATION_L);
 
 	if (target_rate > prev_rate) {
 		err = rk3288_dmcfreq_set_voltage(target_volt);
@@ -292,10 +329,9 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	}
 
 out:
-	/* Restore cpufreq and allow frequency changes. */
-	__cpufreq_driver_target(policy, cpufreq_cur, CPUFREQ_RELATION_L);
-	up_write(&policy->rwsem);
-cpufreq:
+	mutex_unlock(&dmcfreq.cpufreq_mutex);
+	cpufreq_update_policy(0);
+
 	put_online_cpus();
 	dmcfreq.err = err;
 }
@@ -368,6 +404,7 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	unsigned long freq;
 	u32 tmp;
 
+	mutex_init(&dmcfreq.cpufreq_mutex);
 	dmcfreq.clk_dev = dev->parent;
 	dmcfreq.dmc = syscon_regmap_lookup_by_compatible("rockchip,rk3288-dmc");
 	if (IS_ERR(dmcfreq.dmc))
@@ -445,11 +482,17 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 			       PTR_ERR(cdev));
 	}
 
+	cpufreq_register_notifier(&rk3288_dmcfreq_cpufreq_notifier_block,
+				  CPUFREQ_POLICY_NOTIFIER);
+
 	return 0;
 }
 
 static int rk3288_dmcfreq_remove(struct platform_device *pdev)
 {
+	cpufreq_unregister_notifier(&rk3288_dmcfreq_cpufreq_notifier_block,
+				    CPUFREQ_POLICY_NOTIFIER);
+
 	devfreq_remove_device(dmcfreq.devfreq);
 	regulator_put(dmcfreq.vdd_logic);
 
