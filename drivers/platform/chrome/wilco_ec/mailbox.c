@@ -163,7 +163,7 @@ static int wilco_ec_transfer(struct wilco_ec_device *ec,
 	}
 
 	if (rs->data_size != EC_MAILBOX_DATA_SIZE) {
-		dev_dbg(ec->dev, "unexpected packet size (%u != %zu)",
+		dev_dbg(ec->dev, "unexpected packet size (%u != %u)",
 			rs->data_size, EC_MAILBOX_DATA_SIZE);
 		return -EMSGSIZE;
 	}
