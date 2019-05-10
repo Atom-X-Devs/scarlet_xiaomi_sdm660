@@ -721,8 +721,8 @@
 
 		thermal-zones {
 			cpu_thermal: cpu_thermal {
-				polling-delay-passive = <1000>;
-				polling-delay = <1000>;
+				polling-delay-passive = <100>;
+				polling-delay = <500>;
 				thermal-sensors = <&thermal 0>;
 				sustainable-power = <1500>;
 
