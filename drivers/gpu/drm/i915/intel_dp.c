@@ -42,6 +42,7 @@
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
+#include "intel_psr.h"
 
 #define DP_DPRX_ESI_LEN 14
 

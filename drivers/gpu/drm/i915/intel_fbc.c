@@ -40,7 +40,7 @@
 
 #include "intel_drv.h"
 #include "i915_drv.h"
-
+#include "intel_frontbuffer.h"
 static inline bool fbc_supported(struct drm_i915_private *dev_priv)
 {
 	return HAS_FBC(dev_priv);

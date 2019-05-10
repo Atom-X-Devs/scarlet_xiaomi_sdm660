@@ -29,17 +29,20 @@
  * registers; newer ones are much simpler and we can use the new DRM plane
  * support.
  */
+
+#include <drm/drm_atomic.h>
 #include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fourcc.h>
-#include <drm/drm_rect.h>
-#include <drm/drm_atomic.h>
 #include <drm/drm_plane_helper.h>
+#include <drm/drm_rect.h>
+#include <drm/i915_drm.h>
+
+#include "i915_drv.h"
 #include "intel_drv.h"
 #include "intel_frontbuffer.h"
-#include <drm/i915_drm.h>
-#include "i915_drv.h"
+#include "intel_psr.h"
 
 int intel_usecs_to_scanlines(const struct drm_display_mode *adjusted_mode,
 			     int usecs)
