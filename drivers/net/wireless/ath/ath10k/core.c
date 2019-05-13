@@ -97,6 +97,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = true,
 	},
 	{
 		.id = QCA988X_HW_2_0_VERSION,
@@ -132,6 +133,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = true,
 	},
 	{
 		.id = QCA9887_HW_1_0_VERSION,
@@ -168,6 +170,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA6174_HW_3_2_VERSION,
@@ -195,6 +198,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.ast_skid_limit = 0x10,
 		.num_wds_entries = 0x20,
 		.uart_pin_workaround = true,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -230,6 +234,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -265,6 +270,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA6174_HW_3_0_VERSION,
@@ -300,6 +306,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA6174_HW_3_2_VERSION,
@@ -338,6 +345,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = true,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA99X0_HW_2_0_DEV_VERSION,
@@ -379,6 +387,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA9984_HW_1_0_DEV_VERSION,
@@ -425,6 +434,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA9888_HW_2_0_DEV_VERSION,
@@ -470,6 +480,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA9377_HW_1_0_DEV_VERSION,
@@ -505,6 +516,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA9377_HW_1_1_DEV_VERSION,
@@ -542,6 +554,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = true,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = QCA4019_HW_1_0_DEV_VERSION,
@@ -584,6 +597,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 	{
 		.id = WCN3990_HW_1_0_DEV_VERSION,
@@ -611,6 +625,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.rri_on_ddr = true,
 		.hw_filter_reset_required = false,
 		.fw_diag_ce_download = false,
+		.tx_stats_over_pktlog = false,
 	},
 };
 
