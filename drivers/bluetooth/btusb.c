@@ -2366,8 +2366,13 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 
 	/* Start firmware downloading and get boot parameter */
 	err = btintel_download_firmware(hdev, fw, &boot_param);
-	if (err < 0)
+	if (err < 0) {
+		/* When FW download fails, send Intel Reset to retry
+		 * FW download.
+		 */
+		btintel_retry_fw_download(hdev);
 		goto done;
+	}
 
 	set_bit(BTUSB_FIRMWARE_LOADED, &data->flags);
 
