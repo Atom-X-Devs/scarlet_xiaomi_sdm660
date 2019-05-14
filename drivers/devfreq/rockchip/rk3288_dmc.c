@@ -30,7 +30,6 @@
 #include <linux/rwsem.h>
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
-#include <linux/thermal.h>
 #include <linux/workqueue.h>
 
 #include <soc/rockchip/dmc-sync.h>
@@ -476,7 +475,8 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 			     NULL)) {
 		struct thermal_cooling_device *cdev;
 
-		cdev = devfreq_cooling_register(dmcfreq.devfreq);
+		cdev = of_devfreq_cooling_register(dmcfreq.clk_dev->of_node,
+						   dmcfreq.devfreq);
 		if (IS_ERR(cdev))
 			pr_err("dmc w/out cooling device: %ld\n",
 			       PTR_ERR(cdev));
