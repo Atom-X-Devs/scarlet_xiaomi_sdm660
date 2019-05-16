@@ -720,6 +720,8 @@ static int __acpi_device_wakeup_enable(struct acpi_device *adev,
 	if (error)
 		goto out;
 
+	acpi_clear_gpe(wakeup->gpe_device, wakeup->gpe_number);
+
 	status = acpi_enable_gpe(wakeup->gpe_device, wakeup->gpe_number);
 	if (ACPI_FAILURE(status)) {
 		acpi_disable_wakeup_device_power(adev);
