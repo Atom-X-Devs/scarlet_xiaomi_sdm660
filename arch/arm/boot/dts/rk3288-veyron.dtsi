@@ -199,6 +199,14 @@
 	status = "okay";
 };
 
+&gpu_alert0 {
+	temperature = <72500>;
+};
+
+&gpu_crit {
+	temperature = <100000>;
+};
+
 /*
  * Remove 500 MHz since the only way to make 500 MHz is via the NPLL
  * which is dedicated to the external display.
