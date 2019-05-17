@@ -129,6 +129,18 @@
 	};
 };
 
+&dmc {
+	rockchip,odt-disable-freq = <333000000>;
+	rockchip,dmc-disable-freq = <433000000>;
+	operating-points = <
+		/* KHz    uV */
+		200000 1050813
+		333000 1099593
+		433000 1128862
+		533000 1154878
+	>;
+};
+
 &i2c2 {
 	status = "disabled";
 };
