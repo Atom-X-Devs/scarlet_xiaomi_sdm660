@@ -719,6 +719,7 @@ static const struct mtk_dpi_conf mt8183_conf = {
 	.cal_factor = mt8183_calculate_factor,
 	.reg_h_fre_con = 0xe0,
 	.dual_edge = true,
+	.dpi_pin_ctrl = true,
 };
 
 static int mtk_dpi_probe(struct platform_device *pdev)
