@@ -21,10 +21,12 @@
 #include <linux/component.h>
 #include <linux/iopoll.h>
 #include <linux/irq.h>
+#include <linux/mfd/syscon.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
+#include <linux/regmap.h>
 #include <video/mipi_display.h>
 #include <video/videomode.h>
 
@@ -150,6 +152,8 @@
 #define T_HS_EXIT	7
 #define T_HS_ZERO	10
 
+#define MMSYS_SW_RST_DSI_B BIT(25)
+
 #define NS_TO_CYCLE(n, c)    ((n) / (c) + (((n) % (c)) ? 1 : 0))
 
 #define MTK_DSI_HOST_IS_READ(type) \
@@ -194,6 +198,8 @@ struct mtk_dsi {
 	struct drm_panel *panel;
 	struct drm_bridge *bridge;
 	struct phy *phy;
+	struct regmap *mmsys_sw_rst_b;
+	u32 sw_rst_b;
 
 	void __iomem *regs;
 
@@ -289,6 +295,16 @@ static void mtk_dsi_enable(struct mtk_dsi *dsi)
 static void mtk_dsi_disable(struct mtk_dsi *dsi)
 {
 	mtk_dsi_mask(dsi, DSI_CON_CTRL, DSI_EN, 0);
+}
+
+static void mtk_dsi_reset_all(struct mtk_dsi *dsi)
+{
+	regmap_update_bits(dsi->mmsys_sw_rst_b, dsi->sw_rst_b,
+			   MMSYS_SW_RST_DSI_B, ~MMSYS_SW_RST_DSI_B);
+	usleep_range(1000, 1100);
+
+	regmap_update_bits(dsi->mmsys_sw_rst_b, dsi->sw_rst_b,
+			   MMSYS_SW_RST_DSI_B, MMSYS_SW_RST_DSI_B);
 }
 
 static void mtk_dsi_reset_engine(struct mtk_dsi *dsi)
@@ -903,6 +919,8 @@ static int mtk_dsi_create_conn_enc(struct drm_device *drm, struct mtk_dsi *dsi)
 			goto err_encoder_cleanup;
 	}
 
+	mtk_dsi_reset_all(dsi);
+
 	return 0;
 
 err_encoder_cleanup:
@@ -1154,6 +1172,7 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	struct mtk_dsi *dsi;
 	struct device *dev = &pdev->dev;
 	struct resource *regs;
+	struct regmap *regmap;
 	int irq_num;
 	int comp_id;
 	int ret;
@@ -1213,6 +1232,22 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to get MIPI-DPHY: %d\n", ret);
 		goto err_unregister_host;
 	}
+
+	regmap = syscon_regmap_lookup_by_phandle(dev->of_node,
+						 "mediatek,syscon-dsi");
+	ret = of_property_read_u32_index(dev->of_node, "mediatek,syscon-dsi", 1,
+					 &dsi->sw_rst_b);
+
+	if (IS_ERR(regmap))
+		ret = PTR_ERR(regmap);
+
+	if (ret) {
+		ret = PTR_ERR(regmap);
+		dev_err(dev, "Failed to get mmsys registers: %d\n", ret);
+		return ret;
+	}
+
+	dsi->mmsys_sw_rst_b = regmap;
 
 	comp_id = mtk_ddp_comp_get_id(dev->of_node, MTK_DSI);
 	if (comp_id < 0) {
