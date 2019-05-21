@@ -11,5 +11,3 @@ obj-$(CONFIG_WILCO_EC_KBD_BACKLIGHT)	+= wilco_kbd_backlight.o
 wilco_charge_schedule-objs		:= charge_schedule.o \
 					   charge_schedule_sysfs.o
 obj-$(CONFIG_WILCO_EC_CHARGE_SCHEDULE)	+= wilco_charge_schedule.o
-wilco_ec_telem-objs			:= telemetry.o
-obj-$(CONFIG_WILCO_EC_TELEMETRY)	+= wilco_ec_telem.o

@@ -49,10 +49,3 @@ config WILCO_EC_CHARGE_SCHEDULE
 	  health by adjusting the charging algorithm throughout the day. For
 	  userspace interface and more info see
 	  Documentation/ABI/testing/sysfs-platform-wilco-ec
-
-config WILCO_EC_TELEMETRY
-	tristate "Enable querying telemetry data from EC"
-	depends on WILCO_EC
-	help
-	  If you say Y here, you get support to query EC telemetry data from
-	  /dev/wilco_telem0 using write() and then read().
