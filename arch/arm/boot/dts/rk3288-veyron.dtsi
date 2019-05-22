@@ -207,18 +207,6 @@
 	temperature = <100000>;
 };
 
-/*
- * Remove 500 MHz since the only way to make 500 MHz is via the NPLL
- * which is dedicated to the external display.
- *
- * NOTE: without this deletion the GPU driver may end up thinking it
- * is running at 500 MHz (and it will up the voltage based on that
- * belief), but it'll actually end up at 400 MHz.
- */
-&gpu_opp_table {
-	/delete-node/ opp-500000000;
-};
-
 &hdmi {
 	ddc-i2c-bus = <&i2c5>;
 	status = "okay";
