@@ -154,7 +154,10 @@ static int ish_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* mapping IO device memory */
 	hw->mem_addr = pcim_iomap_table(pdev)[0];
 	ishtp->pdev = pdev;
-	pdev->dev_flags |= PCI_DEV_FLAGS_NO_D3;
+
+	/* This NO_D3 flag is only for CHV and older platforms */
+	if (pdev->device == CHV_DEVICE_ID)
+		pdev->dev_flags |= PCI_DEV_FLAGS_NO_D3;
 
 	/* request and enable interrupt */
 	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_ALL_TYPES);
