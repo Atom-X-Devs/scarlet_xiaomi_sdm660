@@ -149,7 +149,7 @@ static int enqueue_events(struct acpi_device *adev, const u8 *buf, u32 length)
 
 		/* Ensure event does not overflow the available buffer */
 		if ((offset + event_size) > length) {
-			dev_err(&adev->dev, "Event exceeds buffer: %zu > %d\n",
+			dev_err(&adev->dev, "Event exceeds buffer: %d > %d\n",
 				offset + event_size, length);
 			return -EOVERFLOW;
 		}
