@@ -15,7 +15,7 @@
  *
  * These events are put into a queue which can be read by a userspace daemon
  * via a char device that implements read() and poll(). The char device
- * will appear at /dev/wilco_event{n}, where n is some small positive integer.
+ * will appear at /dev/wilco_event{n}, where n is some integer.
  *
  * To test, run the simple python script from
  * https://gist.github.com/11fa41edda69aa09e4a27f5f788d45ba
@@ -70,7 +70,6 @@ static DEFINE_IDA(event_ida);
  * @dev: Device associated with the %cdev.
  * @exist: Has the device been not been removed? Once a device has been removed,
  *	   writes, reads, and new opens will fail.
- * @available: Guarantee only one client can open() file and read from queue.
  *
  * There will be one of these structs for each ACPI device registered. This data
  * is the queue of events received from ACPI that still need to be read from
@@ -85,7 +84,6 @@ struct event_device_data {
 	struct device dev;
 	struct cdev cdev;
 	bool exist;
-	atomic_t available;
 };
 
 /**
@@ -238,9 +236,6 @@ static int event_open(struct inode *inode, struct file *filp)
 	if (!dev_data->exist)
 		return -ENODEV;
 
-	if (atomic_cmpxchg(&dev_data->available, 1, 0) == 0)
-		return -EBUSY;
-
 	/* Increase refcount on device so dev_data is not freed */
 	get_device(&dev_data->dev);
 	nonseekable_open(inode, filp);
@@ -331,7 +326,6 @@ static int event_release(struct inode *inode, struct file *filp)
 {
 	struct event_device_data *dev_data = filp->private_data;
 
-	atomic_set(&dev_data->available, 1);
 	put_device(&dev_data->dev);
 
 	return 0;
@@ -412,7 +406,6 @@ static int event_device_add(struct acpi_device *adev)
 	mutex_init(&dev_data->lock);
 	init_waitqueue_head(&dev_data->wq);
 	dev_data->exist = true;
-	atomic_set(&dev_data->available, 1);
 
 	/* Initialize the device. */
 	dev_num = MKDEV(event_major, minor);
