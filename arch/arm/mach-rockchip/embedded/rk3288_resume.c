@@ -45,7 +45,7 @@ struct rk3288_resume_params rk3288_resume_params
  * 16-bit) you'll get an imprecise data abort and it will be very hard to debug.
  * Keep everything in here as 32-bit wide and aligned.  YOU'VE BEEN WARNED.
  */
-static void __noreturn rk3288_resume_c(void)
+void __maybe_unused __noreturn rk3288_resume_c(void)
 {
 	u32 tmp;
 
@@ -114,10 +114,8 @@ static void __naked __noreturn rk3288_resume(void)
 
 		"cpu0run:\n"
 			"mov	sp, %1\n"
+			"b	rk3288_resume_c"
 		:
 		: "i" (INIT_CPSR), "r" (&__stack_start)
 		: "cc", "r1", "sp");
-
-	/* Now get into a normal function that can use a stack */
-	rk3288_resume_c();
 }
