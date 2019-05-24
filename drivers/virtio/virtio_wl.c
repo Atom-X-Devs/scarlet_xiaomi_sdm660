@@ -479,6 +479,7 @@ static void virtwl_vfd_remove(struct virtwl_vfd *vfd)
 		kfree(qentry);
 	}
 	mutex_unlock(vq_lock);
+	virtqueue_kick(vq);
 
 	virtwl_vfd_free(vfd);
 }
