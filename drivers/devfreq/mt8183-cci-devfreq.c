@@ -172,8 +172,7 @@ static int mtk_cci_devfreq_probe(struct platform_device *pdev)
 						       "mtk_cci_vmon",
 						       NULL);
 	if (IS_ERR(cci_df->devfreq)) {
-		ret = PTR_ERR(cci_df->devfreq);
-		dev_err(cci_dev, "cannot create cci devfreq device: %d\n", ret);
+		dev_err(cci_dev, "cannot create cci devfreq device\n", ret);
 		goto err_put_reg;
 	}
 
