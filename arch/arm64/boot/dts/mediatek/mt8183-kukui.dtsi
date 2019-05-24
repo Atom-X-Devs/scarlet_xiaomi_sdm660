@@ -488,7 +488,7 @@
 	spi_pins_0: spi0@0 {
 		pins_spi{
 			pinmux = <PINMUX_GPIO85__FUNC_SPI0_MI>,
-				 <PINMUX_GPIO86__FUNC_SPI0_CSB>,
+				 <PINMUX_GPIO86__FUNC_GPIO86>,
 				 <PINMUX_GPIO87__FUNC_SPI0_MO>,
 				 <PINMUX_GPIO88__FUNC_SPI0_CLK>;
 			bias-disable;
@@ -568,6 +568,7 @@
 	pinctrl-0 = <&spi_pins_0>;
 	mediatek,pad-select = <0>;
 	status = "okay";
+	cs-gpios = <&pio 86 GPIO_ACTIVE_LOW>;
 
 	cr50@0 {
 		compatible = "google,cr50";
