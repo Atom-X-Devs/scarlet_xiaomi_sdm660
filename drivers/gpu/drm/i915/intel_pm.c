@@ -6661,12 +6661,18 @@ void gen6_rps_boost(struct i915_request *rq,
 
 	/* Serializes with i915_request_retire() */
 	boost = false;
+	/*
+	 * FIXME: This is temporary change to improve power consumption
+	 * in hangouts use case. (See: b/130638275)
+	 */
+	/*
 	spin_lock_irqsave(&rq->lock, flags);
 	if (!rq->waitboost && !dma_fence_is_signaled_locked(&rq->fence)) {
 		boost = !atomic_fetch_inc(&rps->num_waiters);
 		rq->waitboost = true;
 	}
 	spin_unlock_irqrestore(&rq->lock, flags);
+	*/
 	if (!boost)
 		return;
 
