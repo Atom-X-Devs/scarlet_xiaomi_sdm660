@@ -212,7 +212,7 @@ struct mtk_dsi {
 	bool enabled;
 	u32 irq_data;
 	wait_queue_head_t irq_wait_queue;
-	struct mtk_dsi_driver_data *driver_data;
+	const struct mtk_dsi_driver_data *driver_data;
 };
 
 static inline struct mtk_dsi *encoder_to_dsi(struct drm_encoder *e)
@@ -1149,35 +1149,10 @@ static const struct component_ops mtk_dsi_component_ops = {
 	.unbind = mtk_dsi_unbind,
 };
 
-static const struct mtk_dsi_driver_data mt8173_dsi_driver_data = {
-	.reg_cmdq_off = 0x200,
-};
-
-static const struct mtk_dsi_driver_data mt2701_dsi_driver_data = {
-	.reg_cmdq_off = 0x180,
-};
-
-static const struct mtk_dsi_driver_data mt8183_dsi_driver_data = {
-	.reg_cmdq_off = 0x200,
-	.has_shadow_ctl = true,
-	.has_size_ctl = true,
-};
-
-static const struct of_device_id mtk_dsi_of_match[] = {
-	{ .compatible = "mediatek,mt2701-dsi",
-	  .data = &mt2701_dsi_driver_data },
-	{ .compatible = "mediatek,mt8173-dsi",
-	  .data = &mt8173_dsi_driver_data },
-	{ .compatible = "mediatek,mt8183-dsi",
-	  .data = &mt8183_dsi_driver_data },
-	{ },
-};
-
 static int mtk_dsi_probe(struct platform_device *pdev)
 {
 	struct mtk_dsi *dsi;
 	struct device *dev = &pdev->dev;
-	const struct of_device_id *of_id;
 	struct resource *regs;
 	int irq_num;
 	int comp_id;
@@ -1201,8 +1176,7 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_unregister_host;
 
-	of_id = of_match_device(mtk_dsi_of_match, &pdev->dev);
-	dsi->driver_data = (struct mtk_dsi_driver_data *)of_id->data;
+	dsi->driver_data = of_device_get_match_data(dev);
 
 	dsi->engine_clk = devm_clk_get(dev, "engine");
 	if (IS_ERR(dsi->engine_clk)) {
@@ -1295,6 +1269,30 @@ static int mtk_dsi_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+static const struct mtk_dsi_driver_data mt8173_dsi_driver_data = {
+	.reg_cmdq_off = 0x200,
+};
+
+static const struct mtk_dsi_driver_data mt2701_dsi_driver_data = {
+	.reg_cmdq_off = 0x180,
+};
+
+static const struct mtk_dsi_driver_data mt8183_dsi_driver_data = {
+	.reg_cmdq_off = 0x200,
+	.has_shadow_ctl = true,
+	.has_size_ctl = true,
+};
+
+static const struct of_device_id mtk_dsi_of_match[] = {
+	{ .compatible = "mediatek,mt2701-dsi",
+	  .data = &mt2701_dsi_driver_data },
+	{ .compatible = "mediatek,mt8173-dsi",
+	  .data = &mt8173_dsi_driver_data },
+	{ .compatible = "mediatek,mt8183-dsi",
+	  .data = &mt8183_dsi_driver_data },
+	{ },
+};
 
 struct platform_driver mtk_dsi_driver = {
 	.probe = mtk_dsi_probe,
