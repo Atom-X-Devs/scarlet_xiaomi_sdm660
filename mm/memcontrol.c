@@ -5641,9 +5641,9 @@ static int memory_stat_show(struct seq_file *m, void *v)
 
 	seq_printf(m, "pgfault %lu\n", acc.events[PGFAULT]);
 	seq_printf(m, "pgmajfault %lu\n", acc.events[PGMAJFAULT]);
-	seq_printf(m, "pgmajfault %lu\n", acc.events[PGMAJFAULT_S]);
-	seq_printf(m, "pgmajfault %lu\n", acc.events[PGMAJFAULT_A]);
-	seq_printf(m, "pgmajfault %lu\n", acc.events[PGMAJFAULT_F]);
+	seq_printf(m, "pgmajfault_s %lu\n", acc.events[PGMAJFAULT_S]);
+	seq_printf(m, "pgmajfault_a %lu\n", acc.events[PGMAJFAULT_A]);
+	seq_printf(m, "pgmajfault_f %lu\n", acc.events[PGMAJFAULT_F]);
 
 	seq_printf(m, "pgrefill %lu\n", acc.events[PGREFILL]);
 	seq_printf(m, "pgscan %lu\n", acc.events[PGSCAN_KSWAPD] +
