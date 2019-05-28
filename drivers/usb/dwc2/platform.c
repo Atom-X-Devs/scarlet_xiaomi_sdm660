@@ -47,9 +47,7 @@
 #include <linux/phy/phy.h>
 #include <linux/platform_data/s3c-hsotg.h>
 #include <linux/reset.h>
-#include <linux/usb.h>
 
-#include <linux/usb/hcd.h>
 #include <linux/usb/of.h>
 
 #include "core.h"
@@ -530,37 +528,17 @@ error:
 	return retval;
 }
 
-static bool __maybe_unused dwc2_can_poweroff_phy(struct dwc2_hsotg *dwc2)
-{
-	struct usb_device *root_hub = dwc2_hsotg_to_hcd(dwc2)->self.root_hub;
-
-	if (!dwc2->ll_hw_enabled)
-		return false;
-
-	/* If the controller isn't allowed to wakeup then we can power off. */
-	if (!device_may_wakeup(dwc2->dev))
-		return true;
-
-	/*
-	 * We don't want to power off the PHY if something under the
-	 * root hub has wakeup enabled.
-	 */
-	if (usb_wakeup_enabled_descendants(root_hub))
-		return false;
-
-	/* No reason to keep the PHY powered, so allow poweroff */
-	return true;
-}
-
 static int __maybe_unused dwc2_suspend(struct device *dev)
 {
 	struct dwc2_hsotg *dwc2 = dev_get_drvdata(dev);
+	bool is_device_mode = dwc2_is_device_mode(dwc2);
 	int ret = 0;
 
-	if (dwc2_is_device_mode(dwc2))
+	if (is_device_mode)
 		dwc2_hsotg_suspend(dwc2);
 
-	if (dwc2_can_poweroff_phy(dwc2)) {
+	if (dwc2->ll_hw_enabled &&
+	    (is_device_mode || dwc2_host_can_poweroff_phy(dwc2))) {
 		ret = __dwc2_lowlevel_hw_disable(dwc2);
 		dwc2->phy_off_for_suspend = true;
 	}
