@@ -109,6 +109,7 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
 	MGMT_OP_SET_EVENT_MASK,
 	MGMT_OP_SET_BLOCKED_LTKS,
+	MGMT_OP_READ_SUPPORTED_CAPABILITIES,
 };
 
 static const u16 mgmt_events[] = {
@@ -7026,6 +7027,21 @@ static int get_adv_size_info(struct sock *sk, struct hci_dev *hdev,
 	return err;
 }
 
+static int read_supported_capabilities(struct sock *sk, struct hci_dev *hdev,
+				       void *data, u16 data_len)
+{
+	struct mgmt_rp_read_supported_capabilities rp;
+	int err;
+
+	rp.wide_band_speech = hdev->wide_band_speech;
+
+	err = mgmt_cmd_complete(sk, hdev->id,
+				MGMT_OP_READ_SUPPORTED_CAPABILITIES,
+				MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
+
+	return err;
+}
+
 static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, /* 0x0000 (no command) */
 	{ read_version,            MGMT_READ_VERSION_SIZE,
@@ -7121,6 +7137,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
 	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
 	{ set_blocked_ltks,	   MGMT_SET_BLOCKED_LTKS_CP_SIZE },
+	{ read_supported_capabilities, MGMT_READ_SUPPORTED_CAPABILITIES_SIZE },
 	{ get_phy_configuration,   MGMT_GET_PHY_CONFIGURATION_SIZE },
 	{ set_phy_configuration,   MGMT_SET_PHY_CONFIGURATION_SIZE },
 };

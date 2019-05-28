@@ -701,7 +701,13 @@ struct mgmt_cp_set_blocked_ltks {
 } __packed;
 #define MGMT_SET_BLOCKED_LTKS_CP_SIZE  (MAX_BLOCKED_LTKS * LTK_LENGTH)
 
-#define MGMT_OP_GET_PHY_CONFIGURATION	0x0047
+#define MGMT_OP_READ_SUPPORTED_CAPABILITIES		0x0047
+#define MGMT_READ_SUPPORTED_CAPABILITIES_SIZE		0
+struct mgmt_rp_read_supported_capabilities {
+	__u8 wide_band_speech;
+} __packed;
+
+#define MGMT_OP_GET_PHY_CONFIGURATION	0x0048
 struct mgmt_rp_get_phy_confguration {
 	__le32	supported_phys;
 	__le32	configurable_phys;
@@ -738,7 +744,7 @@ struct mgmt_rp_get_phy_confguration {
 #define MGMT_PHY_LE_RX_MASK (MGMT_PHY_LE_1M_RX | MGMT_PHY_LE_2M_RX | \
 			     MGMT_PHY_LE_CODED_RX)
 
-#define MGMT_OP_SET_PHY_CONFIGURATION	0x0048
+#define MGMT_OP_SET_PHY_CONFIGURATION	0x0049
 struct mgmt_cp_set_phy_confguration {
 	__le32	selected_phys;
 } __packed;
