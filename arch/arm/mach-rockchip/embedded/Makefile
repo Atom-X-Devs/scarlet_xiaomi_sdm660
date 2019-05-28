@@ -42,6 +42,8 @@ CFLAGS_REMOVE_rk3288_resume.o = -pg
 CFLAGS_REMOVE_rk3288_ddr_resume.o = -pg
 CFLAGS_REMOVE_rk3288-dmc-sram.o = -pg
 
+CFLAGS_rk3288_resume.o = $(call cc-disable-warning, inline-asm)
+
 KBUILD_CFLAGS += -fno-stack-protector -fPIC
 
 # This is the ELF for the embedded binary
