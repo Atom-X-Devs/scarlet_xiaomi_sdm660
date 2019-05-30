@@ -283,7 +283,7 @@ static ssize_t cros_ec_uptime_read(struct file *file, char __user *user_buf,
 	return simple_read_from_buffer(user_buf, count, ppos, read_buf, ret);
 }
 
-const struct file_operations cros_ec_console_log_fops = {
+static const struct file_operations cros_ec_console_log_fops = {
 	.owner = THIS_MODULE,
 	.open = cros_ec_console_log_open,
 	.read = cros_ec_console_log_read,
@@ -292,7 +292,7 @@ const struct file_operations cros_ec_console_log_fops = {
 	.release = cros_ec_console_log_release,
 };
 
-const struct file_operations cros_ec_pdinfo_fops = {
+static const struct file_operations cros_ec_pdinfo_fops = {
 	.owner = THIS_MODULE,
 	.open = simple_open,
 	.read = cros_ec_pdinfo_read,
