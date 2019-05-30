@@ -583,7 +583,7 @@ static void print_lock(struct held_lock *hlock)
 		return;
 	}
 
-	printk(KERN_CONT "%p", hlock->instance);
+	printk(KERN_CONT "%px", hlock->instance);
 	print_lock_name(lock_classes + class_idx - 1);
 	printk(KERN_CONT ", at: %pS\n", (void *)hlock->acquire_ip);
 }
