@@ -59,20 +59,9 @@ static DEFINE_IDA(telem_ida);
 #define WILCO_EC_TELEM_GET_TEMP_INFO		0x95
 #define WILCO_EC_TELEM_GET_TEMP_READ		0x2C
 #define WILCO_EC_TELEM_GET_BATT_EXT_INFO	0x07
+#define WILCO_EC_TELEM_GET_BATT_PPID_INFO	0x8A
 
 #define TELEM_ARGS_SIZE_MAX	30
-
-/**
- * struct wilco_ec_telem_request - Telemetry command and arguments sent to EC.
- * @command: One of WILCO_EC_TELEM_GET_* command codes.
- * @reserved: Must be 0.
- * @args: The first N bytes are one of telem_args_get_* structs, the rest is 0.
- */
-struct wilco_ec_telem_request {
-	u8 command;
-	u8 reserved;
-	u8 args[TELEM_ARGS_SIZE_MAX];
-} __packed;
 
 /*
  * The following telem_args_get_* structs are embedded within the |args| field
@@ -122,6 +111,32 @@ struct telem_args_get_batt_ext_info {
 	u8 var_args[5];
 } __packed;
 
+struct telem_args_get_batt_ppid_info {
+	u8 always1; /* Should always be 1 */
+} __packed;
+
+/**
+ * struct wilco_ec_telem_request - Telemetry command and arguments sent to EC.
+ * @command: One of WILCO_EC_TELEM_GET_* command codes.
+ * @reserved: Must be 0.
+ * @args: The first N bytes are one of telem_args_get_* structs, the rest is 0.
+ */
+struct wilco_ec_telem_request {
+	u8 command;
+	u8 reserved;
+	union {
+		u8 buf[TELEM_ARGS_SIZE_MAX];
+		struct telem_args_get_log		get_log;
+		struct telem_args_get_version		get_version;
+		struct telem_args_get_fan_info		get_fan_info;
+		struct telem_args_get_diag_info		get_diag_info;
+		struct telem_args_get_temp_info		get_temp_info;
+		struct telem_args_get_temp_read		get_temp_read;
+		struct telem_args_get_batt_ext_info	get_batt_ext_info;
+		struct telem_args_get_batt_ppid_info	get_batt_ppid_info;
+	} args;
+} __packed;
+
 /**
  * check_telem_request() - Ensure that a request from userspace is valid.
  * @rq: Request buffer copied from userspace.
@@ -146,25 +161,31 @@ static int check_telem_request(struct wilco_ec_telem_request *rq,
 
 	switch (rq->command) {
 	case WILCO_EC_TELEM_GET_LOG:
-		max_size += sizeof(struct telem_args_get_log);
+		max_size += sizeof(rq->args.get_log);
 		break;
 	case WILCO_EC_TELEM_GET_VERSION:
-		max_size += sizeof(struct telem_args_get_version);
+		max_size += sizeof(rq->args.get_version);
 		break;
 	case WILCO_EC_TELEM_GET_FAN_INFO:
-		max_size += sizeof(struct telem_args_get_fan_info);
+		max_size += sizeof(rq->args.get_fan_info);
 		break;
 	case WILCO_EC_TELEM_GET_DIAG_INFO:
-		max_size += sizeof(struct telem_args_get_diag_info);
+		max_size += sizeof(rq->args.get_diag_info);
 		break;
 	case WILCO_EC_TELEM_GET_TEMP_INFO:
-		max_size += sizeof(struct telem_args_get_temp_info);
+		max_size += sizeof(rq->args.get_temp_info);
 		break;
 	case WILCO_EC_TELEM_GET_TEMP_READ:
-		max_size += sizeof(struct telem_args_get_temp_read);
+		max_size += sizeof(rq->args.get_temp_read);
 		break;
 	case WILCO_EC_TELEM_GET_BATT_EXT_INFO:
-		max_size += sizeof(struct telem_args_get_batt_ext_info);
+		max_size += sizeof(rq->args.get_batt_ext_info);
+		break;
+	case WILCO_EC_TELEM_GET_BATT_PPID_INFO:
+		if (rq->args.get_batt_ppid_info.always1 != 1)
+			return -EINVAL;
+
+		max_size += sizeof(rq->args.get_batt_ppid_info);
 		break;
 	default:
 		return -EINVAL;
@@ -250,6 +271,7 @@ static ssize_t telem_write(struct file *filp, const char __user *buf,
 
 	if (count > sizeof(sess_data->request))
 		return -EMSGSIZE;
+	memset(&sess_data->request, 0, sizeof(sess_data->request));
 	if (copy_from_user(&sess_data->request, buf, count))
 		return -EFAULT;
 	ret = check_telem_request(&sess_data->request, count);
