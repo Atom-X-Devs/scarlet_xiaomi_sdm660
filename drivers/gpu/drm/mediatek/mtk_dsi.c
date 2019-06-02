@@ -135,8 +135,8 @@
 #define TS_VFP_EN			BIT(5)
 
 #define DSI_SHADOW_DEBUG	0x190U
-#define FORCE_COMMIT		BIT(0)
-#define BYPASS_SHADOW		BIT(1)
+#define FORCE_COMMIT			BIT(0)
+#define BYPASS_SHADOW			BIT(1)
 
 #define CONFIG				(0xff << 0)
 #define SHORT_PACKET			0
