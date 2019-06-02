@@ -146,12 +146,6 @@
 #define DATA_0				(0xff << 16)
 #define DATA_1				(0xff << 24)
 
-#define T_LPX		5
-#define T_HS_PREP	6
-#define T_HS_TRAIL	8
-#define T_HS_EXIT	7
-#define T_HS_ZERO	10
-
 #define MMSYS_SW_RST_DSI_B BIT(25)
 
 #define NS_TO_CYCLE(n, c)    ((n) / (c) + (((n) % (c)) ? 1 : 0))
@@ -253,22 +247,19 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	cycle_time = 8000000000 / dsi->data_rate;
 
 	timing->lpx = NS_TO_CYCLE(60, cycle_time);
-	timing->da_hs_prepare = NS_TO_CYCLE((40 + 5 * ui), cycle_time);
-	timing->da_hs_zero = NS_TO_CYCLE((110 + 6 * ui), cycle_time);
-	timing->da_hs_trail = NS_TO_CYCLE(((0x4 * ui) + 80), cycle_time);
-
-	if (timing->da_hs_zero > timing->da_hs_prepare)
-		timing->da_hs_zero -= timing->da_hs_prepare;
+	timing->da_hs_prepare = NS_TO_CYCLE(40 + 5 * ui, cycle_time);
+	timing->da_hs_zero = NS_TO_CYCLE(110 + 6 * ui, cycle_time);
+	timing->da_hs_trail = NS_TO_CYCLE(80 + 4 * ui, cycle_time);
 
 	timing->ta_go = 4 * timing->lpx;
 	timing->ta_sure = 3 * timing->lpx / 2;
 	timing->ta_get = 5 * timing->lpx;
 	timing->da_hs_exit = 2 * timing->lpx;
 
-	timing->clk_hs_zero = NS_TO_CYCLE(0x150, cycle_time);
-	timing->clk_hs_trail = NS_TO_CYCLE(0x64, cycle_time) + 0xa;
+	timing->clk_hs_zero = NS_TO_CYCLE(336, cycle_time);
+	timing->clk_hs_trail = NS_TO_CYCLE(100, cycle_time) + 10;
 
-	timing->clk_hs_prepare = NS_TO_CYCLE(0x40, cycle_time);
+	timing->clk_hs_prepare = NS_TO_CYCLE(64, cycle_time);
 	timing->clk_hs_post = NS_TO_CYCLE(80 + 52 * ui, cycle_time);
 	timing->clk_hs_exit = 2 * timing->lpx;
 
