@@ -201,7 +201,7 @@ struct mtk_dsi {
 	struct clk *digital_clk;
 	struct clk *hs_clk;
 
-	u64 data_rate;
+	unsigned long data_rate;
 
 	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
@@ -244,7 +244,7 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	struct mtk_phy_timing *timing = &dsi->phy_timing;
 
 	ui = 1000000000 / dsi->data_rate;
-	cycle_time = 8000000000 / dsi->data_rate;
+	cycle_time = div_u64(8000000000ULL, dsi->data_rate);
 
 	timing->lpx = NS_TO_CYCLE(60, cycle_time);
 	timing->da_hs_prepare = NS_TO_CYCLE(40 + 5 * ui, cycle_time);
