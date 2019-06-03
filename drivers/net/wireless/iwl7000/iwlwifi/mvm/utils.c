@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -236,6 +236,18 @@ u8 iwl_mvm_mac80211_idx_to_hwrate(int rate_idx)
 {
 	/* Get PLCP rate for tx_cmd->rate_n_flags */
 	return fw_rate_idx_to_plcp[rate_idx];
+}
+
+u8 iwl_mvm_mac80211_ac_to_ucode_ac(enum ieee80211_ac_numbers ac)
+{
+	static const u8 mac80211_ac_to_ucode_ac[] = {
+		AC_VO,
+		AC_VI,
+		AC_BE,
+		AC_BK
+	};
+
+	return mac80211_ac_to_ucode_ac[ac];
 }
 
 void iwl_mvm_rx_fw_error(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
@@ -596,6 +608,8 @@ void iwl_mvm_dump_nic_error_log(struct iwl_mvm *mvm)
 		iwl_mvm_dump_lmac_error_log(mvm, 1);
 
 	iwl_mvm_dump_umac_error_log(mvm);
+
+	iwl_fw_error_print_fseq_regs(&mvm->fwrt);
 }
 
 int iwl_mvm_reconfig_scd(struct iwl_mvm *mvm, int queue, int fifo, int sta_id,
@@ -1432,6 +1446,17 @@ void iwl_mvm_tcm_rm_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	cancel_delayed_work_sync(&mvmvif->uapsd_nonagg_detected_wk);
 }
 
+u32 iwl_mvm_get_systime(struct iwl_mvm *mvm)
+{
+	u32 reg_addr = DEVICE_SYSTEM_TIME_REG;
+
+	if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22000 &&
+	    mvm->trans->cfg->gp2_reg_addr)
+		reg_addr = mvm->trans->cfg->gp2_reg_addr;
+
+	return iwl_read_prph(mvm->trans, reg_addr);
+}
+
 void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 {
 	bool ps_disabled;
@@ -1445,7 +1470,7 @@ void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 		iwl_mvm_power_update_device(mvm);
 	}
 
-	*gp2 = iwl_read_prph(mvm->trans, DEVICE_SYSTEM_TIME_REG);
+	*gp2 = iwl_mvm_get_systime(mvm);
 	*boottime = ktime_get_boot_ns();
 
 	if (!ps_disabled) {
@@ -1457,6 +1482,12 @@ void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 {
+	/*
+	 * Note: v1 and v2 are compatible, except for the
+	 * reserved value and the new flag, both of which
+	 * are ignored by older FW, and the additional
+	 * fields which we need to strip.
+	 */
 	struct iwl_channel_estimation_cfg cfg = {
 		.flags = cpu_to_le32(mvm->csi_cfg.flags),
 		.timer = cpu_to_le32(mvm->csi_cfg.timer),
@@ -1465,10 +1496,23 @@ int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 		.rate_n_flags_val = cpu_to_le32(mvm->csi_cfg.rate_n_flags_val),
 		.rate_n_flags_mask =
 			cpu_to_le32(mvm->csi_cfg.rate_n_flags_mask),
+		.min_time_between_collection =
+			cpu_to_le32(mvm->csi_cfg.interval),
+		.num_filter_addrs = cpu_to_le32(mvm->csi_cfg.num_filter_addrs),
 	};
 	u32 id = iwl_cmd_id(CHEST_COLLECTOR_FILTER_CONFIG_CMD,
 			    DATA_PATH_GROUP, 0);
+	unsigned int size = sizeof(cfg);
+	int i;
 
-	return iwl_mvm_send_cmd_pdu(mvm, id, 0, sizeof(cfg), &cfg);
+	for (i = 0; i < mvm->csi_cfg.num_filter_addrs; i++)
+		ether_addr_copy(cfg.filter_addrs[i].addr,
+				mvm->csi_cfg.filter_addrs[i].addr);
+
+	if (!fw_has_capa(&mvm->fw->ucode_capa,
+			 IWL_UCODE_TLV_CAPA_CSI_REPORTING_V2))
+		size = sizeof(struct iwl_channel_estimation_cfg_v1);
+
+	return iwl_mvm_send_cmd_pdu(mvm, id, 0, size, &cfg);
 }
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */

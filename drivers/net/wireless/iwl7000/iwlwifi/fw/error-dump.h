@@ -8,7 +8,7 @@
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2014 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2014 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -211,6 +211,9 @@ struct iwl_fw_error_dump_info {
  * @fw_mon_wr_ptr: the position of the write pointer in the cyclic buffer
  * @fw_mon_base_ptr: base pointer of the data
  * @fw_mon_cycle_cnt: number of wraparounds
+ * @fw_mon_base_high_ptr: used in AX210 devices, the base adderss is 64 bit
+ *	so fw_mon_base_ptr holds LSB 32 bits and fw_mon_base_high_ptr hold
+ *	MSB 32 bits
  * @reserved: for future use
  * @data: captured data
  */
@@ -218,7 +221,8 @@ struct iwl_fw_error_dump_fw_mon {
 	__le32 fw_mon_wr_ptr;
 	__le32 fw_mon_base_ptr;
 	__le32 fw_mon_cycle_cnt;
-	__le32 reserved[3];
+	__le32 fw_mon_base_high_ptr;
+	__le32 reserved[2];
 	u8 data[];
 } __packed;
 
@@ -274,25 +278,33 @@ struct iwl_fw_error_dump_mem {
 	u8 data[];
 };
 
+#define IWL_INI_DUMP_MEM_VER 1
+#define IWL_INI_DUMP_MONITOR_VER 1
+#define IWL_INI_DUMP_FIFO_VER 1
+
 /**
  * struct iwl_fw_ini_error_dump_range - range of memory
- * @start_addr: the start address of this range
  * @range_data_size: the size of this range, in bytes
+ * @start_addr: the start address of this range
  * @data: the actual memory
  */
 struct iwl_fw_ini_error_dump_range {
-	__le32 start_addr;
 	__le32 range_data_size;
+	__le64 start_addr;
 	__le32 data[];
 } __packed;
 
 /**
  * struct iwl_fw_ini_error_dump_header - ini region dump header
+ * @version: dump version
+ * @region_id: id of the region
  * @num_of_ranges: number of ranges in this region
  * @name_len: number of bytes allocated to the name string of this region
  * @name: name of the region
  */
 struct iwl_fw_ini_error_dump_header {
+	__le32 version;
+	__le32 region_id;
 	__le32 num_of_ranges;
 	__le32 name_len;
 	u8 name[IWL_FW_INI_MAX_NAME];
@@ -306,6 +318,45 @@ struct iwl_fw_ini_error_dump_header {
 struct iwl_fw_ini_error_dump {
 	struct iwl_fw_ini_error_dump_header header;
 	struct iwl_fw_ini_error_dump_range ranges[];
+} __packed;
+
+/* This bit is used to differentiate between lmac and umac rxf */
+#define IWL_RXF_UMAC_BIT BIT(31)
+
+/**
+ * struct iwl_fw_ini_error_dump_register - ini register dump
+ * @addr: address of the register
+ * @data: data of the register
+ */
+struct iwl_fw_ini_error_dump_register {
+	__le32 addr;
+	__le32 data;
+} __packed;
+
+/**
+ * struct iwl_fw_ini_fifo_error_dump_range - ini fifo range dump
+ * @fifo_num: the fifo num. In case of rxf and umac rxf, set BIT(31) to
+ *	distinguish between lmac and umac
+ * @num_of_registers: num of registers to dump, dword size each
+ * @range_data_size: the size of the data
+ * @data: consist of
+ *	num_of_registers * (register address + register value) + fifo data
+ */
+struct iwl_fw_ini_fifo_error_dump_range {
+	__le32 fifo_num;
+	__le32 num_of_registers;
+	__le32 range_data_size;
+	__le32 data[];
+} __packed;
+
+/**
+ * struct iwl_fw_ini_fifo_error_dump - ini fifo region dump
+ * @header: the header of this region
+ * @ranges: the memory ranges of this region
+ */
+struct iwl_fw_ini_fifo_error_dump {
+	struct iwl_fw_ini_error_dump_header header;
+	struct iwl_fw_ini_fifo_error_dump_range ranges[];
 } __packed;
 
 /**
@@ -323,13 +374,13 @@ struct iwl_fw_error_dump_rb {
 };
 
 /**
- * struct iwl_fw_ini_monitor_dram_dump - ini dram monitor dump
+ * struct iwl_fw_ini_monitor_dump - ini monitor dump
  * @header - header of the region
- * @write_ptr - write pointer position in the dram
+ * @write_ptr - write pointer position in the buffer
  * @cycle_cnt - cycles count
  * @ranges - the memory ranges of this this region
  */
-struct iwl_fw_ini_monitor_dram_dump {
+struct iwl_fw_ini_monitor_dump {
 	struct iwl_fw_ini_error_dump_header header;
 	__le32 write_ptr;
 	__le32 cycle_cnt;

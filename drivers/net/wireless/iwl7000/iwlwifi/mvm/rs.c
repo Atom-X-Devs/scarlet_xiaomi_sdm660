@@ -3,7 +3,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -1644,8 +1644,26 @@ static s32 rs_get_best_rate(struct iwl_mvm *mvm,
 
 static u32 rs_bw_from_sta_bw(struct ieee80211_sta *sta)
 {
+	struct ieee80211_sta_vht_cap *sta_vht_cap = &sta->vht_cap;
+	struct ieee80211_vht_cap vht_cap = {
+		.vht_cap_info = cpu_to_le32(sta_vht_cap->cap),
+		.supp_mcs = sta_vht_cap->vht_mcs,
+	};
+
 	switch (sta->bandwidth) {
 	case IEEE80211_STA_RX_BW_160:
+		/*
+		 * Don't use 160 MHz if VHT extended NSS support
+		 * says we cannot use 2 streams, we don't want to
+		 * deal with this.
+		 * We only check MCS 0 - they will support that if
+		 * we got here at all and we don't care which MCS,
+		 * we want to determine a more global state.
+		 */
+		if (ieee80211_get_vht_max_nss(&vht_cap,
+					      IEEE80211_VHT_CHANWIDTH_160MHZ,
+					      0, true) < sta->rx_nss)
+			return RATE_MCS_CHAN_WIDTH_80;
 		return RATE_MCS_CHAN_WIDTH_160;
 	case IEEE80211_STA_RX_BW_80:
 		return RATE_MCS_CHAN_WIDTH_80;
@@ -1797,7 +1815,7 @@ static bool rs_tweak_rate_tbl(struct iwl_mvm *mvm,
 			      struct iwl_scale_tbl_info *tbl,
 			      enum rs_action scale_action)
 {
-	if (sta->bandwidth != IEEE80211_STA_RX_BW_80)
+	if (rs_bw_from_sta_bw(sta) != RATE_MCS_CHAN_WIDTH_80)
 		return false;
 
 	if (!is_vht_siso(&tbl->rate))
@@ -4061,9 +4079,8 @@ static ssize_t iwl_dbgfs_ss_force_write(struct iwl_lq_sta *lq_sta, char *buf,
 #define MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz) \
 	_MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz, struct iwl_lq_sta)
 #define MVM_DEBUGFS_ADD_FILE_RS(name, parent, mode) do {		\
-		if (!debugfs_create_file(#name, mode, parent, lq_sta,	\
-					 &iwl_dbgfs_##name##_ops))	\
-			goto err;					\
+		debugfs_create_file(#name, mode, parent, lq_sta,	\
+				    &iwl_dbgfs_##name##_ops);		\
 	} while (0)
 
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(ss_force, 32);
@@ -4091,9 +4108,6 @@ static void rs_drv_add_sta_debugfs(void *mvm, void *priv_sta,
 			  &lq_sta->pers.dbg_fixed_txp_reduction);
 
 	MVM_DEBUGFS_ADD_FILE_RS(ss_force, dir, 0600);
-	return;
-err:
-	IWL_ERR((struct iwl_mvm *)mvm, "Can't create debugfs entity\n");
 }
 
 void rs_remove_sta_debugfs(void *mvm, void *mvm_sta)
@@ -4128,6 +4142,7 @@ static const struct rate_control_ops rs_mvm_ops_drv = {
 	.add_sta_debugfs = rs_drv_add_sta_debugfs,
 	.remove_sta_debugfs = rs_remove_sta_debugfs,
 #endif
+	.capa = RATE_CTRL_CAPA_VHT_EXT_NSS_BW,
 };
 
 void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,

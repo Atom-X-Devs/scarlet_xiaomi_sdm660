@@ -8,7 +8,7 @@
  * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -998,10 +998,11 @@ static int iwl_pcie_tx_alloc(struct iwl_trans *trans)
 		bool cmd_queue = (txq_id == trans_pcie->cmd_queue);
 
 		if (cmd_queue)
-			slots_num = max_t(u32, TFD_CMD_SLOTS,
+			slots_num = max_t(u32, IWL_CMD_QUEUE_SIZE,
 					  trans->cfg->min_txq_size);
 		else
-			slots_num = TFD_TX_CMD_SLOTS;
+			slots_num = max_t(u32, IWL_DEFAULT_QUEUE_SIZE,
+					  trans->cfg->min_256_ba_txq_size);
 		trans_pcie->txq[txq_id] = &trans_pcie->txq_memory[txq_id];
 		ret = iwl_pcie_txq_alloc(trans, trans_pcie->txq[txq_id],
 					 slots_num, cmd_queue);
@@ -1051,10 +1052,11 @@ int iwl_pcie_tx_init(struct iwl_trans *trans)
 		bool cmd_queue = (txq_id == trans_pcie->cmd_queue);
 
 		if (cmd_queue)
-			slots_num = max_t(u32, TFD_CMD_SLOTS,
+			slots_num = max_t(u32, IWL_CMD_QUEUE_SIZE,
 					  trans->cfg->min_txq_size);
 		else
-			slots_num = TFD_TX_CMD_SLOTS;
+			slots_num = max_t(u32, IWL_DEFAULT_QUEUE_SIZE,
+					  trans->cfg->min_256_ba_txq_size);
 		ret = iwl_pcie_txq_init(trans, trans_pcie->txq[txq_id],
 					slots_num, cmd_queue);
 		if (ret) {
@@ -1962,8 +1964,7 @@ static int iwl_pcie_send_hcmd_sync(struct iwl_trans *trans,
 			       iwl_get_cmd_string(trans, cmd->id));
 		ret = -ETIMEDOUT;
 
-		iwl_force_nmi(trans);
-
+		iwl_trans_pcie_sync_nmi(trans);
 		goto cancel;
 	}
 
