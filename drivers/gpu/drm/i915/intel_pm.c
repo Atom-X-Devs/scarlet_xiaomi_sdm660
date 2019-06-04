@@ -6647,7 +6647,9 @@ void gen6_rps_boost(struct i915_request *rq,
 		    struct intel_rps_client *rps_client)
 {
 	struct intel_rps *rps = &rq->i915->gt_pm.rps;
+	/* FIXME see below
 	unsigned long flags;
+	*/
 	bool boost;
 
 	/* This is intentionally racy! We peek at the state here, then
