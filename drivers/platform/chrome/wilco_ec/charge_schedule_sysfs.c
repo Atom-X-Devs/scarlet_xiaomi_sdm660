@@ -50,7 +50,7 @@ static ssize_t peak_shift_enable_store(struct device *dev,
 	return count;
 }
 
-struct device_attribute dev_attr_peak_shift_enable =
+static struct device_attribute dev_attr_peak_shift_enable =
 		__ATTR(enable, 0644,
 		       peak_shift_enable_show, peak_shift_enable_store);
 
@@ -86,7 +86,7 @@ static ssize_t advanced_charging_enable_store(struct device *dev,
 	return count;
 }
 
-struct device_attribute dev_attr_advanced_charging_enable =
+static struct device_attribute dev_attr_advanced_charging_enable =
 		__ATTR(enable, 0644,
 		       advanced_charging_enable_show,
 		       advanced_charging_enable_store);
@@ -188,13 +188,13 @@ static ssize_t advanced_charging_schedule_store(struct device *dev,
 		.day_of_week = _day_of_week				\
 	}
 
-ADVANCED_CHARGING_SCHED_ATTR(sunday, 0);
-ADVANCED_CHARGING_SCHED_ATTR(monday, 1);
-ADVANCED_CHARGING_SCHED_ATTR(tuesday, 2);
-ADVANCED_CHARGING_SCHED_ATTR(wednesday, 3);
-ADVANCED_CHARGING_SCHED_ATTR(thursday, 4);
-ADVANCED_CHARGING_SCHED_ATTR(friday, 5);
-ADVANCED_CHARGING_SCHED_ATTR(saturday, 6);
+static ADVANCED_CHARGING_SCHED_ATTR(sunday, 0);
+static ADVANCED_CHARGING_SCHED_ATTR(monday, 1);
+static ADVANCED_CHARGING_SCHED_ATTR(tuesday, 2);
+static ADVANCED_CHARGING_SCHED_ATTR(wednesday, 3);
+static ADVANCED_CHARGING_SCHED_ATTR(thursday, 4);
+static ADVANCED_CHARGING_SCHED_ATTR(friday, 5);
+static ADVANCED_CHARGING_SCHED_ATTR(saturday, 6);
 
 static struct attribute *wilco_advanced_charging_attrs[] = {
 	&dev_attr_advanced_charging_enable.attr,
@@ -267,13 +267,13 @@ static ssize_t peak_shift_schedule_store(struct device *dev,
 		.day_of_week = _day_of_week				\
 	}
 
-PEAK_SHIFT_SCHED_ATTR(sunday, 0);
-PEAK_SHIFT_SCHED_ATTR(monday, 1);
-PEAK_SHIFT_SCHED_ATTR(tuesday, 2);
-PEAK_SHIFT_SCHED_ATTR(wednesday, 3);
-PEAK_SHIFT_SCHED_ATTR(thursday, 4);
-PEAK_SHIFT_SCHED_ATTR(friday, 5);
-PEAK_SHIFT_SCHED_ATTR(saturday, 6);
+static PEAK_SHIFT_SCHED_ATTR(sunday, 0);
+static PEAK_SHIFT_SCHED_ATTR(monday, 1);
+static PEAK_SHIFT_SCHED_ATTR(tuesday, 2);
+static PEAK_SHIFT_SCHED_ATTR(wednesday, 3);
+static PEAK_SHIFT_SCHED_ATTR(thursday, 4);
+static PEAK_SHIFT_SCHED_ATTR(friday, 5);
+static PEAK_SHIFT_SCHED_ATTR(saturday, 6);
 
 static struct attribute *wilco_peak_shift_attrs[] = {
 	&dev_attr_peak_shift_enable.attr,
