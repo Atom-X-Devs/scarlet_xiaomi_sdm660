@@ -1014,7 +1014,7 @@ static int mtk_thermal_probe(struct platform_device *pdev)
 				&mtk_thermal_ops : &mtk_thermal_sensor_ops);
 
 		if (IS_ERR(tzdev)) {
-			if (IS_ERR(tzdev) != -EACCES) {
+			if (PTR_ERR(tzdev) != -EACCES) {
 				ret = PTR_ERR(tzdev);
 				goto err_disable_clk_peri_therm;
 			}
