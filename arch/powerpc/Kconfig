@@ -77,12 +77,12 @@ config NR_IRQS
 
 config NMI_IPI
 	bool
-	depends on SMP && (DEBUGGER || KEXEC_CORE || HARDLOCKUP_DETECTOR)
+	depends on SMP && (DEBUGGER || KEXEC_CORE || HARDLOCKUP_DETECTOR_NMI)
 	default y
 
 config PPC_WATCHDOG
 	bool
-	depends on HARDLOCKUP_DETECTOR
+	depends on HARDLOCKUP_DETECTOR_NMI
 	depends on HAVE_HARDLOCKUP_DETECTOR_ARCH
 	default y
 	help
