@@ -30,6 +30,7 @@
 #include <video/mipi_display.h>
 #include <video/videomode.h>
 
+#include "mtk_drm_drv.h"
 #include "mtk_drm_ddp_comp.h"
 
 #define DSI_START		0x00
@@ -291,7 +292,7 @@ static void mtk_dsi_disable(struct mtk_dsi *dsi)
 static void mtk_dsi_reset_all(struct mtk_dsi *dsi)
 {
 	regmap_update_bits(dsi->mmsys_sw_rst_b, dsi->sw_rst_b,
-			   MMSYS_SW_RST_DSI_B, ~MMSYS_SW_RST_DSI_B);
+			   MMSYS_SW_RST_DSI_B, 0);
 	usleep_range(1000, 1100);
 
 	regmap_update_bits(dsi->mmsys_sw_rst_b, dsi->sw_rst_b,
