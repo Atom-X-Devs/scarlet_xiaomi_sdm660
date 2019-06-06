@@ -114,7 +114,6 @@
 	sound: mt8183-mt6358-ts3a227e-max98357a {
 		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
-		mediatek,headset-codec = <&ts3a227e>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&aud_pins>;
 		status = "okay";
@@ -270,6 +269,12 @@
 		reg = <0x3b>;
 		interrupt-parent = <&pio>;
 		interrupts = <157 IRQ_TYPE_LEVEL_LOW>;
+
+		/*
+		 * Only kukui variants with a headphone jack
+		 * will enable this node.
+		 */
+		status = "disabled";
 	};
 };
 

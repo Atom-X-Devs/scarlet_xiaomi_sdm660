@@ -303,3 +303,11 @@
 	/* EINT pins are used for other purpose on rev2. */
 	/delete-node/ pins_eint;
 };
+
+&sound {
+	mediatek,headset-codec = <&ts3a227e>;
+};
+
+&ts3a227e {
+	status = "okay";
+};

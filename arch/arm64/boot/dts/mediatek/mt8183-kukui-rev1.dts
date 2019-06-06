@@ -251,3 +251,11 @@
 			 <PINMUX_GPIO12__FUNC_TP_UTXD1_AO>;
 	};
 };
+
+&sound {
+	mediatek,headset-codec = <&ts3a227e>;
+};
+
+&ts3a227e {
+	status = "okay";
+};
