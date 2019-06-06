@@ -120,7 +120,7 @@ static int mtk_cci_governor_get_target(struct devfreq *devfreq,
 						cci_df->proc_reg_uV);
 	ret = PTR_ERR_OR_ZERO(opp);
 	if (ret) {
-		pr_err("%s[%d], cannot find opp with voltage=%d: %d\n",
+		pr_err("%s[%d], cannot find opp with voltage=%lu: %d\n",
 		       __func__, __LINE__, cci_df->proc_reg_uV, ret);
 		return ret;
 	}
