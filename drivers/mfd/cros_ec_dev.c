@@ -38,9 +38,6 @@ static int ec_major;
 
 static const struct attribute_group *cros_ec_groups[] = {
 	&cros_ec_attr_group,
-#if IS_ENABLED(CONFIG_MFD_CROS_EC_PD_UPDATE)
-	&cros_ec_pd_attr_group,
-#endif
 	NULL,
 };
 
@@ -624,6 +621,7 @@ static const struct mfd_cell cros_usbpd_charger_cells[] = {
 static const struct mfd_cell cros_ec_platform_cells[] = {
 	{ .name = "cros-ec-debugfs" },
 	{ .name = "cros-ec-lightbar" },
+	{ .name = "cros-ec-pd-sysfs" },
 	{ .name = "cros-ec-vbc" },
 };
 

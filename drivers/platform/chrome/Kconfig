@@ -178,6 +178,17 @@ config CROS_EC_DEBUGFS
 	  To compile this driver as a module, choose M here: the
 	  module will be called cros_ec_debugfs.
 
+config CROS_EC_PD_UPDATE
+	tristate "ChromeOS Embedded Controller PD device update driver"
+	depends on MFD_CROS_EC
+
+	help
+	  If you say Y here, you get support for updating ChromeOS
+	  PD device firmware.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called cros_ec_pd_update.
+
 config CROS_USBPD_LOGGER
 	tristate "Logging driver for USB PD charger"
 	depends on CHARGER_CROS_USBPD

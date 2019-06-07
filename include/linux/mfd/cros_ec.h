@@ -385,6 +385,5 @@ bool cros_ec_handle_event(struct cros_ec_device *ec_dev);
 
 /* sysfs stuff */
 extern struct attribute_group cros_ec_attr_group;
-extern struct attribute_group cros_ec_pd_attr_group;
 
 #endif /* __LINUX_MFD_CROS_EC_H */

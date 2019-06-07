@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __LINUX_MFD_CROS_EC_PD_H
-#define __LINUX_MFD_CROS_EC_PD_H
+#ifndef __LINUX_PLATFORM_DATA_CROS_EC_SENSORHUB_H
+#define __LINUX_PLATFORM_DATA_CROS_EC_SENSORHUB_H
 
 #include <linux/mfd/cros_ec_commands.h>
 
@@ -82,4 +82,4 @@ enum cros_ec_pd_find_update_firmware_result {
  */
 #define PD_UPDATE_CHECK_DELAY msecs_to_jiffies(2000)
 
-#endif /* __LINUX_MFD_CROS_EC_H */
+#endif  /* __LINUX_PLATFORM_DATA_CROS_EC_SENSORHUB_H */

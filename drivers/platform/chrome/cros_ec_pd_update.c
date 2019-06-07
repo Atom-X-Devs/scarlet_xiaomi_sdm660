@@ -23,10 +23,11 @@
 #include <linux/kobject.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
-#include <linux/mfd/cros_ec_pd_update.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/platform_data/cros_ec_pd_update.h>
 #include <linux/platform_device.h>
+#include <linux/power_supply.h>
 
 /* Store our PD device pointer so we can send update-related commands. */
 static struct cros_ec_dev *pd_ec;
@@ -842,70 +843,6 @@ static int cros_ec_pd_suspend(struct device *dev)
 	return 0;
 }
 
-static umode_t cros_ec_pd_attrs_are_visible(struct kobject *kobj,
-					    struct attribute *a, int n)
-{
-	struct device *dev = container_of(kobj, struct device, kobj);
-	struct cros_ec_dev *ec = container_of(dev, struct cros_ec_dev,
-					      class_dev);
-	struct ec_params_usb_pd_rw_hash_entry hash_entry;
-	struct ec_params_usb_pd_discovery_entry discovery_entry;
-
-	/* Check if a PD MCU is present */
-	if (cros_ec_pd_get_status(dev,
-				  ec,
-				  0,
-				  &hash_entry,
-				  &discovery_entry) == EC_RES_SUCCESS) {
-		/*
-		 * Save our ec pointer so we can conduct transactions.
-		 * TODO(shawnn): Find a better way to access the ec pointer.
-		 */
-		if (!pd_ec)
-			pd_ec = ec;
-		return a->mode;
-	}
-
-	return 0;
-}
-
-static ssize_t show_firmware_images(struct device *dev,
-				    struct device_attribute *attr, char *buf) {
-	int size = 0;
-	int i;
-
-	for (i = 0; i < firmware_image_count; ++i) {
-		if (firmware_images[i].filename == NULL)
-			size += scnprintf(buf + size, PAGE_SIZE,
-					  "%d: %d.%d NONE\n", i,
-					  firmware_images[i].id_major,
-					  firmware_images[i].id_minor);
-		else
-			size += scnprintf(buf + size, PAGE_SIZE,
-					  "%d: %d.%d %s\n", i,
-					  firmware_images[i].id_major,
-					  firmware_images[i].id_minor,
-					  firmware_images[i].filename);
-	}
-
-	return size;
-}
-
-
-static DEVICE_ATTR(firmware_images, 0444, show_firmware_images, NULL);
-
-static struct attribute *__pd_attrs[] = {
-	&dev_attr_firmware_images.attr,
-	NULL,
-};
-
-struct attribute_group cros_ec_pd_attr_group = {
-	.name = "pd_update",
-	.attrs = __pd_attrs,
-	.is_visible = cros_ec_pd_attrs_are_visible,
-};
-EXPORT_SYMBOL(cros_ec_pd_attr_group);
-
 static SIMPLE_DEV_PM_OPS(cros_ec_pd_pm,
 	cros_ec_pd_suspend, cros_ec_pd_resume);
 
@@ -1023,5 +960,111 @@ module_platform_driver(cros_ec_pd_driver);
 
 #endif /* CONFIG_ACPI */
 
+/*
+ * Driver loaded on top of the EC object.
+ *
+ * It exposes a sysfs interface, but most importantly, set global pd_ec to
+ * let the real driver knows which pd_ec device to talk to.
+ */
+#define DRV_NAME "cros-ec-pd-sysfs"
+
+static umode_t cros_ec_pd_attrs_are_visible(struct kobject *kobj,
+					    struct attribute *a, int n)
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct cros_ec_dev *ec = container_of(dev, struct cros_ec_dev,
+					      class_dev);
+	struct ec_params_usb_pd_rw_hash_entry hash_entry;
+	struct ec_params_usb_pd_discovery_entry discovery_entry;
+
+	/* Check if a PD MCU is present */
+	if (cros_ec_pd_get_status(dev,
+				  ec,
+				  0,
+				  &hash_entry,
+				  &discovery_entry) == EC_RES_SUCCESS) {
+		/*
+		 * Save our ec pointer so we can conduct transactions.
+		 * TODO(shawnn): Find a better way to access the ec pointer.
+		 */
+		if (!pd_ec)
+			pd_ec = ec;
+		return a->mode;
+	}
+
+	return 0;
+}
+
+static ssize_t firmware_images_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	int size = 0;
+	int i;
+
+	for (i = 0; i < firmware_image_count; ++i) {
+		if (firmware_images[i].filename == NULL)
+			size += scnprintf(buf + size, PAGE_SIZE,
+					  "%d: %d.%d NONE\n", i,
+					  firmware_images[i].id_major,
+					  firmware_images[i].id_minor);
+		else
+			size += scnprintf(buf + size, PAGE_SIZE,
+					  "%d: %d.%d %s\n", i,
+					  firmware_images[i].id_major,
+					  firmware_images[i].id_minor,
+					  firmware_images[i].filename);
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR_RO(firmware_images);
+
+static struct attribute *__pd_attrs[] = {
+	&dev_attr_firmware_images.attr,
+	NULL,
+};
+
+static struct attribute_group cros_ec_pd_attr_group = {
+	.name = "pd_update",
+	.attrs = __pd_attrs,
+	.is_visible = cros_ec_pd_attrs_are_visible,
+};
+
+
+static int cros_ec_pd_sysfs_probe(struct platform_device *pd)
+{
+	struct cros_ec_dev *ec_dev = dev_get_drvdata(pd->dev.parent);
+	struct device *dev = &pd->dev;
+	int ret;
+
+	ret = sysfs_create_group(&ec_dev->class_dev.kobj,
+			&cros_ec_pd_attr_group);
+	if (ret < 0)
+		dev_err(dev, "failed to create attributes. err=%d\n", ret);
+
+	return ret;
+}
+
+static int cros_ec_pd_sysfs_remove(struct platform_device *pd)
+{
+	struct cros_ec_dev *ec_dev = dev_get_drvdata(pd->dev.parent);
+
+	sysfs_remove_group(&ec_dev->class_dev.kobj, &cros_ec_pd_attr_group);
+
+	return 0;
+}
+
+static struct platform_driver cros_ec_pd_sysfs_driver = {
+	.driver = {
+		.name = DRV_NAME,
+	},
+	.probe = cros_ec_pd_sysfs_probe,
+	.remove = cros_ec_pd_sysfs_remove,
+};
+
+module_platform_driver(cros_ec_pd_sysfs_driver);
+
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ChromeOS power device FW update driver");
+MODULE_ALIAS("platform:" DRV_NAME);
