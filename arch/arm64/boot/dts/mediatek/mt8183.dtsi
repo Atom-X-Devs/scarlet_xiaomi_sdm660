@@ -1264,14 +1264,18 @@
 		};
 
 		gpu: mali@13040000 {
-			compatible = "arm,mali-midgard";
+			compatible = "mediatek,mt8183-mali", "arm,mali-bifrost";
 			reg = <0 0x13040000 0 0x4000>;
 			interrupts =
-				<GIC_SPI 278 IRQ_TYPE_LEVEL_LOW>,
+				<GIC_SPI 280 IRQ_TYPE_LEVEL_LOW>,
 				<GIC_SPI 279 IRQ_TYPE_LEVEL_LOW>,
-				<GIC_SPI 280 IRQ_TYPE_LEVEL_LOW>;
-			interrupt-names = "GPU", "MMU", "JOB";
+				<GIC_SPI 278 IRQ_TYPE_LEVEL_LOW>;
+			interrupt-names = "job", "mmu", "gpu";
 
+			/*
+			 * Note: the properties below are not part of the
+			 * upstream binding.
+			 */
 			clocks =
 				<&topckgen CLK_TOP_MFGPLL_CK>,
 				<&topckgen CLK_TOP_MUX_MFG>,
@@ -1301,6 +1305,12 @@
 		};
 
 		gpu_opp_table: opp_table0 {
+			/*
+			 * Note: "operating-points-v2-mali" compatible and the
+			 * opp-core-mask properties are not part of upstream
+			 * binding.
+			 */
+
 			compatible = "operating-points-v2", "operating-points-v2-mali";
 			opp-shared;
 
