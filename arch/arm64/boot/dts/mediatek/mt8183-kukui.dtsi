@@ -119,6 +119,15 @@
 		pinctrl-0 = <&aud_pins>;
 		status = "okay";
 	};
+
+	wifi_pwrseq: wifi-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_pins_pwrseq>;
+
+		/* Toggle WIFI_ENABLE to reset the chip. */
+		reset-gpios = <&pio 119 1>;
+	};
 };
 
 &afe {
@@ -310,6 +319,7 @@
 	pinctrl-1 = <&mmc1_pins_uhs>;
 	vmmc-supply = <&mmc1_fixed_power>;
 	vqmmc-supply = <&mmc1_fixed_io>;
+	mmc-pwrseq = <&wifi_pwrseq>;
 	bus-width = <4>;
 	max-frequency = <200000000>;
 	drv-type = <2>;
@@ -535,11 +545,6 @@
 			input-enable;
 			mediatek,pull-down-adv = <10>;
 		};
-
-		pins_wlan_en {
-			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
-			output-high;
-		};
 	};
 
 	mmc1_pins_uhs: mmc1@0 {
@@ -693,6 +698,13 @@
 		pins_cts {
 			pinmux = <PINMUX_GPIO46__FUNC_UCTS1>;
 			input-enable;
+		};
+	};
+
+	wifi_pins_pwrseq: wifipwrseq {
+		pins_wifi_enable {
+			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
+			output-low;
 		};
 	};
 };
