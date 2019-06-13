@@ -4152,6 +4152,9 @@ static const struct of_device_id kbase_dt_ids[] = {
 	{ .compatible = "arm,mali-t860" },
 	{ .compatible = "arm,mali-t880" },
 
+	/* Upstream bindings for Bifrost */
+	{ .compatible = "arm,mali-bifrost" },
+
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, kbase_dt_ids);
