@@ -271,7 +271,6 @@ static u32 intel_dp_aux_calc_max_backlight(struct intel_connector *connector)
 static int intel_dp_aux_setup_backlight(struct intel_connector *connector,
 					enum pipe pipe)
 {
-	struct intel_dp *intel_dp = enc_to_intel_dp(&connector->encoder->base);
 	struct intel_panel *panel = &connector->panel;
 
 	panel->backlight.max = intel_dp_aux_calc_max_backlight(connector);
