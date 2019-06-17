@@ -713,7 +713,8 @@ void drm_dp_mst_dump_topology(struct seq_file *m,
 			      struct drm_dp_mst_topology_mgr *mgr);
 
 void drm_dp_mst_topology_mgr_suspend(struct drm_dp_mst_topology_mgr *mgr);
-int drm_dp_mst_topology_mgr_resume(struct drm_dp_mst_topology_mgr *mgr);
+int drm_dp_mst_topology_mgr_resume(struct drm_dp_mst_topology_mgr *mgr,
+			       bool sync);
 
 ssize_t drm_dp_mst_dpcd_read(struct drm_dp_aux *aux,
 			     unsigned int offset, void *buffer, size_t size);

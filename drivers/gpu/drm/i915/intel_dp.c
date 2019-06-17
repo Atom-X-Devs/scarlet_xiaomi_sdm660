@@ -6868,7 +6868,8 @@ void intel_dp_mst_resume(struct drm_i915_private *dev_priv)
 		if (!intel_dp->can_mst)
 			continue;
 
-		ret = drm_dp_mst_topology_mgr_resume(&intel_dp->mst_mgr);
+		ret = drm_dp_mst_topology_mgr_resume(&intel_dp->mst_mgr,
+						     true);
 		if (ret)
 			intel_dp_check_mst_status(intel_dp);
 	}
