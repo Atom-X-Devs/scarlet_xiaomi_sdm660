@@ -26,6 +26,7 @@ notrace void buddy_cpu_touch_watchdog(void)
 	 */
 	raw_cpu_write(watchdog_touch, true);
 }
+EXPORT_SYMBOL_GPL(buddy_cpu_touch_watchdog);
 
 static unsigned int watchdog_next_cpu(unsigned int cpu)
 {
