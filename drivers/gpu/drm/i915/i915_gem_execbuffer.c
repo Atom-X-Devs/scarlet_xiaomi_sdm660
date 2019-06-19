@@ -1623,6 +1623,8 @@ end_user:
 		 * happened we would make the mistake of assuming that the
 		 * relocations were valid.
 		 */
+		if (!access_ok(VERIFY_WRITE, urelocs, size))
+			goto end_user;
 		user_access_begin();
 		for (copied = 0; copied < nreloc; copied++)
 			unsafe_put_user(-1,
@@ -2605,6 +2607,17 @@ i915_gem_execbuffer2_ioctl(struct drm_device *dev, void *data,
 		unsigned int i;
 
 		/* Copy the new buffer offsets back to the user's exec list. */
+		/*
+		 * Note: count * sizeof(*user_exec_list) does not overflow,
+		 * because we checked 'count' in check_buffer_count().
+		 *
+		 * And this range already got effectively checked earlier
+		 * when we did the "copy_from_user()" above.
+		 */
+		if (!access_ok(VERIFY_WRITE,
+			       user_exec_list, count * sizeof(*user_exec_list)))
+			goto end_user;
+
 		user_access_begin();
 		for (i = 0; i < args->buffer_count; i++) {
 			if (!(exec2_list[i].offset & UPDATE))
