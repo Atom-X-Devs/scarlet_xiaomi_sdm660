@@ -58,13 +58,6 @@ enum hdmi_datamap {
 	YCbCr422_12B = 0x12,
 };
 
-struct dw_hdmi_audio_tmds_n {
-	unsigned long tmds;
-	unsigned int n_32k;
-	unsigned int n_44k1;
-	unsigned int n_48k;
-};
-
 /*
  * Unless otherwise noted, entries in this table are 100% optimization.
  * Values can be obtained from hdmi_compute_n() but that function is
@@ -600,6 +593,7 @@ static void hdmi_set_cts_n(struct dw_hdmi *hdmi, unsigned int cts,
 static int hdmi_match_tmds_n_table(struct dw_hdmi *hdmi, unsigned int freq,
 				   unsigned long pixel_clk)
 {
+	const struct dw_hdmi_plat_data *plat_data = hdmi->plat_data;
 	const struct dw_hdmi_audio_tmds_n *tmds_n = NULL;
 	int mult = 1;
 	int i;
@@ -609,10 +603,21 @@ static int hdmi_match_tmds_n_table(struct dw_hdmi *hdmi, unsigned int freq,
 		freq /= 2;
 	}
 
-	for (i = 0; common_tmds_n_table[i].tmds != 0; i++) {
-		if (pixel_clk == common_tmds_n_table[i].tmds) {
-			tmds_n = &common_tmds_n_table[i];
-			break;
+	if (plat_data->tmds_n_table) {
+		for (i = 0; plat_data->tmds_n_table[i].tmds != 0; i++) {
+			if (pixel_clk == plat_data->tmds_n_table[i].tmds) {
+				tmds_n = &plat_data->tmds_n_table[i];
+				break;
+			}
+		}
+	}
+
+	if (tmds_n == NULL) {
+		for (i = 0; common_tmds_n_table[i].tmds != 0; i++) {
+			if (pixel_clk == common_tmds_n_table[i].tmds) {
+				tmds_n = &common_tmds_n_table[i];
+				break;
+			}
 		}
 	}
 
