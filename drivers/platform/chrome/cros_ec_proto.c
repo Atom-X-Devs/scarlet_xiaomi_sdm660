@@ -67,13 +67,14 @@ static int send_command(struct cros_ec_device *ec_dev,
 	else
 		xfer_fxn = ec_dev->cmd_xfer;
 
-	if (xfer_fxn == NULL) {
-		/* This error can happen if a communication error happened and
+	if (!xfer_fxn) {
+		/*
+		 * This error can happen if a communication error happened and
 		 * the EC is trying to use protocol v2, on an underlying
 		 * communication mechanism that does not support v2.
 		 */
 		dev_err_once(ec_dev->dev,
-			"missing EC transfer API, cannot send command\n");
+			     "missing EC transfer API, cannot send command\n");
 		return -EIO;
 	}
 
