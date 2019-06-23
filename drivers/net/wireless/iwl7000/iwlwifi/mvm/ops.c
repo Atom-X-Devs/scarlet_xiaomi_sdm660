@@ -672,11 +672,6 @@ static void iwl_mvm_fwrt_dump_end(void *ctx)
 	iwl_mvm_unref(mvm, IWL_MVM_REF_FW_DBG_COLLECT);
 }
 
-static bool iwl_mvm_fwrt_fw_running(void *ctx)
-{
-	return iwl_mvm_firmware_running(ctx);
-}
-
 static int iwl_mvm_fwrt_send_hcmd(void *ctx, struct iwl_host_cmd *host_cmd)
 {
 	struct iwl_mvm *mvm = (struct iwl_mvm *)ctx;
@@ -691,15 +686,12 @@ static int iwl_mvm_fwrt_send_hcmd(void *ctx, struct iwl_host_cmd *host_cmd)
 
 static bool iwl_mvm_d3_debug_enable(void *ctx)
 {
-	struct iwl_mvm *mvm = ctx;
-
 	return IWL_MVM_D3_DEBUG;
 }
 
 static const struct iwl_fw_runtime_ops iwl_mvm_fwrt_ops = {
 	.dump_start = iwl_mvm_fwrt_dump_start,
 	.dump_end = iwl_mvm_fwrt_dump_end,
-	.fw_running = iwl_mvm_fwrt_fw_running,
 	.send_hcmd = iwl_mvm_fwrt_send_hcmd,
 	.d3_debug_enable = iwl_mvm_d3_debug_enable,
 };
@@ -727,6 +719,29 @@ static void iwl_mvm_tm_cmd_exec_end(struct iwl_testmode *testmode)
 	struct iwl_mvm *mvm = testmode->op_mode;
 
 	iwl_mvm_unref(mvm, IWL_MVM_REF_TM_CMD);
+}
+#endif
+
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+static u8 iwl_mvm_lookup_notif_ver(struct iwl_mvm *mvm, u8 grp, u8 cmd, u8 def)
+{
+	const struct iwl_fw_cmd_version *entry;
+	unsigned int i;
+
+	if (!mvm->fw->ucode_capa.cmd_versions ||
+	    !mvm->fw->ucode_capa.n_cmd_versions)
+		return def;
+
+	entry = mvm->fw->ucode_capa.cmd_versions;
+	for (i = 0; i < mvm->fw->ucode_capa.n_cmd_versions; i++, entry++) {
+		if (entry->group == grp && entry->cmd == cmd) {
+			if (entry->notif_ver == IWL_FW_CMD_VER_UNKNOWN)
+				return def;
+			return entry->notif_ver;
+		}
+	}
+
+	return def;
 }
 #endif
 
@@ -765,6 +780,12 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		hw->max_rx_aggregation_subframes = cfg->max_rx_agg_size;
 	else
 		hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF;
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (trans->dbg_cfg.rx_agg_subframes)
+		hw->max_rx_aggregation_subframes =
+			trans->dbg_cfg.rx_agg_subframes;
+#endif
 
 	if (cfg->max_tx_agg_size)
 		hw->max_tx_aggregation_subframes = cfg->max_tx_agg_size;
@@ -867,6 +888,16 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 #endif
 
 	INIT_DELAYED_WORK(&mvm->cs_tx_unblock_dwork, iwl_mvm_tx_unblock_dwork);
+
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	/* set command/notification versions we care about */
+	mvm->cmd_ver.csi_notif =
+		iwl_mvm_lookup_notif_ver(mvm, LOCATION_GROUP,
+					 CSI_CHUNKS_NOTIFICATION, 1);
+	/* we only support versions 1 and 2 */
+	if (WARN_ON_ONCE(mvm->cmd_ver.csi_notif > 2))
+		goto out_free;
+#endif
 
 	/*
 	 * Populate the state variables that the transport layer needs
@@ -975,7 +1006,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	mutex_lock(&mvm->mutex);
 	iwl_mvm_ref(mvm, IWL_MVM_REF_INIT_UCODE);
 	err = iwl_run_init_mvm_ucode(mvm, true);
-	if (err)
+	if (err && err != -ERFKILL)
 		iwl_fw_dbg_error_collect(&mvm->fwrt, FW_DBG_TRIGGER_DRIVER);
 	if (!iwlmvm_mod_params.init_dbg || !err)
 		iwl_mvm_stop_device(mvm);
@@ -1003,9 +1034,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	min_backoff = iwl_mvm_min_backoff(mvm);
 	iwl_mvm_thermal_initialize(mvm, min_backoff);
 
-	err = iwl_mvm_dbgfs_register(mvm, dbgfs_dir);
-	if (err)
-		goto out_unregister;
+	iwl_mvm_dbgfs_register(mvm, dbgfs_dir);
 
 	if (!iwl_mvm_has_new_rx_stats_api(mvm))
 		memset(&mvm->rx_stats_v3, 0,
@@ -1026,17 +1055,6 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	return op_mode;
 
- out_unregister:
-	if (iwlmvm_mod_params.init_dbg)
-		return op_mode;
-
-	ieee80211_unregister_hw(mvm->hw);
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	iwl_mvm_vendor_cmds_unregister(mvm);
-#endif
-	mvm->hw_registered = false;
-	iwl_mvm_leds_exit(mvm);
-	iwl_mvm_thermal_exit(mvm);
  out_free:
 	iwl_fw_flush_dump(&mvm->fwrt);
 	iwl_fw_runtime_free(&mvm->fwrt);
@@ -1070,10 +1088,7 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 
 	iwl_mvm_thermal_exit(mvm);
 
-	if (mvm->init_status & IWL_MVM_INIT_STATUS_REG_HW_INIT_COMPLETE) {
-		ieee80211_unregister_hw(mvm->hw);
-		mvm->init_status &= ~IWL_MVM_INIT_STATUS_REG_HW_INIT_COMPLETE;
-	}
+	ieee80211_unregister_hw(mvm->hw);
 
 	kfree(mvm->scan_cmd);
 	kfree(mvm->mcast_filter_cmd);
@@ -1406,7 +1421,8 @@ void iwl_mvm_set_hw_ctkill_state(struct iwl_mvm *mvm, bool state)
 static bool iwl_mvm_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 {
 	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
-	bool calibrating = READ_ONCE(mvm->calibrating);
+	bool rfkill_safe_init_done = READ_ONCE(mvm->rfkill_safe_init_done);
+	bool unified = iwl_mvm_has_unified_ucode(mvm);
 
 	if (state)
 		set_bit(IWL_MVM_STATUS_HW_RFKILL, &mvm->status);
@@ -1415,15 +1431,23 @@ static bool iwl_mvm_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 
 	iwl_mvm_set_rfkill_state(mvm);
 
-	/* iwl_run_init_mvm_ucode is waiting for results, abort it */
-	if (calibrating)
+	 /* iwl_run_init_mvm_ucode is waiting for results, abort it. */
+	if (rfkill_safe_init_done)
 		iwl_abort_notification_waits(&mvm->notif_wait);
+
+	/*
+	 * Don't ask the transport to stop the firmware. We'll do it
+	 * after cfg80211 takes us down.
+	 */
+	if (unified)
+		return false;
 
 	/*
 	 * Stop the device if we run OPERATIONAL firmware or if we are in the
 	 * middle of the calibrations.
 	 */
-	return state && (mvm->fwrt.cur_fw_img != IWL_UCODE_INIT || calibrating);
+	return state && (mvm->fwrt.cur_fw_img != IWL_UCODE_INIT ||
+			 rfkill_safe_init_done);
 }
 
 static void iwl_mvm_free_skb(struct iwl_op_mode *op_mode, struct sk_buff *skb)
@@ -1475,8 +1499,7 @@ void iwl_mvm_nic_restart(struct iwl_mvm *mvm, bool fw_error)
 	 * can't recover this since we're already half suspended.
 	 */
 	if (!mvm->fw_restart && fw_error) {
-		iwl_fw_dbg_collect_desc(&mvm->fwrt, &iwl_dump_desc_assert,
-					false, 0);
+		iwl_fw_error_collect(&mvm->fwrt);
 	} else if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
 		struct iwl_mvm_reprobe *reprobe;
 
@@ -1523,6 +1546,11 @@ void iwl_mvm_nic_restart(struct iwl_mvm *mvm, bool fw_error)
 							 src_size);
 			}
 		}
+
+		iwl_fw_error_collect(&mvm->fwrt);
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+		iwl_dnt_dispatch_handle_nic_err(mvm->trans);
+#endif
 
 		if (fw_error && mvm->fw_restart > 0)
 			mvm->fw_restart--;

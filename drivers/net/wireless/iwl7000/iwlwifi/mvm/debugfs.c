@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1312,6 +1312,8 @@ static int _iwl_dbgfs_inject_beacon_ie(struct iwl_mvm *mvm, char *bin, int len)
 		goto out_err;
 	}
 
+	mvm->beacon_inject_active = true;
+
 	mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	info = IEEE80211_SKB_CB(beacon);
 	rate = iwl_mvm_mac_ctxt_get_lowest_rate(info, vif);
@@ -1361,6 +1363,7 @@ static ssize_t iwl_dbgfs_inject_beacon_ie_restore_write(struct iwl_mvm *mvm,
 	int ret = _iwl_dbgfs_inject_beacon_ie(mvm, NULL, 0);
 
 	mvm->hw->extra_beacon_tailroom = 0;
+	mvm->beacon_inject_active = false;
 	return ret ?: count;
 }
 
@@ -1420,7 +1423,7 @@ static ssize_t iwl_dbgfs_fw_dbg_collect_write(struct iwl_mvm *mvm,
 		return 0;
 
 	iwl_fw_dbg_collect(&mvm->fwrt, FW_DBG_TRIGGER_USER, buf,
-			   (count - 1));
+			   (count - 1), NULL);
 
 	iwl_mvm_unref(mvm, IWL_MVM_REF_PRPH_WRITE);
 
@@ -1714,9 +1717,8 @@ static ssize_t iwl_dbgfs_d0i3_refs_write(struct iwl_mvm *mvm, char *buf,
 #define MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz) \
 	_MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz, struct iwl_mvm)
 #define MVM_DEBUGFS_ADD_FILE_ALIAS(alias, name, parent, mode) do {	\
-		if (!debugfs_create_file(alias, mode, parent, mvm,	\
-					 &iwl_dbgfs_##name##_ops))	\
-			goto err;					\
+		debugfs_create_file(alias, mode, parent, mvm,		\
+				    &iwl_dbgfs_##name##_ops);		\
 	} while (0)
 #define MVM_DEBUGFS_ADD_FILE(name, parent, mode) \
 	MVM_DEBUGFS_ADD_FILE_ALIAS(#name, name, parent, mode)
@@ -1727,9 +1729,8 @@ static ssize_t iwl_dbgfs_d0i3_refs_write(struct iwl_mvm *mvm, char *buf,
 	_MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz, struct ieee80211_sta)
 
 #define MVM_DEBUGFS_ADD_STA_FILE_ALIAS(alias, name, parent, mode) do {	\
-		if (!debugfs_create_file(alias, mode, parent, sta,	\
-					 &iwl_dbgfs_##name##_ops))	\
-			goto err;					\
+		debugfs_create_file(alias, mode, parent, sta,		\
+				    &iwl_dbgfs_##name##_ops);		\
 	} while (0)
 #define MVM_DEBUGFS_ADD_STA_FILE(name, parent, mode) \
 	MVM_DEBUGFS_ADD_STA_FILE_ALIAS(#name, name, parent, mode)
@@ -1807,6 +1808,7 @@ iwl_dbgfs_send_echo_cmd_write(struct iwl_mvm *mvm, char *buf,
 
 struct iwl_mvm_sniffer_apply {
 	struct iwl_mvm *mvm;
+	u8 *bssid;
 	u16 aid;
 };
 
@@ -1816,6 +1818,8 @@ static bool iwl_mvm_sniffer_apply(struct iwl_notif_wait_data *notif_data,
 	struct iwl_mvm_sniffer_apply *apply = data;
 
 	apply->mvm->cur_aid = cpu_to_le16(apply->aid);
+	memcpy(apply->mvm->cur_bssid, apply->bssid,
+	       sizeof(apply->mvm->cur_bssid));
 
 	return true;
 }
@@ -1848,6 +1852,7 @@ iwl_dbgfs_he_sniffer_params_write(struct iwl_mvm *mvm, char *buf,
 	he_mon_cmd.aid = cpu_to_le16(aid);
 
 	apply.aid = aid;
+	apply.bssid = (void *)he_mon_cmd.bssid;
 
 	mutex_lock(&mvm->mutex);
 
@@ -1874,6 +1879,23 @@ iwl_dbgfs_he_sniffer_params_write(struct iwl_mvm *mvm, char *buf,
 	mutex_unlock(&mvm->mutex);
 
 	return ret ?: count;
+}
+
+static ssize_t
+iwl_dbgfs_he_sniffer_params_read(struct file *file, char __user *user_buf,
+				 size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[32];
+	int len;
+
+	len = scnprintf(buf, sizeof(buf),
+			"%d %02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx\n",
+			le16_to_cpu(mvm->cur_aid), mvm->cur_bssid[0],
+			mvm->cur_bssid[1], mvm->cur_bssid[2], mvm->cur_bssid[3],
+			mvm->cur_bssid[4], mvm->cur_bssid[5]);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
 }
 
 static ssize_t
@@ -2094,6 +2116,102 @@ static ssize_t iwl_dbgfs_csi_frame_types_write(struct iwl_mvm *mvm, char *buf,
 
 	return count;
 }
+
+static ssize_t iwl_dbgfs_csi_interval_read(struct file *file,
+					   char __user *user_buf,
+					   size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[32];
+	int len;
+
+	len = scnprintf(buf, sizeof(buf), "%u\n", mvm->csi_cfg.interval);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static ssize_t iwl_dbgfs_csi_interval_write(struct iwl_mvm *mvm, char *buf,
+					    size_t count, loff_t *ppos)
+{
+	int err;
+	u32 interval;
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	err = kstrtou32(buf, 0, &interval);
+	if (err)
+		return err;
+
+	mvm->csi_cfg.interval = interval;
+	if (interval)
+		mvm->csi_cfg.flags |= IWL_CHANNEL_ESTIMATION_INTERVAL;
+	else
+		mvm->csi_cfg.flags &= ~IWL_CHANNEL_ESTIMATION_INTERVAL;
+
+	return count;
+}
+
+static ssize_t iwl_dbgfs_csi_addresses_read(struct file *file,
+					    char __user *user_buf,
+					    size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[2 + ETH_ALEN * 3 * IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS];
+	u8 *pos = buf;
+	int i;
+
+	for (i = 0; i < mvm->csi_cfg.num_filter_addrs; i++)
+		pos += scnprintf(pos, sizeof(buf) - (pos - buf),
+				 "%pM\n", mvm->csi_cfg.filter_addrs[i].addr);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, pos - buf);
+}
+
+static ssize_t iwl_dbgfs_csi_addresses_write(struct iwl_mvm *mvm, char *buf,
+					     size_t count, loff_t *ppos)
+{
+	char *pos = buf;
+	int num = 0, i;
+	struct {
+		u8 addr[ETH_ALEN] __aligned(2);
+	} addrs[IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS];
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	while (num < IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS) {
+		char *addrstr = strsep(&pos, "\n ");
+		u8 addr[ETH_ALEN];
+		int n;
+
+		if (!addrstr || !*addrstr)
+			break;
+
+		n = sscanf(addrstr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+			   &addr[0], &addr[1], &addr[2],
+			   &addr[3], &addr[4], &addr[5]);
+
+		if (n != ETH_ALEN)
+			return -EINVAL;
+
+		ether_addr_copy(addrs[num].addr, addr);
+		num++;
+	}
+
+	/* too many specified if the string isn't NULL now */
+	if (pos)
+		return -EINVAL;
+
+	mvm->csi_cfg.num_filter_addrs = num;
+	for (i = 0; i < num; i++)
+		ether_addr_copy(mvm->csi_cfg.filter_addrs[i].addr,
+				addrs[i].addr);
+
+	return count;
+}
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 
@@ -2140,6 +2258,10 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_enabled, 8);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_count, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_timeout, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_frame_types, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_interval, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_addresses,
+				2 + ETH_ALEN * 3 *
+				    IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS);
 #endif
 
 MVM_DEBUGFS_READ_FILE_OPS(uapsd_noagg_bssids);
@@ -2153,7 +2275,7 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters_macs, 256);
 MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
 
-MVM_DEBUGFS_WRITE_FILE_OPS(he_sniffer_params, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(he_sniffer_params, 32);
 
 static ssize_t iwl_dbgfs_mem_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -2297,13 +2419,9 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 	if (iwl_mvm_has_tlc_offload(mvm)) {
 		MVM_DEBUGFS_ADD_STA_FILE(rs_data, dir, 0400);
 	}
-
-	return;
-err:
-	IWL_ERR(mvm, "Can't create the mvm station debugfs entry\n");
 }
 
-int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
+void iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 {
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
 	struct iwl_tt_params *tt_params = &mvm->thermal_throttle.params;
@@ -2355,31 +2473,33 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, 0400);
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
-			IWL_UCODE_TLV_CAPA_CSI_REPORTING)) {
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING) ||
+	    fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING_V2)) {
 		MVM_DEBUGFS_ADD_FILE(csi_enabled, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_count, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_timeout, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_frame_types, mvm->debugfs_dir, 0600);
-		if (!debugfs_create_u32("csi_rate_n_flags_val", 0600,
-					mvm->debugfs_dir,
-					&mvm->csi_cfg.rate_n_flags_val))
-			goto err;
-		if (!debugfs_create_u32("csi_rate_n_flags_mask", 0600,
-					mvm->debugfs_dir,
-					&mvm->csi_cfg.rate_n_flags_mask))
-			goto err;
+		debugfs_create_u32("csi_rate_n_flags_val", 0600,
+				   mvm->debugfs_dir,
+				   &mvm->csi_cfg.rate_n_flags_val);
+		debugfs_create_u32("csi_rate_n_flags_mask", 0600,
+				   mvm->debugfs_dir,
+				   &mvm->csi_cfg.rate_n_flags_mask);
+	}
+
+	if (fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING_V2)) {
+		MVM_DEBUGFS_ADD_FILE(csi_interval, mvm->debugfs_dir, 0600);
+		MVM_DEBUGFS_ADD_FILE(csi_addresses, mvm->debugfs_dir, 0600);
 	}
 #endif
-	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0200);
+	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0600);
 
-	if (!debugfs_create_bool("enable_scan_iteration_notif",
-				 0600,
-				 mvm->debugfs_dir,
-				 &mvm->scan_iter_notif_enabled))
-		goto err;
-	if (!debugfs_create_bool("drop_bcn_ap_mode", 0600,
-				 mvm->debugfs_dir, &mvm->drop_bcn_ap_mode))
-		goto err;
+	debugfs_create_bool("enable_scan_iteration_notif", 0600,
+			    mvm->debugfs_dir, &mvm->scan_iter_notif_enabled);
+	debugfs_create_bool("drop_bcn_ap_mode", 0600, mvm->debugfs_dir,
+			    &mvm->drop_bcn_ap_mode);
 
 	MVM_DEBUGFS_ADD_FILE(uapsd_noagg_bssids, mvm->debugfs_dir, 0400);
 
@@ -2387,13 +2507,9 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {
 		bcast_dir = debugfs_create_dir("bcast_filtering",
 					       mvm->debugfs_dir);
-		if (!bcast_dir)
-			goto err;
 
-		if (!debugfs_create_bool("override", 0600,
-					 bcast_dir,
-					 &mvm->dbgfs_bcast_filtering.override))
-			goto err;
+		debugfs_create_bool("override", 0600, bcast_dir,
+				    &mvm->dbgfs_bcast_filtering.override);
 
 		MVM_DEBUGFS_ADD_FILE_ALIAS("filters", bcast_filters,
 					   bcast_dir, 0600);
@@ -2404,65 +2520,49 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 
 #ifdef CONFIG_PM_SLEEP
 	MVM_DEBUGFS_ADD_FILE(d3_test, mvm->debugfs_dir, 0400);
-	if (!debugfs_create_bool("d3_wake_sysassert", 0600,
-				 mvm->debugfs_dir, &mvm->d3_wake_sysassert))
-		goto err;
-	if (!debugfs_create_u32("last_netdetect_scans", 0400,
-				mvm->debugfs_dir, &mvm->last_netdetect_scans))
-		goto err;
+	debugfs_create_bool("d3_wake_sysassert", 0600, mvm->debugfs_dir,
+			    &mvm->d3_wake_sysassert);
+	debugfs_create_u32("last_netdetect_scans", 0400, mvm->debugfs_dir,
+			   &mvm->last_netdetect_scans);
 #endif
 
-	if (!debugfs_create_u8("ps_disabled", 0400,
-			       mvm->debugfs_dir, &mvm->ps_disabled))
-		goto err;
-	if (!debugfs_create_blob("nvm_hw", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_hw_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_sw", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_sw_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_calib", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_calib_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_prod", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_prod_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_phy_sku", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_phy_sku_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_reg", S_IRUSR,
-				 mvm->debugfs_dir, &mvm->nvm_reg_blob))
-		goto err;
+	debugfs_create_u8("ps_disabled", 0400, mvm->debugfs_dir,
+			  &mvm->ps_disabled);
+	debugfs_create_blob("nvm_hw", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_hw_blob);
+	debugfs_create_blob("nvm_sw", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_sw_blob);
+	debugfs_create_blob("nvm_calib", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_calib_blob);
+	debugfs_create_blob("nvm_prod", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_prod_blob);
+	debugfs_create_blob("nvm_phy_sku", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_phy_sku_blob);
+	debugfs_create_blob("nvm_reg", S_IRUSR,
+			    mvm->debugfs_dir, &mvm->nvm_reg_blob);
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
-	if (!debugfs_create_u32("ct_kill_exit", 0600,
-				mvm->debugfs_dir,
-				&tt_params->ct_kill_exit))
-		goto err;
-	if (!debugfs_create_u32("ct_kill_entry", 0600,
-				mvm->debugfs_dir,
-				&tt_params->ct_kill_entry))
-		goto err;
-	if (!debugfs_create_u32("ct_kill_duration", 0600,
-				mvm->debugfs_dir,
-				&tt_params->ct_kill_duration))
-		goto err;
-	if (!debugfs_create_u32("dynamic_smps_entry", 0600,
-				mvm->debugfs_dir,
-				&tt_params->dynamic_smps_entry))
-		goto err;
-	if (!debugfs_create_u32("dynamic_smps_exit", 0600,
-				mvm->debugfs_dir,
-				&tt_params->dynamic_smps_exit))
-		goto err;
-	if (!debugfs_create_u32("tx_protection_entry", 0600,
-				mvm->debugfs_dir,
-				&tt_params->tx_protection_entry))
-		goto err;
-	if (!debugfs_create_u32("tx_protection_exit", 0600,
-				mvm->debugfs_dir,
-				&tt_params->tx_protection_exit))
-		goto err;
+	debugfs_create_u32("ct_kill_exit", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->ct_kill_exit);
+	debugfs_create_u32("ct_kill_entry", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->ct_kill_entry);
+	debugfs_create_u32("ct_kill_duration", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->ct_kill_duration);
+	debugfs_create_u32("dynamic_smps_entry", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->dynamic_smps_entry);
+	debugfs_create_u32("dynamic_smps_exit", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->dynamic_smps_exit);
+	debugfs_create_u32("tx_protection_entry", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->tx_protection_entry);
+	debugfs_create_u32("tx_protection_exit", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->tx_protection_exit);
 #endif
 
 	debugfs_create_file("mem", 0600, dbgfs_dir, mvm, &iwl_dbgfs_mem_ops);
@@ -2478,11 +2578,5 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 		 dbgfs_dir->d_parent->d_parent->d_name.name,
 		 dbgfs_dir->d_parent->d_name.name);
 #endif
-	if (!debugfs_create_symlink("iwlwifi", mvm->hw->wiphy->debugfsdir, buf))
-		goto err;
-
-	return 0;
-err:
-	IWL_ERR(mvm, "Can't create the mvm debugfs directory\n");
-	return -ENOMEM;
+	debugfs_create_symlink("iwlwifi", mvm->hw->wiphy->debugfsdir, buf);
 }

@@ -7,7 +7,7 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -29,7 +29,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2017   Intel Deutschland GmbH
- * Copyright(c) 2018   Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -672,7 +672,7 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 		kfree(p_table_umac);
 	}
 
-	iwl_fw_dbg_collect_desc(&xvt->fwrt, &iwl_dump_desc_assert, false, 0);
+	iwl_fw_error_collect(&xvt->fwrt);
 }
 
 static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
@@ -765,12 +765,13 @@ void iwl_xvt_free_tx_queue(struct iwl_xvt *xvt, u8 lmac_id)
 int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 			      u8 lmac_id)
 {
-	int ret;
+	int ret, size = max_t(u32, IWL_DEFAULT_QUEUE_SIZE,
+			      xvt->trans->cfg->min_256_ba_txq_size);
 
 	ret = iwl_trans_txq_alloc(xvt->trans,
 				  cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
 				  sta_id, TX_QUEUE_CFG_TID, SCD_QUEUE_CFG,
-				  IWL_DEFAULT_QUEUE_SIZE, 0);
+				  size, 0);
 	/* ret is positive when func returns the allocated the queue number */
 	if (ret > 0) {
 		xvt->tx_meta_data[lmac_id].queue = ret;
