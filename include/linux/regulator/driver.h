@@ -15,8 +15,6 @@
 #ifndef __LINUX_REGULATOR_DRIVER_H_
 #define __LINUX_REGULATOR_DRIVER_H_
 
-#define MAX_COUPLED		2
-
 #include <linux/device.h>
 #include <linux/notifier.h>
 #include <linux/regulator/consumer.h>
@@ -421,7 +419,8 @@ struct regulator_config {
  * incremented.
  */
 struct coupling_desc {
-	struct regulator_dev *coupled_rdevs[MAX_COUPLED];
+	struct regulator_dev **coupled_rdevs;
+	struct regulator_coupler *coupler;
 	int n_resolved;
 	int n_coupled;
 };
