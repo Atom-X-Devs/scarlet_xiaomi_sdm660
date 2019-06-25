@@ -562,8 +562,8 @@ static const struct panel_desc boe_tv101wum_nl6_desc = {
 	.modes = &boe_default_mode,
 	.bpc = 8,
 	.size = {
-		.width = 216,
-		.height = 135,
+		.width = 135,
+		.height = 216,
 	},
 	.lanes = 4,
 	.format = MIPI_DSI_FMT_RGB888,
