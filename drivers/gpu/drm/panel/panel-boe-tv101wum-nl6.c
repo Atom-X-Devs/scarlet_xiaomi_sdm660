@@ -599,8 +599,8 @@ static const struct panel_desc auo_kd101n80_45na_desc = {
 	.modes = &auo_default_mode,
 	.bpc = 8,
 	.size = {
-		.width = 216,
-		.height = 135,
+		.width = 135,
+		.height = 216,
 	},
 	.lanes = 4,
 	.format = MIPI_DSI_FMT_RGB888,
