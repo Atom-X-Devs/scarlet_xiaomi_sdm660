@@ -611,11 +611,14 @@ static int cros_ec_lightbar_probe(struct platform_device *pd)
 
 	ret = sysfs_create_group(&ec_dev->class_dev.kobj,
 				 &cros_ec_lightbar_attr_group);
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(dev, "failed to create %s attributes. err=%d\n",
 			cros_ec_lightbar_attr_group.name, ret);
+		return ret;
+	}
 
-	return ret;
+	platform_set_drvdata(pd, ec_dev);
+	return 0;
 }
 
 static int cros_ec_lightbar_remove(struct platform_device *pd)
