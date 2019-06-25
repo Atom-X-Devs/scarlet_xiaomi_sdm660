@@ -4462,7 +4462,7 @@ exit:
 #define ENABLE_DP_SETUP 1
 #endif
 
-static int mdss_dp_usbpd_setup(struct mdss_dp_drv_pdata *dp_drv)
+static int __maybe_unused mdss_dp_usbpd_setup(struct mdss_dp_drv_pdata *dp_drv)
 {
 	int ret = 0;
 	const char *pd_phandle = "qcom,dp-usbpd-detection";
