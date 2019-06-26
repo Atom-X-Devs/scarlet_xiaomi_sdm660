@@ -256,6 +256,15 @@ static inline u64 audit_get_contid(struct task_struct *tsk)
 	return AUDIT_CID_UNSET;
 }
 
+static inline kuid_t audit_get_loginuid(struct task_struct *tsk)
+{
+	return INVALID_UID;
+}
+static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
+{
+	return AUDIT_SID_UNSET;
+}
+
 #define audit_enabled AUDIT_OFF
 #endif /* CONFIG_AUDIT */
 
@@ -553,14 +562,6 @@ static inline int auditsc_get_stamp(struct audit_context *ctx,
 			      struct timespec64 *t, unsigned int *serial)
 {
 	return 0;
-}
-static inline kuid_t audit_get_loginuid(struct task_struct *tsk)
-{
-	return INVALID_UID;
-}
-static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
-{
-	return AUDIT_SID_UNSET;
 }
 static inline void audit_ipc_obj(struct kern_ipc_perm *ipcp)
 { }
