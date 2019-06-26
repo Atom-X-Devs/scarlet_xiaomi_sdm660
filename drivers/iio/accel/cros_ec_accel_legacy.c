@@ -33,8 +33,8 @@
  */
 #define ACCEL_LEGACY_NSCALE 9586168
 
-int cros_ec_accel_legacy_read_cmd(struct iio_dev *indio_dev,
-				  unsigned long scan_mask, s16 *data)
+static int cros_ec_accel_legacy_read_cmd(struct iio_dev *indio_dev,
+					 unsigned long scan_mask, s16 *data)
 {
 	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
 	int ret;
