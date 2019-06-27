@@ -871,6 +871,7 @@ config HARDLOCKUP_DETECTOR_BUDDY_CPU
 	bool "Buddy CPU hardlockup detector"
 	depends on DEBUG_KERNEL && SMP
 	depends on !HARDLOCKUP_DETECTOR && !HAVE_NMI_WATCHDOG
+	depends on !S390
 	select HARDLOCKUP_DETECTOR_CORE
 	select SOFTLOCKUP_DETECTOR
 	help
