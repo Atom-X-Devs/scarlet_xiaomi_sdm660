@@ -971,7 +971,7 @@ static int pmc_core_resume(struct device *dev)
 
 #endif
 
-static const struct dev_pm_ops pmc_core_pm_ops = {
+const struct dev_pm_ops pmc_core_pm_ops = {
 	SET_LATE_SYSTEM_SLEEP_PM_OPS(pmc_core_suspend, pmc_core_resume)
 };
 
