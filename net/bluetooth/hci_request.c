@@ -847,7 +847,9 @@ static void hci_req_start_scan(struct hci_request *req, u8 type, u16 interval,
 
 		memset(&ext_enable_cp, 0, sizeof(ext_enable_cp));
 		ext_enable_cp.enable = LE_SCAN_ENABLE;
-		ext_enable_cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+		ext_enable_cp.filter_dup =
+			(type == LE_SCAN_PASSIVE ? LE_SCAN_FILTER_DUP_ENABLE :
+						   LE_SCAN_FILTER_DUP_DISABLE);
 
 		hci_req_add(req, HCI_OP_LE_SET_EXT_SCAN_ENABLE,
 			    sizeof(ext_enable_cp), &ext_enable_cp);
@@ -866,7 +868,9 @@ static void hci_req_start_scan(struct hci_request *req, u8 type, u16 interval,
 
 		memset(&enable_cp, 0, sizeof(enable_cp));
 		enable_cp.enable = LE_SCAN_ENABLE;
-		enable_cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+		enable_cp.filter_dup =
+			(type == LE_SCAN_PASSIVE ? LE_SCAN_FILTER_DUP_ENABLE :
+						   LE_SCAN_FILTER_DUP_DISABLE);
 		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(enable_cp),
 			    &enable_cp);
 	}
