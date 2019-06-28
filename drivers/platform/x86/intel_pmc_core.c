@@ -1007,7 +1007,7 @@ static int pmc_core_resume(struct device *dev)
 		data = pmc_core_reg_read(pmcdev, offset);
 		offset += 4;
 		while (map->name) {
-			dev_dbg(dev, "SLP_S0_DBG: %-32s\tState: %s\n",
+			dev_warn(dev, "SLP_S0_DBG: %-32s\tState: %s\n",
 				map->name,
 				data & map->bit_mask ? "Yes" : "No");
 			map++;
