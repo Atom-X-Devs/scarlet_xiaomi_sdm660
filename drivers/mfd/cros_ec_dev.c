@@ -416,27 +416,26 @@ static void cros_ec_class_release(struct device *dev)
 	kfree(to_cros_ec_dev(dev));
 }
 
-/*
- * Return the number of MEMS sensors supported.
- * Return < 0 in case of error.
- */
-static int cros_ec_get_sensor_count(struct cros_ec_dev *ec)
+static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 {
 	/*
 	 * Issue a command to get the number of sensor reported.
 	 * Build an array of sensors driver and register them all.
 	 */
-	int ret, sensor_count;
+	int ret, i, id, sensor_num;
+	struct mfd_cell *sensor_cells;
+	struct cros_ec_sensor_platform *sensor_platforms;
+	int sensor_type[MOTIONSENSE_TYPE_MAX];
 	struct ec_params_motion_sense *params;
 	struct ec_response_motion_sense *resp;
 	struct cros_ec_command *msg;
 
 	msg = kzalloc(sizeof(struct cros_ec_command) +
-			max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
+		      max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
 	if (msg == NULL)
-		return -ENOMEM;
+		return;
 
-	msg->version = 1;
+	msg->version = 2;
 	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
 	msg->outsize = sizeof(*params);
 	msg->insize = sizeof(*resp);
@@ -445,54 +444,14 @@ static int cros_ec_get_sensor_count(struct cros_ec_dev *ec)
 	params->cmd = MOTIONSENSE_CMD_DUMP;
 
 	ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
-	if (ret < 0) {
-		sensor_count = ret;
-	} else if (msg->result != EC_RES_SUCCESS) {
-		sensor_count = -EPROTO;
-	} else {
-		resp = (struct ec_response_motion_sense *)msg->data;
-		sensor_count = resp->dump.sensor_count;
-	}
-	kfree(msg);
-
-	return sensor_count;
-}
-
-static void cros_ec_sensors_register(struct cros_ec_dev *ec)
-{
-	/*
-	 * Issue a command to get the number of sensor reported.
-	 * Build an array of sensors driver and register them all.
-	 */
-	int ret, i, sensor_num, id = 0;
-	struct mfd_cell *sensor_cells;
-	struct cros_ec_sensor_platform *sensor_platforms;
-	int sensor_type[MOTIONSENSE_TYPE_MAX] = { 0 };
-	struct ec_params_motion_sense *params;
-	struct ec_response_motion_sense *resp;
-	struct cros_ec_command *msg;
-
-	sensor_num = cros_ec_get_sensor_count(ec);
-	if (sensor_num <= 0) {
-		dev_err(ec->dev,
-			"Unable to retrieve sensor information (err:%d)\n",
-			sensor_num);
-		return;
+	if (ret < 0 || msg->result != EC_RES_SUCCESS) {
+		dev_warn(ec->dev, "cannot get EC sensor information: %d/%d\n",
+			 ret, msg->result);
+		goto error;
 	}
 
-	msg = kzalloc(sizeof(struct cros_ec_command) +
-			max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
-	if (msg == NULL)
-		return;
-
-	msg->version = 2;
-	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
-	msg->outsize = sizeof(*params);
-	msg->insize = sizeof(*resp);
-	params = (struct ec_params_motion_sense *)msg->data;
 	resp = (struct ec_response_motion_sense *)msg->data;
-	params->cmd = MOTIONSENSE_CMD_INFO;
-
+	sensor_num = resp->dump.sensor_count;
 	/*
 	 * Allocate 2 extra sensors if lid angle sensor and/or FIFO are needed.
 	 */
@@ -507,7 +466,10 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 	if (sensor_platforms == NULL)
 		goto error_platforms;
 
+	memset(sensor_type, 0, sizeof(sensor_type));
+	id = 0;
 	for (i = 0; i < sensor_num; i++) {
+		params->cmd = MOTIONSENSE_CMD_INFO;
 		params->info.sensor_num = i;
 		ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
 		if (ret < 0 || msg->result != EC_RES_SUCCESS) {
@@ -545,6 +507,7 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 			continue;
 		}
 		sensor_platforms[id].sensor_num = i;
+		sensor_cells[id].id = sensor_type[resp->info.type];
 		sensor_cells[id].platform_data = &sensor_platforms[id];
 		sensor_cells[id].pdata_size =
 			sizeof(struct cros_ec_sensor_platform);
@@ -566,7 +529,7 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 		id++;
 	}
 
-	ret = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO, sensor_cells, id,
+	ret = mfd_add_devices(ec->dev, 0, sensor_cells, id,
 			      NULL, 0, NULL);
 	if (ret)
 		dev_err(ec->dev, "failed to add EC sensors\n");
@@ -601,36 +564,19 @@ static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
 	 * Check if EC supports direct memory reads and if EC has
 	 * accelerometers.
 	 */
-	if (ec_dev->cmd_readmem) {
-		ret = ec_dev->cmd_readmem(ec_dev, EC_MEMMAP_ACC_STATUS, 1,
-					  &status);
-		if (ret < 0) {
-			dev_warn(ec->dev, "EC direct read error %d.\n", ret);
-			return;
-		}
+	if (!ec_dev->cmd_readmem)
+		return;
 
-		/* Check if EC has accelerometers. */
-		if (!(status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)) {
-			dev_info(ec->dev, "EC does not have accelerometers.\n");
-			return;
-		}
-	} else {
-		ret = cros_ec_get_sensor_count(ec);
-		if (ret <= 0)
-			return;
-		if (ret != CROS_EC_SENSOR_LEGACY_NUM) {
-			/*
-			 * We expect one accelerometer in the lid, one in the
-			 * base.
-			 * If we have more than 2, one will not be an
-			 * accelerometer. If we have less, this is not a
-			 * device we support.
-			 */
-			dev_warn(ec->dev,
-				 "EC support more than %d sensors: %d.\n",
-				 CROS_EC_SENSOR_LEGACY_NUM, ret);
-			return;
-		}
+	ret = ec_dev->cmd_readmem(ec_dev, EC_MEMMAP_ACC_STATUS, 1, &status);
+	if (ret < 0) {
+		dev_warn(ec->dev, "EC does not support direct reads.\n");
+		return;
+	}
+
+	/* Check if EC has accelerometers. */
+	if (!(status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)) {
+		dev_info(ec->dev, "EC does not have accelerometers.\n");
+		return;
 	}
 
 	/*
