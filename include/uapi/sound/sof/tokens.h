@@ -23,6 +23,7 @@
 #define SOF_TPLG_KCTL_VOL_ID	256
 #define SOF_TPLG_KCTL_ENUM_ID	257
 #define SOF_TPLG_KCTL_BYTES_ID	258
+#define SOF_TPLG_KCTL_SWITCH_ID	259
 
 /*
  * Tokens - must match values in topology configurations
@@ -33,18 +34,20 @@
 #define SOF_TKN_BUF_CAPS			101
 
 /* DAI */
-#define	SOF_TKN_DAI_DMAC_CONFIG			153
+/* Token retired with ABI 3.2, do not use for new capabilities
+ * #define	SOF_TKN_DAI_DMAC_CONFIG			153
+ */
 #define SOF_TKN_DAI_TYPE			154
 #define SOF_TKN_DAI_INDEX			155
 #define SOF_TKN_DAI_DIRECTION			156
 
 /* scheduling */
-#define SOF_TKN_SCHED_DEADLINE			200
+#define SOF_TKN_SCHED_PERIOD			200
 #define SOF_TKN_SCHED_PRIORITY			201
 #define SOF_TKN_SCHED_MIPS			202
 #define SOF_TKN_SCHED_CORE			203
 #define SOF_TKN_SCHED_FRAMES			204
-#define SOF_TKN_SCHED_TIMER			205
+#define SOF_TKN_SCHED_TIME_DOMAIN		205
 
 /* volume */
 #define SOF_TKN_VOLUME_RAMP_STEP_TYPE		250
@@ -61,7 +64,9 @@
 #define SOF_TKN_COMP_PERIOD_SINK_COUNT		400
 #define SOF_TKN_COMP_PERIOD_SOURCE_COUNT	401
 #define SOF_TKN_COMP_FORMAT			402
-#define SOF_TKN_COMP_PRELOAD_COUNT		403
+/* Token retired with ABI 3.2, do not use for new capabilities
+ * #define SOF_TKN_COMP_PRELOAD_COUNT		403
+ */
 
 /* SSP */
 #define SOF_TKN_INTEL_SSP_CLKS_CONTROL		500
@@ -93,6 +98,10 @@
 /* Tone */
 #define SOF_TKN_TONE_SAMPLE_RATE		800
 
-#define SOF_TKN_EFFECT_TYPE                     900
+/* Processing Components */
+#define SOF_TKN_PROCESS_TYPE                    900
+
+/* for backward compatibility */
+#define SOF_TKN_EFFECT_TYPE	SOF_TKN_PROCESS_TYPE
 
 #endif

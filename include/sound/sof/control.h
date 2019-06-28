@@ -66,7 +66,7 @@ enum sof_ipc_ctrl_type {
 	/* component data - uses struct sof_ipc_ctrl_value_comp */
 	SOF_CTRL_TYPE_VALUE_COMP_GET,
 	SOF_CTRL_TYPE_VALUE_COMP_SET,
-	/* bespoke data - struct struct sof_abi_hdr */
+	/* bespoke data - uses struct sof_abi_hdr */
 	SOF_CTRL_TYPE_DATA_GET,
 	SOF_CTRL_TYPE_DATA_SET,
 };
@@ -107,9 +107,12 @@ struct sof_ipc_ctrl_data {
 	/* control data - can either be appended or DMAed from host */
 	struct sof_ipc_host_buffer buffer;
 	uint32_t num_elems;	/**< in array elems or bytes for data type */
+	uint32_t elems_remaining;	/**< elems remaining if sent in parts */
+
+	uint32_t msg_index;	/**< for large messages sent in parts */
 
 	/* reserved for future use */
-	uint32_t reserved[8];
+	uint32_t reserved[6];
 
 	/* control data - add new types if needed */
 	union {
@@ -119,6 +122,36 @@ struct sof_ipc_ctrl_data {
 		struct sof_ipc_ctrl_value_comp compv[0];
 		/* data can be used by binary controls */
 		struct sof_abi_hdr data[0];
+	};
+} __packed;
+
+/** Event type */
+enum sof_ipc_ctrl_event_type {
+	SOF_CTRL_EVENT_GENERIC = 0,	/**< generic event */
+	SOF_CTRL_EVENT_GENERIC_METADATA,	/**< generic event with metadata */
+	SOF_CTRL_EVENT_KD,	/**< keyword detection event */
+	SOF_CTRL_EVENT_VAD,	/**< voice activity detection event */
+};
+
+/**
+ * Generic notification data.
+ */
+struct sof_ipc_comp_event {
+	struct sof_ipc_reply rhdr;
+	uint16_t src_comp_type;	/**< COMP_TYPE_ */
+	uint32_t src_comp_id;	/**< source component id */
+	uint32_t event_type;	/**< event type - SOF_CTRL_EVENT_* */
+	uint32_t num_elems;	/**< in array elems or bytes for data type */
+
+	/* reserved for future use */
+	uint32_t reserved[8];
+
+	/* control data - add new types if needed */
+	union {
+		/* data can be used by binary controls */
+		struct sof_abi_hdr data[0];
+		/* event specific values */
+		uint32_t event_value;
 	};
 } __packed;
 

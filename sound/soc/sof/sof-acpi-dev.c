@@ -32,6 +32,12 @@ static char *tplg_path;
 module_param(tplg_path, charp, 0444);
 MODULE_PARM_DESC(tplg_path, "alternate path for SOF topology.");
 
+static int sof_acpi_debug;
+module_param_named(sof_debug, sof_acpi_debug, int, 0444);
+MODULE_PARM_DESC(sof_debug, "SOF ACPI debug options (0x0 all off)");
+
+#define SOF_ACPI_DISABLE_PM_RUNTIME BIT(0)
+
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HASWELL)
 static const struct sof_dev_desc sof_acpi_haswell_desc = {
 	.machines = snd_soc_acpi_intel_haswell_machines,
@@ -104,7 +110,7 @@ static const struct sof_dev_desc sof_acpi_baytrail_desc = {
 static bool is_byt_cr(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	int status = 0;
+	int status;
 
 	if (iosf_mbi_available()) {
 		u32 bios_status;
@@ -174,6 +180,9 @@ static const struct dev_pm_ops sof_acpi_pm = {
 
 static void sof_acpi_probe_complete(struct device *dev)
 {
+	if (sof_acpi_debug & SOF_ACPI_DISABLE_PM_RUNTIME)
+		return;
+
 	/* allow runtime_pm */
 	pm_runtime_set_autosuspend_delay(dev, SND_SOF_SUSPEND_DELAY_MS);
 	pm_runtime_use_autosuspend(dev);
@@ -187,7 +196,7 @@ static int sof_acpi_probe(struct platform_device *pdev)
 	struct snd_soc_acpi_mach *mach;
 	struct snd_sof_pdata *sof_pdata;
 	const struct snd_sof_dsp_ops *ops;
-	int ret = 0;
+	int ret;
 
 	dev_dbg(&pdev->dev, "ACPI DSP detected");
 
@@ -195,7 +204,7 @@ static int sof_acpi_probe(struct platform_device *pdev)
 	if (!sof_pdata)
 		return -ENOMEM;
 
-	desc = (const struct sof_dev_desc *)device_get_match_data(dev);
+	desc = device_get_match_data(dev);
 	if (!desc)
 		return -ENODEV;
 
@@ -231,8 +240,10 @@ static int sof_acpi_probe(struct platform_device *pdev)
 	}
 #endif
 
-	mach->mach_params.platform = dev_name(dev);
-	mach->mach_params.acpi_ipc_irq_index = desc->irqindex_host_ipc;
+	if (mach) {
+		mach->mach_params.platform = dev_name(dev);
+		mach->mach_params.acpi_ipc_irq_index = desc->irqindex_host_ipc;
+	}
 
 	sof_pdata->machine = mach;
 	sof_pdata->desc = desc;
@@ -272,7 +283,8 @@ static int sof_acpi_probe(struct platform_device *pdev)
 
 static int sof_acpi_remove(struct platform_device *pdev)
 {
-	pm_runtime_disable(&pdev->dev);
+	if (!(sof_acpi_debug & SOF_ACPI_DISABLE_PM_RUNTIME))
+		pm_runtime_disable(&pdev->dev);
 
 	/* call sof helper for DSP hardware remove */
 	snd_sof_device_remove(&pdev->dev);
