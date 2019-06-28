@@ -20,7 +20,6 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
-#include <linux/suspend.h>
 #include <linux/uaccess.h>
 
 #include <asm/cpu_device_id.h>
@@ -891,94 +890,9 @@ static int pmc_core_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-
-static bool warn_on_s0ix_failures;
-module_param(warn_on_s0ix_failures, bool, 0644);
-MODULE_PARM_DESC(warn_on_s0ix_failures, "Check and warn for S0ix failures");
-
-static int pmc_core_suspend(struct device *dev)
-{
-	struct pmc_dev *pmcdev = dev_get_drvdata(dev);
-
-	/* Save PC10 and S0ix residency for checking later */
-	if (warn_on_s0ix_failures && !pm_suspend_via_firmware() &&
-	    !rdmsrl_safe(MSR_PKG_C10_RESIDENCY, &pmcdev->pc10_counter) &&
-	    !pmc_core_dev_state_get(pmcdev, &pmcdev->s0ix_counter))
-		pmcdev->check_counters = true;
-	else
-		pmcdev->check_counters = false;
-
-	return 0;
-}
-
-static inline bool pc10_failed(struct pmc_dev *pmcdev)
-{
-	u64 pc10_counter;
-
-	if (!rdmsrl_safe(MSR_PKG_C10_RESIDENCY, &pc10_counter) &&
-	    pc10_counter == pmcdev->pc10_counter)
-		return true;
-	else
-		return false;
-}
-
-static inline bool s0ix_failed(struct pmc_dev *pmcdev)
-{
-	u64 s0ix_counter;
-
-	if (!pmc_core_dev_state_get(pmcdev, &s0ix_counter) &&
-	    s0ix_counter == pmcdev->s0ix_counter)
-		return true;
-	else
-		return false;
-}
-
-static int pmc_core_resume(struct device *dev)
-{
-	struct pmc_dev *pmcdev = dev_get_drvdata(dev);
-
-	if (!pmcdev->check_counters)
-		return 0;
-
-	if (pc10_failed(pmcdev)) {
-		dev_info(dev, "PC10 entry had failed (PC10 cnt=0x%llx)\n",
-			 pmcdev->pc10_counter);
-	} else if (s0ix_failed(pmcdev)) {
-
-		const struct pmc_bit_map **maps = pmcdev->map->slps0_dbg_maps;
-		const struct pmc_bit_map *map;
-		int offset = pmcdev->map->slps0_dbg_offset;
-		u32 data;
-
-		dev_warn(dev, "S0ix entry had failed (S0ix cnt=%llu)\n",
-			 pmcdev->s0ix_counter);
-		while (*maps) {
-			map = *maps;
-			data = pmc_core_reg_read(pmcdev, offset);
-			offset += 4;
-			while (map->name) {
-				dev_warn(dev, "SLP_S0_DBG: %-32s\tState: %s\n",
-					 map->name,
-					 data & map->bit_mask ? "Yes" : "No");
-				++map;
-			}
-			++maps;
-		}
-	}
-	return 0;
-}
-
-#endif
-
-const struct dev_pm_ops pmc_core_pm_ops = {
-	SET_LATE_SYSTEM_SLEEP_PM_OPS(pmc_core_suspend, pmc_core_resume)
-};
-
 static struct platform_driver pmc_core_driver = {
 	.driver = {
 		.name = "pmc_core",
-		.pm = &pmc_core_pm_ops
 	},
 	.probe = pmc_core_probe,
 	.remove = pmc_core_remove,
