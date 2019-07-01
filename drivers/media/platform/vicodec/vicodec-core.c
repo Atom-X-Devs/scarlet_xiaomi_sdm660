@@ -48,26 +48,6 @@ MODULE_PARM_DESC(debug, " activates debug info");
 	v4l2_dbg(1, debug, &dev->v4l2_dev, "%s: " fmt, __func__, ## arg)
 
 
-struct pixfmt_info {
-	u32 id;
-	unsigned int bytesperline_mult;
-	unsigned int sizeimage_mult;
-	unsigned int sizeimage_div;
-	unsigned int luma_step;
-	unsigned int chroma_step;
-	/* Chroma plane subsampling */
-	unsigned int width_div;
-	unsigned int height_div;
-};
-
-static const struct v4l2_fwht_pixfmt_info pixfmt_fwht = {
-	V4L2_PIX_FMT_FWHT, 0, 3, 1, 1, 1, 1, 1, 0, 1
-};
-
-static const struct v4l2_fwht_pixfmt_info pixfmt_stateless_fwht = {
-	V4L2_PIX_FMT_FWHT_STATELESS, 0, 3, 1, 1, 1, 1, 1, 0, 1
-};
-
 static void vicodec_dev_release(struct device *dev)
 {
 }
@@ -1232,34 +1212,6 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 	return vb2_queue_init(dst_vq);
 }
 
-static int vicodec_s_ctrl(struct v4l2_ctrl *ctrl)
-{
-	struct vicodec_ctx *ctx = container_of(ctrl->handler,
-					       struct vicodec_ctx, hdl);
-
-	switch (ctrl->id) {
-	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
-		ctx->state.gop_size = ctrl->val;
-		return 0;
-	case V4L2_CID_FWHT_I_FRAME_QP:
-		ctx->state.i_frame_qp = ctrl->val;
-		return 0;
-	case V4L2_CID_FWHT_P_FRAME_QP:
-		ctx->state.p_frame_qp = ctrl->val;
-		return 0;
-	}
-	return -EINVAL;
-}
-
-static const struct v4l2_ctrl_ops vicodec_ctrl_ops = {
-	.s_ctrl = vicodec_s_ctrl,
-};
-
-static const struct v4l2_ctrl_config vicodec_ctrl_stateless_state = {
-	.id		= V4L2_CID_MPEG_VIDEO_FWHT_PARAMS,
-	.elem_size      = sizeof(struct v4l2_ctrl_fwht_params),
-};
-
 /*
  * File operations
  */
@@ -1288,12 +1240,9 @@ static int vicodec_open(struct file *file)
 	ctx->dev = dev;
 	hdl = &ctx->hdl;
 	v4l2_ctrl_handler_init(hdl, 4);
-	v4l2_ctrl_new_std(hdl, &vicodec_ctrl_ops, V4L2_CID_MPEG_VIDEO_GOP_SIZE,
-			  1, 16, 1, 10);
-	v4l2_ctrl_new_std(hdl, &vicodec_ctrl_ops, V4L2_CID_FWHT_I_FRAME_QP,
-			  1, 31, 1, 20);
-	v4l2_ctrl_new_std(hdl, &vicodec_ctrl_ops, V4L2_CID_FWHT_P_FRAME_QP,
-			  1, 31, 1, 20);
+	ctx->ctrl_gop_size = v4l2_ctrl_new_std(hdl, NULL,
+					       V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+					       1, 16, 1, 10);
 	if (hdl->error) {
 		rc = hdl->error;
 		v4l2_ctrl_handler_free(hdl);
