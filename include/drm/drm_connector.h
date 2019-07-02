@@ -1268,6 +1268,8 @@ int drm_connector_update_edid_property(struct drm_connector *connector,
 void drm_connector_set_link_status_property(struct drm_connector *connector,
 					    uint64_t link_status);
 int drm_connector_init_panel_orientation_property(
+	struct drm_connector *connector);
+int drm_connector_init_panel_orientation_property_quirk(
 	struct drm_connector *connector, int width, int height);
 
 /**
