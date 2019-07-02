@@ -299,7 +299,7 @@ static int gart_iommu_map(struct iommu_domain *domain, unsigned long iova,
 }
 
 static size_t gart_iommu_unmap(struct iommu_domain *domain, unsigned long iova,
-			       size_t bytes)
+			       size_t bytes, struct iommu_iotlb_gather *gather)
 {
 	struct gart_domain *gart_domain = to_gart_domain(domain);
 	struct gart_device *gart = gart_domain->gart;
@@ -375,12 +375,18 @@ static int gart_iommu_of_xlate(struct device *dev,
 	return 0;
 }
 
-static void gart_iommu_sync(struct iommu_domain *domain)
+static void gart_iommu_sync_map(struct iommu_domain *domain)
 {
 	struct gart_domain *gart_domain = to_gart_domain(domain);
 	struct gart_device *gart = gart_domain->gart;
 
 	FLUSH_GART_REGS(gart);
+}
+
+static void gart_iommu_sync(struct iommu_domain *domain,
+			    struct iommu_iotlb_gather *gather)
+{
+	gart_iommu_sync_map(domain);
 }
 
 static const struct iommu_ops gart_iommu_ops = {
