@@ -1397,13 +1397,6 @@ static irqreturn_t arm_smmu_combined_irq_handler(int irq, void *dev)
 }
 
 /* IO_PGTABLE API */
-static void arm_smmu_tlb_sync(void *cookie)
-{
-	struct arm_smmu_domain *smmu_domain = cookie;
-
-	arm_smmu_cmdq_issue_sync(smmu_domain->smmu);
-}
-
 static void arm_smmu_tlb_inv_context(void *cookie)
 {
 	struct arm_smmu_domain *smmu_domain = cookie;
@@ -1486,7 +1479,6 @@ static const struct iommu_flush_ops arm_smmu_flush_ops = {
 	.tlb_flush_walk = arm_smmu_tlb_inv_walk,
 	.tlb_flush_leaf = arm_smmu_tlb_inv_leaf,
 	.tlb_add_page	= arm_smmu_tlb_inv_page_nosync,
-	.tlb_sync	= arm_smmu_tlb_sync,
 };
 
 /* IOMMU API */
