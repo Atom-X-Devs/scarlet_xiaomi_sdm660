@@ -1670,6 +1670,7 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
     :ref:`h264`, section 7.4.3 "Slice Header Semantics". For further
     documentation, refer to the above specification, unless there is
     an explicit comment stating otherwise.
+    All slices should be prepended with an ANNEX B start code.
 
     .. note::
 
