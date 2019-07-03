@@ -29,6 +29,12 @@ static char *tplg_path;
 module_param(tplg_path, charp, 0444);
 MODULE_PARM_DESC(tplg_path, "alternate path for SOF topology.");
 
+static int sof_pci_debug;
+module_param_named(sof_debug, sof_pci_debug, int, 0444);
+MODULE_PARM_DESC(sof_debug, "SOF PCI debug options (0x0 all off)");
+
+#define SOF_PCI_DISABLE_PM_RUNTIME BIT(0)
+
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_APOLLOLAKE)
 static const struct sof_dev_desc bxt_desc = {
 	.machines		= snd_soc_acpi_intel_bxt_machines,
@@ -65,7 +71,7 @@ static const struct sof_dev_desc glk_desc = {
 };
 #endif
 
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_EDISON)
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_MERRIFIELD)
 static struct snd_soc_acpi_mach sof_tng_machines[] = {
 	{
 		.id = "INT343A",
@@ -95,6 +101,44 @@ static const struct sof_dev_desc tng_desc = {
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_CANNONLAKE)
 static const struct sof_dev_desc cnl_desc = {
+	.machines		= snd_soc_acpi_intel_cnl_machines,
+	.resindex_lpe_base	= 0,
+	.resindex_pcicfg_base	= -1,
+	.resindex_imr_base	= -1,
+	.irqindex_host_ipc	= -1,
+	.resindex_dma_base	= -1,
+	.chip_info = &cnl_chip_info,
+	.default_fw_path = "intel/sof",
+	.default_tplg_path = "intel/sof-tplg",
+	.nocodec_fw_filename = "sof-cnl.ri",
+	.nocodec_tplg_filename = "sof-cnl-nocodec.tplg",
+	.ops = &sof_cnl_ops,
+	.arch_ops = &sof_xtensa_arch_ops
+};
+#endif
+
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_COFFEELAKE)
+static const struct sof_dev_desc cfl_desc = {
+	.machines		= snd_soc_acpi_intel_cnl_machines,
+	.resindex_lpe_base	= 0,
+	.resindex_pcicfg_base	= -1,
+	.resindex_imr_base	= -1,
+	.irqindex_host_ipc	= -1,
+	.resindex_dma_base	= -1,
+	.chip_info = &cnl_chip_info,
+	.default_fw_path = "intel/sof",
+	.default_tplg_path = "intel/sof-tplg",
+	.nocodec_fw_filename = "sof-cnl.ri",
+	.nocodec_tplg_filename = "sof-cnl-nocodec.tplg",
+	.ops = &sof_cnl_ops,
+	.arch_ops = &sof_xtensa_arch_ops
+};
+#endif
+
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_COMETLAKE_LP) || \
+	IS_ENABLED(CONFIG_SND_SOC_SOF_COMETLAKE_H)
+
+static const struct sof_dev_desc cml_desc = {
 	.machines		= snd_soc_acpi_intel_cnl_machines,
 	.resindex_lpe_base	= 0,
 	.resindex_pcicfg_base	= -1,
@@ -175,6 +219,9 @@ static void sof_pci_probe_complete(struct device *dev)
 {
 	dev_dbg(dev, "Completing SOF PCI probe");
 
+	if (sof_pci_debug & SOF_PCI_DISABLE_PM_RUNTIME)
+		return;
+
 	/* allow runtime_pm */
 	pm_runtime_set_autosuspend_delay(dev, SND_SOF_SUSPEND_DELAY_MS);
 	pm_runtime_use_autosuspend(dev);
@@ -198,7 +245,7 @@ static int sof_pci_probe(struct pci_dev *pci,
 	struct snd_soc_acpi_mach *mach;
 	struct snd_sof_pdata *sof_pdata;
 	const struct snd_sof_dsp_ops *ops;
-	int ret = 0;
+	int ret;
 
 	dev_dbg(&pci->dev, "PCI DSP detected");
 
@@ -293,7 +340,8 @@ static void sof_pci_remove(struct pci_dev *pci)
 	snd_sof_device_remove(&pci->dev);
 
 	/* follow recommendation in pci-driver.c to increment usage counter */
-	pm_runtime_get_noresume(&pci->dev);
+	if (!(sof_pci_debug & SOF_PCI_DISABLE_PM_RUNTIME))
+		pm_runtime_get_noresume(&pci->dev);
 
 	/* release pci regions and disable device */
 	pci_release_regions(pci);
@@ -301,7 +349,7 @@ static void sof_pci_remove(struct pci_dev *pci)
 
 /* PCI IDs */
 static const struct pci_device_id sof_pci_ids[] = {
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_EDISON)
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_MERRIFIELD)
 	{ PCI_DEVICE(0x8086, 0x119a),
 		.driver_data = (unsigned long)&tng_desc},
 #endif
@@ -320,6 +368,10 @@ static const struct pci_device_id sof_pci_ids[] = {
 	{ PCI_DEVICE(0x8086, 0x9dc8),
 		.driver_data = (unsigned long)&cnl_desc},
 #endif
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_COFFEELAKE)
+	{ PCI_DEVICE(0x8086, 0xa348),
+		.driver_data = (unsigned long)&cfl_desc},
+#endif
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_KABYLAKE)
 	{ PCI_DEVICE(0x8086, 0x9d71),
 		.driver_data = (unsigned long)&kbl_desc},
@@ -334,11 +386,11 @@ static const struct pci_device_id sof_pci_ids[] = {
 #endif
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_COMETLAKE_LP)
 	{ PCI_DEVICE(0x8086, 0x02c8),
-		.driver_data = (unsigned long)&cnl_desc},
+		.driver_data = (unsigned long)&cml_desc},
 #endif
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_COMETLAKE_H)
 	{ PCI_DEVICE(0x8086, 0x06c8),
-		.driver_data = (unsigned long)&cnl_desc},
+		.driver_data = (unsigned long)&cml_desc},
 #endif
 	{ 0, }
 };

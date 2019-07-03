@@ -155,12 +155,15 @@
 struct sof_intel_dsp_desc {
 	int cores_num;
 	int cores_mask;
+	int init_core_mask; /* cores available after fw boot */
 	int ipc_req;
 	int ipc_req_mask;
 	int ipc_ack;
 	int ipc_ack_mask;
 	int ipc_ctl;
 	int rom_init_timeout;
+	int ssp_count;			/* ssp count of the platform */
+	int ssp_base_offset;		/* base address of the SSPs */
 };
 
 extern const struct snd_sof_dsp_ops sof_tng_ops;
@@ -174,5 +177,9 @@ extern const struct sof_intel_dsp_desc cht_chip_info;
 extern const struct sof_intel_dsp_desc bdw_chip_info;
 extern const struct sof_intel_dsp_desc hsw_chip_info;
 extern const struct sof_intel_dsp_desc tng_chip_info;
+
+struct sof_intel_stream {
+	size_t posn_offset;
+};
 
 #endif

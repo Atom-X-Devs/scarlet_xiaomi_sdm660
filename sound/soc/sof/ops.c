@@ -11,18 +11,19 @@
 #include <linux/pci.h>
 #include "ops.h"
 
-int snd_sof_pci_update_bits_unlocked(struct snd_sof_dev *sdev, u32 offset,
-				     u32 mask, u32 value)
+static
+bool snd_sof_pci_update_bits_unlocked(struct snd_sof_dev *sdev, u32 offset,
+				      u32 mask, u32 value)
 {
 	struct pci_dev *pci = to_pci_dev(sdev->dev);
 	unsigned int old, new;
-	u32 ret = ~0; /* explicit init to remove uninitialized use warnings */
+	u32 ret = 0;
 
 	pci_read_config_dword(pci, offset, &ret);
 	old = ret;
 	dev_dbg(sdev->dev, "Debug PCIR: %8.8x at  %8.8x\n", old & mask, offset);
 
-	new = (old & (~mask)) | (value & mask);
+	new = (old & ~mask) | (value & mask);
 
 	if (old == new)
 		return false;
@@ -33,10 +34,9 @@ int snd_sof_pci_update_bits_unlocked(struct snd_sof_dev *sdev, u32 offset,
 
 	return true;
 }
-EXPORT_SYMBOL(snd_sof_pci_update_bits_unlocked);
 
-int snd_sof_pci_update_bits(struct snd_sof_dev *sdev, u32 offset,
-			    u32 mask, u32 value)
+bool snd_sof_pci_update_bits(struct snd_sof_dev *sdev, u32 offset,
+			     u32 mask, u32 value)
 {
 	unsigned long flags;
 	bool change;
@@ -48,8 +48,8 @@ int snd_sof_pci_update_bits(struct snd_sof_dev *sdev, u32 offset,
 }
 EXPORT_SYMBOL(snd_sof_pci_update_bits);
 
-int snd_sof_dsp_update_bits_unlocked(struct snd_sof_dev *sdev, u32 bar,
-				     u32 offset, u32 mask, u32 value)
+bool snd_sof_dsp_update_bits_unlocked(struct snd_sof_dev *sdev, u32 bar,
+				      u32 offset, u32 mask, u32 value)
 {
 	unsigned int old, new;
 	u32 ret;
@@ -57,7 +57,7 @@ int snd_sof_dsp_update_bits_unlocked(struct snd_sof_dev *sdev, u32 bar,
 	ret = snd_sof_dsp_read(sdev, bar, offset);
 
 	old = ret;
-	new = (old & (~mask)) | (value & mask);
+	new = (old & ~mask) | (value & mask);
 
 	if (old == new)
 		return false;
@@ -68,14 +68,14 @@ int snd_sof_dsp_update_bits_unlocked(struct snd_sof_dev *sdev, u32 bar,
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits_unlocked);
 
-int snd_sof_dsp_update_bits64_unlocked(struct snd_sof_dev *sdev, u32 bar,
-				       u32 offset, u64 mask, u64 value)
+bool snd_sof_dsp_update_bits64_unlocked(struct snd_sof_dev *sdev, u32 bar,
+					u32 offset, u64 mask, u64 value)
 {
 	u64 old, new;
 
 	old = snd_sof_dsp_read64(sdev, bar, offset);
 
-	new = (old & (~mask)) | (value & mask);
+	new = (old & ~mask) | (value & mask);
 
 	if (old == new)
 		return false;
@@ -87,23 +87,8 @@ int snd_sof_dsp_update_bits64_unlocked(struct snd_sof_dev *sdev, u32 bar,
 EXPORT_SYMBOL(snd_sof_dsp_update_bits64_unlocked);
 
 /* This is for registers bits with attribute RWC */
-void snd_sof_dsp_update_bits_forced_unlocked(struct snd_sof_dev *sdev, u32 bar,
-					     u32 offset, u32 mask, u32 value)
-{
-	unsigned int old, new;
-	u32 ret;
-
-	ret = snd_sof_dsp_read(sdev, bar, offset);
-
-	old = ret;
-	new = (old & (~mask)) | (value & mask);
-
-	snd_sof_dsp_write(sdev, bar, offset, new);
-}
-EXPORT_SYMBOL(snd_sof_dsp_update_bits_forced_unlocked);
-
-int snd_sof_dsp_update_bits(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			    u32 mask, u32 value)
+bool snd_sof_dsp_update_bits(struct snd_sof_dev *sdev, u32 bar, u32 offset,
+			     u32 mask, u32 value)
 {
 	unsigned long flags;
 	bool change;
@@ -116,8 +101,8 @@ int snd_sof_dsp_update_bits(struct snd_sof_dev *sdev, u32 bar, u32 offset,
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits);
 
-int snd_sof_dsp_update_bits64(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			      u64 mask, u64 value)
+bool snd_sof_dsp_update_bits64(struct snd_sof_dev *sdev, u32 bar, u32 offset,
+			       u64 mask, u64 value)
 {
 	unsigned long flags;
 	bool change;
@@ -130,6 +115,21 @@ int snd_sof_dsp_update_bits64(struct snd_sof_dev *sdev, u32 bar, u32 offset,
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits64);
 
+static
+void snd_sof_dsp_update_bits_forced_unlocked(struct snd_sof_dev *sdev, u32 bar,
+					     u32 offset, u32 mask, u32 value)
+{
+	unsigned int old, new;
+	u32 ret;
+
+	ret = snd_sof_dsp_read(sdev, bar, offset);
+
+	old = ret;
+	new = (old & ~mask) | (value & mask);
+
+	snd_sof_dsp_write(sdev, bar, offset, new);
+}
+
 /* This is for registers bits with attribute RWC */
 void snd_sof_dsp_update_bits_forced(struct snd_sof_dev *sdev, u32 bar,
 				    u32 offset, u32 mask, u32 value)
@@ -141,46 +141,6 @@ void snd_sof_dsp_update_bits_forced(struct snd_sof_dev *sdev, u32 bar,
 	spin_unlock_irqrestore(&sdev->hw_lock, flags);
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits_forced);
-
-int snd_sof_dsp_register_poll(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			      u32 mask, u32 target, u32 timeout_ms,
-			      u32 interval_us)
-{
-	u32 reg;
-	unsigned long tout_jiff;
-	int k = 0, s = interval_us;
-
-	/*
-	 * Split the loop into 2 sleep stages with varying resolution.
-	 * To do it more accurately, the range of wakeups are:
-	 * In case of interval_us = 500,
-	 * Phase 1(first 5ms): min sleep 0.5ms; max sleep 1ms.
-	 * Phase 2(beyond 5ms): min sleep 5ms; max sleep 10ms.
-	 */
-
-	tout_jiff = jiffies + msecs_to_jiffies(timeout_ms);
-	do {
-		reg = snd_sof_dsp_read(sdev, bar, offset);
-		if ((reg & mask) == target)
-			break;
-
-		/* Phase 2 after 5ms(500us * 10) */
-		if (++k > 10)
-			s = interval_us * 10;
-
-		usleep_range(s, 2 * s);
-	} while (time_before(jiffies, tout_jiff));
-
-	if ((reg & mask) == target) {
-		dev_dbg(sdev->dev, "FW Poll Status: reg=%#x successful\n", reg);
-
-		return 0;
-	}
-
-	dev_dbg(sdev->dev, "FW Poll Status: reg=%#x timedout\n", reg);
-	return -ETIME;
-}
-EXPORT_SYMBOL(snd_sof_dsp_register_poll);
 
 void snd_sof_dsp_panic(struct snd_sof_dev *sdev, u32 offset)
 {
@@ -199,6 +159,5 @@ void snd_sof_dsp_panic(struct snd_sof_dev *sdev, u32 offset)
 
 	snd_sof_dsp_dbg_dump(sdev, SOF_DBG_REGS | SOF_DBG_MBOX);
 	snd_sof_trace_notify_for_error(sdev);
-	snd_sof_dsp_cmd_done(sdev, SOF_IPC_HOST_REPLY);
 }
 EXPORT_SYMBOL(snd_sof_dsp_panic);

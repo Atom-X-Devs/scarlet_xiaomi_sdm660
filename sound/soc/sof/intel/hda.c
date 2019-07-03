@@ -54,7 +54,7 @@ static const struct hda_dsp_msg_code hda_dsp_rom_msg[] = {
 	{HDA_DSP_ROM_L2_CACHE_ERROR, "error: L2 cache error"},
 	{HDA_DSP_ROM_LOAD_OFFSET_TO_SMALL, "error: load offset too small"},
 	{HDA_DSP_ROM_API_PTR_INVALID, "error: API ptr invalid"},
-	{HDA_DSP_ROM_BASEFW_INCOMPAT, "error: base fw incompatble"},
+	{HDA_DSP_ROM_BASEFW_INCOMPAT, "error: base fw incompatible"},
 	{HDA_DSP_ROM_UNHANDLED_INTERRUPT, "error: unhandled interrupt"},
 	{HDA_DSP_ROM_MEMORY_HOLE_ECC, "error: ECC memory hole"},
 	{HDA_DSP_ROM_KERNEL_EXCEPTION, "error: kernel exception"},
@@ -179,6 +179,24 @@ void hda_dsp_dump(struct snd_sof_dev *sdev, u32 flags)
 	}
 }
 
+void hda_ipc_dump(struct snd_sof_dev *sdev)
+{
+	u32 hipcie;
+	u32 hipct;
+	u32 hipcctl;
+
+	/* read IPC status */
+	hipcie = snd_sof_dsp_read(sdev, HDA_DSP_BAR, HDA_DSP_REG_HIPCIE);
+	hipct = snd_sof_dsp_read(sdev, HDA_DSP_BAR, HDA_DSP_REG_HIPCT);
+	hipcctl = snd_sof_dsp_read(sdev, HDA_DSP_BAR, HDA_DSP_REG_HIPCCTL);
+
+	/* dump the IPC regs */
+	/* TODO: parse the raw msg */
+	dev_err(sdev->dev,
+		"error: host status 0x%8.8x dsp status 0x%8.8x mask 0x%8.8x\n",
+		hipcie, hipct, hipcctl);
+}
+
 static int hda_init(struct snd_sof_dev *sdev)
 {
 	struct hda_bus *hbus;
@@ -249,9 +267,9 @@ static const char *fixup_tplg_name(struct snd_sof_dev *sdev,
 static int hda_init_caps(struct snd_sof_dev *sdev)
 {
 	struct hdac_bus *bus = sof_to_bus(sdev);
-	struct hdac_ext_link *hlink = NULL;
+	struct hdac_ext_link *hlink;
 	struct snd_soc_acpi_mach_params *mach_params;
-	struct snd_soc_acpi_mach *hda_mach = NULL;
+	struct snd_soc_acpi_mach *hda_mach;
 	struct snd_sof_pdata *pdata = sdev->pdata;
 	struct snd_soc_acpi_mach *mach;
 	const char *tplg_filename;
@@ -297,35 +315,27 @@ static int hda_init_caps(struct snd_sof_dev *sdev)
 		 * If no machine driver is found, then:
 		 *
 		 * hda machine driver is used if :
-		 * 1. there are HDMI codec and one external HDAudio codec
-		 * 2. only HDMI codec and NOCODEC is not enabled
-		 *
-		 * nocodec machine driver would be used if:
-		 * 1. only HDMI codec and but NOCODEC is enabled
-		 * 2. there is no codec found
+		 * 1. there is one HDMI codec and one external HDAudio codec
+		 * 2. only HDMI codec
 		 */
 		if (!pdata->machine && codec_num <= 2 &&
 		    HDA_IDISP_CODEC(bus->codec_mask)) {
-			if (codec_num == 2 ||
-			    !IS_ENABLED(CONFIG_SND_SOC_SOF_NOCODEC)) {
-				hda_mach = snd_soc_acpi_intel_hda_machines;
-				pdata->machine = hda_mach;
+			hda_mach = snd_soc_acpi_intel_hda_machines;
+			pdata->machine = hda_mach;
 
-				/* topology: use the info from hda_machines */
-				pdata->tplg_filename =
-					hda_mach->sof_tplg_filename;
+			/* topology: use the info from hda_machines */
+			pdata->tplg_filename =
+				hda_mach->sof_tplg_filename;
 
-				/* firmware: pick the first in machine list */
-				mach = pdata->desc->machines;
-				pdata->fw_filename = mach->sof_fw_filename;
+			/* firmware: pick the first in machine list */
+			mach = pdata->desc->machines;
+			pdata->fw_filename = mach->sof_fw_filename;
 
-				dev_info(bus->dev, "using HDA machine driver %s now\n",
-					 hda_mach->drv_name);
-			}
+			dev_info(bus->dev, "using HDA machine driver %s now\n",
+				 hda_mach->drv_name);
 
 			/* fixup topology file for HDMI only platforms */
-			if (codec_num == 1 &&
-			    !IS_ENABLED(CONFIG_SND_SOC_SOF_NOCODEC)) {
+			if (codec_num == 1) {
 				/* use local variable for readability */
 				tplg_filename = pdata->tplg_filename;
 				tplg_filename = fixup_tplg_name(sdev, tplg_filename);
@@ -389,7 +399,7 @@ static const struct sof_intel_dsp_desc
 	const struct sof_dev_desc *desc = pdata->desc;
 	const struct sof_intel_dsp_desc *chip_info;
 
-	chip_info = (struct sof_intel_dsp_desc *)desc->chip_info;
+	chip_info = desc->chip_info;
 
 	return chip_info;
 }
@@ -626,8 +636,7 @@ err:
 
 int hda_dsp_remove(struct snd_sof_dev *sdev)
 {
-	struct sof_intel_hda_dev *hda =
-		(struct sof_intel_hda_dev *)sdev->pdata->hw_pdata;
+	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	struct hdac_bus *bus = sof_to_bus(sdev);
 	struct pci_dev *pci = to_pci_dev(sdev->dev);
 	const struct sof_intel_dsp_desc *chip = hda->desc;

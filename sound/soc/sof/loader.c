@@ -17,7 +17,8 @@
 static int get_ext_windows(struct snd_sof_dev *sdev,
 			   struct sof_ipc_ext_data_hdr *ext_hdr)
 {
-	struct sof_ipc_window *w = (struct sof_ipc_window *)ext_hdr;
+	struct sof_ipc_window *w =
+		container_of(ext_hdr, struct sof_ipc_window, ext_hdr);
 	size_t size;
 
 	if (w->num_windows == 0 || w->num_windows > SOF_IPC_MAX_ELEMS)
@@ -47,14 +48,14 @@ int snd_sof_fw_parse_ext_data(struct snd_sof_dev *sdev, u32 bar, u32 offset)
 	/* get first header */
 	snd_sof_dsp_block_read(sdev, bar, offset, ext_data,
 			       sizeof(*ext_hdr));
-	ext_hdr = (struct sof_ipc_ext_data_hdr *)ext_data;
+	ext_hdr = ext_data;
 
 	while (ext_hdr->hdr.cmd == SOF_IPC_FW_READY) {
 		/* read in ext structure */
 		offset += sizeof(*ext_hdr);
 		snd_sof_dsp_block_read(sdev, bar, offset,
-				       ext_data + sizeof(*ext_hdr),
-				       ext_hdr->hdr.size - sizeof(*ext_hdr));
+				   (void *)((u8 *)ext_data + sizeof(*ext_hdr)),
+				   ext_hdr->hdr.size - sizeof(*ext_hdr));
 
 		dev_dbg(sdev->dev, "found ext header type %d size 0x%x\n",
 			ext_hdr->type, ext_hdr->hdr.size);
@@ -80,7 +81,7 @@ int snd_sof_fw_parse_ext_data(struct snd_sof_dev *sdev, u32 bar, u32 offset)
 		offset += ext_hdr->hdr.size;
 		snd_sof_dsp_block_read(sdev, bar, offset, ext_data,
 				       sizeof(*ext_hdr));
-		ext_hdr = (struct sof_ipc_ext_data_hdr *)ext_data;
+		ext_hdr = ext_data;
 	}
 
 	kfree(ext_data);
@@ -100,17 +101,19 @@ int snd_sof_parse_module_memcpy(struct snd_sof_dev *sdev,
 	dev_dbg(sdev->dev, "new module size 0x%x blocks 0x%x type 0x%x\n",
 		module->size, module->num_blocks, module->type);
 
-	block = (void *)module + sizeof(*module);
+	block = (struct snd_sof_blk_hdr *)((u8 *)module + sizeof(*module));
 
 	/* module->size doesn't include header size */
 	remaining = module->size;
 	for (count = 0; count < module->num_blocks; count++) {
-		/* minus header size of block */
-		remaining -= sizeof(*block);
-		if (remaining < block->size) {
+		/* check for wrap */
+		if (remaining < sizeof(*block)) {
 			dev_err(sdev->dev, "error: not enough data remaining\n");
 			return -EINVAL;
 		}
+
+		/* minus header size of block */
+		remaining -= sizeof(*block);
 
 		if (block->size == 0) {
 			dev_warn(sdev->dev,
@@ -145,13 +148,18 @@ int snd_sof_parse_module_memcpy(struct snd_sof_dev *sdev,
 			return -EINVAL;
 		}
 		snd_sof_dsp_block_write(sdev, sdev->mmio_bar, offset,
-					(void *)block + sizeof(*block),
-					block->size);
+					block + 1, block->size);
+
+		if (remaining < block->size) {
+			dev_err(sdev->dev, "error: not enough data remaining\n");
+			return -EINVAL;
+		}
 
 		/* minus body size of block */
 		remaining -= block->size;
 		/* next block */
-		block = (void *)block + sizeof(*block) + block->size;
+		block = (struct snd_sof_blk_hdr *)((u8 *)block + sizeof(*block)
+			+ block->size);
 	}
 
 	return 0;
@@ -200,24 +208,40 @@ static int load_modules(struct snd_sof_dev *sdev, const struct firmware *fw)
 		return -EINVAL;
 
 	/* parse each module */
-	module = (void *)fw->data + sizeof(*header);
+	module = (struct snd_sof_mod_hdr *)((u8 *)(fw->data) + sizeof(*header));
 	remaining = fw->size - sizeof(*header);
+	/* check for wrap */
+	if (remaining > fw->size) {
+		dev_err(sdev->dev, "error: fw size smaller than header size\n");
+		return -EINVAL;
+	}
+
 	for (count = 0; count < header->num_modules; count++) {
-		/* minus header size of module */
-		remaining -= sizeof(*module);
-		if (remaining < module->size) {
+		/* check for wrap */
+		if (remaining < sizeof(*module)) {
 			dev_err(sdev->dev, "error: not enough data remaining\n");
 			return -EINVAL;
 		}
+
+		/* minus header size of module */
+		remaining -= sizeof(*module);
+
 		/* module */
 		ret = load_module(sdev, module);
 		if (ret < 0) {
 			dev_err(sdev->dev, "error: invalid module %d\n", count);
 			return ret;
 		}
+
+		if (remaining < module->size) {
+			dev_err(sdev->dev, "error: not enough data remaining\n");
+			return -EINVAL;
+		}
+
 		/* minus body size of module */
 		remaining -=  module->size;
-		module = (void *)module + sizeof(*module) + module->size;
+		module = (struct snd_sof_mod_hdr *)((u8 *)module
+			+ sizeof(*module) + module->size);
 	}
 
 	return 0;
@@ -232,10 +256,13 @@ int snd_sof_load_firmware_raw(struct snd_sof_dev *sdev)
 	/* set code loading condition to true */
 	sdev->code_loading = 1;
 
-	fw_filename = devm_kasprintf(sdev->dev, GFP_KERNEL,
-				     "%s/%s",
-				     plat_data->fw_filename_prefix,
-				     plat_data->fw_filename);
+	/* Don't request firmware again if firmware is already requested */
+	if (plat_data->fw)
+		return 0;
+
+	fw_filename = kasprintf(GFP_KERNEL, "%s/%s",
+				plat_data->fw_filename_prefix,
+				plat_data->fw_filename);
 	if (!fw_filename)
 		return -ENOMEM;
 
@@ -245,6 +272,9 @@ int snd_sof_load_firmware_raw(struct snd_sof_dev *sdev)
 		dev_err(sdev->dev, "error: request firmware %s failed err: %d\n",
 			fw_filename, ret);
 	}
+
+	kfree(fw_filename);
+
 	return ret;
 }
 EXPORT_SYMBOL(snd_sof_load_firmware_raw);
@@ -283,6 +313,7 @@ int snd_sof_load_firmware_memcpy(struct snd_sof_dev *sdev)
 
 error:
 	release_firmware(plat_data->fw);
+	plat_data->fw = NULL;
 	return ret;
 
 }
@@ -301,6 +332,7 @@ EXPORT_SYMBOL(snd_sof_load_firmware);
 int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 {
 	int ret;
+	int init_core_mask;
 
 	init_waitqueue_head(&sdev->boot_wait);
 	sdev->boot_complete = false;
@@ -333,11 +365,15 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 		return ret;
 	}
 
+	init_core_mask = ret;
+
 	/* now wait for the DSP to boot */
 	ret = wait_event_timeout(sdev->boot_wait, sdev->boot_complete,
 				 msecs_to_jiffies(sdev->boot_timeout));
 	if (ret == 0) {
 		dev_err(sdev->dev, "error: firmware boot failure\n");
+		/* after this point FW_READY msg should be ignored */
+		sdev->boot_complete = true;
 		snd_sof_dsp_dbg_dump(sdev, SOF_DBG_REGS | SOF_DBG_MBOX |
 			SOF_DBG_TEXT | SOF_DBG_PCI);
 		return -EIO;
@@ -351,6 +387,9 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 		dev_err(sdev->dev, "error: failed post fw run op\n");
 		return ret;
 	}
+
+	/* fw boot is complete. Update the active cores mask */
+	sdev->enabled_cores_mask = init_core_mask;
 
 	return 0;
 }
