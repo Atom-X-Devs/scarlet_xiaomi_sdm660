@@ -26,6 +26,7 @@
 #define V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX	(V4L2_CID_MPEG_BASE+1002)
 #define V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS	(V4L2_CID_MPEG_BASE+1003)
 #define V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS	(V4L2_CID_MPEG_BASE+1004)
+#define V4L2_CID_MPEG_VIDEO_H264_DECODING_MODE	(V4L2_CID_MPEG_BASE+1005)
 
 /* enum v4l2_ctrl_type type values */
 #define V4L2_CTRL_TYPE_H264_SPS			0x0110
@@ -33,6 +34,12 @@
 #define V4L2_CTRL_TYPE_H264_SCALING_MATRIX	0x0112
 #define V4L2_CTRL_TYPE_H264_SLICE_PARAMS	0x0113
 #define V4L2_CTRL_TYPE_H264_DECODE_PARAMS	0x0114
+#define V4L2_CTRL_TYPE_H264_DECODING_MODE	0x0115
+
+enum v4l2_mpeg_video_h264_decoding_mode {
+	V4L2_MPEG_VIDEO_H264_SLICE_BASED_DECODING,
+	V4L2_MPEG_VIDEO_H264_FRAME_BASED_DECODING,
+};
 
 #define V4L2_H264_SPS_CONSTRAINT_SET0_FLAG			0x01
 #define V4L2_H264_SPS_CONSTRAINT_SET1_FLAG			0x02
@@ -111,6 +118,8 @@ struct v4l2_h264_pred_weight_table {
 	struct v4l2_h264_weight_factors weight_factors[2];
 };
 
+#define V4L2_H264_MAX_SLICES_PER_FRAME			16
+
 #define V4L2_H264_SLICE_TYPE_P				0
 #define V4L2_H264_SLICE_TYPE_B				1
 #define V4L2_H264_SLICE_TYPE_I				2
@@ -125,6 +134,10 @@ struct v4l2_h264_pred_weight_table {
 struct v4l2_ctrl_h264_slice_params {
 	/* Size in bytes, including header */
 	__u32 size;
+
+	/* Where the slice starts in the output buffer (expressed in bytes). */
+	__u32 start_byte_offset;
+
 	/* Offset in bits to slice_data() from the beginning of this slice. */
 	__u32 header_bit_size;
 
