@@ -28,4 +28,5 @@
 	avdd-supply = <&ppvarn_lcd>;
 	avee-supply = <&ppvarp_lcd>;
 	pp1800-supply = <&pp1800_lcd>;
+	rotation = <270>;
 };
