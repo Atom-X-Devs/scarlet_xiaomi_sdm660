@@ -7394,6 +7394,8 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
 								&vht_nss,
 								true);
 			update_bitrate_mask = false;
+		} else {
+			vht_pfr = 0;
 		}
 
 		mutex_lock(&ar->conf_mutex);
