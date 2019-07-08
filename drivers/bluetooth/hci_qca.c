@@ -169,7 +169,6 @@ struct qca_serdev {
 	struct qca_power *bt_power;
 	u32 init_speed;
 	u32 oper_speed;
-	const char *firmware_name;
 };
 
 static int qca_power_setup(struct hci_uart *hu, bool on);
@@ -189,17 +188,6 @@ static enum qca_btsoc_type qca_soc_type(struct hci_uart *hu)
 	}
 
 	return soc_type;
-}
-
-static const char *qca_get_firmware_name(struct hci_uart *hu)
-{
-	if (hu->serdev) {
-		struct qca_serdev *qsd = serdev_device_get_drvdata(hu->serdev);
-
-		return qsd->firmware_name;
-	} else {
-		return NULL;
-	}
 }
 
 static void __serial_clock_on(struct tty_struct *tty)
@@ -1207,7 +1195,6 @@ static int qca_setup(struct hci_uart *hu)
 	struct qca_data *qca = hu->priv;
 	unsigned int speed, qca_baudrate = QCA_BAUDRATE_115200;
 	enum qca_btsoc_type soc_type = qca_soc_type(hu);
-	const char *firmware_name = qca_get_firmware_name(hu);
 	int ret;
 	int soc_ver = 0;
 
@@ -1258,8 +1245,7 @@ static int qca_setup(struct hci_uart *hu)
 
 	bt_dev_info(hdev, "QCA controller version 0x%08x", soc_ver);
 	/* Setup patch / NVM configurations */
-	ret = qca_uart_setup(hdev, qca_baudrate, soc_type, soc_ver,
-			firmware_name);
+	ret = qca_uart_setup(hdev, qca_baudrate, soc_type, soc_ver);
 	if (!ret) {
 		set_bit(QCA_IBS_ENABLED, &qca->flags);
 		qca_debugfs_init(hdev);
@@ -1490,9 +1476,6 @@ static int qca_serdev_probe(struct serdev_device *serdev)
 			dev_err(&serdev->dev, "failed to acquire enable gpio\n");
 			return PTR_ERR(qcadev->bt_en);
 		}
-
-		device_property_read_string(&serdev->dev, "firmware-name",
-					 &qcadev->firmware_name);
 
 		qcadev->susclk = devm_clk_get(&serdev->dev, NULL);
 		if (IS_ERR(qcadev->susclk)) {
