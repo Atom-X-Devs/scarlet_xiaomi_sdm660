@@ -124,7 +124,7 @@ static irqreturn_t scp_irq_handler(int irq, void *priv)
 	int ret;
 
 	ret = clk_prepare_enable(scp->clk);
-	if (ret) {
+	if(ret) {
 		dev_err(scp->dev, "failed to enable clocks\n");
 		return IRQ_NONE;
 	}
@@ -220,10 +220,6 @@ static int scp_load(struct rproc *rproc, const struct firmware *fw)
 
 	/* Hold SCP in reset while loading FW. */
 	scp_reset_assert(scp);
-
-	/* Reset clocks before loading FW */
-	writel(0x0, scp->reg_base + MT8183_SCP_CLK_SW_SEL);
-	writel(0x0, scp->reg_base + MT8183_SCP_CLK_DIV_SEL);
 
 	/* Turn on the power of SCP's SRAM before using it. */
 	writel(0x0, scp->reg_base + MT8183_SCP_SRAM_PDN);
