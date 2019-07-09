@@ -146,6 +146,24 @@ static bool intel_dp_aux_set_pwm_freq(struct intel_connector *connector)
 	return true;
 }
 
+/*
+ * Some panels require the backlight to be enabled _after_ the
+ * level is set. This function returns true if the connected panel
+ * requires this out-of-spec behavior
+ */
+static bool intel_dp_enable_backlight_after_set(struct intel_connector *intel_connector)
+{
+	/* old display */
+	if (intel_connector->detect_edid &&
+	    (intel_connector->detect_edid->mfg_id[0] == 0x4c &&
+	     intel_connector->detect_edid->mfg_id[1] == 0x83 &&
+	     intel_connector->detect_edid->prod_code[0] == 0x42 &&
+	     intel_connector->detect_edid->prod_code[1] == 0x41))
+		return true;
+
+	return false;
+}
+
 static void intel_dp_aux_enable_backlight(const struct intel_crtc_state *crtc_state,
 					  const struct drm_connector_state *conn_state)
 {
@@ -190,6 +208,9 @@ static void intel_dp_aux_enable_backlight(const struct intel_crtc_state *crtc_st
 
 	set_aux_backlight_enable(intel_dp, true);
 	intel_dp_aux_set_backlight(conn_state, connector->panel.backlight.level);
+
+	if (intel_dp_enable_backlight_after_set(connector))
+		set_aux_backlight_enable(intel_dp, true);
 }
 
 static void intel_dp_aux_disable_backlight(const struct drm_connector_state *old_conn_state)
