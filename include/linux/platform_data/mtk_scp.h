@@ -145,10 +145,6 @@ void *scp_mapping_dm_addr(struct platform_device *pdev,
 /* scp reserve memory ID definition*/
 enum scp_reserve_mem_id_t {
 	SCP_ISP_MEM_ID,
-	SCP_ISP_MEM2_ID,
-	SCP_MDP_MEM_ID,
-	SCP_DIP_MEM_ID,
-	SCP_FD_MEM_ID,
 	SCP_NUMS_MEM_ID,
 };
 

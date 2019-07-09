@@ -363,31 +363,7 @@ static struct scp_reserve_mblock scp_reserve_mblock[] = {
 		.num = SCP_ISP_MEM_ID,
 		.start_phys = 0x0,
 		.start_virt = 0x0,
-		.size = 0x200000, /*2MB*/
-	},
-	{
-		.num = SCP_ISP_MEM2_ID,
-		.start_phys = 0x0,
-		.start_virt = 0x0,
-		.size = 0x800000, /*8MB*/
-	},
-	{
-		.num = SCP_DIP_MEM_ID,
-		.start_phys = 0x0,
-		.start_virt = 0x0,
-		.size = 0x900000, /*9MB*/
-	},
-	{
-		.num = SCP_MDP_MEM_ID,
-		.start_phys = 0x0,
-		.start_virt = 0x0,
-		.size = 0x600000, /*6MB*/
-	},
-	{
-		.num = SCP_FD_MEM_ID,
-		.start_phys = 0x0,
-		.start_virt = 0x0,
-		.size = 0x100000, /*1MB*/
+		.size = 0x1400000,  /*20MB*/
 	},
 };
 
