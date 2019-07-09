@@ -373,9 +373,9 @@ static int scp_reserve_mem_init(struct mtk_scp *scp)
 
 	dev_info(scp->dev,
 		 "phys:0x%llx - 0x%llx (0x%llx)\n",
-		 (unsigned long long)scp_mem_base_phys,
-		 (unsigned long long)(scp_mem_base_phys + scp_mem_size),
-		 (unsigned long long)scp_mem_size);
+		 scp_mem_base_phys,
+		 scp_mem_base_phys + scp_mem_size,
+		 scp_mem_size);
 	accumlate_memory_size = 0;
 	for (id = 0; id < SCP_NUMS_MEM_ID; id++) {
 		scp_reserve_mblock[id].start_phys =
@@ -383,11 +383,10 @@ static int scp_reserve_mem_init(struct mtk_scp *scp)
 		accumlate_memory_size += scp_reserve_mblock[id].size;
 		dev_info(scp->dev,
 			 "[reserve_mem:%d]: phys:0x%llx - 0x%llx (0x%llx)\n",
-			 id,
-			 (unsigned long long)scp_reserve_mblock[id].start_phys,
-			 (unsigned long long)(scp_reserve_mblock[id].start_phys +
-				 scp_reserve_mblock[id].size),
-			 (unsigned long long)scp_reserve_mblock[id].size);
+			 id, scp_reserve_mblock[id].start_phys,
+			 scp_reserve_mblock[id].start_phys +
+				 scp_reserve_mblock[id].size,
+			 scp_reserve_mblock[id].size);
 	}
 	return 0;
 }
@@ -402,9 +401,9 @@ static int scp_reserve_memory_ioremap(struct mtk_scp *scp)
 
 	dev_info(scp->dev,
 		 "virt:0x%llx - 0x%llx (0x%llx)\n",
-		(unsigned long long)scp_mem_base_virt,
-		(unsigned long long)(scp_mem_base_virt + scp_mem_size),
-		(unsigned long long)scp_mem_size);
+		(phys_addr_t)scp_mem_base_virt,
+		(phys_addr_t)scp_mem_base_virt + (phys_addr_t)scp_mem_size,
+		scp_mem_size);
 	for (id = 0; id < SCP_NUMS_MEM_ID; id++) {
 		scp_reserve_mblock[id].start_virt =
 			scp_mem_base_virt + accumlate_memory_size;
