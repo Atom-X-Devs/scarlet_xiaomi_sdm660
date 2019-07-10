@@ -31,21 +31,15 @@ def parse_arguments():
 
     Returns:
         log_level: A logging level to filter log output.
-        source_directory: The kernel source directory.
-        kbuild_output_directory: The directory to search for .cmd files.
+        directory: The directory to search for .cmd files.
         output: Where to write the compile-commands JSON file.
     """
     usage = 'Creates a compile_commands.json database from kernel .cmd files'
     parser = argparse.ArgumentParser(description=usage)
 
-    directory_help = ('Path to the kernel source directory '
+    directory_help = ('Path to the kernel source directory to search '
                       '(defaults to the working directory)')
     parser.add_argument('-d', '--directory', type=str, help=directory_help)
-    kbuild_output_directory_help = ('Path to the directory to search for '
-                                    '.cmd files '
-                      '(defaults to the kernel source directory)')
-    parser.add_argument('-k', '--kbuild-output-directory', type=str,
-                        help=kbuild_output_directory_help)
 
     output_help = ('The location to write compile_commands.json (defaults to '
                    'compile_commands.json in the search directory)')
@@ -64,14 +58,11 @@ def parse_arguments():
     if log_level not in _VALID_LOG_LEVELS:
         raise ValueError('%s is not a valid log level' % log_level)
 
-    source_directory = args.directory or os.getcwd()
-    output = args.output or os.path.join(source_directory, _DEFAULT_OUTPUT)
-    source_directory = os.path.abspath(source_directory)
+    directory = args.directory or os.getcwd()
+    output = args.output or os.path.join(directory, _DEFAULT_OUTPUT)
+    directory = os.path.abspath(directory)
 
-    kbuild_output_directory = args.kbuild_output_directory or source_directory
-    kbuild_output_directory = os.path.abspath(kbuild_output_directory)
-
-    return log_level, source_directory, kbuild_output_directory, output
+    return log_level, directory, output
 
 
 def process_line(root_directory, file_directory, command_prefix, relative_path):
@@ -118,8 +109,7 @@ def process_line(root_directory, file_directory, command_prefix, relative_path):
 
 def main():
     """Walks through the directory and finds and parses .cmd files."""
-    log_level, source_directory, kbuild_output_directory, output = \
-        parse_arguments()
+    log_level, directory, output = parse_arguments()
 
     level = getattr(logging, log_level)
     logging.basicConfig(format='%(levelname)s: %(message)s', level=level)
@@ -128,7 +118,7 @@ def main():
     line_matcher = re.compile(_LINE_PATTERN)
 
     compile_commands = []
-    for dirpath, _, filenames in os.walk(kbuild_output_directory):
+    for dirpath, _, filenames in os.walk(directory):
         for filename in filenames:
             if not filename_matcher.match(filename):
                 continue
@@ -141,7 +131,7 @@ def main():
                         continue
 
                     try:
-                        entry = process_line(source_directory, dirpath,
+                        entry = process_line(directory, dirpath,
                                              result.group(1), result.group(2))
                         compile_commands.append(entry)
                     except ValueError as err:
