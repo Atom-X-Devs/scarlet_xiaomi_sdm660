@@ -188,6 +188,10 @@ static int rtl8211e_config_init(struct phy_device *phydev)
 	int ret = 0, oldpage;
 	u16 val;
 
+	ret = genphy_config_init(phydev);
+	if (ret < 0)
+		return ret;
+
 	/* enable TX/RX delay for rgmii-* modes, and disable them for rgmii. */
 	switch (phydev->interface) {
 	case PHY_INTERFACE_MODE_RGMII:
