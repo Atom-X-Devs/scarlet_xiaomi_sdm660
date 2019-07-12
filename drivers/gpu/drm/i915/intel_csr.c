@@ -289,9 +289,16 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 	uint32_t i;
 	uint32_t *dmc_payload;
 	uint32_t required_version;
+	size_t fsize;
 
 	if (!fw)
 		return NULL;
+
+	fsize = sizeof(struct intel_css_header) +
+		sizeof(struct intel_package_header) +
+		sizeof(struct intel_dmc_header);
+	if (fsize > fw->size)
+		goto error_truncated;
 
 	/* Extract CSS Header information*/
 	css_header = (struct intel_css_header *)fw->data;
@@ -371,6 +378,9 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 	/* Convert dmc_offset into number of bytes. By default it is in dwords*/
 	dmc_offset *= 4;
 	readcount += dmc_offset;
+	fsize += dmc_offset;
+	if (fsize > fw->size)
+		goto error_truncated;
 
 	/* Extract dmc_header information. */
 	dmc_header = (struct intel_dmc_header *)&fw->data[readcount];
@@ -402,6 +412,10 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 
 	/* fw_size is in dwords, so multiplied by 4 to convert into bytes. */
 	nbytes = dmc_header->fw_size * 4;
+	fsize += nbytes;
+	if (fsize > fw->size)
+		goto error_truncated;
+
 	if (INTEL_GEN(dev_priv) >= 11)
 		max_fw_size = ICL_CSR_MAX_FW_SIZE;
 	else if (IS_CANNONLAKE(dev_priv) || IS_GEMINILAKE(dev_priv))
@@ -423,6 +437,10 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 	}
 
 	return memcpy(dmc_payload, &fw->data[readcount], nbytes);
+
+error_truncated:
+	DRM_ERROR("Truncated DMC firmware, rejecting.\n");
+	return NULL;
 }
 
 static void csr_load_work_fn(struct work_struct *work)
