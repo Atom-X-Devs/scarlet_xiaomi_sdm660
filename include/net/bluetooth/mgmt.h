@@ -707,7 +707,13 @@ struct mgmt_rp_read_supported_capabilities {
 	__u8 wide_band_speech;
 } __packed;
 
-#define MGMT_OP_GET_PHY_CONFIGURATION	0x0048
+#define MGMT_OP_SET_KERNEL_DEBUG			0x0048
+#define MGMT_SET_KERNEL_DEBUG_SIZE			1
+struct mgmt_cp_set_kernel_debug {
+	__u8	enabled;
+} __packed;
+
+#define MGMT_OP_GET_PHY_CONFIGURATION	0x0049
 struct mgmt_rp_get_phy_confguration {
 	__le32	supported_phys;
 	__le32	configurable_phys;
@@ -744,7 +750,7 @@ struct mgmt_rp_get_phy_confguration {
 #define MGMT_PHY_LE_RX_MASK (MGMT_PHY_LE_1M_RX | MGMT_PHY_LE_2M_RX | \
 			     MGMT_PHY_LE_CODED_RX)
 
-#define MGMT_OP_SET_PHY_CONFIGURATION	0x0049
+#define MGMT_OP_SET_PHY_CONFIGURATION	0x0050
 struct mgmt_cp_set_phy_confguration {
 	__le32	selected_phys;
 } __packed;
