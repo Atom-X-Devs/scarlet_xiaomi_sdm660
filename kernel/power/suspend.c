@@ -120,48 +120,43 @@ static int s2idle_enter(void)
 static int s2idle_loop(void)
 {
 	int ret = 0;
+	int error;
+
+	dpm_noirq_begin();
+	error = dpm_noirq_suspend_devices(PMSG_SUSPEND);
+	if (error)
+		goto resume;
+
 	pm_pr_dbg("suspend-to-idle\n");
 
+	/*
+	 * Suspend-to-idle equals:
+	 * frozen processes + suspended devices + idle processors.
+	 * Thus s2idle_enter() should be called right after all devices have
+	 * been suspended.
+	 *
+	 * Wakeups during the noirq suspend of devices may be spurious, so try
+	 * to avoid them upfront.
+	 */
 	for (;;) {
-		int error;
-
-		dpm_noirq_begin();
-
-		/*
-		 * Suspend-to-idle equals
-		 * frozen processes + suspended devices + idle processors.
-		 * Thus s2idle_enter() should be called right after
-		 * all devices have been suspended.
-		 *
-		 * Wakeups during the noirq suspend of devices may be spurious,
-		 * so prevent them from terminating the loop right away.
-		 */
-		error = dpm_noirq_suspend_devices(PMSG_SUSPEND);
-		if (!error)
-			ret = s2idle_enter();
-		else if (error == -EBUSY && pm_wakeup_pending())
-			error = 0;
-
-		if (!error && s2idle_ops && s2idle_ops->wake)
+		if (s2idle_ops && s2idle_ops->wake)
 			s2idle_ops->wake();
 
-		dpm_noirq_resume_devices(PMSG_RESUME);
-
-		dpm_noirq_end();
-
-		if (error)
-			break;
-
-		if (s2idle_ops && s2idle_ops->sync)
-			s2idle_ops->sync();
-
-		if (ret < 0 || pm_wakeup_pending())
+		if (pm_wakeup_pending())
 			break;
 
 		pm_wakeup_clear(false);
+
+		ret = s2idle_enter();
+		if (ret < 0)
+			break;
 	}
 
 	pm_pr_dbg("resume from suspend-to-idle\n");
+
+resume:
+	dpm_noirq_resume_devices(PMSG_RESUME);
+	dpm_noirq_end();
 	return ret;
 }
 
