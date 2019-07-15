@@ -1178,7 +1178,7 @@ static char *chromeos_args(unsigned argc, char **argv, struct verity_args *args)
 	args->data_block_size_bits = 12;
 	args->hash_block_size_bits = 12;
 	for (i = 0; i < argc; ++i) {
-		DMWARN("Argument %d: '%s'", i, argv[i]);
+		DMDEBUG("Argument %d: '%s'", i, argv[i]);
 		splitarg(argv[i], &key, &val);
 		if (!key) {
 			DMWARN("Bad argument %d: missing key?", i);
