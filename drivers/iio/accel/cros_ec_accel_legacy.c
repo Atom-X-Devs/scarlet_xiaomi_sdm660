@@ -94,7 +94,8 @@ static int cros_ec_accel_legacy_read(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_CALIBBIAS:
 		/* Calibration not supported. */
 		*val = 0;
-		return IIO_VAL_INT;
+		ret = IIO_VAL_INT;
+		break;
 	default:
 		ret = cros_ec_sensors_core_read(st, chan, val, val2,
 				mask);
