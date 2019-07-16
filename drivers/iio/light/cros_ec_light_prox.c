@@ -43,6 +43,8 @@ static void cros_ec_light_channel_common(struct iio_chan_spec *channel)
 	channel->info_mask_shared_by_all =
 		BIT(IIO_CHAN_INFO_SAMP_FREQ) |
 		BIT(IIO_CHAN_INFO_FREQUENCY);
+	channel->info_mask_shared_by_all_available =
+		BIT(IIO_CHAN_INFO_SAMP_FREQ);
 	channel->info_mask_separate =
 		BIT(IIO_CHAN_INFO_RAW) |
 		BIT(IIO_CHAN_INFO_CALIBBIAS) |
@@ -357,6 +359,7 @@ done:
 static const struct iio_info cros_ec_light_prox_info = {
 	.read_raw = &cros_ec_light_prox_read,
 	.write_raw = &cros_ec_light_prox_write,
+	.read_avail = &cros_ec_sensors_core_read_avail,
 };
 
 
