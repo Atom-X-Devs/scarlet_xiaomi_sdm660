@@ -247,6 +247,9 @@ struct adv_info {
 #define DEFAULT_CONN_INFO_MIN_AGE	1000
 #define DEFAULT_CONN_INFO_MAX_AGE	3000
 
+/* Default authenticated payload timeout 30s */
+#define DEFAULT_AUTH_PAYLOAD_TIMEOUT   0x0bb8
+
 struct amp_assoc {
 	__u16	len;
 	__u16	offset;
@@ -326,6 +329,8 @@ struct hci_dev {
 	__u16		discov_interleaved_timeout;
 	__u16		conn_info_min_age;
 	__u16		conn_info_max_age;
+	__u16		auth_payload_timeout;
+	__u8		min_enc_key_size;
 	__u8		ssp_debug_mode;
 	__u8		hw_error_code;
 	__u32		clock;
