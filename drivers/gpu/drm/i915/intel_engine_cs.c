@@ -827,26 +827,16 @@ static inline uint32_t
 read_subslice_reg(struct drm_i915_private *dev_priv, int slice,
 		  int subslice, i915_reg_t reg)
 {
-	uint32_t mcr_slice_subslice_mask;
-	uint32_t mcr_slice_subslice_select;
-	uint32_t default_mcr_s_ss_select;
-	uint32_t mcr;
-	uint32_t ret;
+	uint32_t mcr_mask, mcr_ss, mcr, old_mcr, val;
 	enum forcewake_domains fw_domains;
 
 	if (INTEL_GEN(dev_priv) >= 11) {
-		mcr_slice_subslice_mask = GEN11_MCR_SLICE_MASK |
-					  GEN11_MCR_SUBSLICE_MASK;
-		mcr_slice_subslice_select = GEN11_MCR_SLICE(slice) |
-					    GEN11_MCR_SUBSLICE(subslice);
+		mcr_mask = GEN11_MCR_SLICE_MASK | GEN11_MCR_SUBSLICE_MASK;
+		mcr_ss = GEN11_MCR_SLICE(slice) | GEN11_MCR_SUBSLICE(subslice);
 	} else {
-		mcr_slice_subslice_mask = GEN8_MCR_SLICE_MASK |
-					  GEN8_MCR_SUBSLICE_MASK;
-		mcr_slice_subslice_select = GEN8_MCR_SLICE(slice) |
-					    GEN8_MCR_SUBSLICE(subslice);
+		mcr_mask = GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK;
+		mcr_ss = GEN8_MCR_SLICE(slice) | GEN8_MCR_SUBSLICE(subslice);
 	}
-
-	default_mcr_s_ss_select = intel_calculate_mcr_s_ss_select(dev_priv);
 
 	fw_domains = intel_uncore_forcewake_for_reg(dev_priv, reg,
 						    FW_REG_READ);
@@ -857,26 +847,23 @@ read_subslice_reg(struct drm_i915_private *dev_priv, int slice,
 	spin_lock_irq(&dev_priv->uncore.lock);
 	intel_uncore_forcewake_get__locked(dev_priv, fw_domains);
 
-	mcr = I915_READ_FW(GEN8_MCR_SELECTOR);
+	old_mcr = mcr = I915_READ_FW(GEN8_MCR_SELECTOR);
 
-	WARN_ON_ONCE((mcr & mcr_slice_subslice_mask) !=
-		     default_mcr_s_ss_select);
-
-	mcr &= ~mcr_slice_subslice_mask;
-	mcr |= mcr_slice_subslice_select;
+	mcr &= ~mcr_mask;
+	mcr |= mcr_ss;
 	I915_WRITE_FW(GEN8_MCR_SELECTOR, mcr);
 
-	ret = I915_READ_FW(reg);
+	val = I915_READ_FW(reg);
 
-	mcr &= ~mcr_slice_subslice_mask;
-	mcr |= default_mcr_s_ss_select;
+	mcr &= ~mcr_mask;
+	mcr |= old_mcr & mcr_mask;
 
 	I915_WRITE_FW(GEN8_MCR_SELECTOR, mcr);
 
 	intel_uncore_forcewake_put__locked(dev_priv, fw_domains);
 	spin_unlock_irq(&dev_priv->uncore.lock);
 
-	return ret;
+	return val;
 }
 
 /* NB: please notice the memset */
