@@ -79,7 +79,8 @@ static int cros_ec_read_event_config(struct iio_dev *indio_dev,
 
 	mutex_lock(&st->core.cmd_lock);
 	st->core.param.cmd = MOTIONSENSE_CMD_LIST_ACTIVITIES;
-	if (cros_ec_motion_send_host_cmd(&st->core, 0) == EC_RES_SUCCESS) {
+	ret = cros_ec_motion_send_host_cmd(&st->core, 0);
+	if (!ret) {
 		switch (chan->channel2) {
 		case IIO_MOD_STILL:
 			ret = !!(st->core.resp->list_activities.enabled &
@@ -94,8 +95,6 @@ static int cros_ec_read_event_config(struct iio_dev *indio_dev,
 				 chan->channel2);
 			ret = -EINVAL;
 		}
-	} else {
-		ret = -EIO;
 	}
 	mutex_unlock(&st->core.cmd_lock);
 	return ret;
