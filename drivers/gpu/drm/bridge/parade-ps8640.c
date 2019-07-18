@@ -22,11 +22,11 @@
 #include <asm/unaligned.h>
 #include <drm/drm_panel.h>
 
-#include <drmP.h>
-#include <drm_atomic_helper.h>
-#include <drm_crtc_helper.h>
-#include <drm_edid.h>
-#include <drm_mipi_dsi.h>
+#include <drm/drmP.h>
+#include <drm/drm_atomic_helper.h>
+#include <drm/drm_crtc_helper.h>
+#include <drm/drm_edid.h>
+#include <drm/drm_mipi_dsi.h>
 
 #define PAGE1_VSTART		0x6b
 #define PAGE2_SPI_CFG3		0x82
@@ -367,7 +367,7 @@ static int ps8640_get_modes(struct drm_connector *connector)
 		goto out;
 
 	ps_bridge->edid = edid;
-	drm_mode_connector_update_edid_property(connector, ps_bridge->edid);
+	drm_connector_update_edid_property(connector, ps_bridge->edid);
 	num_modes = drm_add_edid_modes(connector, ps_bridge->edid);
 
 out:
@@ -388,7 +388,7 @@ static enum drm_connector_status ps8640_detect(struct drm_connector *connector,
 }
 
 static const struct drm_connector_funcs ps8640_connector_funcs = {
-	.dpms = drm_atomic_helper_connector_dpms,
+	.dpms = drm_helper_connector_dpms,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.detect = ps8640_detect,
 	.reset = drm_atomic_helper_connector_reset,
@@ -422,7 +422,7 @@ int ps8640_bridge_attach(struct drm_bridge *bridge)
 				 &ps8640_connector_helper_funcs);
 
 	ps_bridge->connector.dpms = DRM_MODE_DPMS_ON;
-	drm_mode_connector_attach_encoder(&ps_bridge->connector,
+	drm_connector_attach_encoder(&ps_bridge->connector,
 					  bridge->encoder);
 
 	if (ps_bridge->panel)
@@ -939,7 +939,7 @@ static int ps8640_probe(struct i2c_client *client,
 	if (panel_node) {
 		ps_bridge->panel = of_drm_find_panel(panel_node);
 		of_node_put(panel_node);
-		if (!ps_bridge->panel)
+		if (IS_ERR_OR_NULL(ps_bridge->panel))
 			return -EPROBE_DEFER;
 	}
 
@@ -1022,11 +1022,7 @@ static int ps8640_probe(struct i2c_client *client,
 		goto exit_remove_sysfs;
 	}
 
-	ret = drm_bridge_add(&ps_bridge->bridge);
-	if (ret) {
-		dev_err(dev, "Failed to add bridge: %d\n", ret);
-		goto exit_remove_sysfs;
-	}
+	drm_bridge_add(&ps_bridge->bridge);
 	return 0;
 
 exit_remove_sysfs:
