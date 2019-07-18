@@ -114,8 +114,12 @@
 	sound: mt8183-mt6358-ts3a227e-max98357a {
 		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&aud_pins>;
+		pinctrl-names = "default",
+				"aud_tdm_out_on",
+				"aud_tdm_out_off";
+		pinctrl-0 = <&aud_pins_default>;
+		pinctrl-1 = <&aud_pins_tdm_out_on>;
+		pinctrl-2 = <&aud_pins_tdm_out_off>;
 		status = "okay";
 	};
 
@@ -350,7 +354,7 @@
 };
 
 &pio {
-	aud_pins: audiopins {
+	aud_pins_default: audiopins {
 		pins_bus {
 			pinmux = <PINMUX_GPIO97__FUNC_I2S2_MCK>,
 				<PINMUX_GPIO98__FUNC_I2S2_BCK>,
@@ -368,13 +372,33 @@
 				<PINMUX_GPIO140__FUNC_AUD_CLK_MISO>,
 				<PINMUX_GPIO141__FUNC_AUD_SYNC_MISO>,
 				<PINMUX_GPIO142__FUNC_AUD_DAT_MISO0>,
-				<PINMUX_GPIO143__FUNC_AUD_DAT_MISO1>, /*mtkaif3.0*/
-				<PINMUX_GPIO169__FUNC_TDM_BCK_2ND>,
+				<PINMUX_GPIO143__FUNC_AUD_DAT_MISO1>; /*mtkaif3.0*/
+		};
+	};
+
+	aud_pins_tdm_out_on: audiotdmouton {
+		pins_bus {
+			pinmux = <PINMUX_GPIO169__FUNC_TDM_BCK_2ND>,
 				<PINMUX_GPIO170__FUNC_TDM_LRCK_2ND>,
 				<PINMUX_GPIO171__FUNC_TDM_DATA0_2ND>,
 				<PINMUX_GPIO172__FUNC_TDM_DATA1_2ND>,
 				<PINMUX_GPIO173__FUNC_TDM_DATA2_2ND>,
 				<PINMUX_GPIO10__FUNC_TDM_DATA3>; /*8ch-i2s to it6505*/
+			drive-strength = <MTK_DRIVE_6mA>;
+		};
+	};
+
+	aud_pins_tdm_out_off: audiotdmoutoff {
+		pins_bus {
+			pinmux = <PINMUX_GPIO169__FUNC_GPIO169>,
+				<PINMUX_GPIO170__FUNC_GPIO170>,
+				<PINMUX_GPIO171__FUNC_GPIO171>,
+				<PINMUX_GPIO172__FUNC_GPIO172>,
+				<PINMUX_GPIO173__FUNC_GPIO173>,
+				<PINMUX_GPIO10__FUNC_GPIO10>;
+			input-enable;
+			bias-pull-down;
+			drive-strength = <MTK_DRIVE_2mA>;
 		};
 	};
 
