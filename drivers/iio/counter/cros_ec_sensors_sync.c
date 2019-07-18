@@ -123,8 +123,6 @@ static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
 	channel->ext_info = cros_ec_sensors_ext_info;
 	channel->scan_type.sign = 'u';
 
-	state->core.calib[0] = 0;
-
 	/* sensor specific */
 	switch (state->core.type) {
 	case MOTIONSENSE_TYPE_SYNC:
