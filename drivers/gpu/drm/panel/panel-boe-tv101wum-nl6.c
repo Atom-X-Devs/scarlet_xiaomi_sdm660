@@ -644,6 +644,7 @@ static const struct drm_panel_funcs boe_panel_funcs = {
 static int boe_panel_add(struct boe_panel *boe)
 {
 	struct device *dev = &boe->dsi->dev;
+	int ret;
 
 	boe->avdd = devm_regulator_get(dev, "avdd");
 	if (IS_ERR(boe->avdd))
@@ -671,6 +672,11 @@ static int boe_panel_add(struct boe_panel *boe)
 		return PTR_ERR(boe->backlight);
 
 	drm_panel_init(&boe->base);
+	ret = of_drm_get_panel_orientation(dev->of_node,
+					   &boe->base.orientation);
+	if (ret < 0)
+		return ret;
+
 	boe->base.funcs = &boe_panel_funcs;
 	boe->base.dev = &boe->dsi->dev;
 
