@@ -92,14 +92,6 @@
 
 struct ath10k;
 
-enum ath10k_bus {
-	ATH10K_BUS_PCI,
-	ATH10K_BUS_AHB,
-	ATH10K_BUS_SDIO,
-	ATH10K_BUS_USB,
-	ATH10K_BUS_SNOC,
-};
-
 static inline const char *ath10k_bus_str(enum ath10k_bus bus)
 {
 	switch (bus) {
@@ -414,6 +406,14 @@ struct ath10k_peer {
 
 	/* protected by ar->data_lock */
 	struct ieee80211_key_conf *keys[WMI_MAX_KEY_INDEX + 1];
+	union htt_rx_pn_t tids_last_pn[ATH10K_TXRX_NUM_EXT_TIDS];
+	bool tids_last_pn_valid[ATH10K_TXRX_NUM_EXT_TIDS];
+	union htt_rx_pn_t frag_tids_last_pn[ATH10K_TXRX_NUM_EXT_TIDS];
+	u32 frag_tids_seq[ATH10K_TXRX_NUM_EXT_TIDS];
+	struct {
+		enum htt_security_types sec_type;
+		int pn_len;
+	} rx_pn[ATH10K_HTT_TXRX_PEER_SECURITY_MAX];
 };
 
 struct ath10k_txq {
@@ -461,6 +461,37 @@ struct ath10k_sta_tid_stats {
 	unsigned long int rx_pkt_amsdu[ATH10K_AMSDU_SUBFRM_NUM_MAX];
 };
 
+enum ath10k_counter_type {
+	ATH10K_COUNTER_TYPE_BYTES,
+	ATH10K_COUNTER_TYPE_PKTS,
+	ATH10K_COUNTER_TYPE_MAX,
+};
+
+enum ath10k_stats_type {
+	ATH10K_STATS_TYPE_SUCC,
+	ATH10K_STATS_TYPE_FAIL,
+	ATH10K_STATS_TYPE_RETRY,
+	ATH10K_STATS_TYPE_AMPDU,
+	ATH10K_STATS_TYPE_MAX,
+};
+
+struct ath10k_htt_data_stats {
+	u64 legacy[ATH10K_COUNTER_TYPE_MAX][ATH10K_LEGACY_NUM];
+	u64 ht[ATH10K_COUNTER_TYPE_MAX][ATH10K_HT_MCS_NUM];
+	u64 vht[ATH10K_COUNTER_TYPE_MAX][ATH10K_VHT_MCS_NUM];
+	u64 bw[ATH10K_COUNTER_TYPE_MAX][ATH10K_BW_NUM];
+	u64 nss[ATH10K_COUNTER_TYPE_MAX][ATH10K_NSS_NUM];
+	u64 gi[ATH10K_COUNTER_TYPE_MAX][ATH10K_GI_NUM];
+	u64 rate_table[ATH10K_COUNTER_TYPE_MAX][ATH10K_RATE_TABLE_NUM];
+};
+
+struct ath10k_htt_tx_stats {
+	struct ath10k_htt_data_stats stats[ATH10K_STATS_TYPE_MAX];
+	u64 tx_duration;
+	u64 ba_fails;
+	u64 ack_fails;
+};
+
 struct ath10k_sta {
 	struct ath10k_vif *arvif;
 
@@ -474,6 +505,7 @@ struct ath10k_sta {
 
 	struct work_struct update_wk;
 	u64 rx_duration;
+	struct ath10k_htt_tx_stats *tx_stats;
 
 #ifdef CONFIG_MAC80211_DEBUGFS
 	/* protected by conf_mutex */
@@ -482,6 +514,8 @@ struct ath10k_sta {
 	/* Protected with ar->data_lock */
 	struct ath10k_sta_tid_stats tid_stats[IEEE80211_NUM_TIDS + 1];
 #endif
+	/* Protected with ar->data_lock */
+	u32 peer_ps_state;
 };
 
 #define ATH10K_VDEV_SETUP_TIMEOUT_HZ (5 * HZ)
@@ -591,6 +625,7 @@ struct ath10k_debug {
 	bool fw_stats_done;
 
 	unsigned long htt_stats_mask;
+	unsigned long reset_htt_stats;
 	struct delayed_work htt_stats_dwork;
 	struct ath10k_dfs_stats dfs_stats;
 	struct ath_dfs_pool_stats dfs_pool_stats;
@@ -607,6 +642,7 @@ struct ath10k_debug {
 	u32 reg_addr;
 	u32 nf_cal_period;
 	void *cal_data;
+	u32 enable_extd_tx_stats;
 };
 
 enum ath10k_state {
@@ -733,6 +769,9 @@ enum ath10k_fw_features {
 
 	/* Firmware load is done externally, not by bmi */
 	ATH10K_FW_FEATURE_NON_BMI = 19,
+
+	/* Firmware sends only one chan_info event per channel */
+	ATH10K_FW_FEATURE_SINGLE_CHAN_INFO_PER_CHANNEL = 20,
 
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,
@@ -880,6 +919,18 @@ struct ath10k_per_peer_tx_stats {
 	u32	reserved2;
 };
 
+enum ath10k_dev_type {
+	ATH10K_DEV_TYPE_LL,
+	ATH10K_DEV_TYPE_HL,
+};
+
+struct ath10k_bus_params {
+	u32 chip_id;
+	enum ath10k_dev_type dev_type;
+	bool link_can_suspend;
+	bool hl_msdu_ids;
+};
+
 struct ath10k {
 	struct ath_common ath_common;
 	struct ieee80211_hw *hw;
@@ -890,6 +941,7 @@ struct ath10k {
 	enum ath10k_hw_rev hw_rev;
 	u16 dev_id;
 	u32 chip_id;
+	enum ath10k_dev_type dev_type;
 	u32 target_version;
 	u8 fw_version_major;
 	u32 fw_version_minor;
@@ -908,6 +960,8 @@ struct ath10k {
 	u32 low_5ghz_chan;
 	u32 high_5ghz_chan;
 	bool ani_enabled;
+	/* protected by conf_mutex */
+	u8 ps_state_enable;
 
 	bool p2p;
 
@@ -1013,6 +1067,9 @@ struct ath10k {
 
 	/* prevents concurrent FW reconfiguration */
 	struct mutex conf_mutex;
+
+	/* protects coredump data */
+	struct mutex dump_mutex;
 
 	/* protects shared structure data */
 	spinlock_t data_lock;
@@ -1138,6 +1195,7 @@ struct ath10k {
 	enum ath10k_radar_confirmation_state radar_conf_state;
 	struct ath10k_radar_found_info last_radar_info;
 	struct work_struct radar_confirmation_work;
+	struct ath10k_bus_params bus_param;
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
@@ -1169,7 +1227,8 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 		      const struct ath10k_fw_components *fw_components);
 int ath10k_wait_for_suspend(struct ath10k *ar, u32 suspend_opt);
 void ath10k_core_stop(struct ath10k *ar);
-int ath10k_core_register(struct ath10k *ar, u32 chip_id);
+int ath10k_core_register(struct ath10k *ar,
+			 const struct ath10k_bus_params *bus_params);
 void ath10k_core_unregister(struct ath10k *ar);
 int ath10k_core_fetch_board_file(struct ath10k *ar);
 void ath10k_core_free_board_files(struct ath10k *ar);

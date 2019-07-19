@@ -120,6 +120,7 @@ static const struct adreno_info gpulist[] = {
 			[ADRENO_FW_GMU] = "a630_gmu.bin",
 		},
 		.gmem = SZ_1M,
+		.inactive_period = DRM_MSM_INACTIVE_PERIOD,
 		.init = a6xx_gpu_init,
 	},
 };
@@ -195,7 +196,7 @@ struct msm_gpu *adreno_load_gpu(struct drm_device *dev)
 
 	ret = pm_runtime_get_sync(&pdev->dev);
 	if (ret < 0) {
-		dev_err(dev->dev, "Couldn't power up the GPU: %d\n", ret);
+		DRM_DEV_ERROR(dev->dev, "Couldn't power up the GPU: %d\n", ret);
 		return NULL;
 	}
 
@@ -204,7 +205,7 @@ struct msm_gpu *adreno_load_gpu(struct drm_device *dev)
 	mutex_unlock(&dev->struct_mutex);
 	pm_runtime_put_autosuspend(&pdev->dev);
 	if (ret) {
-		dev_err(dev->dev, "gpu hw init failed: %d\n", ret);
+		DRM_DEV_ERROR(dev->dev, "gpu hw init failed: %d\n", ret);
 		return NULL;
 	}
 
@@ -252,7 +253,7 @@ static int find_chipid(struct device *dev, struct adreno_rev *rev)
 	/* and if that fails, fall back to legacy "qcom,chipid" property: */
 	ret = of_property_read_u32(node, "qcom,chipid", &chipid);
 	if (ret) {
-		dev_err(dev, "could not parse qcom,chipid: %d\n", ret);
+		DRM_DEV_ERROR(dev, "could not parse qcom,chipid: %d\n", ret);
 		return ret;
 	}
 

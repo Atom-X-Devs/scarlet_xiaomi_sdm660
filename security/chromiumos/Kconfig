@@ -1,7 +1,7 @@
 config SECURITY_CHROMIUMOS
 	bool "Chromium OS Security Module"
 	depends on SECURITY
-	depends on X86_64 || ARM64
+	depends on X86_64 || ARM64 || ARM
 	help
 	  The purpose of the Chromium OS security module is to reduce attacking
 	  surface by preventing access to general purpose access modes not
@@ -43,6 +43,11 @@ config ALT_SYSCALL_CHROMIUMOS
 	  Register restricted, alternate syscall tables used by Chromium OS
 	  using the alt-syscall infrastructure.  Alternate syscall tables
 	  can be selected with prctl(PR_ALT_SYSCALL).
+
+config ALT_SYSCALL_CHROMIUMOS_LEGACY_API
+       bool
+       default y
+       depends on ALT_SYSCALL_CHROMIUMOS && ARM
 
 config SECURITY_CHROMIUMOS_READONLY_PROC_SELF_MEM
 	bool "Force /proc/<pid>/mem paths to be read-only"

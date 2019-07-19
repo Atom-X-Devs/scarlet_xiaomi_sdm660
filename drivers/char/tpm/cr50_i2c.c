@@ -98,8 +98,7 @@ static int cr50_i2c_wait_tpm_ready(struct tpm_chip *chip)
 		msecs_to_jiffies(chip->timeout_a));
 
 	if (rc == 0) {
-		dev_err(&chip->dev, "Timeout waiting for TPM ready\n");
-		return -ETIMEDOUT;
+		dev_warn(&chip->dev, "Timeout waiting for TPM ready\n");
 	}
 	return (int)rc;
 }
@@ -253,8 +252,8 @@ static int cr50_i2c_write(struct tpm_chip *chip, u8 addr, u8 *buffer,
 	if (rc <= 0)
 		goto out;
 
-	/* Wait for TPM to be ready */
-	rc = cr50_i2c_wait_tpm_ready(chip);
+	/* Wait for TPM to be ready, ignore timeout */
+	cr50_i2c_wait_tpm_ready(chip);
 
 out:
 	cr50_i2c_disable_tpm_irq(chip);
@@ -423,6 +422,14 @@ static int cr50_i2c_tis_recv(struct tpm_chip *chip, u8 *buf, size_t buf_len)
 	if (rc < 0)
 		goto out_err;
 
+	if (burstcnt > buf_len || burstcnt < TPM_HEADER_SIZE) {
+		dev_err(&chip->dev,
+			"Unexpected burstcnt: %zu (max=%zu, min=%d)\n",
+			burstcnt, buf_len, TPM_HEADER_SIZE);
+		rc = -EIO;
+		goto out_err;
+	}
+
 	/* Read first chunk of burstcnt bytes */
 	rc = cr50_i2c_read(chip, addr, buf, burstcnt);
 	if (rc < 0) {
@@ -545,7 +552,7 @@ static int cr50_i2c_tis_send(struct tpm_chip *chip, u8 *buf, size_t len)
 		dev_err(&chip->dev, "Start command failed\n");
 		goto out_err;
 	}
-	return sent;
+	return 0;
 
 out_err:
 	/* Abort current transaction if still pending */

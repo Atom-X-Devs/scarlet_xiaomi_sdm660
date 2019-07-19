@@ -160,6 +160,13 @@ config DRM_TTM
 	  GPU memory types. Will be enabled automatically if a device driver
 	  uses it.
 
+config DRM_VRAM_HELPER
+	tristate
+	depends on DRM
+	select DRM_TTM
+	help
+	  Helpers for VRAM memory management
+
 config DRM_GEM_CMA_HELPER
 	bool
 	depends on DRM
@@ -176,6 +183,12 @@ config DRM_KMS_CMA_HELPER
 	select FB_SYS_IMAGEBLIT
 	help
 	  Choose this if you need the KMS CMA helper functions
+
+config DRM_GEM_SHMEM_HELPER
+	bool
+	depends on DRM
+	help
+	  Choose this if you need the GEM shmem helper functions
 
 config DRM_VM
 	bool

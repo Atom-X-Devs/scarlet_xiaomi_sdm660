@@ -1219,7 +1219,7 @@ static u32 cfg80211_calculate_bitrate_he(struct rate_info *rate)
 	if (rate->he_dcm)
 		result /= 2;
 
-	return result;
+	return result / 10000;
 }
 
 u32 cfg80211_calculate_bitrate(struct rate_info *rate)
@@ -1418,6 +1418,8 @@ size_t ieee80211_ie_split_ric(const u8 *ies, size_t ielen,
 							  ies[pos + ext],
 							  ext == 2))
 					pos = skip_ie(ies, ielen, pos);
+				else
+					break;
 			}
 		} else {
 			pos = skip_ie(ies, ielen, pos);

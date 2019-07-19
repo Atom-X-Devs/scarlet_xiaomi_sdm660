@@ -201,7 +201,9 @@ sd_parent_degenerate(struct sched_domain *sd, struct sched_domain *parent)
 	return 1;
 }
 
+DEFINE_STATIC_KEY_FALSE(sched_energy_present);
 #if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
+DEFINE_MUTEX(sched_energy_mutex);
 bool sched_energy_update;
 
 static void free_pd(struct perf_domain *pd)
@@ -240,7 +242,7 @@ static struct perf_domain *pd_init(int cpu)
 	pd = kzalloc(sizeof(*pd), GFP_KERNEL);
 	if (!pd)
 		return NULL;
-	pd->obj = obj;
+	pd->em_pd = obj;
 
 	return pd;
 }
@@ -251,13 +253,13 @@ static void perf_domain_debug(const struct cpumask *cpu_map,
 	if (!sched_debug() || !pd)
 		return;
 
-	printk(KERN_DEBUG "root_domain %*pbl: ", cpumask_pr_args(cpu_map));
+	printk(KERN_DEBUG "root_domain %*pbl:", cpumask_pr_args(cpu_map));
 
 	while (pd) {
 		printk(KERN_CONT " pd%d:{ cpus=%*pbl nr_cstate=%d }",
 				cpumask_first(perf_domain_span(pd)),
 				cpumask_pr_args(perf_domain_span(pd)),
-				em_pd_nr_cap_states(pd->obj));
+				em_pd_nr_cap_states(pd->em_pd));
 		pd = pd->next;
 	}
 
@@ -272,9 +274,22 @@ static void destroy_perf_domain_rcu(struct rcu_head *rp)
 	free_pd(pd);
 }
 
+static void sched_energy_set(bool has_eas)
+{
+	if (!has_eas && static_branch_unlikely(&sched_energy_present)) {
+		if (sched_debug())
+			pr_info("%s: stopping EAS\n", __func__);
+		static_branch_disable_cpuslocked(&sched_energy_present);
+	} else if (has_eas && !static_branch_unlikely(&sched_energy_present)) {
+		if (sched_debug())
+			pr_info("%s: starting EAS\n", __func__);
+		static_branch_enable_cpuslocked(&sched_energy_present);
+	}
+}
+
 /*
  * EAS can be used on a root domain if it meets all the following conditions:
- *    1. the ENERGY_AWARE sched_feat is enabled;
+ *    1. an Energy Model (EM) is available;
  *    2. the SD_ASYM_CPUCAPACITY flag is set in the sched_domain hierarchy.
  *    3. the EM complexity is low enough to keep scheduling overheads low;
  *    4. schedutil is driving the frequency of all CPUs of the rd;
@@ -298,7 +313,7 @@ static void destroy_perf_domain_rcu(struct rcu_head *rp)
 #define EM_MAX_COMPLEXITY 2048
 
 extern struct cpufreq_governor schedutil_gov;
-static void build_perf_domains(const struct cpumask *cpu_map)
+static bool build_perf_domains(const struct cpumask *cpu_map)
 {
 	int i, nr_pd = 0, nr_cs = 0, nr_cpus = cpumask_weight(cpu_map);
 	struct perf_domain *pd = NULL, *tmp;
@@ -327,8 +342,12 @@ static void build_perf_domains(const struct cpumask *cpu_map)
 			goto free;
 		gov = policy->governor;
 		cpufreq_cpu_put(policy);
-		if (gov != &schedutil_gov)
+		if (gov != &schedutil_gov) {
+			if (rd->pd)
+				pr_warn("rd %*pbl: Disabling EAS, schedutil is mandatory\n",
+						cpumask_pr_args(cpu_map));
 			goto free;
+		}
 
 		/* Create the new pd and add it to the local list. */
 		tmp = pd_init(i);
@@ -342,13 +361,12 @@ static void build_perf_domains(const struct cpumask *cpu_map)
 		 * complexity check.
 		 */
 		nr_pd++;
-		nr_cs += em_pd_nr_cap_states(pd->obj);
+		nr_cs += em_pd_nr_cap_states(pd->em_pd);
 	}
 
 	/* Bail out if the Energy Model complexity is too high. */
 	if (nr_pd * (nr_cs + nr_cpus) > EM_MAX_COMPLEXITY) {
-		if (sched_debug())
-			pr_info("rd %*pbl: EM complexity is too high\n ",
+		WARN(1, "rd %*pbl: Failed to start EAS, EM complexity is too high\n",
 						cpumask_pr_args(cpu_map));
 		goto free;
 	}
@@ -361,7 +379,7 @@ static void build_perf_domains(const struct cpumask *cpu_map)
 	if (tmp)
 		call_rcu(&tmp->rcu, destroy_perf_domain_rcu);
 
-	return;
+	return !!pd;
 
 free:
 	free_pd(pd);
@@ -369,6 +387,8 @@ free:
 	rcu_assign_pointer(rd->pd, NULL);
 	if (tmp)
 		call_rcu(&tmp->rcu, destroy_perf_domain_rcu);
+
+	return false;
 }
 #else
 static void free_pd(struct perf_domain *pd) { }
@@ -659,7 +679,7 @@ cpu_attach_domain(struct sched_domain *sd, struct root_domain *rd, int cpu)
 }
 
 struct s_data {
-	struct sched_domain ** __percpu sd;
+	struct sched_domain * __percpu *sd;
 	struct root_domain	*rd;
 };
 
@@ -2103,6 +2123,7 @@ static int dattrs_equal(struct sched_domain_attr *cur, int idx_cur,
 void partition_sched_domains(int ndoms_new, cpumask_var_t doms_new[],
 			     struct sched_domain_attr *dattr_new)
 {
+	bool __maybe_unused has_eas = false;
 	int i, j, n;
 	int new_topology;
 
@@ -2166,14 +2187,17 @@ match2:
 	for (i = 0; i < ndoms_new; i++) {
 		for (j = 0; j < n && !sched_energy_update; j++) {
 			if (cpumask_equal(doms_new[i], doms_cur[j]) &&
-			    cpu_rq(cpumask_first(doms_cur[j]))->rd->pd)
+			    cpu_rq(cpumask_first(doms_cur[j]))->rd->pd) {
+				has_eas = true;
 				goto match3;
+			}
 		}
 		/* No match - add perf. domains for a new rd */
-		build_perf_domains(doms_new[i]);
+		has_eas |= build_perf_domains(doms_new[i]);
 match3:
 		;
 	}
+	sched_energy_set(has_eas);
 #endif
 
 	/* Remember the new sched domains: */

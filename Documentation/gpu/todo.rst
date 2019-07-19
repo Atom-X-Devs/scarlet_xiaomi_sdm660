@@ -215,14 +215,44 @@ Would be great to refactor this all into a set of small common helpers.
 
 Contact: Daniel Vetter
 
-Put a reservation_object into drm_gem_object
+Remove the ->gem_prime_res_obj callback
 --------------------------------------------
 
-This would remove the need for the ->gem_prime_res_obj callback. It would also
-allow us to implement generic helpers for waiting for a bo, allowing for quite a
-bit of refactoring in the various wait ioctl implementations.
+The ->gem_prime_res_obj callback can be removed from drivers by using the
+reservation_object in the drm_gem_object. It may also be possible to use the
+generic drm_gem_reservation_object_wait helper for waiting for a bo.
 
 Contact: Daniel Vetter
+
+Generic fbdev defio support
+---------------------------
+
+The defio support code in the fbdev core has some very specific requirements,
+which means drivers need to have a special framebuffer for fbdev. Which prevents
+us from using the generic fbdev emulation code everywhere. The main issue is
+that it uses some fields in struct page itself, which breaks shmem gem objects
+(and other things).
+
+Possible solution would be to write our own defio mmap code in the drm fbdev
+emulation. It would need to fully wrap the existing mmap ops, forwarding
+everything after it has done the write-protect/mkwrite trickery:
+
+- In the drm_fbdev_fb_mmap helper, if we need defio, change the
+  default page prots to write-protected with something like this::
+
+      vma->vm_page_prot = pgprot_wrprotect(vma->vm_page_prot);
+
+- Set the mkwrite and fsync callbacks with similar implementions to the core
+  fbdev defio stuff. These should all work on plain ptes, they don't actually
+  require a struct page.  uff. These should all work on plain ptes, they don't
+  actually require a struct page.
+
+- Track the dirty pages in a separate structure (bitfield with one bit per page
+  should work) to avoid clobbering struct page.
+
+Might be good to also have some igt testcases for this.
+
+Contact: Daniel Vetter, Noralf Tronnes
 
 idr_init_base()
 ---------------
@@ -233,6 +263,19 @@ is never used. Switching to idr_init_base() for these would make the idr more
 efficient.
 
 Contact: Daniel Vetter
+
+Defaults for .gem_prime_import and export
+-----------------------------------------
+
+Most drivers don't need to set drm_driver->gem_prime_import and
+->gem_prime_export now that drm_gem_prime_import() and drm_gem_prime_export()
+are the default.
+
+struct drm_gem_object_funcs
+---------------------------
+
+GEM objects can now have a function table instead of having the callbacks on the
+DRM driver struct. This is now the preferred way and drivers can be moved over.
 
 Core refactorings
 =================

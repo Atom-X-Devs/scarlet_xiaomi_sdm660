@@ -19,6 +19,7 @@
 #define _PCI_H_
 
 #include <linux/interrupt.h>
+#include <linux/mutex.h>
 
 #include "hw.h"
 #include "ce.h"
@@ -128,6 +129,10 @@ struct ath10k_pci {
 
 	/* Copy Engine used for Diagnostic Accesses */
 	struct ath10k_ce_pipe *ce_diag;
+	/* For protecting ce_diag */
+	struct mutex ce_diag_mutex;
+
+	struct work_struct dump_work;
 
 	struct ath10k_ce ce;
 	struct timer_list rx_post_retry;

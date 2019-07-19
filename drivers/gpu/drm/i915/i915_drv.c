@@ -185,6 +185,11 @@ intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 		DRM_DEBUG_KMS("Found Cannon Lake LP PCH (CNP-LP)\n");
 		WARN_ON(!IS_CANNONLAKE(dev_priv) && !IS_COFFEELAKE(dev_priv));
 		return PCH_CNP;
+	case INTEL_PCH_CMP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Comet Lake PCH (CMP)\n");
+		WARN_ON(!IS_COFFEELAKE(dev_priv));
+		/* CometPoint is CNP Compatible */
+		return PCH_CNP;
 	case INTEL_PCH_ICP_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ice Lake PCH\n");
 		WARN_ON(!IS_ICELAKE(dev_priv));
@@ -1443,6 +1448,7 @@ static int i915_driver_init_hw(struct drm_i915_private *dev_priv)
 
 	intel_uncore_sanitize(dev_priv);
 
+	intel_gt_init_workarounds(dev_priv);
 	i915_gem_load_init_fences(dev_priv);
 
 	/* On the 945G/GM, the chipset reports the MSI capability on the

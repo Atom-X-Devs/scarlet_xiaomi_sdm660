@@ -809,6 +809,7 @@ struct da7219_aad_priv;
 
 /* Private data */
 struct da7219_priv {
+	struct snd_soc_component *component;
 	struct da7219_aad_priv *aad;
 	struct da7219_pdata *pdata;
 
@@ -819,16 +820,17 @@ struct da7219_priv {
 	struct mutex pll_lock;
 
 #ifdef CONFIG_COMMON_CLK
-	struct clk_hw dai_clks_hw;
+	struct clk_hw dai_clks_hw[DA7219_DAI_NUM_CLKS];
 #endif
-	struct clk_lookup *dai_clks_lookup;
-	struct clk *dai_clks;
+	struct clk_lookup *dai_clks_lookup[DA7219_DAI_NUM_CLKS];
+	struct clk *dai_clks[DA7219_DAI_NUM_CLKS];
 
 	struct clk *mclk;
 	unsigned int mclk_rate;
 	int clk_src;
 
 	bool master;
+	bool tdm_en;
 	bool alc_en;
 	bool micbias_on_event;
 	unsigned int mic_pga_delay;

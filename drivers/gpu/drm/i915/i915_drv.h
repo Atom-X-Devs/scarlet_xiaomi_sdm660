@@ -67,6 +67,7 @@
 #include "intel_ringbuffer.h"
 #include "intel_uncore.h"
 #include "intel_wopcm.h"
+#include "intel_workarounds.h"
 #include "intel_uc.h"
 
 #include "i915_gem.h"
@@ -286,7 +287,7 @@ enum hpd_pin {
 #define HPD_STORM_DEFAULT_THRESHOLD 5
 
 struct i915_hotplug {
-	struct work_struct hotplug_work;
+	struct delayed_work hotplug_work;
 
 	struct {
 		unsigned long last_jiffies;
@@ -622,8 +623,9 @@ struct i915_psr {
 
 	u32 debug;
 	bool sink_support;
-	bool prepared, enabled;
+	bool enabled;
 	struct intel_dp *dp;
+	enum pipe pipe;
 	bool active;
 	struct work_struct work;
 	unsigned busy_frontbuffer_bits;
@@ -635,6 +637,9 @@ struct i915_psr {
 	u8 sink_sync_latency;
 	ktime_t last_entry_attempt;
 	ktime_t last_exit;
+	bool sink_not_reliable;
+	bool irq_aux_error;
+	u16 su_x_granularity;
 };
 
 enum intel_pch {
@@ -644,7 +649,7 @@ enum intel_pch {
 	PCH_LPT,	/* Lynxpoint/Wildcatpoint PCH */
 	PCH_SPT,        /* Sunrisepoint PCH */
 	PCH_KBP,        /* Kaby Lake PCH */
-	PCH_CNP,        /* Cannon Lake PCH */
+	PCH_CNP,        /* Cannon/Comet Lake PCH */
 	PCH_ICP,	/* Ice Lake PCH */
 	PCH_NOP,	/* PCH without south display */
 };
@@ -1121,6 +1126,7 @@ struct intel_vbt_data {
 		enum psr_lines_to_wait lines_to_wait;
 		int tp1_wakeup_time_us;
 		int tp2_tp3_wakeup_time_us;
+		int psr2_tp2_tp3_wakeup_time_us;
 	} psr;
 
 	struct {
@@ -1294,7 +1300,11 @@ enum intel_pipe_crc_source {
 	INTEL_PIPE_CRC_SOURCE_NONE,
 	INTEL_PIPE_CRC_SOURCE_PLANE1,
 	INTEL_PIPE_CRC_SOURCE_PLANE2,
-	INTEL_PIPE_CRC_SOURCE_PF,
+	INTEL_PIPE_CRC_SOURCE_PLANE3,
+	INTEL_PIPE_CRC_SOURCE_PLANE4,
+	INTEL_PIPE_CRC_SOURCE_PLANE5,
+	INTEL_PIPE_CRC_SOURCE_PLANE6,
+	INTEL_PIPE_CRC_SOURCE_PLANE7,
 	INTEL_PIPE_CRC_SOURCE_PIPE,
 	/* TV/DP on pre-gen5/vlv can't use the pipe source. */
 	INTEL_PIPE_CRC_SOURCE_TV,
@@ -1805,6 +1815,7 @@ struct drm_i915_private {
 	int dpio_phy_iosf_port[I915_NUM_PHYS_VLV];
 
 	struct i915_workarounds workarounds;
+	struct i915_wa_list gt_wa_list;
 
 	struct i915_frontbuffer_tracking fb_tracking;
 
@@ -2684,6 +2695,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define INTEL_PCH_KBP_DEVICE_ID_TYPE		0xA280
 #define INTEL_PCH_CNP_DEVICE_ID_TYPE		0xA300
 #define INTEL_PCH_CNP_LP_DEVICE_ID_TYPE		0x9D80
+#define INTEL_PCH_CMP_DEVICE_ID_TYPE		0x0280
 #define INTEL_PCH_ICP_DEVICE_ID_TYPE		0x3480
 #define INTEL_PCH_P2X_DEVICE_ID_TYPE		0x7100
 #define INTEL_PCH_P3X_DEVICE_ID_TYPE		0x7000

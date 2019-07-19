@@ -51,44 +51,105 @@ static const struct mfd_cell ec_pd_cell = {
 	.pdata_size = sizeof(pd_p),
 };
 
-static irqreturn_t ec_irq_thread(int irq, void *data)
+s64 cros_ec_get_time_ns(void)
 {
+	return ktime_get_boot_ns();
+}
+EXPORT_SYMBOL(cros_ec_get_time_ns);
+
+static irqreturn_t ec_irq_handler(int irq, void *data) {
 	struct cros_ec_device *ec_dev = data;
+
+	ec_dev->last_event_time = cros_ec_get_time_ns();
+
+	return IRQ_WAKE_THREAD;
+}
+
+bool cros_ec_handle_event(struct cros_ec_device *ec_dev)
+{
 	bool wake_event = true;
-	int ret;
+	bool ec_has_more_events = false;
+	int ret = cros_ec_get_next_event(ec_dev, &wake_event);
 
-	ret = cros_ec_get_next_event(ec_dev, &wake_event);
+	if (ec_dev->mkbp_event_supported) {
+		ec_has_more_events = (ret > 0) &&
+			(ec_dev->event_data.event_type &
+				EC_MKBP_HAS_MORE_EVENTS);
+	}
 
-	/*
-	 * Signal only if wake host events or any interrupt if
-	 * cros_ec_get_next_event() returned an error (default value for
-	 * wake_event is true)
-	 */
-	if (wake_event && device_may_wakeup(ec_dev->dev))
+	if (device_may_wakeup(ec_dev->dev) && wake_event)
 		pm_wakeup_event(ec_dev->dev, 0);
 
 	if (ret > 0)
 		blocking_notifier_call_chain(&ec_dev->event_notifier,
-					     0, ec_dev);
+					0, ec_dev);
+
+	return ec_has_more_events;
+
+}
+EXPORT_SYMBOL(cros_ec_handle_event);
+
+static irqreturn_t ec_irq_thread(int irq, void *data)
+{
+	struct cros_ec_device *ec_dev = data;
+	bool ec_has_more_events;
+
+	do {
+		ec_has_more_events = cros_ec_handle_event(ec_dev);
+	} while (ec_has_more_events);
+
 	return IRQ_HANDLED;
 }
 
 static int cros_ec_sleep_event(struct cros_ec_device *ec_dev, u8 sleep_event)
 {
+	int ret;
 	struct {
 		struct cros_ec_command msg;
-		struct ec_params_host_sleep_event req;
+		union {
+			struct ec_params_host_sleep_event req0;
+			struct ec_params_host_sleep_event_v1 req1;
+			struct ec_response_host_sleep_event_v1 resp1;
+		} u;
 	} __packed buf;
 
 	memset(&buf, 0, sizeof(buf));
 
-	buf.req.sleep_event = sleep_event;
+	if (ec_dev->host_sleep_v1) {
+		buf.u.req1.sleep_event = sleep_event;
+		buf.u.req1.suspend_params.sleep_timeout_ms =
+				EC_HOST_SLEEP_TIMEOUT_DEFAULT;
+
+		buf.msg.outsize = sizeof(buf.u.req1);
+		if ((sleep_event == HOST_SLEEP_EVENT_S3_RESUME) ||
+		    (sleep_event == HOST_SLEEP_EVENT_S0IX_RESUME))
+			buf.msg.insize = sizeof(buf.u.resp1);
+
+		buf.msg.version = 1;
+
+	} else {
+		buf.u.req0.sleep_event = sleep_event;
+		buf.msg.outsize = sizeof(buf.u.req0);
+	}
 
 	buf.msg.command = EC_CMD_HOST_SLEEP_EVENT;
-	buf.msg.version = 0;
-	buf.msg.outsize = sizeof(buf.req);
 
-	return cros_ec_cmd_xfer(ec_dev, &buf.msg);
+	ret = cros_ec_cmd_xfer(ec_dev, &buf.msg);
+
+	/* For now, report failure to transition to S0ix with a warning. */
+	if (ret >= 0 && ec_dev->host_sleep_v1 &&
+	    (sleep_event == HOST_SLEEP_EVENT_S0IX_RESUME)) {
+		ec_dev->last_resume_result =
+			buf.u.resp1.resume_response.sleep_transitions;
+
+		WARN_ONCE(buf.u.resp1.resume_response.sleep_transitions &
+			  EC_HOST_RESUME_SLEEP_TIMEOUT,
+			  "EC detected sleep transition timeout. Total slp_s0 transitions: %d",
+			  buf.u.resp1.resume_response.sleep_transitions &
+			  EC_HOST_RESUME_SLEEP_TRANSITIONS_MASK);
+	}
+
+	return ret;
 }
 
 int cros_ec_register(struct cros_ec_device *ec_dev)
@@ -118,9 +179,10 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		return err;
 	}
 
-	if (ec_dev->irq) {
-		err = devm_request_threaded_irq(dev, ec_dev->irq, NULL,
-				ec_irq_thread, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+	if (ec_dev->irq > 0) {
+		err = devm_request_threaded_irq(dev, ec_dev->irq,
+				ec_irq_handler, ec_irq_thread,
+				IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 				"chromeos-ec", ec_dev);
 		if (err) {
 			dev_err(dev, "Failed to request IRQ %d: %d",
@@ -129,8 +191,8 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		}
 	}
 
-	err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, &ec_cell, 1,
-			      NULL, ec_dev->irq, NULL);
+	err = devm_mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, &ec_cell,
+				   1, NULL, ec_dev->irq, NULL);
 	if (err) {
 		dev_err(dev,
 			"Failed to register Embedded Controller subdevice %d\n",
@@ -147,7 +209,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		 * - the EC is responsive at init time (it is not true for a
 		 *   sensor hub.
 		 */
-		err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO,
+		err = devm_mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO,
 				      &ec_pd_cell, 1, NULL, ec_dev->irq, NULL);
 		if (err) {
 			dev_err(dev,
@@ -181,14 +243,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 }
 EXPORT_SYMBOL(cros_ec_register);
 
-int cros_ec_remove(struct cros_ec_device *ec_dev)
-{
-	mfd_remove_devices(ec_dev->dev);
-
-	return 0;
-}
-EXPORT_SYMBOL(cros_ec_remove);
-
 #ifdef CONFIG_PM_SLEEP
 int cros_ec_suspend(struct cros_ec_device *ec_dev)
 {
@@ -218,7 +272,8 @@ EXPORT_SYMBOL(cros_ec_suspend);
 
 static void cros_ec_report_events_during_suspend(struct cros_ec_device *ec_dev)
 {
-	while (cros_ec_get_next_event(ec_dev, NULL) > 0)
+	while (ec_dev->mkbp_event_supported &&
+	       cros_ec_get_next_event(ec_dev, NULL) > 0)
 		blocking_notifier_call_chain(&ec_dev->event_notifier,
 					     1, ec_dev);
 }

@@ -32,7 +32,7 @@
 #include <linux/io.h>
 #include <linux/pci.h>
 #include <sound/core.h>
-#include "hda_codec.h"
+#include <sound/hda_codec.h>
 #include "hda_local.h"
 #include "hda_auto_parser.h"
 #include "hda_jack.h"
@@ -7394,8 +7394,10 @@ static void ca0132_free(struct hda_codec *codec)
 	ca0132_exit_chip(codec);
 
 	snd_hda_power_down(codec);
+#ifdef CONFIG_PCI
 	if (spec->mem_base)
-		iounmap(spec->mem_base);
+		pci_iounmap(codec->bus->pci, spec->mem_base);
+#endif
 	kfree(spec->spec_init_verbs);
 	kfree(codec->spec);
 }

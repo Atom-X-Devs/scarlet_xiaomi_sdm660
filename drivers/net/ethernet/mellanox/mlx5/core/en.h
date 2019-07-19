@@ -566,6 +566,7 @@ struct mlx5e_rq {
 
 	unsigned long          state;
 	int                    ix;
+	unsigned int           hw_mtu;
 
 	struct net_dim         dim; /* Dynamic Interrupt Moderation */
 
@@ -632,6 +633,7 @@ enum {
 	MLX5E_STATE_ASYNC_EVENTS_ENABLED,
 	MLX5E_STATE_OPENED,
 	MLX5E_STATE_DESTROYING,
+	MLX5E_STATE_XDP_TX_ENABLED,
 };
 
 struct mlx5e_rqt {

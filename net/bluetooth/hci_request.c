@@ -46,6 +46,11 @@ void hci_req_purge(struct hci_request *req)
 	skb_queue_purge(&req->cmd_q);
 }
 
+bool hci_req_status_pend(struct hci_dev *hdev)
+{
+	return hdev->req_status == HCI_REQ_PEND;
+}
+
 static int req_run(struct hci_request *req, hci_req_complete_t complete,
 		   hci_req_complete_skb_t complete_skb)
 {
@@ -417,10 +422,11 @@ static void __hci_update_background_scan(struct hci_request *req)
 		 * scanning.
 		 */
 
-		/* If controller is not scanning we are done. */
-		if (!hci_dev_test_flag(hdev, HCI_LE_SCAN))
+		/* If controller is not scanning and not about to, we are done. */
+		if (!hci_dev_test_flag(hdev, HCI_LE_SCAN) && !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS))
 			return;
 
+		BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:__hci_update_background_scan(1)\n");
 		hci_req_add_le_scan_disable(req);
 
 		BT_DBG("%s stopping background scanning", hdev->name);
@@ -436,12 +442,13 @@ static void __hci_update_background_scan(struct hci_request *req)
 		if (hci_lookup_le_connect(hdev))
 			return;
 
-		/* If controller is currently scanning, we stop it to ensure we
+		/* If controller is currently scanning or about to, we stop it to ensure we
 		 * don't miss any advertising (due to duplicates filter).
 		 */
-		if (hci_dev_test_flag(hdev, HCI_LE_SCAN))
+		if (hci_dev_test_flag(hdev, HCI_LE_SCAN) || hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
+			BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:__hci_update_background_scan(2)\n");
 			hci_req_add_le_scan_disable(req);
-
+		}
 		hci_req_add_le_passive_scan(req);
 
 		BT_DBG("%s starting background scanning", hdev->name);
@@ -663,6 +670,15 @@ void hci_req_add_le_scan_disable(struct hci_request *req)
 		cp.enable = LE_SCAN_DISABLE;
 		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
 	}
+
+	/* It is possible that the only HCI command built into the command queue
+	 * is HCI_OP_LE_SET_SCAN_ENABLE. If the only command is skipped
+	 * at run time in hci_core.c:hci_cmd_work(), the corresponding event
+	 * would never be received. This would accidentally cause HCI command
+	 * timeout. Hence, it is important to add this dummy HCI command to
+	 * invoke the hci_req_sync_complete() callback.
+	 */
+	hci_req_add(req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
 }
 
 static void add_to_white_list(struct hci_request *req,
@@ -831,7 +847,9 @@ static void hci_req_start_scan(struct hci_request *req, u8 type, u16 interval,
 
 		memset(&ext_enable_cp, 0, sizeof(ext_enable_cp));
 		ext_enable_cp.enable = LE_SCAN_ENABLE;
-		ext_enable_cp.filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+		ext_enable_cp.filter_dup =
+			(type == LE_SCAN_PASSIVE ? LE_SCAN_FILTER_DUP_ENABLE :
+						   LE_SCAN_FILTER_DUP_DISABLE);
 
 		hci_req_add(req, HCI_OP_LE_SET_EXT_SCAN_ENABLE,
 			    sizeof(ext_enable_cp), &ext_enable_cp);
@@ -850,7 +868,9 @@ static void hci_req_start_scan(struct hci_request *req, u8 type, u16 interval,
 
 		memset(&enable_cp, 0, sizeof(enable_cp));
 		enable_cp.enable = LE_SCAN_ENABLE;
-		enable_cp.filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+		enable_cp.filter_dup =
+			(type == LE_SCAN_PASSIVE ? LE_SCAN_FILTER_DUP_ENABLE :
+						   LE_SCAN_FILTER_DUP_DISABLE);
 		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(enable_cp),
 			    &enable_cp);
 	}
@@ -1062,15 +1082,12 @@ void __hci_req_enable_advertising(struct hci_request *req)
 	if (!is_advertising_allowed(hdev, connectable))
 		return;
 
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-		__hci_req_disable_advertising(req);
-
-	/* Clear the HCI_LE_ADV bit temporarily so that the
-	 * hci_update_random_address knows that it's safe to go ahead
+	/* Set advertising to "off" temporarily so that the we can call
+	 * hci_update_random_address & it's safe to go ahead
 	 * and write a new random address. The flag will be set back on
 	 * as soon as the SET_ADV_ENABLE HCI command completes.
 	 */
-	hci_dev_clear_flag(hdev, HCI_LE_ADV);
+	__hci_req_disable_advertising(req);
 
 	/* Set require_privacy to true only when non-connectable
 	 * advertising is used. In that case it is fine to use a
@@ -1837,11 +1854,10 @@ static void set_random_addr(struct hci_request *req, bdaddr_t *rpa)
 	 * controllers use the new address and others the one we had
 	 * when the operation started).
 	 *
-	 * In this kind of scenario skip the update and let the random
-	 * address be updated at the next cycle.
+	 * Caller has to make sure this does not happen due to adv. We'll
+	 * look out for pending connections
 	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV) ||
-	    hci_lookup_le_connect(hdev)) {
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
 		BT_DBG("Deferring random address update");
 		hci_dev_set_flag(hdev, HCI_RPA_EXPIRED);
 		return;
@@ -1855,6 +1871,10 @@ int hci_update_random_address(struct hci_request *req, bool require_privacy,
 {
 	struct hci_dev *hdev = req->hdev;
 	int err;
+
+	/* EVE ONLY: Caller must make sure adv will not be on when this
+	 * func's enqueued commands run!
+	 */
 
 	/* If privacy is enabled use a resolvable private address. If
 	 * current RPA has expired or there is something else than
@@ -2279,6 +2299,7 @@ static void bg_scan_update(struct work_struct *work)
 
 static int le_scan_disable(struct hci_request *req, unsigned long opt)
 {
+	BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:le_scan_disable\n");
 	hci_req_add_le_scan_disable(req);
 	return 0;
 }
@@ -2317,9 +2338,6 @@ static void le_scan_disable_work(struct work_struct *work)
 	u8 status;
 
 	BT_DBG("%s", hdev->name);
-
-	if (!hci_dev_test_flag(hdev, HCI_LE_SCAN))
-		return;
 
 	cancel_delayed_work(&hdev->le_scan_restart);
 
@@ -2373,10 +2391,12 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 {
 	struct hci_dev *hdev = req->hdev;
 
-	/* If controller is not scanning we are done. */
-	if (!hci_dev_test_flag(hdev, HCI_LE_SCAN))
+
+	/* If controller is not scanning or about to scan we are done. */
+	if (!hci_dev_test_flag(hdev, HCI_LE_SCAN) && !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS))
 		return 0;
 
+	BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:le_scan_restart\n");
 	hci_req_add_le_scan_disable(req);
 
 	if (use_ext_scan(hdev)) {
@@ -2384,7 +2404,7 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 
 		memset(&ext_enable_cp, 0, sizeof(ext_enable_cp));
 		ext_enable_cp.enable = LE_SCAN_ENABLE;
-		ext_enable_cp.filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+		ext_enable_cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
 
 		hci_req_add(req, HCI_OP_LE_SET_EXT_SCAN_ENABLE,
 			    sizeof(ext_enable_cp), &ext_enable_cp);
@@ -2393,7 +2413,7 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 
 		memset(&cp, 0, sizeof(cp));
 		cp.enable = LE_SCAN_ENABLE;
-		cp.filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+		cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
 		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
 	}
 
@@ -2459,29 +2479,12 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 
 	BT_DBG("%s", hdev->name);
 
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
-		hci_dev_lock(hdev);
-
-		/* Don't let discovery abort an outgoing connection attempt
-		 * that's using directed advertising.
-		 */
-		if (hci_lookup_le_connect(hdev)) {
-			hci_dev_unlock(hdev);
-			return -EBUSY;
-		}
-
-		cancel_adv_timeout(hdev);
-		hci_dev_unlock(hdev);
-
-		__hci_req_disable_advertising(req);
-	}
-
 	/* If controller is scanning, it means the background scanning is
 	 * running. Thus, we should temporarily stop it in order to set the
 	 * discovery scanning parameters.
 	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_SCAN))
-		hci_req_add_le_scan_disable(req);
+	BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:active_scan\n");
+	hci_req_add_le_scan_disable(req);
 
 	/* All active scans will be done with either a resolvable private
 	 * address (when privacy feature has been enabled) or non-resolvable
@@ -2551,7 +2554,10 @@ static void start_discovery(struct hci_dev *hdev, u8 *status)
 		break;
 	case DISCOV_TYPE_LE:
 		timeout = msecs_to_jiffies(DISCOV_LE_TIMEOUT);
-		hci_req_sync(hdev, active_scan, DISCOV_LE_SCAN_INT,
+		/* Reduce the LE active scan duty cycle to 50% by increasing
+		 * the scan interval from 11.25ms to 22.5ms
+		 */
+		hci_req_sync(hdev, active_scan, DISCOV_LE_SCAN_INT * 2,
 			     HCI_CMD_TIMEOUT, status);
 		break;
 	default:
@@ -2592,16 +2598,17 @@ bool hci_req_stop_discovery(struct hci_request *req)
 	if (d->state == DISCOVERY_FINDING || d->state == DISCOVERY_STOPPING) {
 		if (test_bit(HCI_INQUIRY, &hdev->flags))
 			hci_req_add(req, HCI_OP_INQUIRY_CANCEL, 0, NULL);
-
-		if (hci_dev_test_flag(hdev, HCI_LE_SCAN)) {
+		if (hci_dev_test_flag(hdev, HCI_LE_SCAN) || hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
 			cancel_delayed_work(&hdev->le_scan_disable);
+			BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:hci_req_stop_discovery(1)\n");
 			hci_req_add_le_scan_disable(req);
 		}
 
 		ret = true;
 	} else {
 		/* Passive scanning */
-		if (hci_dev_test_flag(hdev, HCI_LE_SCAN)) {
+		if (hci_dev_test_flag(hdev, HCI_LE_SCAN) || hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
+			BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:hci_req_stop_discovery(2)\n");
 			hci_req_add_le_scan_disable(req);
 			ret = true;
 		}
@@ -2635,31 +2642,46 @@ static int stop_discovery(struct hci_request *req, unsigned long opt)
 	return 0;
 }
 
-static void discov_update(struct work_struct *work)
+static void start_discov_update(struct work_struct *work)
 {
 	struct hci_dev *hdev = container_of(work, struct hci_dev,
-					    discov_update);
+					    start_discov_update);
 	u8 status = 0;
 
-	switch (hdev->discovery.state) {
-	case DISCOVERY_STARTING:
+	BT_DBG("%s old state %u", hdev->name, hdev->discovery.state);
+
+	if (hci_discovery_active(hdev))
+		BT_DBG("discovery was already started");
+	else
 		start_discovery(hdev, &status);
-		mgmt_start_discovery_complete(hdev, status);
-		if (status)
-			hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
-		else
-			hci_discovery_set_state(hdev, DISCOVERY_FINDING);
-		break;
-	case DISCOVERY_STOPPING:
-		hci_req_sync(hdev, stop_discovery, 0, HCI_CMD_TIMEOUT, &status);
-		mgmt_stop_discovery_complete(hdev, status);
-		if (!status)
-			hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
-		break;
-	case DISCOVERY_STOPPED:
-	default:
-		return;
+
+	mgmt_start_discovery_complete(hdev, status);
+	if (status) {
+		hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
+		BT_ERR("Failed to start discovery: status 0x%02x", status);
+	} else {
+		hci_discovery_set_state(hdev, DISCOVERY_FINDING);
 	}
+}
+
+static void stop_discov_update(struct work_struct *work)
+{
+	struct hci_dev *hdev = container_of(work, struct hci_dev,
+					    stop_discov_update);
+	u8 status = 0;
+
+	BT_DBG("%s old state %u", hdev->name, hdev->discovery.state);
+
+	if (hdev->discovery.state == DISCOVERY_STOPPED)
+		BT_DBG("discovery was already stopped");
+	else
+		hci_req_sync(hdev, stop_discovery, 0, HCI_CMD_TIMEOUT, &status);
+
+	mgmt_stop_discovery_complete(hdev, status);
+	if (status)
+		BT_ERR("Failed to stop discovery: status 0x%02x", status);
+	else
+		hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
 }
 
 static void discov_off(struct work_struct *work)
@@ -2796,7 +2818,8 @@ int __hci_req_hci_power_on(struct hci_dev *hdev)
 
 void hci_request_setup(struct hci_dev *hdev)
 {
-	INIT_WORK(&hdev->discov_update, discov_update);
+	INIT_WORK(&hdev->start_discov_update, start_discov_update);
+	INIT_WORK(&hdev->stop_discov_update, stop_discov_update);
 	INIT_WORK(&hdev->bg_scan_update, bg_scan_update);
 	INIT_WORK(&hdev->scan_update, scan_update_work);
 	INIT_WORK(&hdev->connectable_update, connectable_update_work);
@@ -2811,7 +2834,8 @@ void hci_request_cancel_all(struct hci_dev *hdev)
 {
 	hci_req_sync_cancel(hdev, ENODEV);
 
-	cancel_work_sync(&hdev->discov_update);
+	cancel_work_sync(&hdev->start_discov_update);
+	cancel_work_sync(&hdev->stop_discov_update);
 	cancel_work_sync(&hdev->bg_scan_update);
 	cancel_work_sync(&hdev->scan_update);
 	cancel_work_sync(&hdev->connectable_update);

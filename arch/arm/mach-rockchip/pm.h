@@ -15,13 +15,10 @@
 #ifndef __MACH_ROCKCHIP_PM_H
 #define __MACH_ROCKCHIP_PM_H
 
-extern unsigned long rkpm_bootdata_cpusp;
-extern unsigned long rkpm_bootdata_cpu_code;
-extern unsigned long rkpm_bootdata_l2ctlr_f;
-extern unsigned long rkpm_bootdata_l2ctlr;
-extern unsigned long rkpm_bootdata_ddr_code;
-extern unsigned long rkpm_bootdata_ddr_data;
-extern unsigned long rk3288_bootram_sz;
+struct rk3288_ddr_save_data;
+int __init rk3288_ddr_suspend_init(struct rk3288_ddr_save_data *ddr_save);
+int rk3288_ddr_suspend(struct rk3288_ddr_save_data *ddr_save);
+void rk3288_ddr_resume(void);
 
 void rockchip_slp_cpu_resume(void);
 #ifdef CONFIG_PM_SLEEP

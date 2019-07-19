@@ -50,6 +50,7 @@ struct mtk_drm_crtc {
 	bool				pending_planes;
 
 	void __iomem			*config_regs;
+	const struct mtk_mmsys_reg_data *mmsys_reg_data;
 	struct mtk_disp_mutex		*mutex;
 	unsigned int			ddp_comp_nr;
 	struct mtk_ddp_comp		**ddp_comp;
@@ -98,10 +99,6 @@ static void mtk_drm_finish_page_flip(struct mtk_drm_crtc *mtk_crtc)
 static void mtk_drm_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	int i;
-
-	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
-		clk_unprepare(mtk_crtc->ddp_comp[i]->clk);
 
 	mtk_disp_mutex_put(mtk_crtc->mutex);
 
@@ -194,7 +191,7 @@ static int mtk_crtc_ddp_clk_enable(struct mtk_drm_crtc *mtk_crtc)
 
 	DRM_DEBUG_DRIVER("%s\n", __func__);
 	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
-		ret = clk_enable(mtk_crtc->ddp_comp[i]->clk);
+		ret = clk_prepare_enable(mtk_crtc->ddp_comp[i]->clk);
 		if (ret) {
 			DRM_ERROR("Failed to enable clock %d: %d\n", i, ret);
 			goto err;
@@ -204,7 +201,7 @@ static int mtk_crtc_ddp_clk_enable(struct mtk_drm_crtc *mtk_crtc)
 	return 0;
 err:
 	while (--i >= 0)
-		clk_disable(mtk_crtc->ddp_comp[i]->clk);
+		clk_disable_unprepare(mtk_crtc->ddp_comp[i]->clk);
 	return ret;
 }
 
@@ -214,7 +211,7 @@ static void mtk_crtc_ddp_clk_disable(struct mtk_drm_crtc *mtk_crtc)
 
 	DRM_DEBUG_DRIVER("%s\n", __func__);
 	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
-		clk_disable(mtk_crtc->ddp_comp[i]->clk);
+		clk_disable_unprepare(mtk_crtc->ddp_comp[i]->clk);
 }
 
 static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
@@ -271,6 +268,7 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 	DRM_DEBUG_DRIVER("mediatek_ddp_ddp_path_setup\n");
 	for (i = 0; i < mtk_crtc->ddp_comp_nr - 1; i++) {
 		mtk_ddp_add_comp_to_path(mtk_crtc->config_regs,
+					 mtk_crtc->mmsys_reg_data,
 					 mtk_crtc->ddp_comp[i]->id,
 					 mtk_crtc->ddp_comp[i + 1]->id);
 		mtk_disp_mutex_add_comp(mtk_crtc->mutex,
@@ -281,6 +279,13 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 
 	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
 		struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[i];
+		enum mtk_ddp_comp_id prev;
+
+		if (i > 0)
+			prev = mtk_crtc->ddp_comp[i - 1]->id;
+		else
+			prev = DDP_COMPONENT_ID_MAX;
+		mtk_ddp_comp_bgclr_in_on(comp, prev);
 
 		mtk_ddp_comp_config(comp, width, height, vrefresh, bpc);
 		mtk_ddp_comp_start(comp);
@@ -290,9 +295,18 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 	for (i = 0; i < mtk_crtc->layer_nr; i++) {
 		struct drm_plane *plane = &mtk_crtc->planes[i];
 		struct mtk_plane_state *plane_state;
+		struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
+		unsigned int comp_layer_nr = mtk_ddp_comp_layer_nr(comp);
+		unsigned int local_layer;
 
 		plane_state = to_mtk_plane_state(plane->state);
-		mtk_ddp_comp_layer_config(mtk_crtc->ddp_comp[0], i,
+
+		if (i >= comp_layer_nr) {
+			comp = mtk_crtc->ddp_comp[1];
+			local_layer = i - comp_layer_nr;
+                } else
+			local_layer = i;
+		mtk_ddp_comp_layer_config(comp , local_layer,
 					  plane_state);
 	}
 
@@ -318,7 +332,9 @@ static void mtk_crtc_ddp_hw_fini(struct mtk_drm_crtc *mtk_crtc)
 					   mtk_crtc->ddp_comp[i]->id);
 	mtk_disp_mutex_disable(mtk_crtc->mutex);
 	for (i = 0; i < mtk_crtc->ddp_comp_nr - 1; i++) {
+		mtk_ddp_comp_bgclr_in_off(mtk_crtc->ddp_comp[i]);
 		mtk_ddp_remove_comp_from_path(mtk_crtc->config_regs,
+					      mtk_crtc->mmsys_reg_data,
 					      mtk_crtc->ddp_comp[i]->id,
 					      mtk_crtc->ddp_comp[i + 1]->id);
 		mtk_disp_mutex_remove_comp(mtk_crtc->mutex,
@@ -337,6 +353,8 @@ static void mtk_crtc_ddp_config(struct drm_crtc *crtc)
 	struct mtk_crtc_state *state = to_mtk_crtc_state(mtk_crtc->base.state);
 	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
 	unsigned int i;
+	unsigned int comp_layer_nr = mtk_ddp_comp_layer_nr(comp);
+	unsigned int local_layer;
 
 	/*
 	 * TODO: instead of updating the registers here, we should prepare
@@ -359,7 +377,14 @@ static void mtk_crtc_ddp_config(struct drm_crtc *crtc)
 			plane_state = to_mtk_plane_state(plane->state);
 
 			if (plane_state->pending.config) {
-				mtk_ddp_comp_layer_config(comp, i, plane_state);
+				if (i >= comp_layer_nr) {
+					comp = mtk_crtc->ddp_comp[1];
+					local_layer = i - comp_layer_nr;
+                                } else
+					local_layer = i;
+
+				mtk_ddp_comp_layer_config(comp, local_layer,
+							  plane_state);
 				plane_state->pending.config = false;
 			}
 		}
@@ -561,6 +586,7 @@ int mtk_drm_crtc_create(struct drm_device *drm_dev,
 		return -ENOMEM;
 
 	mtk_crtc->config_regs = priv->config_regs;
+	mtk_crtc->mmsys_reg_data = priv->reg_data;
 	mtk_crtc->ddp_comp_nr = path_len;
 	mtk_crtc->ddp_comp = devm_kmalloc_array(dev, mtk_crtc->ddp_comp_nr,
 						sizeof(*mtk_crtc->ddp_comp),
@@ -585,21 +611,21 @@ int mtk_drm_crtc_create(struct drm_device *drm_dev,
 		if (!comp) {
 			dev_err(dev, "Component %pOF not initialized\n", node);
 			ret = -ENODEV;
-			goto unprepare;
-		}
-
-		ret = clk_prepare(comp->clk);
-		if (ret) {
-			dev_err(dev,
-				"Failed to prepare clock for component %pOF: %d\n",
-				node, ret);
-			goto unprepare;
+			return ret;
 		}
 
 		mtk_crtc->ddp_comp[i] = comp;
 	}
 
 	mtk_crtc->layer_nr = mtk_ddp_comp_layer_nr(mtk_crtc->ddp_comp[0]);
+        if (mtk_crtc->ddp_comp_nr > 1) {
+		struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[1];
+		enum mtk_ddp_comp_type comp_type;
+
+		comp_type = mtk_ddp_comp_get_type(comp->id);
+		if (comp_type == MTK_DISP_OVL || comp_type == MTK_DISP_OVL_2L)
+			mtk_crtc->layer_nr += mtk_ddp_comp_layer_nr(comp);
+        }
 	mtk_crtc->planes = devm_kcalloc(dev, mtk_crtc->layer_nr,
 					sizeof(struct drm_plane),
 					GFP_KERNEL);
@@ -611,23 +637,17 @@ int mtk_drm_crtc_create(struct drm_device *drm_dev,
 		ret = mtk_plane_init(drm_dev, &mtk_crtc->planes[zpos],
 				     BIT(pipe), type);
 		if (ret)
-			goto unprepare;
+			return ret;
 	}
 
 	ret = mtk_drm_crtc_init(drm_dev, mtk_crtc, &mtk_crtc->planes[0],
 				mtk_crtc->layer_nr > 1 ? &mtk_crtc->planes[1] :
 				NULL, pipe);
 	if (ret < 0)
-		goto unprepare;
+		return ret;
 	drm_mode_crtc_set_gamma_size(&mtk_crtc->base, MTK_LUT_SIZE);
 	drm_crtc_enable_color_mgmt(&mtk_crtc->base, 0, false, MTK_LUT_SIZE);
 	priv->num_pipes++;
 
 	return 0;
-
-unprepare:
-	while (--i >= 0)
-		clk_unprepare(mtk_crtc->ddp_comp[i]->clk);
-
-	return ret;
 }

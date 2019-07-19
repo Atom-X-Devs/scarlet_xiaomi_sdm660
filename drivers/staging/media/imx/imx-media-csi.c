@@ -124,7 +124,7 @@ static inline struct csi_priv *sd_to_dev(struct v4l2_subdev *sdev)
 
 static inline bool is_parallel_bus(struct v4l2_fwnode_endpoint *ep)
 {
-	return ep->bus_type != V4L2_MBUS_CSI2;
+	return ep->bus_type != V4L2_MBUS_CSI2_DPHY;
 }
 
 static inline bool is_parallel_16bit_bus(struct v4l2_fwnode_endpoint *ep)
@@ -153,9 +153,10 @@ static inline bool requires_passthrough(struct v4l2_fwnode_endpoint *ep,
 /*
  * Parses the fwnode endpoint from the source pad of the entity
  * connected to this CSI. This will either be the entity directly
- * upstream from the CSI-2 receiver, or directly upstream from the
- * video mux. The endpoint is needed to determine the bus type and
- * bus config coming into the CSI.
+ * upstream from the CSI-2 receiver, directly upstream from the
+ * video mux, or directly upstream from the CSI itself. The endpoint
+ * is needed to determine the bus type and bus config coming into
+ * the CSI.
  */
 static int csi_get_upstream_endpoint(struct csi_priv *priv,
 				     struct v4l2_fwnode_endpoint *ep)
@@ -168,7 +169,8 @@ static int csi_get_upstream_endpoint(struct csi_priv *priv,
 	if (!priv->src_sd)
 		return -EPIPE;
 
-	src = &priv->src_sd->entity;
+	sd = priv->src_sd;
+	src = &sd->entity;
 
 	if (src->function == MEDIA_ENT_F_VID_MUX) {
 		/*
@@ -181,6 +183,14 @@ static int csi_get_upstream_endpoint(struct csi_priv *priv,
 		if (!IS_ERR(sd))
 			src = &sd->entity;
 	}
+
+	/*
+	 * If the source is neither the video mux nor the CSI-2 receiver,
+	 * get the source pad directly upstream from CSI itself.
+	 */
+	if (src->function != MEDIA_ENT_F_VID_MUX &&
+	    sd->grp_id != IMX_MEDIA_GRP_ID_CSI2)
+		src = &priv->sd.entity;
 
 	/* get source pad of entity directly upstream from src */
 	pad = imx_media_find_upstream_pad(priv->md, src, 0);
@@ -626,7 +636,7 @@ out_put_ipu:
 	return ret;
 }
 
-static void csi_idmac_stop(struct csi_priv *priv)
+static void csi_idmac_wait_last_eof(struct csi_priv *priv)
 {
 	unsigned long flags;
 	int ret;
@@ -643,7 +653,10 @@ static void csi_idmac_stop(struct csi_priv *priv)
 		&priv->last_eof_comp, msecs_to_jiffies(IMX_MEDIA_EOF_TIMEOUT));
 	if (ret == 0)
 		v4l2_warn(&priv->sd, "wait last EOF timeout\n");
+}
 
+static void csi_idmac_stop(struct csi_priv *priv)
+{
 	devm_free_irq(priv->dev, priv->eof_irq, priv);
 	devm_free_irq(priv->dev, priv->nfb4eof_irq, priv);
 
@@ -719,10 +732,16 @@ static int csi_start(struct csi_priv *priv)
 
 	output_fi = &priv->frame_interval[priv->active_output_pad];
 
+	/* start upstream */
+	ret = v4l2_subdev_call(priv->src_sd, video, s_stream, 1);
+	ret = (ret && ret != -ENOIOCTLCMD) ? ret : 0;
+	if (ret)
+		return ret;
+
 	if (priv->dest == IPU_CSI_DEST_IDMAC) {
 		ret = csi_idmac_start(priv);
 		if (ret)
-			return ret;
+			goto stop_upstream;
 	}
 
 	ret = csi_setup(priv);
@@ -750,11 +769,26 @@ fim_off:
 idmac_stop:
 	if (priv->dest == IPU_CSI_DEST_IDMAC)
 		csi_idmac_stop(priv);
+stop_upstream:
+	v4l2_subdev_call(priv->src_sd, video, s_stream, 0);
 	return ret;
 }
 
 static void csi_stop(struct csi_priv *priv)
 {
+	if (priv->dest == IPU_CSI_DEST_IDMAC)
+		csi_idmac_wait_last_eof(priv);
+
+	/*
+	 * Disable the CSI asap, after syncing with the last EOF.
+	 * Doing so after the IDMA channel is disabled has shown to
+	 * create hard system-wide hangs.
+	 */
+	ipu_csi_disable(priv->csi);
+
+	/* stop upstream */
+	v4l2_subdev_call(priv->src_sd, video, s_stream, 0);
+
 	if (priv->dest == IPU_CSI_DEST_IDMAC) {
 		csi_idmac_stop(priv);
 
@@ -762,8 +796,6 @@ static void csi_stop(struct csi_priv *priv)
 		if (priv->fim)
 			imx_media_fim_set_stream(priv->fim, NULL, false);
 	}
-
-	ipu_csi_disable(priv->csi);
 }
 
 static const struct csi_skip_desc csi_skip[12] = {
@@ -924,23 +956,13 @@ static int csi_s_stream(struct v4l2_subdev *sd, int enable)
 		goto update_count;
 
 	if (enable) {
-		/* upstream must be started first, before starting CSI */
-		ret = v4l2_subdev_call(priv->src_sd, video, s_stream, 1);
-		ret = (ret && ret != -ENOIOCTLCMD) ? ret : 0;
-		if (ret)
-			goto out;
-
 		dev_dbg(priv->dev, "stream ON\n");
 		ret = csi_start(priv);
-		if (ret) {
-			v4l2_subdev_call(priv->src_sd, video, s_stream, 0);
+		if (ret)
 			goto out;
-		}
 	} else {
 		dev_dbg(priv->dev, "stream OFF\n");
-		/* CSI must be stopped first, then stop upstream */
 		csi_stop(priv);
-		v4l2_subdev_call(priv->src_sd, video, s_stream, 0);
 	}
 
 update_count:
@@ -1050,7 +1072,7 @@ static int csi_link_validate(struct v4l2_subdev *sd,
 			     struct v4l2_subdev_format *sink_fmt)
 {
 	struct csi_priv *priv = v4l2_get_subdevdata(sd);
-	struct v4l2_fwnode_endpoint upstream_ep = {};
+	struct v4l2_fwnode_endpoint upstream_ep = { .bus_type = 0 };
 	bool is_csi2;
 	int ret;
 
@@ -1164,7 +1186,7 @@ static int csi_enum_mbus_code(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct csi_priv *priv = v4l2_get_subdevdata(sd);
-	struct v4l2_fwnode_endpoint upstream_ep;
+	struct v4l2_fwnode_endpoint upstream_ep = { .bus_type = 0 };
 	const struct imx_media_pixfmt *incc;
 	struct v4l2_mbus_framefmt *infmt;
 	int ret = 0;
@@ -1403,7 +1425,7 @@ static int csi_set_fmt(struct v4l2_subdev *sd,
 {
 	struct csi_priv *priv = v4l2_get_subdevdata(sd);
 	struct imx_media_video_dev *vdev = priv->vdev;
-	struct v4l2_fwnode_endpoint upstream_ep;
+	struct v4l2_fwnode_endpoint upstream_ep = { .bus_type = 0 };
 	const struct imx_media_pixfmt *cc;
 	struct v4l2_pix_format vdev_fmt;
 	struct v4l2_mbus_framefmt *fmt;
@@ -1542,7 +1564,7 @@ static int csi_set_selection(struct v4l2_subdev *sd,
 			     struct v4l2_subdev_selection *sel)
 {
 	struct csi_priv *priv = v4l2_get_subdevdata(sd);
-	struct v4l2_fwnode_endpoint upstream_ep;
+	struct v4l2_fwnode_endpoint upstream_ep = { .bus_type = 0 };
 	struct v4l2_mbus_framefmt *infmt;
 	struct v4l2_rect *crop, *compose;
 	int pad, ret;

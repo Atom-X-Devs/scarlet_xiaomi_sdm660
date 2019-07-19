@@ -1,39 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * intel_pmc_ipc.c: Driver for the Intel PMC IPC mechanism
+ * Driver for the Intel PMC IPC mechanism
  *
  * (C) Copyright 2014-2015 Intel Corporation
  *
- * This driver is based on Intel SCU IPC driver(intel_scu_opc.c) by
+ * This driver is based on Intel SCU IPC driver(intel_scu_ipc.c) by
  *     Sreedhara DS <sreedhara.ds@intel.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; version 2
- * of the License.
  *
  * PMC running in ARC processor communicates with other entity running in IA
  * core through IPC mechanism which in turn messaging between IA core ad PMC.
  */
 
-#include <linux/module.h>
+#include <linux/acpi.h>
+#include <linux/atomic.h>
+#include <linux/bitops.h>
 #include <linux/delay.h>
-#include <linux/errno.h>
-#include <linux/init.h>
 #include <linux/device.h>
-#include <linux/pm.h>
+#include <linux/errno.h>
+#include <linux/interrupt.h>
+#include <linux/io-64-nonatomic-lo-hi.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/notifier.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
-#include <linux/interrupt.h>
+#include <linux/pm.h>
 #include <linux/pm_qos.h>
-#include <linux/kernel.h>
-#include <linux/bitops.h>
 #include <linux/sched.h>
-#include <linux/atomic.h>
-#include <linux/notifier.h>
-#include <linux/suspend.h>
-#include <linux/acpi.h>
-#include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/spinlock.h>
+#include <linux/suspend.h>
 
 #include <asm/intel-family.h>
 #include <asm/intel_pmc_ipc.h>
@@ -359,7 +354,7 @@ static int get_xtal_clock_freq(void)
 {
 	switch (boot_cpu_data.x86_model) {
 	case INTEL_FAM6_ATOM_GOLDMONT:
-	case INTEL_FAM6_ATOM_GEMINI_LAKE:
+	case INTEL_FAM6_ATOM_GOLDMONT_PLUS:
 		ipcdev.xtal_khz = 19200;
 		break;
 	default:
@@ -791,13 +786,17 @@ static int ipc_create_pmc_devices(void)
 	if (ret) {
 		dev_err(ipcdev.dev, "Failed to add punit platform device\n");
 		platform_device_unregister(ipcdev.tco_dev);
+		return ret;
 	}
 
 	if (!ipcdev.telem_res_inval) {
 		ret = ipc_create_telemetry_device();
-		if (ret)
+		if (ret) {
 			dev_warn(ipcdev.dev,
 				"Failed to add telemetry platform device\n");
+			platform_device_unregister(ipcdev.punit_dev);
+			platform_device_unregister(ipcdev.tco_dev);
+		}
 	}
 
 	return ret;
@@ -1050,7 +1049,7 @@ static void __exit intel_pmc_ipc_exit(void)
 
 MODULE_AUTHOR("Zha Qipeng <qipeng.zha@intel.com>");
 MODULE_DESCRIPTION("Intel PMC IPC driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");
 
 /* Some modules are dependent on this, so init earlier */
 fs_initcall(intel_pmc_ipc_init);

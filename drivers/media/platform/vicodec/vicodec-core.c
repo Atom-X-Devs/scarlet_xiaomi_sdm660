@@ -42,7 +42,7 @@ MODULE_PARM_DESC(debug, " activates debug info");
 #define MAX_WIDTH		4096U
 #define MIN_WIDTH		640U
 #define MAX_HEIGHT		2160U
-#define MIN_HEIGHT		480U
+#define MIN_HEIGHT		360U
 
 #define dprintk(dev, fmt, arg...) \
 	v4l2_dbg(1, debug, &dev->v4l2_dev, "%s: " fmt, __func__, ## arg)
@@ -438,7 +438,8 @@ restart:
 		for (; p < p_out + sz; p++) {
 			u32 copy;
 
-			p = memchr(p, magic[ctx->comp_magic_cnt], sz);
+			p = memchr(p, magic[ctx->comp_magic_cnt],
+				   p_out + sz - p);
 			if (!p) {
 				ctx->comp_magic_cnt = 0;
 				break;
@@ -1001,7 +1002,6 @@ static const struct v4l2_ioctl_ops vicodec_ioctl_ops = {
 	.vidioc_try_fmt_vid_cap	= vidioc_try_fmt_vid_cap,
 	.vidioc_s_fmt_vid_cap	= vidioc_s_fmt_vid_cap,
 
-	.vidioc_enum_fmt_vid_cap_mplane = vidioc_enum_fmt_vid_cap,
 	.vidioc_g_fmt_vid_cap_mplane	= vidioc_g_fmt_vid_cap,
 	.vidioc_try_fmt_vid_cap_mplane	= vidioc_try_fmt_vid_cap,
 	.vidioc_s_fmt_vid_cap_mplane	= vidioc_s_fmt_vid_cap,
@@ -1011,7 +1011,6 @@ static const struct v4l2_ioctl_ops vicodec_ioctl_ops = {
 	.vidioc_try_fmt_vid_out	= vidioc_try_fmt_vid_out,
 	.vidioc_s_fmt_vid_out	= vidioc_s_fmt_vid_out,
 
-	.vidioc_enum_fmt_vid_out_mplane = vidioc_enum_fmt_vid_out,
 	.vidioc_g_fmt_vid_out_mplane	= vidioc_g_fmt_vid_out,
 	.vidioc_try_fmt_vid_out_mplane	= vidioc_try_fmt_vid_out,
 	.vidioc_s_fmt_vid_out_mplane	= vidioc_s_fmt_vid_out,
@@ -1350,7 +1349,7 @@ static int vicodec_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_MEDIA_CONTROLLER
 	dev->mdev.dev = &pdev->dev;
-	strlcpy(dev->mdev.model, "vicodec", sizeof(dev->mdev.model));
+	strscpy(dev->mdev.model, "vicodec", sizeof(dev->mdev.model));
 	media_device_init(&dev->mdev);
 	dev->v4l2_dev.mdev = &dev->mdev;
 #endif
@@ -1378,7 +1377,7 @@ static int vicodec_probe(struct platform_device *pdev)
 	vfd = &dev->enc_vfd;
 	vfd->lock = &dev->enc_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
-	strlcpy(vfd->name, "vicodec-enc", sizeof(vfd->name));
+	strscpy(vfd->name, "vicodec-enc", sizeof(vfd->name));
 	v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);
 	v4l2_disable_ioctl(vfd, VIDIOC_TRY_DECODER_CMD);
 	video_set_drvdata(vfd, dev);
@@ -1395,7 +1394,7 @@ static int vicodec_probe(struct platform_device *pdev)
 	vfd = &dev->dec_vfd;
 	vfd->lock = &dev->dec_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
-	strlcpy(vfd->name, "vicodec-dec", sizeof(vfd->name));
+	strscpy(vfd->name, "vicodec-dec", sizeof(vfd->name));
 	v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
 	v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
 	video_set_drvdata(vfd, dev);

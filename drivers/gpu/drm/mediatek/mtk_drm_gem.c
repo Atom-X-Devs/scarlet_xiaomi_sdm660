@@ -145,7 +145,6 @@ static int mtk_drm_gem_object_mmap(struct drm_gem_object *obj,
 	 * VM_PFNMAP flag that was set by drm_gem_mmap_obj()/drm_gem_mmap().
 	 */
 	vma->vm_flags &= ~VM_PFNMAP;
-	vma->vm_pgoff = 0;
 
 	ret = dma_mmap_attrs(priv->dma_dev, vma, mtk_gem->cookie,
 			     mtk_gem->dma_addr, obj->size, mtk_gem->dma_attrs);
@@ -166,6 +165,13 @@ int mtk_drm_gem_mmap_buf(struct drm_gem_object *obj, struct vm_area_struct *vma)
 	return mtk_drm_gem_object_mmap(obj, vma);
 }
 
+void *mtk_drm_gem_vmap_buf(struct drm_gem_object *obj)
+{
+	struct mtk_drm_gem_obj *mtk_gem = to_mtk_gem_obj(obj);
+
+	return mtk_gem->cookie;
+}
+
 int mtk_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct drm_gem_object *obj;
@@ -176,6 +182,12 @@ int mtk_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 		return ret;
 
 	obj = vma->vm_private_data;
+
+	/*
+	 * Set vm_pgoff (used as a fake buffer offset by DRM) to 0 and map the
+	 * whole buffer from the start.
+	 */
+	vma->vm_pgoff = 0;
 
 	return mtk_drm_gem_object_mmap(obj, vma);
 }
@@ -248,8 +260,8 @@ int mtk_gem_map_offset_ioctl(struct drm_device *drm, void *data,
 {
 	struct drm_mtk_gem_map_off *args = data;
 
-	return drm->driver->dumb_map_offset(file_priv, drm, args->handle,
-					    &args->offset);
+	return drm_gem_dumb_map_offset(file_priv, drm, args->handle,
+				       &args->offset);
 }
 
 int mtk_gem_create_ioctl(struct drm_device *dev, void *data,

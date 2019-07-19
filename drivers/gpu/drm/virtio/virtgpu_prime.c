@@ -22,27 +22,69 @@
  * Authors: Andreas Pokorny
  */
 
+#include <linux/dma-buf.h>
 #include "virtgpu_drv.h"
 
 /* Empty Implementations as there should not be any other driver for a virtual
  * device that might share buffers with virtgpu
  */
 
-int virtgpu_gem_prime_pin(struct drm_gem_object *obj)
+const struct dma_buf_ops virtgpu_dmabuf_ops =  {
+	.attach = drm_gem_map_attach,
+	.detach = drm_gem_map_detach,
+	.map_dma_buf = drm_gem_map_dma_buf,
+	.unmap_dma_buf = drm_gem_unmap_dma_buf,
+	.release = drm_gem_dmabuf_release,
+	.map = drm_gem_dmabuf_kmap,
+	.unmap = drm_gem_dmabuf_kunmap,
+	.mmap = drm_gem_dmabuf_mmap,
+	.vmap = drm_gem_dmabuf_vmap,
+	.vunmap = drm_gem_dmabuf_vunmap,
+};
+
+struct dma_buf *virtgpu_gem_prime_export(struct drm_device *dev,
+					 struct drm_gem_object *obj,
+					 int flags)
 {
-	WARN_ONCE(1, "not implemented");
-	return -ENODEV;
+	struct dma_buf *buf;
+
+	buf = drm_gem_prime_export(dev, obj, flags);
+	if (!IS_ERR(buf))
+		buf->ops = &virtgpu_dmabuf_ops;
+
+	return buf;
 }
 
-void virtgpu_gem_prime_unpin(struct drm_gem_object *obj)
+struct drm_gem_object *virtgpu_gem_prime_import(struct drm_device *dev,
+						struct dma_buf *buf)
 {
-	WARN_ONCE(1, "not implemented");
+	struct drm_gem_object *obj;
+
+	if (buf->ops == &virtgpu_dmabuf_ops) {
+		obj = buf->priv;
+		if (obj->dev == dev) {
+			/*
+			 * Importing dmabuf exported from our own gem increases
+			 * refcount on gem itself instead of f_count of dmabuf.
+			 */
+			drm_gem_object_get(obj);
+			return obj;
+		}
+	}
+
+	return drm_gem_prime_import(dev, buf);
 }
 
 struct sg_table *virtgpu_gem_prime_get_sg_table(struct drm_gem_object *obj)
 {
-	WARN_ONCE(1, "not implemented");
-	return ERR_PTR(-ENODEV);
+	struct virtio_gpu_object *bo = gem_to_virtio_gpu_obj(obj);
+
+	if (!bo->tbo.ttm->pages || !bo->tbo.ttm->num_pages)
+		/* should not happen */
+		return ERR_PTR(-EINVAL);
+
+	return drm_prime_pages_to_sg(bo->tbo.ttm->pages,
+				     bo->tbo.ttm->num_pages);
 }
 
 struct drm_gem_object *virtgpu_gem_prime_import_sg_table(
@@ -70,7 +112,10 @@ void virtgpu_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
 }
 
 int virtgpu_gem_prime_mmap(struct drm_gem_object *obj,
-		       struct vm_area_struct *area)
+			   struct vm_area_struct *vma)
 {
-	return -ENODEV;
+	struct virtio_gpu_object *bo = gem_to_virtio_gpu_obj(obj);
+
+	bo->gem_base.vma_node.vm_node.start = bo->tbo.vma_node.vm_node.start;
+	return drm_gem_prime_mmap(obj, vma);
 }

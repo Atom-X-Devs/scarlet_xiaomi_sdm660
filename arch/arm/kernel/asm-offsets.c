@@ -79,6 +79,10 @@ int main(void)
 #ifdef CONFIG_CRUNCH
   DEFINE(TI_CRUNCH_STATE,	offsetof(struct thread_info, crunchstate));
 #endif
+#ifdef CONFIG_ALT_SYSCALL
+  DEFINE(TI_NR_SYSCALLS,	offsetof(struct thread_info, nr_syscalls));
+  DEFINE(TI_SYS_CALL_TABLE,	offsetof(struct thread_info, sys_call_table));
+#endif
   BLANK();
   DEFINE(S_R0,			offsetof(struct pt_regs, ARM_r0));
   DEFINE(S_R1,			offsetof(struct pt_regs, ARM_r1));

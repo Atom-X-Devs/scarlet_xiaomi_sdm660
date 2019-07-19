@@ -1007,15 +1007,7 @@ int dm_set_target_max_io_len(struct dm_target *ti, sector_t len)
 		return -EINVAL;
 	}
 
-	/*
-	 * BIO based queue uses its own splitting. When multipage bvecs
-	 * is switched on, size of the incoming bio may be too big to
-	 * be handled in some targets, such as crypt.
-	 *
-	 * When these targets are ready for the big bio, we can remove
-	 * the limit.
-	 */
-	ti->max_io_len = min_t(uint32_t, len, BIO_MAX_PAGES * PAGE_SIZE);
+	ti->max_io_len = (uint32_t) len;
 
 	return 0;
 }
@@ -1591,6 +1583,8 @@ static blk_qc_t __split_and_process_bio(struct mapped_device *md,
 		bio_io_error(bio);
 		return ret;
 	}
+
+	blk_queue_split(md->queue, &bio);
 
 	init_clone_info(&ci, md, map, bio);
 

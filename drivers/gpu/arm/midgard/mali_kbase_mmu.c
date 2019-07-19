@@ -227,7 +227,7 @@ static void kbase_gpu_mmu_handle_write_fault(struct kbase_context *kctx,
 	/* Find region and check if it should be writable. */
 	region = kbase_region_tracker_find_region_enclosing_address(kctx,
 			faulting_as->fault_addr);
-	if (!region || region->flags & KBASE_REG_FREE) {
+	if (kbase_is_region_invalid_or_free(region)) {
 		kbase_gpu_vm_unlock(kctx);
 		kbase_mmu_report_fault_and_kill(kctx, faulting_as,
 				"Memory is not mapped on the GPU");
@@ -631,7 +631,7 @@ page_fault_retry:
 
 	region = kbase_region_tracker_find_region_enclosing_address(kctx,
 			faulting_as->fault_addr);
-	if (!region || region->flags & KBASE_REG_FREE) {
+	if (kbase_is_region_invalid_or_free(region)) {
 		kbase_gpu_vm_unlock(kctx);
 		kbase_mmu_report_fault_and_kill(kctx, faulting_as,
 				"Memory is not mapped on the GPU");

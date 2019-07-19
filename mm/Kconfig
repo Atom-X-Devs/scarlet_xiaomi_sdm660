@@ -717,12 +717,12 @@ config DEV_PAGEMAP_OPS
 
 config HMM
 	bool
+	select MMU_NOTIFIER
 	select MIGRATE_VMA_HELPER
 
 config HMM_MIRROR
 	bool "HMM mirror CPU page table into a device page table"
 	depends on ARCH_HAS_HMM
-	select MMU_NOTIFIER
 	select HMM
 	help
 	  Select HMM_MIRROR if you want to mirror range of the CPU page table of a
@@ -791,5 +791,14 @@ config GUP_BENCHMARK
 
 config ARCH_HAS_PTE_SPECIAL
 	bool
+
+config MM_METRICS
+	bool "Collect additional memory statistics"
+	help
+	  Collect swap refault distances (seconds), swap read latencies and direct
+	  reclaim latencies (nanoseconds). They are provided userspace via
+	  /sys/kernel/debug/mm_metrics/{swap_refault,swap_latency,reclaim_latency}
+	  in histograms.
+	default n
 
 endmenu

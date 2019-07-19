@@ -219,12 +219,12 @@ static int cpia2_querycap(struct file *file, void *fh, struct v4l2_capability *v
 {
 	struct camera_data *cam = video_drvdata(file);
 
-	strcpy(vc->driver, "cpia2");
+	strscpy(vc->driver, "cpia2", sizeof(vc->driver));
 
 	if (cam->params.pnp_id.product == 0x151)
-		strcpy(vc->card, "QX5 Microscope");
+		strscpy(vc->card, "QX5 Microscope", sizeof(vc->card));
 	else
-		strcpy(vc->card, "CPiA2 Camera");
+		strscpy(vc->card, "CPiA2 Camera", sizeof(vc->card));
 	switch (cam->params.pnp_id.device_type) {
 	case DEVICE_STV_672:
 		strcat(vc->card, " (672/");
@@ -281,7 +281,7 @@ static int cpia2_enum_input(struct file *file, void *fh, struct v4l2_input *i)
 {
 	if (i->index)
 		return -EINVAL;
-	strcpy(i->name, "Camera");
+	strscpy(i->name, "Camera", sizeof(i->name));
 	i->type = V4L2_INPUT_TYPE_CAMERA;
 	return 0;
 }
@@ -319,11 +319,11 @@ static int cpia2_enum_fmt_vid_cap(struct file *file, void *fh,
 	f->flags = V4L2_FMT_FLAG_COMPRESSED;
 	switch(index) {
 	case 0:
-		strcpy(f->description, "MJPEG");
+		strscpy(f->description, "MJPEG", sizeof(f->description));
 		f->pixelformat = V4L2_PIX_FMT_MJPEG;
 		break;
 	case 1:
-		strcpy(f->description, "JPEG");
+		strscpy(f->description, "JPEG", sizeof(f->description));
 		f->pixelformat = V4L2_PIX_FMT_JPEG;
 		break;
 	default:
@@ -832,7 +832,7 @@ static int cpia2_querybuf(struct file *file, void *fh, struct v4l2_buffer *buf)
 		break;
 	case FRAME_READY:
 		buf->bytesused = cam->buffers[buf->index].length;
-		buf->timestamp = cam->buffers[buf->index].timestamp;
+		buf->timestamp = ns_to_timeval(cam->buffers[buf->index].ts);
 		buf->sequence = cam->buffers[buf->index].seq;
 		buf->flags = V4L2_BUF_FLAG_DONE;
 		break;
@@ -888,12 +888,7 @@ static int find_earliest_filled_buffer(struct camera_data *cam)
 				found = i;
 			} else {
 				/* find which buffer is earlier */
-				struct timeval *tv1, *tv2;
-				tv1 = &cam->buffers[i].timestamp;
-				tv2 = &cam->buffers[found].timestamp;
-				if(tv1->tv_sec < tv2->tv_sec ||
-				   (tv1->tv_sec == tv2->tv_sec &&
-				    tv1->tv_usec < tv2->tv_usec))
+				if (cam->buffers[i].ts < cam->buffers[found].ts)
 					found = i;
 			}
 		}
@@ -944,7 +939,7 @@ static int cpia2_dqbuf(struct file *file, void *fh, struct v4l2_buffer *buf)
 	buf->flags = V4L2_BUF_FLAG_MAPPED | V4L2_BUF_FLAG_DONE
 		| V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	buf->field = V4L2_FIELD_NONE;
-	buf->timestamp = cam->buffers[buf->index].timestamp;
+	buf->timestamp = ns_to_timeval(cam->buffers[buf->index].ts);
 	buf->sequence = cam->buffers[buf->index].seq;
 	buf->m.offset = cam->buffers[buf->index].data - cam->frame_buffer;
 	buf->length = cam->frame_size;
@@ -1244,8 +1239,7 @@ static int __init cpia2_init(void)
 	LOG("%s v%s\n",
 	    ABOUT, CPIA_VERSION);
 	check_parameters();
-	cpia2_usb_init();
-	return 0;
+	return cpia2_usb_init();
 }
 
 

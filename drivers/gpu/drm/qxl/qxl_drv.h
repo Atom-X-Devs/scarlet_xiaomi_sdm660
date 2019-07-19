@@ -66,9 +66,6 @@
 extern int qxl_num_crtc;
 extern int qxl_max_ioctls;
 
-#define DRM_FILE_OFFSET 0x100000000ULL
-#define DRM_FILE_PAGE_OFFSET (DRM_FILE_OFFSET >> PAGE_SHIFT)
-
 #define QXL_INTERRUPT_MASK (\
 	QXL_INTERRUPT_DISPLAY |\
 	QXL_INTERRUPT_CURSOR |\
@@ -127,9 +124,6 @@ struct qxl_output {
 #define drm_encoder_to_qxl_output(x) container_of(x, struct qxl_output, enc)
 
 struct qxl_mman {
-	struct ttm_bo_global_ref        bo_global_ref;
-	struct drm_global_reference	mem_global_ref;
-	bool				mem_global_referenced;
 	struct ttm_bo_device		bdev;
 };
 

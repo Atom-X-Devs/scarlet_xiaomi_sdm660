@@ -147,6 +147,7 @@ struct audit_context {
 	kuid_t		    target_uid;
 	unsigned int	    target_sessionid;
 	u32		    target_sid;
+	u64		    target_cid;
 	char		    target_comm[TASK_COMM_LEN];
 
 	struct audit_tree_refs *trees, *first_trees;
@@ -267,6 +268,8 @@ extern void audit_put_tty(struct tty_struct *tty);
 
 /* audit watch functions */
 #ifdef CONFIG_AUDIT_WATCH
+extern int audit_alloc_syscall(struct task_struct *tsk);
+extern void audit_free_syscall(struct task_struct *tsk);
 extern void audit_put_watch(struct audit_watch *watch);
 extern void audit_get_watch(struct audit_watch *watch);
 extern int audit_to_watch(struct audit_krule *krule, char *path, int len, u32 op);
@@ -284,6 +287,8 @@ extern int audit_dupe_exe(struct audit_krule *new, struct audit_krule *old);
 extern int audit_exe_compare(struct task_struct *tsk, struct audit_fsnotify_mark *mark);
 
 #else
+#define audit_alloc_syscall(t) 0
+#define audit_free_syscall(t) {}
 #define audit_put_watch(w) {}
 #define audit_get_watch(w) {}
 #define audit_to_watch(k, p, l, o) (-EINVAL)

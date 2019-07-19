@@ -73,8 +73,7 @@ static void vb2_vmalloc_put(void *buf_priv)
 
 static void *vb2_vmalloc_get_userptr(struct device *dev, unsigned long vaddr,
 				     unsigned long size,
-				     enum dma_data_direction dma_dir,
-				     unsigned long dma_attrs)
+				     enum dma_data_direction dma_dir)
 {
 	struct vb2_vmalloc_buf *buf;
 	struct frame_vector *vec;

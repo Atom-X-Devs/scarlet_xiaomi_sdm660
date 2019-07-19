@@ -292,16 +292,6 @@ static int __init do_reset(void)
 	return 1;
 }
 
-static int __init maybe_link(void)
-{
-	if (nlink >= 2) {
-		char *old = find_link(major, minor, ino, mode, collected);
-		if (old)
-			return (ksys_link(old, collected) < 0) ? -1 : 1;
-	}
-	return 0;
-}
-
 static void __init clean_path(char *path, umode_t fmode)
 {
 	struct kstat st;
@@ -312,6 +302,18 @@ static void __init clean_path(char *path, umode_t fmode)
 		else
 			ksys_unlink(path);
 	}
+}
+
+static int __init maybe_link(void)
+{
+	if (nlink >= 2) {
+		char *old = find_link(major, minor, ino, mode, collected);
+		if (old) {
+			clean_path(collected, 0);
+			return (ksys_link(old, collected) < 0) ? -1 : 1;
+		}
+	}
+	return 0;
 }
 
 static __initdata int wfd;
@@ -630,13 +632,12 @@ static int __init populate_rootfs(void)
 		printk(KERN_INFO "Trying to unpack rootfs image as initramfs...\n");
 		err = unpack_to_rootfs((char *)initrd_start,
 			initrd_end - initrd_start);
-		if (!err) {
-			free_initrd();
+		if (!err)
 			goto done;
-		} else {
-			clean_rootfs();
-			unpack_to_rootfs(__initramfs_start, __initramfs_size);
-		}
+
+		clean_rootfs();
+		unpack_to_rootfs(__initramfs_start, __initramfs_size);
+
 		printk(KERN_INFO "rootfs image is not initramfs (%s)"
 				"; looks like an initrd\n", err);
 		fd = ksys_open("/initrd.image",
@@ -650,7 +651,6 @@ static int __init populate_rootfs(void)
 				       written, initrd_end - initrd_start);
 
 			ksys_close(fd);
-			free_initrd();
 		}
 	done:
 		/* empty statement */;
@@ -660,9 +660,9 @@ static int __init populate_rootfs(void)
 			initrd_end - initrd_start);
 		if (err)
 			printk(KERN_EMERG "Initramfs unpacking failed: %s\n", err);
-		free_initrd();
 #endif
 	}
+	free_initrd();
 	flush_delayed_fput();
 	/*
 	 * Try loading default modules from initramfs.  This gives

@@ -123,9 +123,8 @@ struct task_struct init_task
 	.thread_pid	= &init_struct_pid,
 	.thread_group	= LIST_HEAD_INIT(init_task.thread_group),
 	.thread_node	= LIST_HEAD_INIT(init_signals.thread_head),
-#ifdef CONFIG_AUDITSYSCALL
-	.loginuid	= INVALID_UID,
-	.sessionid	= AUDIT_SID_UNSET,
+#ifdef CONFIG_AUDIT
+	.audit		= &init_struct_audit,
 #endif
 #ifdef CONFIG_PERF_EVENTS
 	.perf_event_mutex = __MUTEX_INITIALIZER(init_task.perf_event_mutex),
