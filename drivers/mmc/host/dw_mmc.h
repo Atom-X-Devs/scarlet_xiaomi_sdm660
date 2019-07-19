@@ -127,7 +127,6 @@ struct dw_mci_dma_slave {
  * @cmd11_timer: Timer for SD3.0 voltage switch over scheme.
  * @cto_timer: Timer for broken command transfer over scheme.
  * @dto_timer: Timer for broken data transfer over scheme.
- * @client_sdio_enb: The value last passed to enable_sdio_irq.
  *
  * Locking
  * =======
@@ -235,8 +234,6 @@ struct dw_mci {
 	struct timer_list       cmd11_timer;
 	struct timer_list       cto_timer;
 	struct timer_list       dto_timer;
-
-	bool			client_sdio_enb;
 };
 
 /* DMA ops for Internal/External DMAC interface */
