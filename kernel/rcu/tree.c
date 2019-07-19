@@ -3928,13 +3928,13 @@ static int __init rcu_spawn_gp_kthread(void)
 	for_each_rcu_flavor(rsp) {
 		t = kthread_create(rcu_gp_kthread, rsp, "%s", rsp->name);
 		BUG_ON(IS_ERR(t));
+		if (kthread_prio)
+			sched_setscheduler_nocheck(t, SCHED_FIFO, &sp);
 		rnp = rcu_get_root(rsp);
 		raw_spin_lock_irqsave_rcu_node(rnp, flags);
 		rsp->gp_kthread = t;
-		if (kthread_prio) {
+		if (kthread_prio)
 			sp.sched_priority = kthread_prio;
-			sched_setscheduler_nocheck(t, SCHED_FIFO, &sp);
-		}
 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 		wake_up_process(t);
 	}
