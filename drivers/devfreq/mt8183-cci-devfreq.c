@@ -135,7 +135,7 @@ static int mtk_cci_devfreq_probe(struct platform_device *pdev)
 	if (!passive_data)
 		return -ENOMEM;
 
-	passive_data->cpufreq_type = true;
+	passive_data->parent_type = CPUFREQ_PARENT_DEV;
 
 	cci_df->devfreq = devm_devfreq_add_device(cci_dev,
 						  &cci_devfreq_profile,
