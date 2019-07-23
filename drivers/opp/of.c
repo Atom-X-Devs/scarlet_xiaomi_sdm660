@@ -97,8 +97,8 @@ static struct dev_pm_opp *_find_opp_of_np(struct opp_table *opp_table,
 	return NULL;
 }
 
-struct device_node *of_parse_required_opp(struct device_node *np,
-					  int index)
+static struct device_node *of_parse_required_opp(struct device_node *np,
+						 int index)
 {
 	struct device_node *required_np;
 
@@ -110,15 +110,6 @@ struct device_node *of_parse_required_opp(struct device_node *np,
 
 	return required_np;
 }
-EXPORT_SYMBOL_GPL(of_parse_required_opp);
-
-/* The caller must call dev_pm_opp_put() after the OPP is used */
-struct dev_pm_opp *dev_pm_opp_find_opp_of_np(struct opp_table *opp_table,
-					     struct device_node *opp_np)
-{
-	return _find_opp_of_np(opp_table, opp_np);
-}
-EXPORT_SYMBOL_GPL(dev_pm_opp_find_opp_of_np);
 
 /* The caller must call dev_pm_opp_put_opp_table() after the table is used */
 static struct opp_table *_find_table_of_opp_np(struct device_node *opp_np)
