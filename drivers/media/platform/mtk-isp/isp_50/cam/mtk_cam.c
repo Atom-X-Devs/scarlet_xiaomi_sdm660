@@ -100,6 +100,36 @@ static void mtk_cam_dev_job_done(struct mtk_cam_dev *cam,
 	}
 }
 
+void mtk_cam_dev_dequeue_frame(struct mtk_cam_dev *cam,
+			       unsigned int node_id, unsigned int frame_seq_no,
+			       int vb2_index)
+{
+	struct device *dev = cam->dev;
+	struct mtk_cam_video_device *node = &cam->vdev_nodes[node_id];
+	struct mtk_cam_dev_buffer *buf, *buf_prev;
+	struct vb2_buffer *vb;
+	unsigned long flags;
+
+	if (!cam->vdev_nodes[node_id].enabled || !cam->streaming)
+		return;
+
+	spin_lock_irqsave(&node->buf_list_lock, flags);
+	list_for_each_entry_safe(buf, buf_prev, &node->buf_list, list) {
+		vb = &buf->vbb.vb2_buf;
+		if (!vb->vb2_queue->uses_requests &&
+		    vb->index == vb2_index) {
+			dev_dbg(dev, "%s:%d:%d", __func__, node_id, vb2_index);
+			vb->timestamp = ktime_get_boot_ns();
+			/* AFO seq. num usage */
+			buf->vbb.sequence = frame_seq_no;
+			list_del(&buf->list);
+			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&node->buf_list_lock, flags);
+}
+
 struct mtk_cam_dev_request *mtk_cam_dev_get_req(struct mtk_cam_dev *cam,
 						unsigned int frame_seq_no)
 {
@@ -121,7 +151,6 @@ struct mtk_cam_dev_request *mtk_cam_dev_get_req(struct mtk_cam_dev *cam,
 
 	return NULL;
 }
-
 void mtk_cam_dev_dequeue_req_frame(struct mtk_cam_dev *cam,
 				   unsigned int frame_seq_no)
 {
@@ -797,6 +826,21 @@ static void mtk_cam_vb2_buf_queue(struct vb2_buffer *vb)
 	list_add_tail(&buf->list, &node->buf_list);
 	spin_unlock_irqrestore(&node->buf_list_lock, flags);
 
+	/*
+	 * TODO(b/140397121): Remove non-request mode support when the HAL
+	 * is fixed to use the Request API only.
+	 *
+	 * For request buffers en-queue, handled in mtk_cam_req_try_queue
+	 */
+	if (!vb->vb2_queue->uses_requests) {
+		mutex_lock(&cam->op_lock);
+		/* If node is not streame on, re-queued when stream on */
+		if (vb->vb2_queue->streaming)
+			mtk_isp_enqueue(cam, node->desc.dma_port, buf);
+		mutex_unlock(&cam->op_lock);
+		return;
+	}
+
 	/* update buffer internal address */
 	req->frame_params.dma_bufs[buf->node_id].iova = buf->daddr;
 	req->frame_params.dma_bufs[buf->node_id].scp_addr = buf->scp_addr;
@@ -948,6 +992,7 @@ static int mtk_cam_vb2_start_streaming(struct vb2_queue *vq,
 {
 	struct mtk_cam_dev *cam = vb2_get_drv_priv(vq);
 	struct mtk_cam_video_device *node = mtk_cam_vbq_to_vdev(vq);
+	struct mtk_cam_dev_buffer *buf, *buf_prev;
 	struct device *dev = cam->dev;
 	int ret;
 
@@ -972,6 +1017,16 @@ static int mtk_cam_vb2_start_streaming(struct vb2_queue *vq,
 			goto fail_stop_pipeline;
 		}
 	}
+
+	/*
+	 * TODO(b/140397121): Remove non-request mode support when the HAL
+	 * is fixed to use the Request API only.
+	 *
+	 * Need to make sure HW is initialized.
+	 */
+	if (!vq->uses_requests)
+		list_for_each_entry_safe(buf, buf_prev, &node->buf_list, list)
+			mtk_isp_enqueue(cam, node->desc.dma_port, buf);
 
 	/* Media links are fixed after media_pipeline_start */
 	cam->stream_count++;
@@ -1012,9 +1067,11 @@ static void mtk_cam_vb2_stop_streaming(struct vb2_queue *vq)
 	mutex_lock(&cam->op_lock);
 	dev_dbg(dev, "%s node:%d count info:%d\n", __func__, node->id,
 		cam->stream_count);
-	/* Check the first node to stream-off */
-	if (cam->stream_count == cam->enabled_count)
+	/* Check the first node to stream-off & disable DMA */
+	if (cam->stream_count == cam->enabled_count) {
 		v4l2_subdev_call(&cam->subdev, video, s_stream, 0);
+		cam->enabled_dmas = 0;
+	}
 
 	mtk_cam_vb2_return_all_buffers(cam, node, VB2_BUF_STATE_ERROR);
 	cam->stream_count--;
@@ -1335,7 +1392,11 @@ mtk_cam_video_register_device(struct mtk_cam_dev *cam,
 	vbq->drv_priv = cam;
 	vbq->lock = &node->vdev_lock;
 	vbq->supports_requests = true;
-	vbq->requires_requests = true;
+	/*
+	 * TODO(b/140397121): Require requests when the HAL
+	 * is fixed to use the Request API only.
+	 */
+	// vbq->requires_requests = true;
 
 	ret = vb2_queue_init(vbq);
 	if (ret) {
