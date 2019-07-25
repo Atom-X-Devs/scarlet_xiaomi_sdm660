@@ -2509,6 +2509,8 @@ unsigned long scale_irq_capacity(unsigned long util, unsigned long irq, unsigned
 #define perf_domain_span(pd) NULL
 #endif
 
+bool cfs_prio_less(struct task_struct *a, struct task_struct *b);
+
 #ifdef CONFIG_SMP
 extern struct static_key_false sched_energy_present;
 #endif
