@@ -558,6 +558,8 @@ hantro_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
 	*num_planes = pixfmt->num_planes;
 	for (i = 0; i < pixfmt->num_planes; ++i)
 		sizes[i] = pixfmt->plane_fmt[i].sizeimage;
+
+	sizes[0] += extra_size0;
 	return 0;
 }
 

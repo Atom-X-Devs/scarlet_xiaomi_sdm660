@@ -466,6 +466,10 @@ build_b_ref_lists(const struct hantro_h264_reflist_builder *builder,
 	       sizeof(builder->unordered_reflist));
 	sort_r(b1_reflist, builder->num_valid, sizeof(*b1_reflist),
 	       b1_ref_list_cmp, NULL, builder);
+
+	if (builder->num_valid > 1 &&
+	    !memcmp(b1_reflist, b0_reflist, builder->num_valid))
+		swap(b1_reflist[0], b1_reflist[1]);
 }
 
 static bool dpb_entry_match(const struct v4l2_h264_dpb_entry *a,
@@ -595,11 +599,11 @@ int hantro_h264_dec_prepare_run(struct hantro_ctx *ctx)
 	if (WARN_ON(!ctrls->pps))
 		return -EINVAL;
 
-	/* Prepare data in memory. */
-	prepare_table(ctx);
-
 	/* Update the DPB with new refs. */
 	update_dpb(ctx);
+
+	/* Prepare data in memory. */
+	prepare_table(ctx);
 
 	/* Build the P/B{0,1} ref lists. */
 	init_reflist_builder(ctx, &reflist_builder);

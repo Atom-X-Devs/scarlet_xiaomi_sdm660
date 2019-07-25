@@ -432,11 +432,9 @@ void hantro_g1_vp8_dec_run(struct hantro_ctx *ctx)
 	struct hantro_dev *vpu = ctx->dev;
 	size_t height = ctx->dst_fmt.height;
 	size_t width = ctx->dst_fmt.width;
-	struct vb2_v4l2_buffer *vb2_src;
 	u32 mb_width, mb_height;
 	u32 reg;
 
-	vb2_src = hantro_get_src_buf(ctx);
 	hantro_prepare_run(ctx);
 
 	hdr = hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_VP8_FRAME_HEADER);
