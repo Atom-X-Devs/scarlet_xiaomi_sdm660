@@ -1981,6 +1981,7 @@ unlock:
 
 	return dest_opp;
 }
+EXPORT_SYMBOL_GPL(dev_pm_opp_xlate_opp);
 
 /**
  * dev_pm_opp_xlate_performance_state() - Find required OPP's pstate for src_table.
