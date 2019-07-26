@@ -1897,7 +1897,7 @@ static void build_mst_prop_path(const struct drm_dp_mst_branch *mstb,
 
 /**
  * drm_dp_mst_connector_late_register() - Late MST connector registration
- * @drm_connector: The MST connector
+ * @connector: The MST connector
  * @port: The MST port for this connector
  *
  * Helper to register the remote aux device for this MST port. Drivers should
@@ -1919,7 +1919,7 @@ EXPORT_SYMBOL(drm_dp_mst_connector_late_register);
 
 /**
  * drm_dp_mst_connector_early_unregister() - Early MST connector unregistration
- * @drm_connector: The MST connector
+ * @connector: The MST connector
  * @port: The MST port for this connector
  *
  * Helper to unregister the remote aux device for this MST port, registered by
