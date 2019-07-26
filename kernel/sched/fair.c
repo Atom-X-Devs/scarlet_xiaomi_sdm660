@@ -8357,7 +8357,7 @@ redo:
 		detached++;
 		env->imbalance -= load;
 
-#ifdef CONFIG_PREEMPT
+#ifdef CONFIG_PREEMPTION
 		/*
 		 * NEWIDLE balancing is a source of latency, so preemptible
 		 * kernels will stop after the first task is detached to minimize
