@@ -235,7 +235,7 @@ static inline void _of_clear_opp_table(struct opp_table *opp_table) {}
 static inline struct opp_table *_managed_opp(struct device *dev, int index) { return NULL; }
 static inline void _of_opp_free_required_opps(struct opp_table *opp_table,
 					      struct dev_pm_opp *opp) {}
-void bool _of_lazy_link_required_tables(struct opp_table *src)
+static inline bool _of_lazy_link_required_tables(struct opp_table *src)
 {
 	return false;
 }
