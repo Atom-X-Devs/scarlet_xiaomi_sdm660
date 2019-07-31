@@ -594,7 +594,7 @@ static void virtio_gpu_cmd_capset_cb(struct virtio_gpu_device *vgdev,
 			memcpy(cache_ent->caps_cache, resp->capset_data,
 			       cache_ent->size);
 			/* Copy must occur before is_valid is signalled. */
-			virt_wmb();
+			smp_wmb();
 			atomic_set(&cache_ent->is_valid, 1);
 			break;
 		}

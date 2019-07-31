@@ -562,7 +562,7 @@ copy_exit:
 		return -EBUSY;
 
 	/* is_valid check must proceed before copy of the cache entry. */
-	virt_rmb();
+	smp_rmb();
 
 	ptr = cache_ent->caps_cache;
 
