@@ -764,7 +764,7 @@ nv50_msto_atomic_check(struct drm_encoder *encoder,
 	mstc->pbn = drm_dp_calc_pbn_mode(crtc_state->adjusted_mode.clock,
 					 bpp);
 
-	if (drm_atomic_crtc_needs_modeset(crtc_state)) {
+	if (crtc_state->mode_changed) {
 		slots = drm_dp_atomic_find_vcpi_slots(state, &mstm->mgr,
 						      mstc->port, mstc->pbn);
 		if (slots < 0)
