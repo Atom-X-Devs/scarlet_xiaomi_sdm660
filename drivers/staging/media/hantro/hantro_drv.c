@@ -27,6 +27,7 @@
 #include "hantro_v4l2.h"
 #include "hantro.h"
 #include "hantro_hw.h"
+#include "hantro_vp8.h"
 
 #define DRIVER_NAME "hantro-vpu"
 
@@ -132,8 +133,12 @@ void hantro_irq_done(struct hantro_dev *vpu, unsigned int bytesused,
 	 * the timeout expired. The watchdog is running,
 	 * and will take care of finishing the job.
 	 */
-	if (cancel_delayed_work(&vpu->watchdog_work))
+	if (cancel_delayed_work(&vpu->watchdog_work)) {
 		hantro_job_finish(vpu, ctx, bytesused, result);
+		if (result == VB2_BUF_STATE_DONE &&
+		    ctx->codec_ops && ctx->codec_ops->done)
+			ctx->codec_ops->done(ctx, result);
+	}
 }
 
 void hantro_watchdog(struct work_struct *work)
@@ -215,6 +220,9 @@ queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_queue *dst_vq)
 
 	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	src_vq->io_modes = VB2_MMAP | VB2_DMABUF;
+	if (hantro_is_encoder_ctx(ctx))
+		src_vq->io_modes |= VB2_USERPTR;
+
 	src_vq->drv_priv = ctx;
 	src_vq->ops = &hantro_queue_ops;
 	src_vq->mem_ops = &vb2_dma_contig_memops;
@@ -236,21 +244,11 @@ queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_queue *dst_vq)
 	if (ret)
 		return ret;
 
-	/*
-	 * When encoding, the CAPTURE queue doesn't need dma memory,
-	 * as the CPU needs to create the JPEG frames, from the
-	 * hardware-produced JPEG payload.
-	 *
-	 * For the DMA destination buffer, we use a bounce buffer.
-	 */
-	if (hantro_is_encoder_ctx(ctx)) {
-		dst_vq->mem_ops = &vb2_vmalloc_memops;
-	} else {
-		dst_vq->bidirectional = true;
-		dst_vq->mem_ops = &vb2_dma_contig_memops;
-		dst_vq->dma_attrs = DMA_ATTR_ALLOC_SINGLE_PAGES |
-				    DMA_ATTR_NO_KERNEL_MAPPING;
-	}
+	dst_vq->bidirectional = true;
+	dst_vq->mem_ops = &vb2_dma_contig_memops;
+	dst_vq->dma_attrs = DMA_ATTR_ALLOC_SINGLE_PAGES;
+	if (!hantro_is_encoder_ctx(ctx))
+		dst_vq->dma_attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 
 	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	dst_vq->io_modes = VB2_MMAP | VB2_DMABUF;
@@ -284,8 +282,25 @@ static int hantro_s_ctrl(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static int hantro_enc_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct hantro_ctx *ctx;
+
+	ctx = container_of(ctrl->handler, struct hantro_ctx, ctrl_handler);
+
+	vpu_debug(4, "ctrl id %d\n", ctrl->id);
+
+	// Other controls are ignored.
+	if (ctrl->id == V4L2_CID_PRIVATE_HANTRO_RET_PARAMS)
+		memcpy(ctrl->p_new.p, ctx->vp8_enc.priv_dst.cpu,
+		       HANTRO_VP8_RET_PARAMS_SIZE);
+
+	return 0;
+}
+
 static const struct v4l2_ctrl_ops hantro_ctrl_ops = {
 	.s_ctrl = hantro_s_ctrl,
+	.g_volatile_ctrl = hantro_enc_g_volatile_ctrl,
 };
 
 static const struct hantro_ctrl controls[] = {
@@ -299,6 +314,110 @@ static const struct hantro_ctrl controls[] = {
 			.def = 50,
 			.ops = &hantro_ctrl_ops,
 		},
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id	= V4L2_CID_PRIVATE_HANTRO_HEADER,
+			.name = "Hantro Private Header",
+			.type = V4L2_CTRL_TYPE_PRIVATE,
+			.elem_size = HANTRO_VP8_HEADER_SIZE,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_PRIVATE_HANTRO_REG_PARAMS,
+			.name = "Hantro Private Reg Params",
+			.type = V4L2_CTRL_TYPE_PRIVATE,
+			.elem_size = sizeof(struct hantro_vp8_enc_reg_params),
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_PRIVATE_HANTRO_HW_PARAMS,
+			.name = "Hantro Private Hw Params",
+			.type = V4L2_CTRL_TYPE_PRIVATE,
+			.elem_size = HANTRO_VP8_HW_PARAMS_SIZE,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_PRIVATE_HANTRO_RET_PARAMS,
+			.name = "Rk3288 Private Ret Params",
+			.flags = V4L2_CTRL_FLAG_VOLATILE |
+				V4L2_CTRL_FLAG_READ_ONLY,
+			.type = V4L2_CTRL_TYPE_PRIVATE,
+			.ops = &hantro_ctrl_ops,
+			.elem_size = HANTRO_VP8_RET_PARAMS_SIZE,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE,
+			.type = V4L2_CTRL_TYPE_BOOLEAN,
+			.min = 0,
+			.max = 1,
+			.step = 1,
+			.def = 0,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_BITRATE,
+			.type = V4L2_CTRL_TYPE_INTEGER,
+			.min = 10000,
+			.max = 288000000,
+			.step = 1,
+			.def = 2097152,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_MB_RC_ENABLE,
+			.type = V4L2_CTRL_TYPE_BOOLEAN,
+			.min = 0,
+			.max = 1,
+			.step = 1,
+			.def = 0,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+			.type = V4L2_CTRL_TYPE_INTEGER,
+			.min = 1,
+			.max = 150,
+			.step = 1,
+			.def = 30,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_MFC51_VIDEO_RC_REACTION_COEFF,
+			.type = V4L2_CTRL_TYPE_INTEGER,
+			.name = "Rate Control Reaction Coeff.",
+			.min = 1,
+			.max = (1 << 16) - 1,
+			.step = 1,
+			.def = 1,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_MFC51_VIDEO_RC_FIXED_TARGET_BIT,
+			.type = V4L2_CTRL_TYPE_BOOLEAN,
+			.name = "Fixed Target Bit Enable",
+			.min = 0,
+			.max = 1,
+			.step = 1,
+			.def = 0,
+			.menu_skip_mask = 0,
+		}
+	}, {
+		.codec = HANTRO_VP8_ENCODER,
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
+			.type = V4L2_CTRL_TYPE_BUTTON,
+		}
 	}, {
 		.codec = HANTRO_MPEG2_DECODER,
 		.cfg = {

@@ -486,6 +486,62 @@ static int vidioc_s_fmt_cap_mplane(struct file *file, void *priv,
 	return 0;
 }
 
+static int vidioc_g_crop(struct file *file, void *priv, struct v4l2_crop *crop)
+{
+	struct hantro_ctx *ctx = fh_to_ctx(priv);
+
+	/* Crop only supported on source. */
+	if (!hantro_is_encoder_ctx(ctx) ||
+	    crop->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		return -EINVAL;
+
+	crop->c = ctx->vp8_enc.src_crop;
+
+	return 0;
+}
+
+static int vidioc_s_crop(struct file *file, void *priv,
+			 const struct v4l2_crop *crop)
+{
+	struct hantro_ctx *ctx = fh_to_ctx(priv);
+	struct v4l2_pix_format_mplane *fmt = &ctx->src_fmt;
+	const struct v4l2_rect *rect = &crop->c;
+	struct vb2_queue *vq;
+
+	/* Crop only supported on source. */
+	if (!hantro_is_encoder_ctx(ctx) ||
+	    crop->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		return -EINVAL;
+
+	/* Change not allowed if the queue is streaming. */
+	vq = v4l2_m2m_get_src_vq(ctx->fh.m2m_ctx);
+	if (vb2_is_streaming(vq))
+		return -EBUSY;
+
+	/* We do not support offsets. */
+	if (rect->left != 0 || rect->top != 0)
+		goto fallback;
+
+	/* We can crop only inside right- or bottom-most macroblocks. */
+	if (round_up(rect->width,
+		     VP8_MB_DIM) != fmt->width ||
+		     round_up(rect->height, VP8_MB_DIM) != fmt->height)
+		goto fallback;
+
+	/* We support widths aligned to 4 pixels and arbitrary heights. */
+	ctx->vp8_enc.src_crop.width = round_up(rect->width, 4);
+	ctx->vp8_enc.src_crop.height = rect->height;
+
+	return 0;
+
+fallback:
+	/* Default to full frame for incorrect settings. */
+	ctx->vp8_enc.src_crop.width = fmt->width;
+	ctx->vp8_enc.src_crop.height = fmt->height;
+
+	return 0;
+}
+
 const struct v4l2_ioctl_ops hantro_ioctl_ops = {
 	.vidioc_querycap = vidioc_querycap,
 	.vidioc_enum_framesizes = vidioc_enum_framesizes,
@@ -512,6 +568,9 @@ const struct v4l2_ioctl_ops hantro_ioctl_ops = {
 
 	.vidioc_streamon = v4l2_m2m_ioctl_streamon,
 	.vidioc_streamoff = v4l2_m2m_ioctl_streamoff,
+
+	.vidioc_g_crop = vidioc_g_crop,
+	.vidioc_s_crop = vidioc_s_crop,
 };
 
 static int
@@ -690,11 +749,23 @@ static int hantro_buf_out_validate(struct vb2_buffer *vb)
 	return 0;
 }
 
+static void hantro_buf_finish(struct vb2_buffer *vb)
+{
+	struct vb2_queue *vq = vb->vb2_queue;
+	struct hantro_ctx *ctx = vb2_get_drv_priv(vq);
+
+	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
+	    vb->state == VB2_BUF_STATE_DONE &&
+	    ctx->vpu_dst_fmt->fourcc == V4L2_PIX_FMT_VP8)
+		hantro_vp8_enc_assemble_bitstream(ctx, vb);
+}
+
 const struct vb2_ops hantro_queue_ops = {
 	.queue_setup = hantro_queue_setup,
 	.buf_prepare = hantro_buf_prepare,
 	.buf_queue = hantro_buf_queue,
 	.buf_out_validate = hantro_buf_out_validate,
+	.buf_finish = hantro_buf_finish,
 	.buf_request_complete = hantro_buf_request_complete,
 	.start_streaming = hantro_start_streaming,
 	.stop_streaming = hantro_stop_streaming,
