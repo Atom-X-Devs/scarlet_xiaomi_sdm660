@@ -199,7 +199,7 @@ void _of_lazy_link_required_tables(struct opp_table *src)
 	struct device_node *req_np;
 	int i;
 
-	mutex_lock(&src->lock);
+	mutex_lock_nested(&src->lock, 1);
 
 	if (list_empty(&src->opp_list))
 		goto out;
@@ -214,7 +214,9 @@ void _of_lazy_link_required_tables(struct opp_table *src)
 		if (!req_np)
 			continue;
 
+		mutex_lock(&opp_table_lock);
 		req_table = _find_table_of_opp_np(req_np);
+		mutex_unlock(&opp_table_lock);
 		of_node_put(req_np);
 		if (!req_table)
 			continue;
@@ -222,8 +224,10 @@ void _of_lazy_link_required_tables(struct opp_table *src)
 		src->required_opp_tables[i] = req_table;
 		list_for_each_entry(tmp_opp, &src->opp_list, node) {
 			req_np = of_parse_required_opp(tmp_opp->np, i);
+			mutex_lock(&opp_table_lock);
 			tmp_opp->required_opps[i] = _find_opp_of_np(req_table,
 								    req_np);
+			mutex_unlock(&opp_table_lock);
 			of_node_put(req_np);
 		}
 	}
