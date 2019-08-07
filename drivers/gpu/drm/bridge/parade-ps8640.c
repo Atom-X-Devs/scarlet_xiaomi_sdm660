@@ -1042,6 +1042,8 @@ static int ps8640_remove(struct i2c_client *client)
 	sysfs_remove_group(&ps_bridge->page[0]->dev.kobj, &ps8640_attr_group);
 	while (--i)
 		i2c_unregister_device(ps_bridge->page[i]);
+	kfree(ps_bridge->edid);
+	ps_bridge->edid = NULL;
 
 	return 0;
 }
