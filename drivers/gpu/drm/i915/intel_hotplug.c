@@ -110,9 +110,6 @@ enum hpd_pin intel_hpd_pin_default(struct drm_i915_private *dev_priv,
 	}
 }
 
-/* Delay between irq and hotplug detect processing */
-#define HOTPLUG_DELAY_MS		300
-
 #define HPD_STORM_DETECT_PERIOD		1000
 #define HPD_STORM_REENABLE_DELAY	(2 * 60 * 1000)
 
@@ -324,8 +321,7 @@ static void i915_digport_work_func(struct work_struct *work)
 		spin_lock_irq(&dev_priv->irq_lock);
 		dev_priv->hotplug.event_bits |= old_bits;
 		spin_unlock_irq(&dev_priv->irq_lock);
-		schedule_delayed_work(&dev_priv->hotplug.hotplug_work,
-				      msecs_to_jiffies(HOTPLUG_DELAY_MS));
+		schedule_work(&dev_priv->hotplug.hotplug_work);
 	}
 }
 
@@ -335,7 +331,7 @@ static void i915_digport_work_func(struct work_struct *work)
 static void i915_hotplug_work_func(struct work_struct *work)
 {
 	struct drm_i915_private *dev_priv =
-		container_of(work, struct drm_i915_private, hotplug.hotplug_work.work);
+		container_of(work, struct drm_i915_private, hotplug.hotplug_work);
 	struct drm_device *dev = &dev_priv->drm;
 	struct intel_connector *intel_connector;
 	struct intel_encoder *intel_encoder;
@@ -500,8 +496,7 @@ void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 	if (queue_dig)
 		queue_work(dev_priv->hotplug.dp_wq, &dev_priv->hotplug.dig_port_work);
 	if (queue_hp)
-		schedule_delayed_work(&dev_priv->hotplug.hotplug_work,
-				      msecs_to_jiffies(HOTPLUG_DELAY_MS));
+		schedule_work(&dev_priv->hotplug.hotplug_work);
 }
 
 /**
@@ -621,8 +616,7 @@ void intel_hpd_poll_init(struct drm_i915_private *dev_priv)
 
 void intel_hpd_init_work(struct drm_i915_private *dev_priv)
 {
-	INIT_DELAYED_WORK(&dev_priv->hotplug.hotplug_work,
-			  i915_hotplug_work_func);
+	INIT_WORK(&dev_priv->hotplug.hotplug_work, i915_hotplug_work_func);
 	INIT_WORK(&dev_priv->hotplug.dig_port_work, i915_digport_work_func);
 	INIT_WORK(&dev_priv->hotplug.poll_init_work, i915_hpd_poll_init_work);
 	INIT_DELAYED_WORK(&dev_priv->hotplug.reenable_work,
@@ -640,7 +634,7 @@ void intel_hpd_cancel_work(struct drm_i915_private *dev_priv)
 	spin_unlock_irq(&dev_priv->irq_lock);
 
 	cancel_work_sync(&dev_priv->hotplug.dig_port_work);
-	cancel_delayed_work_sync(&dev_priv->hotplug.hotplug_work);
+	cancel_work_sync(&dev_priv->hotplug.hotplug_work);
 	cancel_work_sync(&dev_priv->hotplug.poll_init_work);
 	cancel_delayed_work_sync(&dev_priv->hotplug.reenable_work);
 }
