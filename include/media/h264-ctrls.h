@@ -134,10 +134,14 @@ struct v4l2_h264_pred_weight_table {
 struct v4l2_ctrl_h264_slice_params {
 	/* Size in bytes, including header */
 	__u32 size;
-
+/*
+ * TODO(crbug.com/992295): Revert this change once the upstream API stabilizes
+ * and update our kernel headers and Chrome to use the final version.
+ */
+#if 0
 	/* Where the slice starts in the output buffer (expressed in bytes). */
 	__u32 start_byte_offset;
-
+#endif
 	/* Offset in bits to slice_data() from the beginning of this slice. */
 	__u32 header_bit_size;
 
