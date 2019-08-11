@@ -23,12 +23,12 @@ struct panel_desc {
 	unsigned int bpc;
 
 	/**
-	 * @width: width (in millimeters) of the panel's active display area
-	 * @height: height (in millimeters) of the panel's active display area
+	 * @width_mm: width of the panel's active display area
+	 * @height_mm: height of the panel's active display area
 	 */
 	struct {
-		unsigned int width;
-		unsigned int height;
+		unsigned int width_mm;
+		unsigned int height_mm;
 	} size;
 
 	unsigned long mode_flags;
@@ -465,8 +465,7 @@ static int boe_panel_unprepare(struct drm_panel *panel)
 	}
 
 	msleep(150);
-	if (boe->enable_gpio)
-		gpiod_set_value(boe->enable_gpio, 0);
+	gpiod_set_value(boe->enable_gpio, 0);
 	usleep_range(500, 1000);
 	regulator_disable(boe->avee);
 	regulator_disable(boe->avdd);
@@ -486,10 +485,8 @@ static int boe_panel_prepare(struct drm_panel *panel)
 	if (boe->prepared)
 		return 0;
 
-	if (boe->enable_gpio) {
-		gpiod_set_value(boe->enable_gpio, 0);
-		usleep_range(1000, 1500);
-	}
+	gpiod_set_value(boe->enable_gpio, 0);
+	usleep_range(1000, 1500);
 
 	ret = regulator_enable(boe->pp1800);
 	if (ret < 0)
@@ -506,10 +503,8 @@ static int boe_panel_prepare(struct drm_panel *panel)
 
 	msleep(100);
 
-	if (boe->enable_gpio) {
-		gpiod_set_value(boe->enable_gpio, 1);
-		usleep_range(10000, 12000);
-	}
+	gpiod_set_value(boe->enable_gpio, 1);
+	usleep_range(10000, 12000);
 
 	ret = boe_panel_init(boe);
 	if (ret < 0) {
@@ -528,8 +523,8 @@ poweroffavdd:
 poweroff1v8:
 	usleep_range(5000, 7000);
 	regulator_disable(boe->pp1800);
-	if (boe->enable_gpio)
-		gpiod_set_value(boe->enable_gpio, 0);
+	gpiod_set_value(boe->enable_gpio, 0);
+
 	return ret;
 }
 
@@ -564,15 +559,14 @@ static const struct drm_display_mode boe_default_mode = {
 	.vsync_end = 1920 + 10 + 14,
 	.vtotal = 1920 + 10 + 14 + 4,
 	.vrefresh = 60,
-	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
 };
 
 static const struct panel_desc boe_tv101wum_nl6_desc = {
 	.modes = &boe_default_mode,
 	.bpc = 8,
 	.size = {
-		.width = 135,
-		.height = 216,
+		.width_mm = 135,
+		.height_mm = 216,
 	},
 	.lanes = 4,
 	.format = MIPI_DSI_FMT_RGB888,
@@ -622,12 +616,12 @@ static int boe_panel_get_modes(struct drm_panel *panel)
 		return -ENOMEM;
 	}
 
+	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
 	drm_mode_set_name(mode);
-
 	drm_mode_probed_add(panel->connector, mode);
 
-	panel->connector->display_info.width_mm = boe->desc->size.width;
-	panel->connector->display_info.height_mm = boe->desc->size.height;
+	panel->connector->display_info.width_mm = boe->desc->size.width_mm;
+	panel->connector->display_info.height_mm = boe->desc->size.height_mm;
 	panel->connector->display_info.bpc = boe->desc->bpc;
 
 	return 1;
