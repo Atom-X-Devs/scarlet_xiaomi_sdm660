@@ -441,7 +441,6 @@ static void __init dm_setup_drives(void)
 		DMINFO("dm-%d is ready", dev->minor);
 	}
 	dm_setup_cleanup(devices);
-	kfree(table);
 	return;
 
 export_fail:
@@ -451,7 +450,6 @@ setup_md_queue_fail:
 suspend_fail:
 table_complete_fail:
 add_target_fail:
-	kfree(table);
 	dm_unlock_md_type(md);
 dm_table_create_fail:
 	dm_put(md);
