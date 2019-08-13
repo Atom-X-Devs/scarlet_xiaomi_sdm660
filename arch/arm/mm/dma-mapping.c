@@ -1006,6 +1006,13 @@ static void __dma_page_cpu_to_dev(struct page *page, unsigned long off,
 	/* FIXME: non-speculating: flush on bidirectional mappings? */
 }
 
+void arch_sync_dma_for_device(struct device *dev, phys_addr_t paddr,
+		size_t size, enum dma_data_direction dir)
+{
+	__dma_page_cpu_to_dev(phys_to_page(paddr), paddr % PAGE_SIZE, size, dir);
+}
+EXPORT_SYMBOL_GPL(arch_sync_dma_for_device);
+
 static void __dma_page_dev_to_cpu(struct page *page, unsigned long off,
 	size_t size, enum dma_data_direction dir)
 {
@@ -1038,6 +1045,27 @@ static void __dma_page_dev_to_cpu(struct page *page, unsigned long off,
 			left -= PAGE_SIZE;
 		}
 	}
+}
+
+void arch_sync_dma_for_cpu(struct device *dev, phys_addr_t paddr,
+		size_t size, enum dma_data_direction dir)
+{
+	__dma_page_dev_to_cpu(phys_to_page(paddr), paddr % PAGE_SIZE, size, dir);
+}
+EXPORT_SYMBOL_GPL(arch_sync_dma_for_cpu);
+
+/*
+ * arch_dma_{alloc,free} fail-stubs needed to avoid link-errors in dma/direct.c
+ * (which is not actually used on arch/arm)
+ */
+void *arch_dma_alloc(struct device *dev, size_t size, dma_addr_t *dma_handle,
+		gfp_t flags, unsigned long attrs)
+{
+	return NULL;
+}
+void arch_dma_free(struct device *dev, size_t size, void *vaddr,
+		dma_addr_t dma_handle, unsigned long attrs)
+{
 }
 
 /**
