@@ -14,8 +14,9 @@
  *
  */
 #include <linux/bitops.h>
-#include <linux/phy.h>
+#include <linux/bits.h>
 #include <linux/module.h>
+#include <linux/phy.h>
 
 #define RTL821x_PHYSR				0x11
 #define RTL821x_PHYSR_DUPLEX			BIT(13)
@@ -30,6 +31,19 @@
 
 #define RTL821x_EXT_PAGE_SELECT			0x1e
 #define RTL821x_PAGE_SELECT			0x1f
+
+/* RTL8211E page 5 */
+#define RTL8211E_EEE_LED_MODE1			0x05
+#define RTL8211E_EEE_LED_MODE2			0x06
+
+/* RTL8211E extension page 44 (0x2c) */
+#define RTL8211E_LACR				0x1a
+#define RLT8211E_LACR_LEDACTCTRL_SHIFT		4
+#define RTL8211E_LCR				0x1c
+
+#define LACR_MASK(led)				BIT(4 + (led))
+#define LCR_MASK(led)				GENMASK(((led) * 4) + 2,\
+							(led) * 4)
 
 #define RTL8211F_INSR				0x1d
 
@@ -79,6 +93,81 @@ static int rtl8211x_modify_ext_paged(struct phy_device *phydev, int page,
 		goto err;
 
 	ret = __phy_modify(phydev, regnum, mask, set);
+
+err:
+	return phy_restore_page(phydev, oldpage, ret);
+}
+
+static void rtl8211e_disable_eee_led_mode(struct phy_device *phydev)
+{
+	int oldpage;
+	int err = 0;
+
+	oldpage = phy_select_page(phydev, 5);
+	if (oldpage < 0)
+		goto err;
+
+	/* write magic values to disable EEE LED mode */
+	err = __phy_write(phydev, RTL8211E_EEE_LED_MODE1, 0x8b82);
+	if (err)
+		goto err;
+
+	err = __phy_write(phydev, RTL8211E_EEE_LED_MODE2, 0x052b);
+
+err:
+	err = phy_restore_page(phydev, oldpage, err);
+	if (err)
+		phydev_warn(phydev, "failed to disable EEE LED mode: %d\n",
+			    err);
+}
+
+static int rtl8211e_config_led(struct phy_device *phydev, int led,
+			       struct phy_led_config *cfg)
+{
+	u16 lacr_bits = 0, lcr_bits = 0;
+	int oldpage, ret;
+
+	if (led < 0 || led > 2)
+		return -EINVAL;
+
+	switch (cfg->trigger.t) {
+	case PHY_LED_TRIGGER_LINK:
+		lcr_bits = 7 << (led * 4);
+		break;
+
+	case PHY_LED_TRIGGER_LINK_10M:
+		lcr_bits = 1 << (led * 4);
+		break;
+
+	case PHY_LED_TRIGGER_LINK_100M:
+		lcr_bits = 2 << (led * 4);
+		break;
+
+	case PHY_LED_TRIGGER_LINK_1G:
+		lcr_bits |= 4 << (led * 4);
+		break;
+
+	case PHY_LED_TRIGGER_NONE:
+		break;
+
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	if (cfg->trigger.activity)
+		lacr_bits = BIT(RLT8211E_LACR_LEDACTCTRL_SHIFT + led);
+
+	rtl8211e_disable_eee_led_mode(phydev);
+
+	ret = rtl8211x_select_ext_page(phydev, 0x2c, &oldpage);
+	if (ret)
+		goto err;
+
+	ret = __phy_modify(phydev, RTL8211E_LACR, LACR_MASK(led), lacr_bits);
+	if (ret)
+		goto err;
+
+	ret = __phy_modify(phydev, RTL8211E_LCR, LCR_MASK(led), lcr_bits);
 
 err:
 	return phy_restore_page(phydev, oldpage, ret);
@@ -355,6 +444,7 @@ static struct phy_driver realtek_drvs[] = {
 		.config_init	= &rtl8211e_config_init,
 		.ack_interrupt	= &rtl821x_ack_interrupt,
 		.config_intr	= &rtl8211e_config_intr,
+		.config_led	= &rtl8211e_config_led,
 		.suspend	= genphy_suspend,
 		.resume		= genphy_resume,
 		.read_page	= rtl821x_read_page,
