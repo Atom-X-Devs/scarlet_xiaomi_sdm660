@@ -2679,7 +2679,8 @@ static int nvme_resume(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct nvme_dev *ndev = pci_get_drvdata(pdev);
 
-	return pm_resume_via_firmware() || !ndev->ctrl.npss ?
+	return pm_resume_via_firmware() || !ndev->ctrl.npss ||
+	       (ndev->ctrl.quirks & NVME_QUIRK_SIMPLE_SUSPEND) ?
 		nvme_simple_resume(dev) : nvme_make_operational(ndev);
 }
 
@@ -2702,7 +2703,8 @@ static int nvme_suspend(struct device *dev)
 	 * use host managed nvme power settings for lowest idle power. This
 	 * should have quicker resume latency than a full device shutdown.
 	 */
-	return pm_suspend_via_firmware() || !ndev->ctrl.npss ?
+	return pm_suspend_via_firmware() || !ndev->ctrl.npss ||
+	       (ndev->ctrl.quirks & NVME_QUIRK_SIMPLE_SUSPEND) ?
 		nvme_simple_suspend(dev) : nvme_deep_state(ndev);
 }
 
