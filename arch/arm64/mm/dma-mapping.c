@@ -45,6 +45,20 @@ static pgprot_t __get_dma_pgprot(unsigned long attrs, pgprot_t prot,
 	return prot;
 }
 
+void arch_sync_dma_for_device(struct device *dev, phys_addr_t paddr,
+		size_t size, enum dma_data_direction dir)
+{
+	__dma_map_area(phys_to_virt(paddr), size, dir);
+}
+EXPORT_SYMBOL_GPL(arch_sync_dma_for_device);
+
+void arch_sync_dma_for_cpu(struct device *dev, phys_addr_t paddr,
+		size_t size, enum dma_data_direction dir)
+{
+	__dma_unmap_area(phys_to_virt(paddr), size, dir);
+}
+EXPORT_SYMBOL_GPL(arch_sync_dma_for_cpu);
+
 static struct gen_pool *atomic_pool __ro_after_init;
 
 #define DEFAULT_DMA_COHERENT_POOL_SIZE  SZ_256K
