@@ -510,6 +510,18 @@ static struct drm_driver vgem_driver = {
 	.minor	= DRIVER_MINOR,
 };
 
+static int vgem_map_sg(struct device *dev, struct scatterlist *sgl,
+		int nelems, enum dma_data_direction dir,
+		unsigned long attrs)
+{
+	return 1;
+}
+
+
+static const struct dma_map_ops vgem_dma_ops = {
+	.map_sg = vgem_map_sg,
+};
+
 static int __init vgem_init(void)
 {
 	int ret;
@@ -524,6 +536,8 @@ static int __init vgem_init(void)
 		ret = PTR_ERR(vgem_device->platform);
 		goto out_free;
 	}
+
+	vgem_device->platform->dev.dma_ops = &vgem_dma_ops;
 
 	dma_coerce_mask_and_coherent(&vgem_device->platform->dev,
 				     DMA_BIT_MASK(64));
