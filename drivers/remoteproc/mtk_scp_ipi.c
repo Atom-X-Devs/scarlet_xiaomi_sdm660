@@ -142,8 +142,10 @@ int scp_ipi_send(struct platform_device *pdev,
 					 scp->ipi_id_ack[id],
 					 timeout);
 		scp->ipi_id_ack[id] = false;
-		if (ret < 0)
-			dev_warn(scp->dev, "scp ipi %d ack time out !", id);
+		if (WARN(!ret, "scp ipi %d ack time out !", id))
+			ret = -EIO;
+		else
+			ret = 0;
 	}
 
 clock_disable:
