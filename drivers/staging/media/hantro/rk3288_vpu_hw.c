@@ -75,7 +75,7 @@ static const struct hantro_fmt rk3288_vpu_dec_fmts[] = {
 		.codec_mode = HANTRO_MODE_NONE,
 	},
 	{
-		.fourcc = V4L2_PIX_FMT_H264_SLICE_RAW,
+		.fourcc = V4L2_PIX_FMT_H264_SLICE,
 		.codec_mode = HANTRO_MODE_H264_DEC,
 		.max_depth = 2,
 		.frmsize = {

@@ -345,7 +345,7 @@ hantro_update_requires_request(struct hantro_ctx *ctx, u32 fourcc)
 		break;
 	case V4L2_PIX_FMT_MPEG2_SLICE:
 	case V4L2_PIX_FMT_VP8_FRAME:
-	case V4L2_PIX_FMT_H264_SLICE_RAW:
+	case V4L2_PIX_FMT_H264_SLICE:
 		ctx->fh.m2m_ctx->out_q_ctx.q.requires_requests = true;
 		break;
 	default:
@@ -596,7 +596,7 @@ hantro_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
 	}
 
 	/* The H264 decoder needs extra size on the output buffer. */
-	if (ctx->vpu_src_fmt->fourcc == V4L2_PIX_FMT_H264_SLICE_RAW)
+	if (ctx->vpu_src_fmt->fourcc == V4L2_PIX_FMT_H264_SLICE)
 		extra_size0 = 128 * DIV_ROUND_UP(pixfmt->width, 16) *
 			      DIV_ROUND_UP(pixfmt->height, 16);
 
