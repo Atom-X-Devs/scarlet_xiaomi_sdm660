@@ -39,7 +39,7 @@ int memcmp(const void *s1, const void *s2, size_t len)
  */
 int bcmp(const void *s1, const void *s2, size_t len)
 {
-       return memcmp(s1, s2, len);
+	return memcmp(s1, s2, len);
 }
 
 int strcmp(const char *str1, const char *str2)
