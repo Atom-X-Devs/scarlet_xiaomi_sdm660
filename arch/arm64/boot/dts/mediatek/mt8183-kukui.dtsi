@@ -87,17 +87,9 @@
 			alloc-ranges = <0 0x40000000 0 0x60000000>;
 		};
 
-		reserve-memory-vpu_share {
-			compatible = "mediatek,reserve-memory-vpu_share";
-			no-map;
-			size = <0 0x01400000>; /*20 MB share mem size */
-			alignment = <0 0x1000000>;
-			alloc-ranges = <0 0x50000000 0 0x10000000>;
-		};
-
 		scp_mem_reserved: scp_mem_region {
 			compatible = "shared-dma-pool";
-			reg = <0 0x50000000 0 0x2900000>;
+			reg = <0 0x50000000 0 0x4300000>;
 			no-map;
 		};
 	};
