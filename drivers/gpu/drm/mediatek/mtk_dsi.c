@@ -244,13 +244,13 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	u32 ui, cycle_time;
 	struct mtk_phy_timing *timing = &dsi->phy_timing;
 
-	ui = 1000000000 / dsi->data_rate;
+	ui = DIV_ROUND_UP(1000000000, dsi->data_rate);
 	cycle_time = div_u64(8000000000ULL, dsi->data_rate);
 
 	timing->lpx = NS_TO_CYCLE(60, cycle_time);
-	timing->da_hs_prepare = NS_TO_CYCLE(40 + 5 * ui, cycle_time);
+	timing->da_hs_prepare = NS_TO_CYCLE(50 + 5 * ui, cycle_time);
 	timing->da_hs_zero = NS_TO_CYCLE(110 + 6 * ui, cycle_time);
-	timing->da_hs_trail = NS_TO_CYCLE(80 + 4 * ui, cycle_time);
+	timing->da_hs_trail = NS_TO_CYCLE(90 + 4 * ui, cycle_time);
 
 	timing->ta_go = 4 * timing->lpx;
 	timing->ta_sure = 3 * timing->lpx / 2;
@@ -642,7 +642,8 @@ static int mtk_dsi_poweron(struct mtk_dsi *dsi)
 		break;
 	}
 
-	dsi->data_rate = dsi->vm.pixelclock * bit_per_pixel / dsi->lanes;
+	dsi->data_rate = DIV_ROUND_UP_ULL(dsi->vm.pixelclock * bit_per_pixel,
+					  dsi->lanes);
 
 	ret = clk_set_rate(dsi->hs_clk, dsi->data_rate);
 	if (ret < 0) {
