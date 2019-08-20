@@ -1079,6 +1079,8 @@ void intel_fbc_enable(struct intel_crtc *crtc,
 		if (fbc->crtc == crtc) {
 			WARN_ON(!crtc_state->enable_fbc);
 			WARN_ON(fbc->active);
+			if (IS_GEN9(dev_priv))
+				intel_wait_for_vblank(dev_priv, crtc->pipe);
 		}
 		goto out;
 	}
@@ -1121,8 +1123,11 @@ void intel_fbc_disable(struct intel_crtc *crtc)
 	WARN_ON(crtc->active);
 
 	mutex_lock(&fbc->lock);
-	if (fbc->crtc == crtc)
+	if (fbc->crtc == crtc) {
 		__intel_fbc_disable(dev_priv);
+		if (IS_GEN9(dev_priv))
+			intel_wait_for_vblank(dev_priv, crtc->pipe);
+	}
 	mutex_unlock(&fbc->lock);
 }
 
