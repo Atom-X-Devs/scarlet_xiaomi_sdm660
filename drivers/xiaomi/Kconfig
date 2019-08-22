@@ -1,0 +1,63 @@
+config XIAOMI_SDM660
+	bool "Xiaomi SDM660"
+	depends on ARCH_SDM660
+	help
+	  Support for Xiaomi SDM660 devices.
+
+if XIAOMI_SDM660
+source "drivers/xiaomi/input/Kconfig"
+endif
+
+config LONGCHEER
+	bool "Longcheer board"
+	select XIAOMI_SDM660
+	help
+	  Support for Longcheer boards.
+
+config MI
+	bool "Mi board"
+	select XIAOMI_SDM660
+	help
+	  Support for Mi boards.
+
+config XIAOMI_LAVENDER
+	bool "Xiaomi lavender board"
+	select LONGCHEER
+	help
+	  Support for Xiaomi Redmi Note 7.
+
+config XIAOMI_TULIP
+	bool "Xiaomi tulip board"
+	select LONGCHEER
+	help
+	  Support for Xiaomi Redmi Note 6 Pro.
+
+config XIAOMI_WHYRED
+	bool "Xiaomi whyred board"
+	select LONGCHEER
+	help
+	  Support for Xiaomi Redmi Note 5 (Pro).
+
+config XIAOMI_WAYNE
+	bool "Xiaomi wayne board"
+	select LONGCHEER
+	help
+	  Support for Xiaomi MI A2 and Mi 6X.
+
+config XIAOMI_JASON
+	bool "Xiaomi jason board"
+	select MI
+	help
+	  Support for Xiaomi Mi Note 3.
+
+config XIAOMI_PLATINA
+	bool "Xiaomi platina board"
+	select MI
+	help
+	  Support for Xiaomi Mi 8 Lite.
+
+config XIAOMI_CLOVER
+	bool "Xiaomi clover board"
+	select MI
+	help
+	  Support for Xiaomi Mi Pad 4.
