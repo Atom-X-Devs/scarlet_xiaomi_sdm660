@@ -157,7 +157,7 @@ static const u32 vdram2_voltages[] = {
 	600000, 1800000,
 };
 
-static const u32 vsim1_voltages[] = {
+static const u32 vsim_voltages[] = {
 	1700000, 1800000, 2700000, 3000000, 3100000,
 };
 
@@ -179,26 +179,17 @@ static const u32 vefuse_voltages[] = {
 	1700000, 1800000, 1900000,
 };
 
-static const u32 vmch_voltages[] = {
+static const u32 vmch_vemc_voltages[] = {
 	2900000, 3000000, 3300000,
 };
 
-static const u32 vcama1_voltages[] = {
+static const u32 vcama_voltages[] = {
 	1800000, 2500000, 2700000,
 	2800000, 2900000, 3000000,
-};
-
-static const u32 vemc_voltages[] = {
-	2900000, 3000000, 3300000,
 };
 
 static const u32 vcn33_bt_wifi_voltages[] = {
 	3300000, 3400000, 3500000,
-};
-
-static const u32 vcama2_voltages[] = {
-	1800000, 2500000, 2700000,
-	2800000, 2900000, 3000000,
 };
 
 static const u32 vmc_voltages[] = {
@@ -209,16 +200,11 @@ static const u32 vldo28_voltages[] = {
 	2800000, 3000000,
 };
 
-static const u32 vsim2_voltages[] = {
-	1700000, 1800000, 2700000,
-	3000000, 3100000,
-};
-
 static const u32 vdram2_idx[] = {
 	0, 12,
 };
 
-static const u32 vsim1_idx[] = {
+static const u32 vsim_idx[] = {
 	3, 4, 8, 11, 12,
 };
 
@@ -238,24 +224,16 @@ static const u32 vefuse_idx[] = {
 	11, 12, 13,
 };
 
-static const u32 vmch_idx[] = {
+static const u32 vmch_vemc_idx[] = {
 	2, 3, 5,
 };
 
-static const u32 vcama1_idx[] = {
+static const u32 vcama_idx[] = {
 	0, 7, 9, 10, 11, 12,
-};
-
-static const u32 vemc_idx[] = {
-	2, 3, 5,
 };
 
 static const u32 vcn33_bt_wifi_idx[] = {
 	1, 2, 3,
-};
-
-static const u32 vcama2_idx[] = {
-	0, 7, 9, 10, 11, 12,
 };
 
 static const u32 vmc_idx[] = {
@@ -266,11 +244,7 @@ static const u32 vldo28_idx[] = {
 	1, 3,
 };
 
-static const u32 vsim2_idx[] = {
-	3, 4, 8, 11, 12,
-};
-
-static inline unsigned int mt6358_map_mode(unsigned int mode)
+static unsigned int mt6358_map_mode(unsigned int mode)
 {
 	return mode == MT6358_BUCK_MODE_AUTO ?
 		REGULATOR_MODE_NORMAL : REGULATOR_MODE_FAST;
@@ -283,7 +257,7 @@ static int mt6358_set_voltage_sel(struct regulator_dev *rdev,
 	const u32 *pvol;
 	struct mt6358_regulator_info *info = rdev_get_drvdata(rdev);
 
-	pvol = (const u32 *)info->index_table;
+	pvol = info->index_table;
 
 	idx = pvol[selector];
 	ret = regmap_update_bits(rdev->regmap, info->desc.vsel_reg,
@@ -309,16 +283,13 @@ static int mt6358_get_voltage_sel(struct regulator_dev *rdev)
 	}
 
 	selector = (selector & info->desc.vsel_mask) >> info->vsel_shift;
-	pvol = (const u32 *)info->index_table;
-	ret = -1;
+	pvol = info->index_table;
 	for (idx = 0; idx < info->desc.n_voltages; idx++) {
-		if (pvol[idx] == selector) {
-			ret = idx;
-			break;
-		}
+		if (pvol[idx] == selector)
+			return idx;
 	}
 
-	return ret;
+	return -EINVAL;
 }
 
 static int mt6358_get_buck_voltage_sel(struct regulator_dev *rdev)
@@ -328,9 +299,9 @@ static int mt6358_get_buck_voltage_sel(struct regulator_dev *rdev)
 
 	ret = regmap_read(rdev->regmap, info->da_vsel_reg, &regval);
 	if (ret != 0) {
-		dev_info(&rdev->dev,
-			 "Failed to get mt6358 Buck %s vsel reg: %d\n",
-			 info->desc.name, ret);
+		dev_err(&rdev->dev,
+			"Failed to get mt6358 Buck %s vsel reg: %d\n",
+			info->desc.name, ret);
 		return ret;
 	}
 
@@ -358,7 +329,7 @@ static int mt6358_regulator_set_mode(struct regulator_dev *rdev,
 				     unsigned int mode)
 {
 	struct mt6358_regulator_info *info = rdev_get_drvdata(rdev);
-	int ret, val;
+	int val;
 
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
@@ -368,8 +339,7 @@ static int mt6358_regulator_set_mode(struct regulator_dev *rdev,
 		val = MT6358_BUCK_MODE_AUTO;
 		break;
 	default:
-		ret = -EINVAL;
-		goto err_mode;
+		return -EINVAL;
 	}
 
 	dev_dbg(&rdev->dev, "mt6358 buck set_mode %#x, %#x, %#x, %#x\n",
@@ -377,16 +347,9 @@ static int mt6358_regulator_set_mode(struct regulator_dev *rdev,
 		info->modeset_shift, val);
 
 	val <<= info->modeset_shift;
-	ret = regmap_update_bits(rdev->regmap, info->modeset_reg,
-				 info->modeset_mask, val);
-err_mode:
-	if (ret != 0) {
-		dev_err(&rdev->dev,
-			"Failed to set mt6358 buck mode: %d\n", ret);
-		return ret;
-	}
 
-	return 0;
+	return regmap_update_bits(rdev->regmap, info->modeset_reg,
+				  info->modeset_mask, val);
 }
 
 static unsigned int mt6358_regulator_get_mode(struct regulator_dev *rdev)
@@ -463,7 +426,7 @@ static struct mt6358_regulator_info mt6358_regulators[] = {
 		    buck_volt_range1, 0x7f, MT6358_BUCK_VPROC12_DBG0, 0x7f,
 		    0, MT6358_VPROC_ANA_CON0, 2),
 	MT6358_BUCK("buck_vgpu", VGPU, 500000, 1293750, 6250,
-		    buck_volt_range1, 0x7f, MT6358_BUCK_VGPU_DBG0, 0x7f, 0,
+		    buck_volt_range1, 0x7f, MT6358_BUCK_VGPU_ELR0, 0x7f, 0,
 		    MT6358_VCORE_VGPU_ANA_CON0, 2),
 	MT6358_BUCK("buck_vs2", VS2, 500000, 2087500, 12500,
 		    buck_volt_range2, 0x7f, MT6358_BUCK_VS2_DBG0, 0x7f, 0,
@@ -495,7 +458,7 @@ static struct mt6358_regulator_info mt6358_regulators[] = {
 			 MT6358_LDO_VAUD28_CON0, 0, 2800000),
 	MT6358_LDO("ldo_vdram2", VDRAM2, vdram2_voltages, vdram2_idx,
 		   MT6358_LDO_VDRAM2_CON0, 0, MT6358_LDO_VDRAM2_ELR0, 0x10, 0),
-	MT6358_LDO("ldo_vsim1", VSIM1, vsim1_voltages, vsim1_idx,
+	MT6358_LDO("ldo_vsim1", VSIM1, vsim_voltages, vsim_idx,
 		   MT6358_LDO_VSIM1_CON0, 0, MT6358_VSIM1_ANA_CON0, 0xf00, 8),
 	MT6358_LDO("ldo_vibr", VIBR, vibr_voltages, vibr_idx,
 		   MT6358_LDO_VIBR_CON0, 0, MT6358_VIBR_ANA_CON0, 0xf00, 8),
@@ -505,11 +468,11 @@ static struct mt6358_regulator_info mt6358_regulators[] = {
 		   MT6358_LDO_VCAMD_CON0, 0, MT6358_VCAMD_ANA_CON0, 0xf00, 8),
 	MT6358_LDO("ldo_vefuse", VEFUSE, vefuse_voltages, vefuse_idx,
 		   MT6358_LDO_VEFUSE_CON0, 0, MT6358_VEFUSE_ANA_CON0, 0xf00, 8),
-	MT6358_LDO("ldo_vmch", VMCH, vmch_voltages, vmch_idx,
+	MT6358_LDO("ldo_vmch", VMCH, vmch_vemc_voltages, vmch_vemc_idx,
 		   MT6358_LDO_VMCH_CON0, 0, MT6358_VMCH_ANA_CON0, 0x700, 8),
-	MT6358_LDO("ldo_vcama1", VCAMA1, vcama1_voltages, vcama1_idx,
+	MT6358_LDO("ldo_vcama1", VCAMA1, vcama_voltages, vcama_idx,
 		   MT6358_LDO_VCAMA1_CON0, 0, MT6358_VCAMA1_ANA_CON0, 0xf00, 8),
-	MT6358_LDO("ldo_vemc", VEMC, vemc_voltages, vemc_idx,
+	MT6358_LDO("ldo_vemc", VEMC, vmch_vemc_voltages, vmch_vemc_idx,
 		   MT6358_LDO_VEMC_CON0, 0, MT6358_VEMC_ANA_CON0, 0x700, 8),
 	MT6358_LDO("ldo_vcn33_bt", VCN33_BT, vcn33_bt_wifi_voltages,
 		   vcn33_bt_wifi_idx, MT6358_LDO_VCN33_CON0_0,
@@ -517,14 +480,14 @@ static struct mt6358_regulator_info mt6358_regulators[] = {
 	MT6358_LDO("ldo_vcn33_wifi", VCN33_WIFI, vcn33_bt_wifi_voltages,
 		   vcn33_bt_wifi_idx, MT6358_LDO_VCN33_CON0_1,
 		   0, MT6358_VCN33_ANA_CON0, 0x300, 8),
-	MT6358_LDO("ldo_vcama2", VCAMA2, vcama2_voltages, vcama2_idx,
+	MT6358_LDO("ldo_vcama2", VCAMA2, vcama_voltages, vcama_idx,
 		   MT6358_LDO_VCAMA2_CON0, 0, MT6358_VCAMA2_ANA_CON0, 0xf00, 8),
 	MT6358_LDO("ldo_vmc", VMC, vmc_voltages, vmc_idx,
 		   MT6358_LDO_VMC_CON0, 0, MT6358_VMC_ANA_CON0, 0xf00, 8),
 	MT6358_LDO("ldo_vldo28", VLDO28, vldo28_voltages, vldo28_idx,
 		   MT6358_LDO_VLDO28_CON0_0, 0,
 		   MT6358_VLDO28_ANA_CON0, 0x300, 8),
-	MT6358_LDO("ldo_vsim2", VSIM2, vsim2_voltages, vsim2_idx,
+	MT6358_LDO("ldo_vsim2", VSIM2, vsim_voltages, vsim_idx,
 		   MT6358_LDO_VSIM2_CON0, 0, MT6358_VSIM2_ANA_CON0, 0xf00, 8),
 	MT6358_LDO1("ldo_vsram_proc11", VSRAM_PROC11, 500000, 1293750, 6250,
 		    buck_volt_range1, MT6358_LDO_VSRAM_PROC11_DBG0, 0x7f, 8,
