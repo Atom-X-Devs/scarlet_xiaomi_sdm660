@@ -21,3 +21,11 @@ RGB Formats
     pixfmt-srggb12p
     pixfmt-srggb14p
     pixfmt-srggb16
+    pixfmt-pixfmt-mtisp-srggb8
+    pixfmt-pixfmt-mtisp-srggb10
+    pixfmt-pixfmt-mtisp-srggb12
+    pixfmt-pixfmt-mtisp-srggb14
+    pixfmt-pixfmt-mtisp-srggb8f
+    pixfmt-pixfmt-mtisp-srggb10f
+    pixfmt-pixfmt-mtisp-srggb12f
+    pixfmt-pixfmt-mtisp-srggb14f
