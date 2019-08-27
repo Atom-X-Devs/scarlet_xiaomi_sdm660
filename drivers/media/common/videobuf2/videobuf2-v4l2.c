@@ -215,6 +215,8 @@ static int vb2_fill_vb2_v4l2_buffer(struct vb2_buffer *vb, struct v4l2_buffer *b
 					b->m.planes[plane].m.fd;
 				planes[plane].length =
 					b->m.planes[plane].length;
+				planes[plane].data_offset =
+					b->m.planes[plane].data_offset;
 			}
 			break;
 		default:
