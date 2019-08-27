@@ -180,12 +180,14 @@ static int keycombo_probe(struct platform_device *pdev)
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
 		return -ENOMEM;
-	state->combo_held_wake_source = wakeup_source_register("key combo");
+	state->combo_held_wake_source =
+		wakeup_source_register(&pdev->dev, "key combo");
 	if (!state->combo_held_wake_source) {
 		ret =  -ENOMEM;
 		goto err_held_ws_failed;
 	}
-	state->combo_up_wake_source = wakeup_source_register("key combo up");
+	state->combo_up_wake_source =
+		wakeup_source_register(&pdev->dev, "key combo up");
 	if (!state->combo_up_wake_source) {
 		ret =  -ENOMEM;
 		goto err_up_ws_failed;
