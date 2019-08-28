@@ -148,9 +148,9 @@ enum mt6358_irq_numbers {
 	.num_int_regs =	\
 		((MT6358_IRQ_##sp##_BITS - 1) / MT6358_REG_WIDTH) + 1,	\
 	.num_int_bits = MT6358_IRQ_##sp##_BITS, \
-	.en_reg = MT6358_##sp##_TOP_INT_CON0,		\
+	.en_reg = MT6358_##sp##_TOP_INT_CON0,	\
 	.en_reg_shift = 0x6,	\
-	.sta_reg = MT6358_##sp##_TOP_INT_STATUS0,		\
+	.sta_reg = MT6358_##sp##_TOP_INT_STATUS0,	\
 	.sta_reg_shift = 0x2,	\
 	.top_offset = MT6358_##sp##_TOP,	\
 }

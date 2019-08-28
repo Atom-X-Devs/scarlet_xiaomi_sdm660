@@ -59,9 +59,10 @@ static void pmic_irq_sync_unlock(struct irq_data *data)
 		if (irqd->enable_hwirq[i] == irqd->cache_hwirq[i])
 			continue;
 
+		/* Find out the irq group */
 		top_gp = 0;
-		while ((top_gp + 1) < ARRAY_SIZE(mt6358_ints) && i >=
-			mt6358_ints[top_gp + 1].hwirq_base)
+		while ((top_gp + 1) < ARRAY_SIZE(mt6358_ints) &&
+		       i >= mt6358_ints[top_gp + 1].hwirq_base)
 			top_gp++;
 
 		if (top_gp >= ARRAY_SIZE(mt6358_ints)) {
@@ -71,6 +72,7 @@ static void pmic_irq_sync_unlock(struct irq_data *data)
 			return;
 		}
 
+		/* Find the irq registers */
 		int_regs = (i - mt6358_ints[top_gp].hwirq_base) /
 			    MT6358_REG_WIDTH;
 		en_reg = mt6358_ints[top_gp].en_reg +
@@ -199,7 +201,7 @@ int mt6358_irq_init(struct mt6397_chip *chip)
 	if (!irqd->cache_hwirq)
 		return -ENOMEM;
 
-	/* Disable all interrupt for initializing */
+	/* Disable all interrupts for initializing */
 	for (i = 0; i < irqd->num_top; i++) {
 		for (j = 0; j < mt6358_ints[i].num_int_regs; j++)
 			regmap_write(chip->regmap,
@@ -211,7 +213,7 @@ int mt6358_irq_init(struct mt6397_chip *chip)
 						 irqd->num_pmic_irqs,
 						 &mt6358_irq_domain_ops, chip);
 	if (!chip->irq_domain) {
-		dev_err(chip->dev, "could not create irq domain\n");
+		dev_err(chip->dev, "could not create IRQ domain\n");
 		return -ENODEV;
 	}
 

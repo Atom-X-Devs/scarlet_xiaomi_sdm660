@@ -26,10 +26,8 @@
 
 #define MT6358_RTC_BASE		0x0588
 #define MT6358_RTC_SIZE		0x3c
-#define MT6358_RTC_WRTGR_OFFSET	0x3a
 #define MT6397_RTC_BASE		0xe000
 #define MT6397_RTC_SIZE		0x3e
-#define MT6397_RTC_WRTGR_OFFSET	0x3c
 
 static const struct resource mt6358_rtc_resources[] = {
 	{
@@ -41,11 +39,6 @@ static const struct resource mt6358_rtc_resources[] = {
 		.start = MT6358_IRQ_RTC,
 		.end   = MT6358_IRQ_RTC,
 		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = MT6358_RTC_WRTGR_OFFSET,
-		.end   = MT6358_RTC_WRTGR_OFFSET,
-		.flags = IORESOURCE_REG,
 	},
 };
 
@@ -59,11 +52,6 @@ static const struct resource mt6397_rtc_resources[] = {
 		.start = MT6397_IRQ_RTC,
 		.end   = MT6397_IRQ_RTC,
 		.flags = IORESOURCE_IRQ,
-	},
-	{
-		.start = MT6397_RTC_WRTGR_OFFSET,
-		.end   = MT6397_RTC_WRTGR_OFFSET,
-		.flags = IORESOURCE_REG,
 	},
 };
 
