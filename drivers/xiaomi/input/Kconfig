@@ -1,3 +1,10 @@
 if INPUT
 
+config INPUT_HALL_SENSOR
+	tristate "hall sensor support"
+	help
+	  Say Y here if you have a hall sensor.
+
+	  If unsure, say N.
+
 endif
