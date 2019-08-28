@@ -138,6 +138,10 @@
 	i2s0-share = "I2S5";
 };
 
+&auxadc {
+	status = "okay";
+};
+
 &cci {
 	proc-supply = <&mt6358_vproc12_reg>;
 };
