@@ -44,6 +44,9 @@
 #define FCC_VOTER			"FCC_VOTER"
 #define MAIN_FCC_VOTER			"MAIN_FCC_VOTER"
 #define PD_VOTER			"PD_VOTER"
+#ifdef CONFIG_MACH_LONGCHEER
+#define PL_TEMP_VOTER			"PL_TEMP_VOTER"
+#endif
 
 struct pl_data {
 	int			pl_mode;
@@ -821,7 +824,11 @@ skip_fcc_step_update:
 }
 
 #define MINIMUM_PARALLEL_FCC_UA		500000
+#ifdef CONFIG_MACH_LONGCHEER
+#define PL_TAPER_WORK_DELAY_MS		100
+#else
 #define PL_TAPER_WORK_DELAY_MS		500
+#endif
 #define TAPER_RESIDUAL_PCT		90
 #define TAPER_REDUCTION_UA		200000
 static void pl_taper_work(struct work_struct *work)
@@ -1206,7 +1213,11 @@ static bool is_batt_available(struct pl_data *chip)
 	return true;
 }
 
+#ifdef CONFIG_MACH_LONGCHEER
+#define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 100000
+#else
 #define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 50000
+#endif
 static int pl_fv_vote_callback(struct votable *votable, void *data,
 			int fv_uv, const char *client)
 {
@@ -1299,7 +1310,11 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	 *	unvote USBIN_I_VOTER) the status_changed_work enables
 	 *	USBIN_I_VOTER based on settled current.
 	 */
+#ifdef CONFIG_MACH_LONGCHEER
+	if (icl_ua <= 1300000)
+#else
 	if (icl_ua <= 1400000)
+#endif
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		schedule_delayed_work(&chip->status_change_work,
@@ -1769,10 +1784,19 @@ static void handle_settled_icl_change(struct pl_data *chip)
 	}
 	main_limited = pval.intval;
 
+	pr_err("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
+#ifdef CONFIG_MACH_LONGCHEER
+	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
+#else
 	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1400000)
+#endif
 			|| (main_settled_ua == 0)
 			|| ((total_current_ua >= 0) &&
+#ifdef CONFIG_MACH_LONGCHEER
+				(total_current_ua <= 1300000)))
+#else
 				(total_current_ua <= 1400000)))
+#endif
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);
