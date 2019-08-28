@@ -424,6 +424,13 @@ struct intel_hdcp {
 	 */
 	u8 content_type;
 	struct hdcp_port_data port_data;
+
+	/*
+	 * HDCP register access for gen12+ need the transcoder associated.
+	 * Transcoder attached to the connector could be changed at modeset.
+	 * Hence caching the transcoder here.
+	 */
+	enum transcoder cpu_transcoder;
 };
 
 struct intel_connector {
@@ -2005,6 +2012,8 @@ static inline void intel_backlight_device_unregister(struct intel_connector *con
 void intel_hdcp_atomic_check(struct drm_connector *connector,
 			     struct drm_connector_state *old_state,
 			     struct drm_connector_state *new_state);
+void intel_hdcp_transcoder_config(struct intel_connector *connector,
+				  enum transcoder cpu_transcoder);
 int intel_hdcp_init(struct intel_connector *connector,
 		    const struct intel_hdcp_shim *hdcp_shim);
 int intel_hdcp_enable(struct intel_connector *connector);
