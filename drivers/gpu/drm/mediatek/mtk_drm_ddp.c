@@ -183,6 +183,7 @@ struct mtk_mmsys_reg_data {
 	u32 rdma0_sout_color0;
 	u32 rdma1_sout_sel_in;
 	u32 rdma1_sout_dpi0;
+	u32 rdma1_sout_dsi0;
 	u32 dpi0_sel_in;
 	u32 dpi0_sel_in_rdma1;
 	u32 dsi0_sel_in;
@@ -441,6 +442,9 @@ static unsigned int mtk_ddp_sout_sel(const struct mtk_mmsys_reg_data *data,
 	} else if (cur == DDP_COMPONENT_RDMA0 && next == DDP_COMPONENT_COLOR0) {
 		*addr = data->rdma0_sout_sel_in;
 		value = data->rdma0_sout_color0;
+	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DSI0) {
+		*addr = data->rdma1_sout_sel_in;
+		value = data->rdma1_sout_dsi0;
 	} else {
 		value = 0;
 	}
