@@ -15,6 +15,7 @@
 #define MTK_DRM_DRV_H
 
 #include <linux/io.h>
+#include "mtk_drm_ddp.h"
 #include "mtk_drm_ddp_comp.h"
 
 #define MAX_CRTC	3
@@ -35,6 +36,8 @@ struct mtk_mmsys_driver_data {
 	unsigned int ext_len;
 	const enum mtk_ddp_comp_id *third_path;
 	unsigned int third_len;
+
+	const struct mtk_mmsys_reg_data *reg_data;
 
 	bool shadow_register;
 };
