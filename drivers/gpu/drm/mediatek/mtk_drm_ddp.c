@@ -145,6 +145,8 @@
 #define DPI_SEL_IN_BLS			0x0
 #define DSI_SEL_IN_RDMA			0x1
 
+#define OVL0_MOUT_EN_OVL0_2L		BIT(4)
+
 struct mtk_disp_mutex {
 	int id;
 	bool claimed;
@@ -307,6 +309,9 @@ static unsigned int mtk_ddp_mout_en(const struct mtk_mmsys_reg_data *data,
 	} else if (cur == DDP_COMPONENT_OD1 && next == DDP_COMPONENT_RDMA1) {
 		*addr = DISP_REG_CONFIG_DISP_OD_MOUT_EN;
 		value = OD1_MOUT_EN_RDMA1;
+	} else if (cur == DDP_COMPONENT_OVL0 && next == DDP_COMPONENT_OVL_2L0) {
+		*addr = data->ovl0_mout_en;
+		value = OVL0_MOUT_EN_OVL0_2L;
 	} else {
 		value = 0;
 	}
