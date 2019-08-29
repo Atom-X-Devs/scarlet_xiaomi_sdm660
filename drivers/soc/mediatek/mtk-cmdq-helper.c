@@ -211,6 +211,36 @@ int cmdq_pkt_clear_event(struct cmdq_pkt *pkt, u16 event)
 }
 EXPORT_SYMBOL(cmdq_pkt_clear_event);
 
+int cmdq_pkt_poll(struct cmdq_pkt *pkt, u8 subsys,
+		  u16 offset, u32 value)
+{
+	struct cmdq_instruction inst;
+
+	inst.op = CMDQ_CODE_POLL;
+	inst.value = value;
+	inst.offset = offset;
+	inst.subsys = subsys;
+
+	return cmdq_pkt_append_command(pkt, inst);
+}
+EXPORT_SYMBOL(cmdq_pkt_poll);
+
+int cmdq_pkt_poll_mask(struct cmdq_pkt *pkt, u8 subsys,
+		       u16 offset, u32 value, u32 mask)
+{
+	struct cmdq_instruction inst = { {0} };
+	int err = 0;
+
+	inst.op = CMDQ_CODE_MASK;
+	inst.mask = ~mask;
+	err = cmdq_pkt_append_command(pkt, inst);
+	offset = offset | 0x1;
+	err |= cmdq_pkt_poll(pkt, subsys, offset, value);
+
+	return err;
+}
+EXPORT_SYMBOL(cmdq_pkt_poll_mask);
+
 static int cmdq_pkt_finalize(struct cmdq_pkt *pkt)
 {
 	struct cmdq_instruction inst = { {0} };
