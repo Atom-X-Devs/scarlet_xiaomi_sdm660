@@ -45,11 +45,11 @@
 		};
 	};
 
-	usb_p0_vbus: regulator@0 {
+	usb_vbus: regulator@0 {
 		compatible = "regulator-fixed";
-		regulator-name = "vbus";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
+		regulator-name = "p0_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
 		gpio = <&pio 42 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-always-on;

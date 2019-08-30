@@ -1152,7 +1152,8 @@
 			      <0 0x11203e00 0 0x0100>;
 			reg-names = "mac", "ippc";
 			interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_LOW>;
-			phys = <&u2port0 PHY_TYPE_USB2>;
+			phys = <&u2port0 PHY_TYPE_USB2>,
+			       <&u3port0 PHY_TYPE_USB3>;
 			clocks = <&infracfg CLK_INFRA_UNIPRO_SCK>,
 				 <&infracfg CLK_INFRA_USB>;
 			clock-names = "sys_ck", "ref_ck";
@@ -1162,7 +1163,8 @@
 			status = "disabled";
 
 			usb_host: xhci@11200000 {
-				compatible = "mediatek,mtk-xhci";
+				compatible = "mediatek,mt8183-xhci",
+					     "mediatek,mtk-xhci";
 				reg = <0 0x11200000 0 0x1000>;
 				reg-names = "mac";
 				interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_LOW>;
@@ -1315,22 +1317,23 @@
 		};
 
 		u3phy: usb-phy@11f40000 {
-			compatible = "mediatek,generic-tphy-v2";
-			#address-cells = <2>;
-			#size-cells = <2>;
-			ranges;
+			compatible = "mediatek,mt8183-tphy",
+				     "mediatek,generic-tphy-v2";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0 0x11f40000 0x1000>;
 			status = "okay";
 
-			u2port0: usb-phy@11f40000 {
-				reg = <0 0x11f40000 0 0x700>;
+			u2port0: usb-phy@0 {
+				reg = <0x0 0x700>;
 				clocks = <&clk26m>;
 				clock-names = "ref";
 				#phy-cells = <1>;
 				status = "okay";
 			};
 
-			u3port0: usb-phy@11f40700 {
-				reg = <0 0x11f40700 0 0x900>;
+			u3port0: usb-phy@0700 {
+				reg = <0x0700 0x900>;
 				clocks = <&clk26m>;
 				clock-names = "ref";
 				#phy-cells = <1>;
