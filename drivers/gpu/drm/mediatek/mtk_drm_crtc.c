@@ -13,6 +13,7 @@
 
 #include <asm/barrier.h>
 #include <drm/drmP.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_plane_helper.h>
@@ -54,6 +55,8 @@ struct mtk_drm_crtc {
 	struct mtk_disp_mutex		*mutex;
 	unsigned int			ddp_comp_nr;
 	struct mtk_ddp_comp		**ddp_comp;
+
+	struct drm_crtc_state		*old_crtc_state;
 };
 
 struct mtk_crtc_state {
@@ -352,6 +355,7 @@ static void mtk_crtc_ddp_hw_fini(struct mtk_drm_crtc *mtk_crtc)
 static void mtk_crtc_ddp_config(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	struct drm_atomic_state *atomic_state = mtk_crtc->old_crtc_state->state;
 	struct mtk_crtc_state *state = to_mtk_crtc_state(mtk_crtc->base.state);
 	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
 	unsigned int i;
@@ -391,6 +395,7 @@ static void mtk_crtc_ddp_config(struct drm_crtc *crtc)
 			}
 		}
 		mtk_crtc->pending_planes = false;
+		mtk_atomic_state_put_queue(atomic_state);
 	}
 }
 
@@ -471,6 +476,7 @@ static void mtk_drm_crtc_atomic_begin(struct drm_crtc *crtc,
 static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 				      struct drm_crtc_state *old_crtc_state)
 {
+	struct drm_atomic_state *old_atomic_state = old_crtc_state->state;
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	unsigned int pending_planes = 0;
@@ -489,8 +495,13 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 			pending_planes |= BIT(i);
 		}
 	}
-	if (pending_planes)
+
+	if (pending_planes) {
 		mtk_crtc->pending_planes = true;
+		drm_atomic_state_get(old_atomic_state);
+		mtk_crtc->old_crtc_state = old_crtc_state;
+	}
+
 	if (crtc->state->color_mgmt_changed)
 		for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
 			mtk_ddp_gamma_set(mtk_crtc->ddp_comp[i], crtc->state);
@@ -546,6 +557,7 @@ err_cleanup_crtc:
 
 void mtk_crtc_ddp_irq(struct drm_crtc *crtc, struct mtk_ddp_comp *comp)
 {
+
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
 

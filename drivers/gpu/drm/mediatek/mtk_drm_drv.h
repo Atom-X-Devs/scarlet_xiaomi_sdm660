@@ -56,12 +56,17 @@ struct mtk_drm_private {
 	const struct mtk_mmsys_driver_data *data;
 
 	struct {
-		struct drm_atomic_state *state;
-		struct work_struct work;
-		struct mutex lock;
+		uint32_t crtcs;
+		wait_queue_head_t crtcs_event;
 	} commit;
 
 	struct drm_atomic_state *suspend_state;
+
+	struct {
+		struct work_struct	work;
+		struct list_head	list;
+		spinlock_t		lock;
+	} unreference;
 
 	bool dma_parms_allocated;
 };
@@ -73,5 +78,7 @@ extern struct platform_driver mtk_disp_rdma_driver;
 extern struct platform_driver mtk_dpi_driver;
 extern struct platform_driver mtk_dsi_driver;
 extern struct platform_driver mtk_mipi_tx_driver;
+
+void mtk_atomic_state_put_queue(struct drm_atomic_state *state);
 
 #endif /* MTK_DRM_DRV_H */
