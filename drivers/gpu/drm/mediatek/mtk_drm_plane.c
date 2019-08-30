@@ -210,6 +210,8 @@ static void mtk_plane_atomic_update(struct drm_plane *plane,
 	state->pending.height = drm_rect_height(&plane->state->dst);
 	wmb(); /* Make sure the above parameters are set before update */
 	state->pending.dirty = true;
+
+	mtk_drm_crtc_plane_update(crtc, plane, state);
 }
 
 static void mtk_plane_atomic_disable(struct drm_plane *plane,
@@ -220,6 +222,8 @@ static void mtk_plane_atomic_disable(struct drm_plane *plane,
 	state->pending.enable = false;
 	wmb(); /* Make sure the above parameter is set before update */
 	state->pending.dirty = true;
+	/* Fetch CRTC from old plane state when disabling. */
+	mtk_drm_crtc_plane_update(old_state->crtc, plane, state);
 }
 
 static const struct drm_plane_helper_funcs mtk_plane_helper_funcs = {

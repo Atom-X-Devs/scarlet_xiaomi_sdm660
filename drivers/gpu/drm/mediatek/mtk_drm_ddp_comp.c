@@ -429,6 +429,40 @@ int mtk_ddp_comp_init(struct device *dev, struct device_node *node,
 
 	comp->larb_dev = &larb_pdev->dev;
 
+	if (IS_ENABLED(CONFIG_MTK_CMDQ)) {
+		struct platform_device *comp_pdev;
+		struct resource res;
+		struct cmdq_client_reg *cmdq_reg;
+		int ret = 0;
+
+		if (of_address_to_resource(node, 0, &res) != 0) {
+			dev_err(dev, "Missing reg in %s node\n",
+				node->full_name);
+			return -EINVAL;
+		}
+		comp->regs_pa = res.start;
+
+		comp_pdev = of_find_device_by_node(node);
+		if (!comp_pdev) {
+			dev_warn(dev, "Waiting for component device %s\n",
+				 node->full_name);
+			return -EPROBE_DEFER;
+		}
+
+		cmdq_reg = kzalloc(sizeof(*cmdq_reg), GFP_KERNEL);
+		if (!cmdq_reg)
+			return -EINVAL;
+
+		ret = cmdq_dev_get_client_reg(&comp_pdev->dev, cmdq_reg, 0);
+		if (ret != 0)
+			dev_dbg(&comp_pdev->dev,
+				"get mediatek,gce-client-reg fail!\n");
+		else
+			comp->subsys = cmdq_reg->subsys;
+
+		kfree(cmdq_reg);
+	}
+
 	return 0;
 }
 
