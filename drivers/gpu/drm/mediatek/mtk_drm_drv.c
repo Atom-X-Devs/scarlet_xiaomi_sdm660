@@ -88,10 +88,35 @@ static int mtk_atomic_get_crtcs(struct drm_device *drm,
 				struct drm_atomic_state *state)
 {
 	struct mtk_drm_private *private = drm->dev_private;
-	uint32_t crtc_mask;
+	uint32_t crtc_mask, needs_modeset, has_cursor_plane;
+	struct drm_plane *plane;
+	struct drm_plane_state *plane_state;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	int i;
 	int ret;
 
 	crtc_mask = mtk_atomic_crtc_mask(drm, state);
+
+	/*
+	 * Allow cursor updates unless there is a pending modeset or cursor
+	 * plane update.
+	 */
+	needs_modeset = 0;
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		if (crtc && drm_atomic_crtc_needs_modeset(crtc_state)) {
+			needs_modeset |= (1 << drm_crtc_index(crtc));
+			break;
+		}
+	}
+
+	has_cursor_plane = 0;
+	for_each_new_plane_in_state(state, plane, plane_state, i) {
+		if (crtc && plane->crtc && plane == plane->crtc->cursor) {
+			has_cursor_plane |= (1 << drm_crtc_index(crtc));
+			break;
+		}
+	}
 
 	/*
 	 * Wait for all pending updates to complete for the set of crtcs being
@@ -102,6 +127,8 @@ static int mtk_atomic_get_crtcs(struct drm_device *drm,
 			!(private->commit.crtcs & crtc_mask));
 	if (ret == 0)
 		private->commit.crtcs |= crtc_mask;
+
+	private->commit.flush_for_cursor |= needs_modeset | has_cursor_plane;
 	spin_unlock(&private->commit.crtcs_event.lock);
 
 	return ret;
@@ -120,6 +147,7 @@ static void mtk_atomic_put_crtcs(struct drm_device *drm,
 
 	spin_lock(&private->commit.crtcs_event.lock);
 	private->commit.crtcs &= ~crtc_mask;
+	private->commit.flush_for_cursor &= ~crtc_mask;
 	wake_up_all_locked(&private->commit.crtcs_event);
 	spin_unlock(&private->commit.crtcs_event.lock);
 }
@@ -168,6 +196,7 @@ static void mtk_atomic_wait_for_fences(struct drm_atomic_state *state)
 static void mtk_atomic_complete(struct drm_device *drm,
 				struct drm_atomic_state *state)
 {
+	struct mtk_drm_private *private = drm->dev_private;
 	mtk_atomic_wait_for_fences(state);
 	/*
 	 * Mediatek drm supports runtime PM, so plane registers cannot be
@@ -183,10 +212,12 @@ static void mtk_atomic_complete(struct drm_device *drm,
 	 *
 	 * See the kerneldoc entries for these three functions for more details.
 	 */
+	mutex_lock(&private->hw_lock);
 	drm_atomic_helper_commit_modeset_disables(drm, state);
 	drm_atomic_helper_commit_modeset_enables(drm, state);
 	drm_atomic_helper_commit_planes(drm, state,
 					DRM_PLANE_COMMIT_ACTIVE_ONLY);
+	mutex_unlock(&private->hw_lock);
 
 	drm_atomic_helper_wait_for_vblanks(drm, state);
 
@@ -493,6 +524,7 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	INIT_LIST_HEAD(&private->unreference.list);
 	spin_lock_init(&private->unreference.lock);
 	init_waitqueue_head(&private->commit.crtcs_event);
+	mutex_init(&private->hw_lock);
 
 	return 0;
 

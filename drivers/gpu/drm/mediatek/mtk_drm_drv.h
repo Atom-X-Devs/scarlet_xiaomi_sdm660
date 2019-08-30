@@ -58,6 +58,7 @@ struct mtk_drm_private {
 	struct {
 		uint32_t crtcs;
 		wait_queue_head_t crtcs_event;
+		uint32_t flush_for_cursor;
 	} commit;
 
 	struct drm_atomic_state *suspend_state;
@@ -67,6 +68,8 @@ struct mtk_drm_private {
 		struct list_head	list;
 		spinlock_t		lock;
 	} unreference;
+
+	struct mutex hw_lock;
 
 	bool dma_parms_allocated;
 };

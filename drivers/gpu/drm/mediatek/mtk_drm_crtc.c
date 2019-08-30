@@ -49,7 +49,7 @@ struct mtk_drm_crtc {
 	struct drm_plane		*planes;
 	unsigned int			layer_nr;
 	bool				pending_planes;
-
+	bool                            cursor_update;
 	void __iomem			*config_regs;
 	const struct mtk_mmsys_reg_data *mmsys_reg_data;
 	struct mtk_disp_mutex		*mutex;
@@ -395,8 +395,45 @@ static void mtk_crtc_ddp_config(struct drm_crtc *crtc)
 			}
 		}
 		mtk_crtc->pending_planes = false;
-		mtk_atomic_state_put_queue(atomic_state);
+		if (!mtk_crtc->cursor_update)
+			mtk_atomic_state_put_queue(atomic_state);
+		mtk_crtc->cursor_update = false;
 	}
+}
+
+void mtk_drm_crtc_cursor_update(struct drm_crtc *crtc, struct drm_plane *plane,
+				struct drm_plane_state *plane_state)
+{
+	struct mtk_drm_private *priv = crtc->dev->dev_private;
+	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	const struct drm_plane_helper_funcs *plane_helper_funcs =
+			plane->helper_private;
+	int i;
+
+	if (!mtk_crtc->enabled)
+		return;
+
+	mutex_lock(&priv->hw_lock);
+	plane_helper_funcs->atomic_update(plane, plane_state);
+	for (i = 0; i < mtk_crtc->layer_nr; i++) {
+		struct drm_plane *plane = &mtk_crtc->planes[i];
+		struct mtk_plane_state *plane_state;
+
+		plane_state = to_mtk_plane_state(plane->state);
+		if (plane_state->pending.dirty) {
+			plane_state->pending.config = true;
+			plane_state->pending.dirty = false;
+		}
+	}
+	mtk_crtc->pending_planes = true;
+	mtk_crtc->cursor_update = true;
+
+	if (priv->data->shadow_register) {
+		mtk_disp_mutex_acquire(mtk_crtc->mutex);
+		mtk_crtc_ddp_config(crtc);
+		mtk_disp_mutex_release(mtk_crtc->mutex);
+	}
+	mutex_unlock(&priv->hw_lock);
 }
 
 static void mtk_drm_crtc_atomic_enable(struct drm_crtc *crtc,
