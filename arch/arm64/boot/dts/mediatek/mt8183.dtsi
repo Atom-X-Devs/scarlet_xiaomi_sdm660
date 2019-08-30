@@ -1336,6 +1336,7 @@
 				clocks = <&clk26m>;
 				clock-names = "ref";
 				#phy-cells = <1>;
+				mediatek,discth = <15>;
 				status = "okay";
 			};
 
