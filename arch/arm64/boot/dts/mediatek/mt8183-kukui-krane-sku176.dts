@@ -20,7 +20,7 @@
 	 */
 	compatible = "google,krane-sku176",
 		"google,krane-rev3-sku16", "google,krane-rev4-sku16",
-		"google,krane", "google,kukui", "mediatek,mt8183";
+		"google,krane", "mediatek,mt8183";
 };
 
 &panel {

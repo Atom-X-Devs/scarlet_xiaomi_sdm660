@@ -14,8 +14,7 @@
 
 / {
 	model = "MediaTek krane sku0 board";
-	compatible = "google,krane-sku0", "google,krane",
-		"google,kukui", "mediatek,mt8183";
+	compatible = "google,krane-sku0", "google,krane", "mediatek,mt8183";
 };
 
 &panel {

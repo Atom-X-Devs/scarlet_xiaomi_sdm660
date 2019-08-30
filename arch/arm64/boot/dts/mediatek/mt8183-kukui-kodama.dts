@@ -8,7 +8,7 @@
 
 / {
 	model = "MediaTek kodama board";
-	compatible = "google,kodama", "google,kukui", "mediatek,mt8183";
+	compatible = "google,kodama", "mediatek,mt8183";
 
 	ppvarn_lcd: ppvarn-lcd {
 		compatible = "regulator-fixed";

@@ -8,7 +8,7 @@
 
 / {
 	model = "Google jacuzzi board";
-	compatible = "google,jacuzzi", "google,kukui", "mediatek,mt8183";
+	compatible = "google,jacuzzi", "mediatek,mt8183";
 
 	panel: panel {
 		compatible = "auo,b116xw03";
