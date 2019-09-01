@@ -21,6 +21,7 @@ struct mtk_smi_larb_iommu {
 };
 
 struct mtk_smi_iommu {
+	unsigned int larb_nr;
 	struct mtk_smi_larb_iommu larb_imu[MTK_LARB_NR_MAX];
 };
 
