@@ -1558,6 +1558,7 @@
 			clocks = <&mmsys CLK_MM_DISP_RDMA0>;
 			iommus = <&iommu M4U_PORT_DISP_RDMA0>;
 			mediatek,larb = <&larb0>;
+			mediatek,rdma_fifo_size = <5>;
 		};
 
 		rdma1: rdma@1400c000 {
@@ -1568,6 +1569,7 @@
 			clocks = <&mmsys CLK_MM_DISP_RDMA1>;
 			iommus = <&iommu M4U_PORT_DISP_RDMA1>;
 			mediatek,larb = <&larb0>;
+			mediatek,rdma_fifo_size = <2>;
 		};
 
 		color0: color@1400e000 {
