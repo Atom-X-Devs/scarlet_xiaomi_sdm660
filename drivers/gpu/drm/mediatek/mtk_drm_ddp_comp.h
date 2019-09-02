@@ -202,6 +202,5 @@ void mtk_ddp_write_mask(unsigned int value,
 			struct mtk_ddp_comp *comp,
 			unsigned int offset,
 			unsigned int mask);
-enum mtk_ddp_comp_type mtk_ddp_comp_get_type(enum mtk_ddp_comp_id comp_id);
 
 #endif /* MTK_DRM_DDP_COMP_H */

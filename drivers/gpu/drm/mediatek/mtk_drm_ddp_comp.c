@@ -338,14 +338,6 @@ int mtk_ddp_comp_get_id(struct device_node *node,
 	return -EINVAL;
 }
 
-enum mtk_ddp_comp_type mtk_ddp_comp_get_type(enum mtk_ddp_comp_id comp_id)
-{
-	if (comp_id < DDP_COMPONENT_ID_MAX)
-		return mtk_ddp_matches[comp_id].type;
-
-	return MTK_DDP_COMP_TYPE_MAX;
-}
-
 int mtk_ddp_comp_init(struct device *dev, struct device_node *node,
 		      struct mtk_ddp_comp *comp, enum mtk_ddp_comp_id comp_id,
 		      const struct mtk_ddp_comp_funcs *funcs)
