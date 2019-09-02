@@ -28,7 +28,7 @@
 #define DISP_REG_OVL_RST			0x0014
 #define DISP_REG_OVL_ROI_SIZE			0x0020
 #define DISP_REG_OVL_DATAPATH_CON		0x0024
-#define OVL_BGCLR_SEL_IN                        BIT(2)
+#define OVL_BGCLR_SEL_IN				BIT(2)
 #define DISP_REG_OVL_ROI_BGCLR			0x0028
 #define DISP_REG_OVL_SRC_CON			0x002c
 #define DISP_REG_OVL_CON(n)			(0x0030 + 0x20 * (n))
@@ -247,24 +247,22 @@ static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
 		mtk_ovl_layer_on(comp, idx);
 }
 
-static void mtk_ovl_bgclr_in_on(struct mtk_ddp_comp *comp,
-				enum mtk_ddp_comp_id prev)
+static void mtk_ovl_bgclr_in_on(struct mtk_ddp_comp *comp)
 {
-	int is_ovl = 0;
+	unsigned int reg;
 
-        if (prev == DDP_COMPONENT_OVL0 ||
-            prev == DDP_COMPONENT_OVL0_2L ||
-            prev == DDP_COMPONENT_OVL1_2L)
-		is_ovl = 1;
-
-	mtk_ddp_write_mask((is_ovl << 2), comp,
-			   DISP_REG_OVL_DATAPATH_CON, OVL_BGCLR_SEL_IN);
+	reg = readl(comp->regs + DISP_REG_OVL_DATAPATH_CON);
+	reg = reg | OVL_BGCLR_SEL_IN;
+	writel(reg, comp->regs + DISP_REG_OVL_DATAPATH_CON);
 }
 
 static void mtk_ovl_bgclr_in_off(struct mtk_ddp_comp *comp)
 {
-        mtk_ddp_write_mask(0, comp,
-                           DISP_REG_OVL_DATAPATH_CON, OVL_BGCLR_SEL_IN);
+	unsigned int reg;
+
+	reg = readl(comp->regs + DISP_REG_OVL_DATAPATH_CON);
+	reg = reg & ~OVL_BGCLR_SEL_IN;
+	writel(reg, comp->regs + DISP_REG_OVL_DATAPATH_CON);
 }
 
 static const struct mtk_ddp_comp_funcs mtk_disp_ovl_funcs = {
