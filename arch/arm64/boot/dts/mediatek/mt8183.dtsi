@@ -1562,7 +1562,7 @@
 		};
 
 		rdma1: rdma@1400c000 {
-			compatible = "mediatek,mt8183-disp-rdma1";
+			compatible = "mediatek,mt8183-disp-rdma";
 			reg = <0 0x1400c000 0 0x1000>;
 			interrupts = <GIC_SPI 229 IRQ_TYPE_LEVEL_LOW>;
 			power-domains = <&scpsys MT8183_POWER_DOMAIN_DISP>;
