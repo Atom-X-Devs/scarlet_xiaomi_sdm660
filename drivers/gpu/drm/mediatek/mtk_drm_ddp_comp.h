@@ -198,9 +198,5 @@ int mtk_ddp_comp_register(struct drm_device *drm, struct mtk_ddp_comp *comp);
 void mtk_ddp_comp_unregister(struct drm_device *drm, struct mtk_ddp_comp *comp);
 void mtk_dither_set(struct mtk_ddp_comp *comp, unsigned int bpc,
 		    unsigned int CFG);
-void mtk_ddp_write_mask(unsigned int value,
-			struct mtk_ddp_comp *comp,
-			unsigned int offset,
-			unsigned int mask);
 
 #endif /* MTK_DRM_DDP_COMP_H */

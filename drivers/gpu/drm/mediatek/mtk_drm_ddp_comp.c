@@ -84,17 +84,6 @@
 #define DITHER_ADD_LSHIFT_G(x)			(((x) & 0x7) << 4)
 #define DITHER_ADD_RSHIFT_G(x)			(((x) & 0x7) << 0)
 
-void mtk_ddp_write_mask(unsigned int value,
-			struct mtk_ddp_comp *comp,
-			unsigned int offset,
-			unsigned int mask)
-{
-	unsigned int tmp = readl(comp->regs + offset);
-
-	tmp = (tmp & ~mask) | (value & mask);
-	writel(tmp, comp->regs + offset);
-}
-
 void mtk_dither_set(struct mtk_ddp_comp *comp, unsigned int bpc,
 		    unsigned int CFG)
 {
