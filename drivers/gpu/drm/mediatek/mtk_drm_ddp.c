@@ -145,17 +145,6 @@
 #define DPI_SEL_IN_BLS			0x0
 #define DSI_SEL_IN_RDMA			0x1
 
-#define DISP_REG_OVL0_MOUT_EN(data)		((data)->ovl0_mout_en)
-#define DISP_REG_DPI0_SEL_IN(data)		((data)->dpi0_sel_in)
-#define DISP_REG_DPI0_SEL_IN_RDMA1(data)	((data)->dpi0_sel_in_rdma1)
-#define DISP_REG_DSI0_SEL_IN(data)		((data)->dsi0_sel_in)
-#define DISP_REG_DSI0_SEL_IN_RDMA1(data)	((data)->dsi0_sel_in_rdma1)
-#define DISP_REG_RDMA0_SOUT_SEL_IN(data)	((data)->rdma0_sout_sel_in)
-#define DISP_REG_RDMA0_SOUT_COLOR0(data)	((data)->rdma0_sout_color0)
-#define DISP_REG_RDMA1_SOUT_SEL_IN(data)	((data)->rdma1_sout_sel_in)
-#define DISP_REG_RDMA1_SOUT_DPI0(data)		((data)->rdma1_sout_dpi0)
-#define DISP_REG_RDMA1_SOUT_DSI0(data)		((data)->rdma1_sout_dsi0)
-
 struct mtk_disp_mutex {
 	int id;
 	bool claimed;
@@ -185,19 +174,6 @@ struct mtk_ddp {
 	void __iomem			*regs;
 	struct mtk_disp_mutex		mutex[10];
 	const struct mtk_ddp_data	*data;
-};
-
-struct mtk_mmsys_reg_data {
-	u32 ovl0_mout_en;
-	u32 rdma0_sout_sel_in;
-	u32 rdma0_sout_color0;
-	u32 rdma1_sout_sel_in;
-	u32 rdma1_sout_dpi0;
-	u32 rdma1_sout_dsi0;
-	u32 dpi0_sel_in;
-	u32 dpi0_sel_in_rdma1;
-	u32 dsi0_sel_in;
-	u32 dsi0_sel_in_rdma1;
 };
 
 static const unsigned int mt2701_mutex_mod[DDP_COMPONENT_ID_MAX] = {
@@ -278,34 +254,17 @@ static const struct mtk_ddp_data mt8173_ddp_driver_data = {
 	.mutex_sof_reg = MT2701_DISP_MUTEX0_SOF0,
 };
 
-const struct mtk_mmsys_reg_data mt2701_mmsys_reg_data = {
-	.ovl0_mout_en = DISP_REG_CONFIG_DISP_OVL_MOUT_EN,
-	.dsi0_sel_in = DISP_REG_CONFIG_DSI_SEL,
-	.dsi0_sel_in_rdma1 = DSI_SEL_IN_RDMA,
-};
-
-const struct mtk_mmsys_reg_data mt8173_mmsys_reg_data = {
-	.ovl0_mout_en = DISP_REG_CONFIG_DISP_OVL0_MOUT_EN,
-	.rdma1_sout_sel_in = DISP_REG_CONFIG_DISP_RDMA1_SOUT_EN,
-	.rdma1_sout_dpi0 = RDMA1_SOUT_DPI0,
-	.dpi0_sel_in = DISP_REG_CONFIG_DPI_SEL_IN,
-	.dpi0_sel_in_rdma1 = DPI0_SEL_IN_RDMA1,
-	.dsi0_sel_in = DISP_REG_CONFIG_DSIE_SEL_IN,
-	.dsi0_sel_in_rdma1 = DSI0_SEL_IN_RDMA1,
-};
-
-static unsigned int mtk_ddp_mout_en(const struct mtk_mmsys_reg_data *data,
-				    enum mtk_ddp_comp_id cur,
+static unsigned int mtk_ddp_mout_en(enum mtk_ddp_comp_id cur,
 				    enum mtk_ddp_comp_id next,
 				    unsigned int *addr)
 {
 	unsigned int value;
 
 	if (cur == DDP_COMPONENT_OVL0 && next == DDP_COMPONENT_COLOR0) {
-		*addr = DISP_REG_OVL0_MOUT_EN(data);
+		*addr = DISP_REG_CONFIG_DISP_OVL0_MOUT_EN;
 		value = OVL0_MOUT_EN_COLOR0;
 	} else if (cur == DDP_COMPONENT_OVL0 && next == DDP_COMPONENT_RDMA0) {
-		*addr = DISP_REG_OVL0_MOUT_EN(data);
+		*addr = DISP_REG_CONFIG_DISP_OVL_MOUT_EN;
 		value = OVL_MOUT_EN_RDMA;
 	} else if (cur == DDP_COMPONENT_OD0 && next == DDP_COMPONENT_RDMA0) {
 		*addr = DISP_REG_CONFIG_DISP_OD_MOUT_EN;
@@ -329,8 +288,7 @@ static unsigned int mtk_ddp_mout_en(const struct mtk_mmsys_reg_data *data,
 	return value;
 }
 
-static unsigned int mtk_ddp_sel_in(const struct mtk_mmsys_reg_data *data,
-				   enum mtk_ddp_comp_id cur,
+static unsigned int mtk_ddp_sel_in(enum mtk_ddp_comp_id cur,
 				   enum mtk_ddp_comp_id next,
 				   unsigned int *addr)
 {
@@ -340,14 +298,14 @@ static unsigned int mtk_ddp_sel_in(const struct mtk_mmsys_reg_data *data,
 		*addr = DISP_REG_CONFIG_DISP_COLOR0_SEL_IN;
 		value = COLOR0_SEL_IN_OVL0;
 	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DPI0) {
-		*addr = DISP_REG_DPI0_SEL_IN(data);
-		value = DISP_REG_DPI0_SEL_IN_RDMA1(data);
+		*addr = DISP_REG_CONFIG_DPI_SEL_IN;
+		value = DPI0_SEL_IN_RDMA1;
 	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DPI1) {
 		*addr = DISP_REG_CONFIG_DPI_SEL_IN;
 		value = DPI1_SEL_IN_RDMA1;
 	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DSI0) {
-		*addr = DISP_REG_DSI0_SEL_IN(data);
-		value = DISP_REG_DSI0_SEL_IN_RDMA1(data);
+		*addr = DISP_REG_CONFIG_DSIE_SEL_IN;
+		value = DSI0_SEL_IN_RDMA1;
 	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DSI1) {
 		*addr = DISP_REG_CONFIG_DSIO_SEL_IN;
 		value = DSI1_SEL_IN_RDMA1;
@@ -388,8 +346,7 @@ static unsigned int mtk_ddp_sel_in(const struct mtk_mmsys_reg_data *data,
 	return value;
 }
 
-static unsigned int mtk_ddp_sout_sel(const struct mtk_mmsys_reg_data *data,
-				     enum mtk_ddp_comp_id cur,
+static unsigned int mtk_ddp_sout_sel(enum mtk_ddp_comp_id cur,
 				     enum mtk_ddp_comp_id next,
 				     unsigned int *addr)
 {
@@ -401,6 +358,9 @@ static unsigned int mtk_ddp_sout_sel(const struct mtk_mmsys_reg_data *data,
 	} else if (cur == DDP_COMPONENT_BLS && next == DDP_COMPONENT_DPI0) {
 		*addr = DISP_REG_CONFIG_OUT_SEL;
                 value = BLS_TO_DPI_RDMA1_TO_DSI;
+	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DSI0) {
+		*addr = DISP_REG_CONFIG_DSI_SEL;
+		value = DSI_SEL_IN_RDMA;
 	} else if (cur == DDP_COMPONENT_RDMA0 && next == DDP_COMPONENT_DPI0) {
 		*addr = DISP_REG_CONFIG_DISP_RDMA0_SOUT_EN;
 		value = RDMA0_SOUT_DPI0;
@@ -426,8 +386,8 @@ static unsigned int mtk_ddp_sout_sel(const struct mtk_mmsys_reg_data *data,
 		*addr = DISP_REG_CONFIG_DISP_RDMA1_SOUT_EN;
 		value = RDMA1_SOUT_DSI3;
 	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DPI0) {
-		*addr = DISP_REG_RDMA1_SOUT_SEL_IN(data);
-		value = DISP_REG_RDMA1_SOUT_DPI0(data);
+		*addr = DISP_REG_CONFIG_DISP_RDMA1_SOUT_EN;
+		value = RDMA1_SOUT_DPI0;
 	} else if (cur == DDP_COMPONENT_RDMA1 && next == DDP_COMPONENT_DPI1) {
 		*addr = DISP_REG_CONFIG_DISP_RDMA1_SOUT_EN;
 		value = RDMA1_SOUT_DPI1;
@@ -454,23 +414,22 @@ static unsigned int mtk_ddp_sout_sel(const struct mtk_mmsys_reg_data *data,
 }
 
 void mtk_ddp_add_comp_to_path(void __iomem *config_regs,
-                              const struct mtk_mmsys_reg_data *reg_data,
 			      enum mtk_ddp_comp_id cur,
 			      enum mtk_ddp_comp_id next)
 {
 	unsigned int addr, value, reg;
 
-	value = mtk_ddp_mout_en(reg_data, cur, next, &addr);
+	value = mtk_ddp_mout_en(cur, next, &addr);
 	if (value) {
 		reg = readl_relaxed(config_regs + addr) | value;
 		writel_relaxed(reg, config_regs + addr);
 	}
 
-	value = mtk_ddp_sout_sel(reg_data, cur, next, &addr);
+	value = mtk_ddp_sout_sel(cur, next, &addr);
 	if (value)
                 writel_relaxed(value, config_regs + addr);
 
-	value = mtk_ddp_sel_in(reg_data, cur, next, &addr);
+	value = mtk_ddp_sel_in(cur, next, &addr);
 	if (value) {
 		reg = readl_relaxed(config_regs + addr) | value;
 		writel_relaxed(reg, config_regs + addr);
@@ -478,46 +437,22 @@ void mtk_ddp_add_comp_to_path(void __iomem *config_regs,
 }
 
 void mtk_ddp_remove_comp_from_path(void __iomem *config_regs,
-				   const struct mtk_mmsys_reg_data *reg_data,
 				   enum mtk_ddp_comp_id cur,
 				   enum mtk_ddp_comp_id next)
 {
 	unsigned int addr, value, reg;
 
-	value = mtk_ddp_mout_en(reg_data, cur, next, &addr);
+	value = mtk_ddp_mout_en(cur, next, &addr);
 	if (value) {
 		reg = readl_relaxed(config_regs + addr) & ~value;
 		writel_relaxed(reg, config_regs + addr);
 	}
 
-	value = mtk_ddp_sel_in(reg_data, cur, next, &addr);
+	value = mtk_ddp_sel_in(cur, next, &addr);
 	if (value) {
 		reg = readl_relaxed(config_regs + addr) & ~value;
 		writel_relaxed(reg, config_regs + addr);
 	}
-}
-
-const struct mtk_mmsys_reg_data *mtk_ddp_get_mmsys_data(enum mtk_mmsys_id id)
-{
-	const struct mtk_mmsys_reg_data *data = NULL;
-
-	switch (id) {
-	case MMSYS_MT2701:
-		data = &mt2701_mmsys_reg_data;
-		break;
-	case MMSYS_MT2712:
-		data = &mt8173_mmsys_reg_data;
-		break;
-	case MMSYS_MT8173:
-		data = &mt8173_mmsys_reg_data;
-		break;
-	default:
-		pr_info("mtk drm not support mmsys id %d\n",
-			id);
-		break;
-	}
-
-	return data;
 }
 
 struct mtk_disp_mutex *mtk_disp_mutex_get(struct device *dev, unsigned int id)
