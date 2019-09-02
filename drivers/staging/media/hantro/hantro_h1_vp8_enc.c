@@ -9,6 +9,12 @@
 #include "hantro_vp8.h"
 #include "hantro_h1_regs.h"
 
+#define DUMMY_W		64
+#define DUMMY_H		64
+#define DUMMY_SRC_FMT	V4L2_PIX_FMT_YUYV
+#define DUMMY_DST_FMT	V4L2_PIX_FMT_VP8
+#define DUMMY_DST_SIZE	(32 * 1024)
+
 /* Various parameters specific to VP8 encoder. */
 #define VP8_CABAC_CTX_OFFSET			192
 #define VP8_CABAC_CTX_SIZE			((55 + 96) << 3)
@@ -19,6 +25,107 @@
 #define VP8_FRAME_TAG_KEY_FRAME_BIT		BIT(0)
 #define VP8_FRAME_TAG_LENGTH_SHIFT		5
 #define VP8_FRAME_TAG_LENGTH_MASK		(0x7ffff << 5)
+
+/*
+ * WAR for encoder state corruption after decoding
+ */
+static struct hantro_vp8_enc_reg_params dummy_encode_reg_params = {
+	/* 00000014 */ .hdr_len = 0x00000000,
+	/* 00000038 */ .enc_ctrl = H1_REG_ENC_PIC_INTRA,
+	/* 00000040 */ .enc_ctrl0 = 0x00000000,
+	/* 00000044 */ .enc_ctrl1 = 0x00000000,
+	/* 00000048 */ .enc_ctrl2 = 0x00040014,
+	/* 0000004c */ .enc_ctrl3 = 0x404083c0,
+	/* 00000050 */ .enc_ctrl5 = 0x01006bff,
+	/* 00000054 */ .enc_ctrl4 = 0x00000039,
+	/* 00000058 */ .str_hdr_rem_msb = 0x85848805,
+	/* 0000005c */ .str_hdr_rem_lsb = 0x02000000,
+	/* 00000064 */ .mad_ctrl = 0x00000000,
+	/* 0000006c */ .qp_val = {
+		/* 0000006c */ 0x020213b1,
+		/* 00000070 */ 0x02825249,
+		/* 00000074 */ 0x048409d8,
+		/* 00000078 */ 0x03834c30,
+		/* 0000007c */ 0x020213b1,
+		/* 00000080 */ 0x02825249,
+		/* 00000084 */ 0x00340e0d,
+		/* 00000088 */ 0x401c1a15,
+	},
+	/* 0000008c */ .bool_enc = 0x00018140,
+	/* 00000090 */ .vp8_ctrl0 = 0x000695c0,
+	/* 00000094 */ .rlc_ctrl = 0x14000000,
+	/* 00000098 */ .mb_ctrl = 0x00000000,
+	/* 000000d4 */ .rgb_yuv_coeff = {
+		/* 000000d4 */ 0x962b4c85,
+		/* 000000d8 */ 0x90901d50,
+	},
+	/* 000000dc */ .rgb_mask_msb = 0x0000b694,
+	/* 000000e0 */ .intra_area_ctrl = 0xffffffff,
+	/* 000000e4 */ .cir_intra_ctrl = 0x00000000,
+	/* 000000f0 */ .first_roi_area = 0xffffffff,
+	/* 000000f4 */ .second_roi_area = 0xffffffff,
+	/* 000000f8 */ .mvc_ctrl = 0x01780000,
+	/* 00000100 */ .intra_penalty = {
+		/* 00000100 */ 0x00010005,
+		/* 00000104 */ 0x00015011,
+		/* 00000108 */ 0x0000c005,
+		/* 0000010c */ 0x00016010,
+		/* 00000110 */ 0x0001a018,
+		/* 00000114 */ 0x00018015,
+		/* 00000118 */ 0x0001d01a,
+	},
+	/* 00000120 */ .seg_qp = {
+		/* 00000120 */ 0x020213b1,
+		/* 00000124 */ 0x02825249,
+		/* 00000128 */ 0x048409d8,
+		/* 0000012c */ 0x03834c30,
+		/* 00000130 */ 0x020213b1,
+		/* 00000134 */ 0x02825249,
+		/* 00000138 */ 0x00340e0d,
+		/* 0000013c */ 0x341c1a15,
+		/* 00000140 */ 0x020213b1,
+		/* 00000144 */ 0x02825249,
+		/* 00000148 */ 0x048409d8,
+		/* 0000014c */ 0x03834c30,
+		/* 00000150 */ 0x020213b1,
+		/* 00000154 */ 0x02825249,
+		/* 00000158 */ 0x00340e0d,
+		/* 0000015c */ 0x341c1a15,
+		/* 00000160 */ 0x020213b1,
+		/* 00000164 */ 0x02825249,
+		/* 00000168 */ 0x048409d8,
+		/* 0000016c */ 0x03834c30,
+		/* 00000170 */ 0x020213b1,
+		/* 00000174 */ 0x02825249,
+		/* 00000178 */ 0x00340e0d,
+		/* 0000017c */ 0x341c1a15,
+	},
+	/* 00000180 */ .dmv_4p_1p_penalty = {
+		/* 00000180 */ 0x00020406,
+		/* 00000184 */ 0x080a0c0e,
+		/* 00000188 */ 0x10121416,
+		/* 0000018c */ 0x181a1c1e,
+		/* 00000190 */ 0x20222426,
+		/* 00000194 */ 0x282a2c2e,
+		/* 00000198 */ 0x30323436,
+		/* 0000019c */ 0x383a3c3e,
+		/* 000001a0 */ 0x40424446,
+		/* 000001a4 */ 0x484a4c4e,
+		/* 000001a8 */ 0x50525456,
+		/* 000001ac */ 0x585a5c5e,
+		/* 000001b0 */ 0x60626466,
+		/* 000001b4 */ 0x686a6c6e,
+		/* 000001b8 */ 0x70727476,
+		/* NOTE: Further 17 registers set to 0. */
+	},
+	/*
+	 * NOTE: Following registers all set to 0:
+	 * - dmv_qpel_penalty,
+	 * - vp8_ctrl1,
+	 * - bit_cost_golden,
+	 * - loop_flt_delta.
+	 */
+};
 
 static unsigned int ref_luma_size(unsigned int w, unsigned int h)
 {
@@ -103,6 +210,11 @@ void hantro_vp8_enc_done(struct hantro_ctx *ctx,
 {
 	struct hantro_vp8_enc_ctrl_buf *ctrl_buf = ctx->vp8_enc.ctrl_buf.cpu;
 
+	if (ctx->dummy_ctx_run) {
+		schedule_work(&ctx->dev->job_rerun);
+		return;
+	}
+
 	/* Read length information of this run from utility buffer. */
 	ctx->vp8_enc.buf_data.ext_hdr_size = ctrl_buf->ext_hdr_size;
 	ctx->vp8_enc.buf_data.dct_size = ctrl_buf->dct_size;
@@ -179,7 +291,11 @@ static void hantro_h1_vp8_enc_set_params(struct hantro_dev *vpu,
 	struct hantro_vp8_enc_reg_params *params;
 	int i;
 
-	params = hantro_get_ctrl(ctx, V4L2_CID_PRIVATE_HANTRO_REG_PARAMS);
+	if (hantro_ctx_is_dummy_encode(ctx))
+		params = &dummy_encode_reg_params;
+	else
+		params = hantro_get_ctrl(ctx,
+					 V4L2_CID_PRIVATE_HANTRO_REG_PARAMS);
 
 	vepu_write_relaxed(vpu, params->enc_ctrl0, H1_REG_ENC_CTRL0);
 	vepu_write_relaxed(vpu, params->enc_ctrl1, H1_REG_ENC_CTRL1);
@@ -273,7 +389,8 @@ static void hantro_h1_vp8_enc_set_buffers(struct hantro_dev *vpu,
 	const u32 src_addr_regs[] = { H1_REG_ADDR_IN_PLANE_0,
 				      H1_REG_ADDR_IN_PLANE_1,
 				      H1_REG_ADDR_IN_PLANE_2 };
-	struct vb2_v4l2_buffer *src_buf, *dst_buf;
+	struct vb2_buffer *src_buf;
+	struct vb2_v4l2_buffer *dst_buf;
 	struct hantro_vp8_enc_reg_params *params;
 	struct v4l2_pix_format_mplane *src_fmt = &ctx->src_fmt;
 	dma_addr_t ref_buf_dma, rec_buf_dma;
@@ -284,13 +401,19 @@ static void hantro_h1_vp8_enc_set_buffers(struct hantro_dev *vpu,
 	size_t dst_size;
 	int i;
 
-	src_buf = hantro_get_src_buf(ctx);
-	dst_buf = hantro_get_dst_buf(ctx);
+	if (hantro_ctx_is_dummy_encode(ctx)) {
+		dst_buf = &ctx->dev->dummy_dst;
+	} else {
+		src_buf = &hantro_get_src_buf(ctx)->vb2_buf;
+		dst_buf = hantro_get_dst_buf(ctx);
+	}
 
 	rounded_size = ref_luma_size(ctx->src_fmt.width, ctx->src_fmt.height);
-
-	params = hantro_get_ctrl(ctx,
-				 V4L2_CID_PRIVATE_HANTRO_REG_PARAMS);
+	if (hantro_ctx_is_dummy_encode(ctx))
+		params = &dummy_encode_reg_params;
+	else
+		params = hantro_get_ctrl(ctx,
+					 V4L2_CID_PRIVATE_HANTRO_REG_PARAMS);
 
 	ref_buf_dma = ctx->vp8_enc.ext_buf.dma;
 	rec_buf_dma = ref_buf_dma;
@@ -300,8 +423,13 @@ static void hantro_h1_vp8_enc_set_buffers(struct hantro_dev *vpu,
 		rec_buf_dma += rounded_size * 3 / 2;
 	ctx->vp8_enc.ref_rec_ptr ^= 1;
 
-	dst_dma = vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
-	dst_size = vb2_plane_size(&dst_buf->vb2_buf, 0);
+	if (hantro_ctx_is_dummy_encode(ctx)) {
+		dst_dma = vpu->dummy_encode_dst.dma;
+		dst_size = vpu->dummy_encode_dst.size;
+	} else {
+		dst_dma = vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
+		dst_size = vb2_plane_size(&dst_buf->vb2_buf, 0);
+	}
 
 	/*
 	 * stream addr-->|
@@ -363,19 +491,28 @@ static void hantro_h1_vp8_enc_set_buffers(struct hantro_dev *vpu,
 			   H1_REG_ADDR_REC_CHROMA);
 
 	/* Source buffer. */
-	/*
-	 * TODO(crbug.com/901264): The way to pass an offset within a
-	 * DMA-buf is not defined in V4L2 specification, so we abuse
-	 * data_offset for now. Fix it when we have the right interface,
-	 * including any necessary validation and potential alignment
-	 * issues.
-	 */
-	for (i = 0; i < src_fmt->num_planes; ++i)
-		vepu_write_relaxed(vpu,
-				   vb2_dma_contig_plane_dma_addr(
-					&src_buf->vb2_buf, i) +
-				   src_buf->vb2_buf.planes[i].data_offset,
-				   src_addr_regs[i]);
+	if (hantro_ctx_is_dummy_encode(ctx)) {
+		vepu_write_relaxed(vpu, vpu->dummy_encode_src[PLANE_Y].dma,
+				   H1_REG_ADDR_IN_PLANE_0);
+		vepu_write_relaxed(vpu, vpu->dummy_encode_src[PLANE_CB].dma,
+				   H1_REG_ADDR_IN_PLANE_1);
+		vepu_write_relaxed(vpu, vpu->dummy_encode_src[PLANE_CR].dma,
+				   H1_REG_ADDR_IN_PLANE_2);
+	} else {
+		/*
+		 * TODO(crbug.com/901264): The way to pass an offset within a
+		 * DMA-buf is not defined in V4L2 specification, so we abuse
+		 * data_offset for now. Fix it when we have the right interface,
+		 * including any necessary validation and potential alignment
+		 * issues.
+		 */
+		for (i = 0; i < src_fmt->num_planes; ++i)
+			vepu_write_relaxed(vpu,
+					   vb2_dma_contig_plane_dma_addr(
+						src_buf, i) +
+					   src_buf->planes[i].data_offset,
+					   src_addr_regs[i]);
+	}
 
 	/* Source parameters. */
 	vepu_write_relaxed(vpu, enc_in_img_ctrl(ctx), H1_REG_IN_IMG_CTRL);
@@ -387,15 +524,17 @@ void hantro_h1_vp8_enc_run(struct hantro_ctx *ctx)
 	struct vb2_v4l2_buffer *dst_buf;
 	u32 reg;
 
-	hantro_prepare_run(ctx);
+	if (!hantro_ctx_is_dummy_encode(ctx)) {
+		hantro_prepare_run(ctx);
 
-	/* prepare to run */
-	memcpy(ctx->vp8_enc.buf_data.header,
-	       hantro_get_ctrl(ctx, V4L2_CID_PRIVATE_HANTRO_HEADER),
-	       HANTRO_VP8_HEADER_SIZE);
-	memcpy(ctx->vp8_enc.priv_src.cpu,
-	       hantro_get_ctrl(ctx, V4L2_CID_PRIVATE_HANTRO_HW_PARAMS),
-	       HANTRO_VP8_HW_PARAMS_SIZE);
+		/* prepare to run */
+		memcpy(ctx->vp8_enc.buf_data.header,
+		       hantro_get_ctrl(ctx, V4L2_CID_PRIVATE_HANTRO_HEADER),
+		       HANTRO_VP8_HEADER_SIZE);
+		memcpy(ctx->vp8_enc.priv_src.cpu,
+		       hantro_get_ctrl(ctx, V4L2_CID_PRIVATE_HANTRO_HW_PARAMS),
+		       HANTRO_VP8_HW_PARAMS_SIZE);
+	}
 
 	/* The hardware expects the control buffer to be zeroed. */
 	memset(ctx->vp8_enc.ctrl_buf.cpu, 0,
@@ -429,7 +568,10 @@ void hantro_h1_vp8_enc_run(struct hantro_ctx *ctx)
 		| H1_REG_ENC_CTRL_ENC_MODE_VP8
 		| H1_REG_ENC_CTRL_EN_BIT;
 
-	dst_buf = hantro_get_dst_buf(ctx);
+	if (hantro_ctx_is_dummy_encode(ctx))
+		dst_buf = &ctx->dev->dummy_dst;
+	else
+		dst_buf = hantro_get_dst_buf(ctx);
 
 	if (dst_buf->flags & V4L2_BUF_FLAG_KEYFRAME)
 		reg |= H1_REG_ENC_PIC_INTRA;
@@ -438,3 +580,92 @@ void hantro_h1_vp8_enc_run(struct hantro_ctx *ctx)
 
 	vepu_write(vpu, reg, H1_REG_ENC_CTRL);
 }
+
+int hantro_dummy_enc_init(struct hantro_dev *vpu)
+{
+	struct hantro_ctx *ctx;
+	int ret;
+	unsigned int num_fmts;
+	const struct hantro_fmt *formats;
+	enum hantro_codec_mode codec_mode;
+
+	ctx = devm_kzalloc(vpu->dev, sizeof(*ctx), GFP_KERNEL);
+	if (!ctx)
+		return -ENOMEM;
+
+	ctx->dev = vpu;
+
+	formats = ctx->dev->variant->enc_fmts;
+	num_fmts = ctx->dev->variant->num_enc_fmts;
+	ctx->vpu_src_fmt = hantro_find_format(formats, num_fmts,
+					      V4L2_PIX_FMT_YUYV);
+	ctx->src_fmt.width = DUMMY_W;
+	ctx->src_fmt.height = DUMMY_H;
+	ctx->src_fmt.pixelformat = ctx->vpu_src_fmt->fourcc;
+	ctx->src_fmt.num_planes = 1;
+
+	ctx->src_fmt.plane_fmt[0].bytesperline = ctx->src_fmt.width * 12 / 8;
+	ctx->src_fmt.plane_fmt[0].sizeimage =
+		ctx->src_fmt.height * ctx->src_fmt.plane_fmt[0].bytesperline;
+
+	ctx->vpu_dst_fmt = hantro_find_format(formats, num_fmts,
+					      V4L2_PIX_FMT_VP8);
+	ctx->dst_fmt.width = ctx->src_fmt.width;
+	ctx->dst_fmt.height = ctx->src_fmt.height;
+	ctx->dst_fmt.pixelformat = ctx->vpu_dst_fmt->fourcc;
+	ctx->dst_fmt.plane_fmt[0].sizeimage = DUMMY_DST_SIZE;
+	ctx->dst_fmt.plane_fmt[0].bytesperline = 0;
+	ctx->dst_fmt.num_planes = 1;
+
+	ctx->vp8_enc.src_crop.left = 0;
+	ctx->vp8_enc.src_crop.top = 0;
+	ctx->vp8_enc.src_crop.width = ctx->src_fmt.width;
+	ctx->vp8_enc.src_crop.left = ctx->src_fmt.height;
+
+	memset(&ctx->dev->dummy_src, 0, sizeof(struct vb2_v4l2_buffer));
+	memset(&ctx->dev->dummy_dst, 0, sizeof(struct vb2_v4l2_buffer));
+
+	ret = hantro_vp8_enc_init(ctx);
+	if (ret)
+		goto err_free_ctx;
+
+	ret = hantro_aux_buf_alloc(vpu, &vpu->dummy_encode_src[0],
+				   ctx->src_fmt.plane_fmt[0].sizeimage);
+	if (ret)
+		goto err_free_ctx;
+
+	memset(vpu->dummy_encode_src[0].cpu, 0,
+	       vpu->dummy_encode_src[0].size);
+
+	ret = hantro_aux_buf_alloc(vpu, &vpu->dummy_encode_dst,
+				   ctx->dst_fmt.plane_fmt[0].sizeimage);
+	if (ret)
+		goto err_free_src;
+
+	codec_mode = ctx->vpu_dst_fmt->codec_mode;
+	ctx->codec_ops = &ctx->dev->variant->codec_ops[codec_mode];
+
+	vpu->dummy_encode_ctx = ctx;
+	return 0;
+
+err_free_src:
+	hantro_aux_buf_free(vpu, &vpu->dummy_encode_src[0]);
+err_free_ctx:
+	kfree(ctx);
+
+	return ret;
+}
+
+void hantro_dummy_enc_release(struct hantro_dev *vpu)
+{
+	struct hantro_ctx *ctx = vpu->dummy_encode_ctx;
+
+	hantro_aux_buf_free(vpu, &vpu->dummy_encode_dst);
+
+	if (vpu->dummy_encode_src[0].cpu)
+		hantro_aux_buf_free(vpu, &vpu->dummy_encode_src[0]);
+
+	hantro_vp8_enc_exit(ctx);
+
+	kfree(ctx);
+};

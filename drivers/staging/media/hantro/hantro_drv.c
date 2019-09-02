@@ -101,6 +101,9 @@ static void hantro_job_finish(struct hantro_dev *vpu,
 	pm_runtime_put_autosuspend(vpu->dev);
 	clk_bulk_disable(vpu->variant->num_clocks, vpu->clocks);
 
+	if (ctx->dummy_ctx_run)
+		return;
+
 	src = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
 	dst = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
 
@@ -169,9 +172,11 @@ void hantro_finish_run(struct hantro_ctx *ctx)
 {
 	struct vb2_v4l2_buffer *src_buf;
 
-	src_buf = hantro_get_src_buf(ctx);
-	v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req,
-				   &ctx->ctrl_handler);
+	if (!hantro_ctx_is_dummy_encode(ctx)) {
+		src_buf = hantro_get_src_buf(ctx);
+		v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req,
+					   &ctx->ctrl_handler);
+	}
 
 	/* Kick the watchdog. */
 	schedule_delayed_work(&ctx->dev->watchdog_work,
@@ -184,9 +189,6 @@ static void device_run(void *priv)
 	struct vb2_v4l2_buffer *src, *dst;
 	int ret;
 
-	src = hantro_get_src_buf(ctx);
-	dst = hantro_get_dst_buf(ctx);
-
 	ret = clk_bulk_enable(ctx->dev->variant->num_clocks, ctx->dev->clocks);
 	if (ret)
 		goto err_cancel_job;
@@ -194,13 +196,36 @@ static void device_run(void *priv)
 	if (ret < 0)
 		goto err_cancel_job;
 
+	if (ctx->dev->was_decoding && hantro_is_encoder_ctx(ctx)) {
+		vpu_debug(4, "Running dummy context.\n");
+		ctx->dummy_ctx_run = true;
+		ctx->dev->was_decoding = false;
+		ctx->codec_ops->run(ctx->dev->dummy_encode_ctx);
+		return;
+	}
+
+	src = hantro_get_src_buf(ctx);
+	dst = hantro_get_dst_buf(ctx);
+
 	v4l2_m2m_buf_copy_metadata(src, dst, true);
 
 	ctx->codec_ops->run(ctx);
+	ctx->dev->was_decoding = !hantro_is_encoder_ctx(ctx);
+
 	return;
 
 err_cancel_job:
 	hantro_job_finish(ctx->dev, ctx, 0, VB2_BUF_STATE_ERROR);
+}
+
+void hantro_job_rerun(struct work_struct *work)
+{
+	struct hantro_dev *vpu =
+		container_of(work, struct hantro_dev, job_rerun);
+	struct hantro_ctx *ctx = v4l2_m2m_get_curr_priv(vpu->m2m_dev);
+
+	ctx->dummy_ctx_run = false;
+	device_run(ctx);
 }
 
 bool hantro_is_encoder_ctx(const struct hantro_ctx *ctx)
@@ -863,6 +888,7 @@ static int hantro_probe(struct platform_device *pdev)
 	vpu->variant = match->data;
 
 	INIT_DELAYED_WORK(&vpu->watchdog_work, hantro_watchdog);
+	INIT_WORK(&vpu->job_rerun, hantro_job_rerun);
 
 	vpu->clocks = devm_kcalloc(&pdev->dev, vpu->variant->num_clocks,
 				   sizeof(*vpu->clocks), GFP_KERNEL);
@@ -962,10 +988,16 @@ static int hantro_probe(struct platform_device *pdev)
 	vpu->mdev.ops = &hantro_m2m_media_ops;
 	vpu->v4l2_dev.mdev = &vpu->mdev;
 
+	ret = hantro_dummy_enc_init(vpu);
+	if (ret) {
+		v4l2_err(&vpu->v4l2_dev, "Failed to create dummy encode context\n");
+		goto err_m2m_rel;
+	}
+
 	ret = hantro_add_enc_func(vpu);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register encoder\n");
-		goto err_m2m_rel;
+		goto err_dummy_enc;
 	}
 
 	ret = hantro_add_dec_func(vpu);
@@ -986,6 +1018,8 @@ err_rm_dec_func:
 	hantro_remove_dec_func(vpu);
 err_rm_enc_func:
 	hantro_remove_enc_func(vpu);
+err_dummy_enc:
+	hantro_dummy_enc_release(vpu);
 err_m2m_rel:
 	media_device_cleanup(&vpu->mdev);
 	v4l2_m2m_release(vpu->m2m_dev);
@@ -1007,6 +1041,7 @@ static int hantro_remove(struct platform_device *pdev)
 	media_device_unregister(&vpu->mdev);
 	hantro_remove_dec_func(vpu);
 	hantro_remove_enc_func(vpu);
+	hantro_dummy_enc_release(vpu);
 	media_device_cleanup(&vpu->mdev);
 	v4l2_m2m_release(vpu->m2m_dev);
 	v4l2_device_unregister(&vpu->v4l2_dev);
