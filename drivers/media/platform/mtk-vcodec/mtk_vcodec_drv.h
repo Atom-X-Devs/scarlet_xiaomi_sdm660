@@ -297,6 +297,10 @@ struct mtk_vcodec_ctx {
 
 };
 
+enum mtk_chip {
+	MTK_MT8173,
+};
+
 /**
  * struct mtk_vcodec_dec_pdata - compatible data for each IC
  * @init_vdec_params: init vdec params
@@ -313,6 +317,8 @@ struct mtk_vcodec_ctx {
  *
  * @vdec_framesizes: supported video decoder frame sizes
  * @num_framesizes: count of video decoder frame sizes
+ *
+ * @chip: chip this decoder is compatible with
  *
  * @uses_stateless_api: whether the decoder uses the stateless API with requests
  */
@@ -332,6 +338,8 @@ struct mtk_vcodec_dec_pdata {
 
 	const struct mtk_codec_framesizes *vdec_framesizes;
 	const int num_framesizes;
+
+	enum mtk_chip chip;
 
 	bool uses_stateless_api;
 };
