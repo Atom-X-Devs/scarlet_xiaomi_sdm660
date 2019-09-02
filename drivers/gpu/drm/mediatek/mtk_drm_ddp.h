@@ -24,7 +24,6 @@ enum mtk_mmsys_id {
 	MMSYS_MT2701,
 	MMSYS_MT2712,
 	MMSYS_MT8173,
-	MMSYS_MT8183,
 	MMSYS_MAX,
 };
 
