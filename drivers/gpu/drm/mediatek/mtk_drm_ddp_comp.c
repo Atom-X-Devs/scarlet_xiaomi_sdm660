@@ -49,7 +49,7 @@
 
 #define DISP_DITHER_EN				0x0000
 #define DITHER_EN				BIT(0)
-#define DISP_DITHER_CFG                        0x0020
+#define DISP_DITHER_CFG				0x0020
 #define DITHER_RELAY_MODE			BIT(0)
 #define DISP_DITHER_SIZE			0x0030
 
