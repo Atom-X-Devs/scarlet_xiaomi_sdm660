@@ -285,7 +285,9 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 			prev = mtk_crtc->ddp_comp[i - 1]->id;
 		else
 			prev = DDP_COMPONENT_ID_MAX;
-		mtk_ddp_comp_bgclr_in_on(comp, prev);
+
+		if (prev == DDP_COMPONENT_OVL0)
+			mtk_ddp_comp_bgclr_in_on(comp);
 
 		mtk_ddp_comp_config(comp, width, height, vrefresh, bpc);
 		mtk_ddp_comp_start(comp);
@@ -304,9 +306,9 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 		if (i >= comp_layer_nr) {
 			comp = mtk_crtc->ddp_comp[1];
 			local_layer = i - comp_layer_nr;
-                } else
+		} else
 			local_layer = i;
-		mtk_ddp_comp_layer_config(comp , local_layer,
+		mtk_ddp_comp_layer_config(comp, local_layer,
 					  plane_state);
 	}
 
@@ -380,7 +382,7 @@ static void mtk_crtc_ddp_config(struct drm_crtc *crtc)
 				if (i >= comp_layer_nr) {
 					comp = mtk_crtc->ddp_comp[1];
 					local_layer = i - comp_layer_nr;
-                                } else
+				} else
 					local_layer = i;
 
 				mtk_ddp_comp_layer_config(comp, local_layer,
@@ -618,14 +620,12 @@ int mtk_drm_crtc_create(struct drm_device *drm_dev,
 	}
 
 	mtk_crtc->layer_nr = mtk_ddp_comp_layer_nr(mtk_crtc->ddp_comp[0]);
-        if (mtk_crtc->ddp_comp_nr > 1) {
+	if (mtk_crtc->ddp_comp_nr > 1) {
 		struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[1];
-		enum mtk_ddp_comp_type comp_type;
 
-		comp_type = mtk_ddp_comp_get_type(comp->id);
-		if (comp_type == MTK_DISP_OVL || comp_type == MTK_DISP_OVL_2L)
+		if (comp->funcs->bgclr_in_on)
 			mtk_crtc->layer_nr += mtk_ddp_comp_layer_nr(comp);
-        }
+	}
 	mtk_crtc->planes = devm_kcalloc(dev, mtk_crtc->layer_nr,
 					sizeof(struct drm_plane),
 					GFP_KERNEL);
