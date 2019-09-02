@@ -41,12 +41,10 @@
 #define DISP_REG_CONFIG_DSI_SEL			0x050
 #define DISP_REG_CONFIG_DPI_SEL			0x064
 
-#define MT2701_DISP_MUTEX0_MOD0 0x2C
-
 #define DISP_REG_MUTEX_EN(n)	(0x20 + 0x20 * (n))
 #define DISP_REG_MUTEX(n)	(0x24 + 0x20 * (n))
 #define DISP_REG_MUTEX_RST(n)	(0x28 + 0x20 * (n))
-#define DISP_REG_MUTEX_MOD(data, n)	((data)->mutex_mod_reg + 0x20 * (n))
+#define DISP_REG_MUTEX_MOD(n)	(0x2c + 0x20 * (n))
 #define DISP_REG_MUTEX_SOF(n)	(0x30 + 0x20 * (n))
 #define DISP_REG_MUTEX_MOD2(n)	(0x34 + 0x20 * (n))
 
@@ -149,17 +147,12 @@ struct mtk_disp_mutex {
 	bool claimed;
 };
 
-struct mtk_ddp_data {
-	const unsigned int *mutex_mod;
-	unsigned int mutex_mod_reg;
-};
-
 struct mtk_ddp {
 	struct device			*dev;
 	struct clk			*clk;
 	void __iomem			*regs;
 	struct mtk_disp_mutex		mutex[10];
-	const struct mtk_ddp_data	*data;
+	const unsigned int		*mutex_mod;
 };
 
 static const unsigned int mt2701_mutex_mod[DDP_COMPONENT_ID_MAX] = {
@@ -207,21 +200,6 @@ static const unsigned int mt8173_mutex_mod[DDP_COMPONENT_ID_MAX] = {
 	[DDP_COMPONENT_UFOE] = MT8173_MUTEX_MOD_DISP_UFOE,
 	[DDP_COMPONENT_WDMA0] = MT8173_MUTEX_MOD_DISP_WDMA0,
 	[DDP_COMPONENT_WDMA1] = MT8173_MUTEX_MOD_DISP_WDMA1,
-};
-
-static const struct mtk_ddp_data mt2701_ddp_driver_data = {
-	.mutex_mod = mt2701_mutex_mod,
-	.mutex_mod_reg = MT2701_DISP_MUTEX0_MOD0,
-};
-
-static const struct mtk_ddp_data mt2712_ddp_driver_data = {
-	.mutex_mod = mt2712_mutex_mod,
-	.mutex_mod_reg = MT2701_DISP_MUTEX0_MOD0,
-};
-
-static const struct mtk_ddp_data mt8173_ddp_driver_data = {
-	.mutex_mod = mt8173_mutex_mod,
-	.mutex_mod_reg = MT2701_DISP_MUTEX0_MOD0,
 };
 
 static unsigned int mtk_ddp_mout_en(enum mtk_ddp_comp_id cur,
@@ -485,15 +463,15 @@ void mtk_disp_mutex_add_comp(struct mtk_disp_mutex *mutex,
 		reg = MUTEX_SOF_DPI1;
 		break;
 	default:
-		if (ddp->data->mutex_mod[id] < 32) {
-			offset = DISP_REG_MUTEX_MOD(ddp->data, mutex->id);
+		if (ddp->mutex_mod[id] < 32) {
+			offset = DISP_REG_MUTEX_MOD(mutex->id);
 			reg = readl_relaxed(ddp->regs + offset);
-			reg |= 1 << ddp->data->mutex_mod[id];
+			reg |= 1 << ddp->mutex_mod[id];
 			writel_relaxed(reg, ddp->regs + offset);
 		} else {
 			offset = DISP_REG_MUTEX_MOD2(mutex->id);
 			reg = readl_relaxed(ddp->regs + offset);
-			reg |= 1 << (ddp->data->mutex_mod[id] - 32);
+			reg |= 1 << (ddp->mutex_mod[id] - 32);
 			writel_relaxed(reg, ddp->regs + offset);
 		}
 		return;
@@ -523,15 +501,15 @@ void mtk_disp_mutex_remove_comp(struct mtk_disp_mutex *mutex,
 			       ddp->regs + DISP_REG_MUTEX_SOF(mutex->id));
 		break;
 	default:
-		if (ddp->data->mutex_mod[id] < 32) {
-			offset = DISP_REG_MUTEX_MOD(ddp->data, mutex->id);
+		if (ddp->mutex_mod[id] < 32) {
+			offset = DISP_REG_MUTEX_MOD(mutex->id);
 			reg = readl_relaxed(ddp->regs + offset);
-			reg &= ~(1 << ddp->data->mutex_mod[id]);
+			reg &= ~(1 << ddp->mutex_mod[id]);
 			writel_relaxed(reg, ddp->regs + offset);
 		} else {
 			offset = DISP_REG_MUTEX_MOD2(mutex->id);
 			reg = readl_relaxed(ddp->regs + offset);
-			reg &= ~(1 << (ddp->data->mutex_mod[id] - 32));
+			reg &= ~(1 << (ddp->mutex_mod[id] - 32));
 			writel_relaxed(reg, ddp->regs + offset);
 		}
 		break;
@@ -606,7 +584,7 @@ static int mtk_ddp_probe(struct platform_device *pdev)
 		return PTR_ERR(ddp->regs);
 	}
 
-	ddp->data = of_device_get_match_data(dev);
+	ddp->mutex_mod = of_device_get_match_data(dev);
 
 	platform_set_drvdata(pdev, ddp);
 
@@ -619,12 +597,9 @@ static int mtk_ddp_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id ddp_driver_dt_match[] = {
-	{ .compatible = "mediatek,mt2701-disp-mutex",
-	  .data = &mt2701_ddp_driver_data},
-	{ .compatible = "mediatek,mt2712-disp-mutex",
-	  .data = &mt2712_ddp_driver_data},
-	{ .compatible = "mediatek,mt8173-disp-mutex",
-	  .data = &mt8173_ddp_driver_data},
+	{ .compatible = "mediatek,mt2701-disp-mutex", .data = mt2701_mutex_mod},
+	{ .compatible = "mediatek,mt2712-disp-mutex", .data = mt2712_mutex_mod},
+	{ .compatible = "mediatek,mt8173-disp-mutex", .data = mt8173_mutex_mod},
 	{},
 };
 MODULE_DEVICE_TABLE(of, ddp_driver_dt_match);
