@@ -126,8 +126,8 @@ static int dw_hdmi_i2s_hook_plugged_cb(struct device *dev, void *data,
 }
 
 static struct hdmi_codec_ops dw_hdmi_i2s_ops = {
-	.audio_startup = dw_hdmi_i2s_audio_startup,
 	.hw_params	= dw_hdmi_i2s_hw_params,
+	.audio_startup  = dw_hdmi_i2s_audio_startup,
 	.audio_shutdown	= dw_hdmi_i2s_audio_shutdown,
 	.get_dai_id	= dw_hdmi_i2s_get_dai_id,
 	.hook_plugged_cb = dw_hdmi_i2s_hook_plugged_cb,
