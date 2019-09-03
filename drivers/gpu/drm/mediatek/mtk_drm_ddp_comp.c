@@ -373,6 +373,8 @@ int mtk_ddp_comp_init(struct device *dev, struct device_node *node,
 		      struct mtk_ddp_comp *comp, enum mtk_ddp_comp_id comp_id,
 		      const struct mtk_ddp_comp_funcs *funcs)
 {
+	struct platform_device *comp_pdev;
+
 	if (comp_id < 0 || comp_id >= DDP_COMPONENT_ID_MAX)
 		return -EINVAL;
 
@@ -398,6 +400,13 @@ int mtk_ddp_comp_init(struct device *dev, struct device_node *node,
 	comp->clk = of_clk_get(node, 0);
 	if (IS_ERR(comp->clk))
 		return PTR_ERR(comp->clk);
+
+	comp_pdev = of_find_device_by_node(node);
+	if (!comp_pdev) {
+		dev_err(dev, "Waiting for device %s\n", node->full_name);
+		return -EPROBE_DEFER;
+	}
+	comp->dev = &comp_pdev->dev;
 
 	if (IS_ENABLED(CONFIG_MTK_CMDQ)) {
 		struct platform_device *comp_pdev;
