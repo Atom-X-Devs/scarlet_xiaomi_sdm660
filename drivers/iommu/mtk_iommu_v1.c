@@ -602,10 +602,15 @@ static int mtk_iommu_probe(struct platform_device *pdev)
 
 		plarbdev = of_find_device_by_node(larb_spec.np);
 		if (!plarbdev) {
+			bool larbdev_is_bound;
+
 			plarbdev = of_platform_device_create(
 						larb_spec.np, NULL,
 						platform_bus_type.dev_root);
-			if (!plarbdev) {
+			device_lock(&plarbdev->dev);
+			larbdev_is_bound = device_is_bound(&plarbdev->dev);
+			device_unlock(&plarbdev->dev);
+			if (!plarbdev || !larbdev_is_bound) {
 				of_node_put(larb_spec.np);
 				return -EPROBE_DEFER;
 			}
