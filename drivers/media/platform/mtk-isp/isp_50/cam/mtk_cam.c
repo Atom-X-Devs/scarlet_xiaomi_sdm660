@@ -1581,6 +1581,11 @@ static int mtk_cam_dev_notifier_complete(struct v4l2_async_notifier *notifier)
 	struct device *dev = cam->dev;
 	int ret;
 
+	if (!cam->seninf) {
+		dev_err(dev, "No seninf subdev\n");
+		return -ENODEV;
+	}
+
 	ret = media_create_pad_link(&cam->seninf->entity, MTK_CAM_CIO_PAD_SRC,
 				    &cam->subdev.entity, MTK_CAM_CIO_PAD_SINK,
 				    MEDIA_LNK_FL_IMMUTABLE |
