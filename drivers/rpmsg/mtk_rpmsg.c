@@ -310,7 +310,7 @@ static int mtk_rpmsg_ns_cb(struct rpmsg_device *rpdev, void *data, int len,
 	return 0;
 }
 
-int mtk_rpmsg_prepare(struct rproc_subdev *subdev)
+static int mtk_rpmsg_prepare(struct rproc_subdev *subdev)
 {
 	struct mtk_rpmsg_rproc_subdev *mtk_subdev = to_mtk_subdev(subdev);
 
@@ -330,7 +330,7 @@ int mtk_rpmsg_prepare(struct rproc_subdev *subdev)
 	return 0;
 }
 
-void mtk_rpmsg_unprepare(struct rproc_subdev *subdev)
+static void mtk_rpmsg_unprepare(struct rproc_subdev *subdev)
 {
 	struct mtk_rpmsg_rproc_subdev *mtk_subdev = to_mtk_subdev(subdev);
 
@@ -340,7 +340,7 @@ void mtk_rpmsg_unprepare(struct rproc_subdev *subdev)
 	}
 }
 
-void mtk_rpmsg_stop(struct rproc_subdev *subdev, bool crashed)
+static void mtk_rpmsg_stop(struct rproc_subdev *subdev, bool crashed)
 {
 	struct mtk_rpmsg_channel_info *info, *next;
 	struct mtk_rpmsg_rproc_subdev *mtk_subdev = to_mtk_subdev(subdev);
