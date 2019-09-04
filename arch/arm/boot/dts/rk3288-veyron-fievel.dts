@@ -109,6 +109,7 @@
 
 		ethphy: ethernet-phy@1 {
 			reg = <1>;
+			realtek,enable-ssc;
 
 			leds {
 				#address-cells = <1>;
