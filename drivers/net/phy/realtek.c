@@ -16,6 +16,7 @@
 #include <linux/bitops.h>
 #include <linux/bits.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/phy.h>
 
 #define RTL821x_PHYSR				0x11
@@ -40,6 +41,10 @@
 #define RTL8211E_LACR				0x1a
 #define RLT8211E_LACR_LEDACTCTRL_SHIFT		4
 #define RTL8211E_LCR				0x1c
+
+/* RTL8211E extension page 160 (0xa0) */
+#define RTL8211E_SCR				0x1a
+#define RTL8211E_SCR_DISABLE_RXC_SSC		BIT(2)
 
 #define LACR_MASK(led)				BIT(4 + (led))
 #define LCR_MASK(led)				GENMASK(((led) * 4) + 2,\
@@ -300,12 +305,22 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 
 static int rtl8211e_config_init(struct phy_device *phydev)
 {
+	struct device *dev = &phydev->mdio.dev;
 	u16 val;
 	int ret;
 
 	ret = genphy_config_init(phydev);
 	if (ret < 0)
 		return ret;
+
+	if (of_property_read_bool(dev->of_node, "realtek,enable-ssc")) {
+		ret = rtl8211x_modify_ext_paged(phydev, 0xa0, RTL8211E_SCR,
+						RTL8211E_SCR_DISABLE_RXC_SSC,
+						0);
+		if (ret < 0)
+			phydev_warn(phydev, "failed to enable SSC on RXC: %d\n",
+				    ret);
+	}
 
 	/* enable TX/RX delay for rgmii-* modes, and disable them for rgmii. */
 	switch (phydev->interface) {
