@@ -529,7 +529,7 @@ static int scp_map_memory_region(struct mtk_scp *scp)
 	scp_reserve_mem_init(scp);
 	scp_reserve_memory_ioremap(scp);
 #ifdef DEBUG
-	for (id = 0; id < SCP_NUMS_MEM_ID; id++) {
+	for (id = 0; id < NUMS_MEM_ID; id++) {
 		dev_info(scp->dev,
 			 "[mem_reserve-%d] phys:0x%llx,virt:0x%llx,size:0x%llx\n",
 			 id,
