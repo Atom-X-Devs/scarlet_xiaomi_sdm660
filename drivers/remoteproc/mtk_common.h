@@ -69,8 +69,6 @@ struct mtk_scp {
 	void __iomem *cpu_addr;
 	phys_addr_t phys_addr;
 	size_t dram_size;
-
-	struct rproc_subdev *rpmsg_subdev;
 };
 
 /**
