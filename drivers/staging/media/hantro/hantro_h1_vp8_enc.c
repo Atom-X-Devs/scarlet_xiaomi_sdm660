@@ -28,7 +28,7 @@ static unsigned int ref_luma_size(unsigned int w, unsigned int h)
 /*
  * DMA coherent helpers.
  */
-int hantro_aux_buf_alloc(struct hantro_dev *vpu,
+static int hantro_aux_buf_alloc(struct hantro_dev *vpu,
 			 struct hantro_aux_buf *buf, size_t size)
 {
 	buf->cpu = dma_alloc_coherent(vpu->dev, size, &buf->dma, GFP_KERNEL);
@@ -39,7 +39,7 @@ int hantro_aux_buf_alloc(struct hantro_dev *vpu,
 	return 0;
 }
 
-void hantro_aux_buf_free(struct hantro_dev *vpu,
+static void hantro_aux_buf_free(struct hantro_dev *vpu,
 			 struct hantro_aux_buf *buf)
 {
 	dma_free_coherent(vpu->dev, buf->size, buf->cpu, buf->dma);
