@@ -167,6 +167,8 @@ config DRM_VRAM_HELPER
 	help
 	  Helpers for VRAM memory management
 
+source "drivers/gpu/drm/ttm/Kconfig"
+
 config DRM_GEM_CMA_HELPER
 	bool
 	depends on DRM
