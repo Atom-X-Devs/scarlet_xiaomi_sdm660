@@ -364,7 +364,7 @@ struct phy_c45_device_ids {
 };
 
 /* Triggers for PHY LEDs */
-enum phy_led_trigger {
+enum phy_led_trigger_type {
 	PHY_LED_TRIGGER_NONE,
 	PHY_LED_TRIGGER_LINK,
 	PHY_LED_TRIGGER_LINK_10M,
@@ -376,7 +376,7 @@ enum phy_led_trigger {
 /* Configuration of a single PHY LED */
 struct phy_led_config {
 	struct {
-		enum phy_led_trigger t;
+		enum phy_led_trigger_type t;
 		bool activity;
 	} trigger;
 };
