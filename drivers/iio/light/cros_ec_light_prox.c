@@ -306,7 +306,7 @@ static int cros_ec_light_prox_write(struct iio_dev *indio_dev,
 	return ret;
 }
 
-irqreturn_t cros_ec_light_capture(int irq, void *p)
+static irqreturn_t cros_ec_light_capture(int irq, void *p)
 {
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev = pf->indio_dev;
