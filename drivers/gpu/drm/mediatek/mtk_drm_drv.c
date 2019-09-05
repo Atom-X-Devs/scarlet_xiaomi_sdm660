@@ -104,7 +104,7 @@ static int mtk_atomic_get_crtcs(struct drm_device *drm,
 	 */
 	needs_modeset = 0;
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
-		if (crtc && drm_atomic_crtc_needs_modeset(crtc_state)) {
+		if (drm_atomic_crtc_needs_modeset(crtc_state)) {
 			needs_modeset |= (1 << drm_crtc_index(crtc));
 			break;
 		}
@@ -112,8 +112,9 @@ static int mtk_atomic_get_crtcs(struct drm_device *drm,
 
 	has_cursor_plane = 0;
 	for_each_new_plane_in_state(state, plane, plane_state, i) {
-		if (crtc && plane->crtc && plane == plane->crtc->cursor) {
-			has_cursor_plane |= (1 << drm_crtc_index(crtc));
+		if (plane_state->crtc && plane == plane_state->crtc->cursor) {
+			has_cursor_plane |=
+				(1 << drm_crtc_index(plane_state->crtc));
 			break;
 		}
 	}
