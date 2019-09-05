@@ -931,6 +931,7 @@
 
 &ssusb {
 	dr_mode = "host";
+	wakeup-source;
 	vusb33-supply = <&mt6358_vusb_reg>;
 	status = "okay";
 };
