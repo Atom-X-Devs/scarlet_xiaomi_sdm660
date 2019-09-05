@@ -202,7 +202,7 @@ struct mtk_dsi {
 	struct clk *digital_clk;
 	struct clk *hs_clk;
 
-	unsigned long data_rate;
+	u32 data_rate;
 
 	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
