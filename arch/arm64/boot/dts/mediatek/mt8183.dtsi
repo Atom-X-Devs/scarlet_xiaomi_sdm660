@@ -1412,6 +1412,7 @@
 				opp-microvolt = <625000>, /* Supply 0 */
 						<850000>; /* Supply 1 */
 				opp-core-mask = /bits/ 64 <0xf>;
+				opp-suspend;
 			};
 
 			opp-320000000 {
