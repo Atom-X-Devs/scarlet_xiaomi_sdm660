@@ -10737,6 +10737,7 @@ M:	Dongchun Zhu <dongchun.zhu@mediatek.com>
 L:	linux-media@vger.kernel.org
 T:	git git://linuxtv.org/media_tree.git
 S:	Maintained
+F:	drivers/media/i2c/ov02a10.c
 F:	Documentation/devicetree/bindings/media/i2c/ov02a10.txt
 
 OMNIVISION OV2680 SENSOR DRIVER
