@@ -36,6 +36,7 @@
 #include <linux/cleancache.h>
 #include <linux/shmem_fs.h>
 #include <linux/rmap.h>
+#include <linux/kstaled.h>
 #include "internal.h"
 
 #define CREATE_TRACE_POINTS
