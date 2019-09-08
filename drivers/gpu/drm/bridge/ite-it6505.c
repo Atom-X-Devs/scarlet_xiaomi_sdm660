@@ -74,7 +74,7 @@
  */
 #define AFE_SETTING 1
 
-u8 afe_setting_table[2][3] = {
+static u8 afe_setting_table[2][3] = {
 	{0, 0, 0},
 	{0x93, 0x2a, 0x85}
 };
@@ -1234,7 +1234,7 @@ static unsigned int dptx_dpcdrd(struct it6505 *it6505, unsigned long offset)
 
 	ret = drm_dp_dpcd_readb(&it6505->aux, offset, &value);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "DPCD read failed [0x%x] ret: %d", offset,
+		DRM_DEV_ERROR(dev, "DPCD read failed [0x%lx] ret: %d", offset,
 			      ret);
 		return 0;
 	}
@@ -2513,7 +2513,7 @@ static const struct of_device_id it6505_of_match[] = {
 	{ }
 };
 
-struct i2c_driver it6505_i2c_driver = {
+static struct i2c_driver it6505_i2c_driver = {
 	.driver = {
 		.name = "it6505_dptx",
 		.owner = THIS_MODULE,
