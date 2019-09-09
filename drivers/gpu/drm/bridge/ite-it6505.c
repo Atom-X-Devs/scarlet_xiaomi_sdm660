@@ -563,6 +563,7 @@ static void show_aud_mcnt(struct it6505 *it6505)
 		aclk = 1764;
 		break;
 	default:
+		aclk = 0;
 		break;
 	}
 	audmcal = audn * aclk / vclk * 512;
@@ -1249,7 +1250,7 @@ static int dptx_dpcdwr(struct it6505 *it6505, unsigned long offset,
 
 	ret = drm_dp_dpcd_writeb(&it6505->aux, offset, datain);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "DPCD write failed [0x%x] ret: %d", offset,
+		DRM_DEV_ERROR(dev, "DPCD write failed [0x%lx] ret: %d", offset,
 			      ret);
 		return ret;
 	}
@@ -1871,7 +1872,7 @@ static void hpd_irq(struct it6505 *it6505)
 
 	DRM_DEV_DEBUG_DRIVER(dev, "dpcd_sink_count = 0x%x", dpcd_sink_count);
 	DRM_DEV_DEBUG_DRIVER(dev, "dpcd_irq_vector = 0x%x", dpcd_irq_vector);
-	DRM_DEV_DEBUG_DRIVER(dev, "link_status = %*ph", ARRAY_SIZE(link_status),
+	DRM_DEV_DEBUG_DRIVER(dev, "link_status = %*ph", (int)ARRAY_SIZE(link_status),
 			     link_status);
 
 	if (dpcd_irq_vector & DP_CP_IRQ) {
@@ -2516,7 +2517,6 @@ static const struct of_device_id it6505_of_match[] = {
 static struct i2c_driver it6505_i2c_driver = {
 	.driver = {
 		.name = "it6505_dptx",
-		.owner = THIS_MODULE,
 		.of_match_table = it6505_of_match,
 	},
 	.probe = it6505_i2c_probe,
