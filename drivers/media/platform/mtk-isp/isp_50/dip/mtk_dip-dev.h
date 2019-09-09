@@ -166,6 +166,7 @@ struct mtk_dip_pipe_desc {
  * @vb2_ops:	vb2_ops pointer used by this video device
  * @flags:	flags used in media_create_intf_link()
  * @default_fmt_idx: indeciate the default format with index of @fmts
+ * @cached_mmap: support cached mmap or not
  *
  * The structure describes the video device setting of DIP, which are used to
  * register the video devices and support the related V4L2 and VB2 operations.
@@ -188,6 +189,7 @@ struct mtk_dip_video_device_desc {
 	const struct vb2_ops *vb2_ops;
 	u32 flags;
 	int default_fmt_idx;
+	int cached_mmap;
 };
 
 /**

@@ -367,6 +367,7 @@ static int mtk_dip_vb2_meta_queue_setup(struct vb2_queue *vq,
 	if (sizes[0] <= 0)
 		sizes[0] = fmt->fmt.meta.buffersize;
 
+	vq->dma_attrs |= DMA_ATTR_NON_CONSISTENT;
 	*num_buffers = clamp_val(*num_buffers, 1, VB2_MAX_FRAME);
 
 	return 0;
@@ -398,6 +399,9 @@ static int mtk_dip_vb2_video_queue_setup(struct vb2_queue *vq,
 
 		*num_buffers = clamp_val(*num_buffers, 1, VB2_MAX_FRAME);
 	}
+
+	if (node->desc->cached_mmap)
+		vq->dma_attrs |= DMA_ATTR_NON_CONSISTENT;
 
 	return 0;
 }
@@ -1799,6 +1803,7 @@ queues_setting[MTK_DIP_VIDEO_NODE_ID_TOTAL_NUM] = {
 		.ops = &mtk_dip_v4l2_video_cap_ioctl_ops,
 		.vb2_ops = &mtk_dip_vb2_video_ops,
 		.description = "Output quality enhanced image",
+		.cached_mmap = true,
 	},
 	{
 		.id = MTK_DIP_VIDEO_NODE_ID_MDP1_CAPTURE,
