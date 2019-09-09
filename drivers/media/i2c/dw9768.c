@@ -72,7 +72,7 @@ static int dw9768_write_smbus(struct dw9768 *dw9768, unsigned char reg,
 			      unsigned char value)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&dw9768->sd);
-	int ret;
+	int ret = 0;
 
 	if (reg == DW9768_CMD_DELAY  && value == DW9768_CMD_DELAY)
 		usleep_range(DW9768_CTRL_DELAY_US,
