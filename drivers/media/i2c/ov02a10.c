@@ -662,7 +662,7 @@ static int ov02a10_set_ctrl(struct v4l2_ctrl *ctrl)
 					       struct ov02a10, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&ov02a10->subdev);
 	s64 max_expo;
-	int ret;
+	int ret = 0;
 
 	/* Propagate change of current control to all related controls */
 	if (ctrl->id == V4L2_CID_VBLANK) {
