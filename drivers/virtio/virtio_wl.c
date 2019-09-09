@@ -645,6 +645,9 @@ static ssize_t virtwl_vfd_recv(struct file *filp, char __user *buffer,
 	size_t vfd_read_count = 0;
 	bool force_to_wait = false;
 
+	if (!vfd->flags)
+		return -EINVAL;
+
 	mutex_lock(&vi->vfds_lock);
 	mutex_lock(&vfd->lock);
 
@@ -755,6 +758,9 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 	struct scatterlist in_sg;
 	int ret;
 	int i;
+
+	if (!vfd->flags)
+		return -EINVAL;
 
 	if (vfd_fds) {
 		for (i = 0; i < VIRTWL_SEND_MAX_ALLOCS; i++) {
@@ -937,7 +943,16 @@ static int virtwl_vfd_mmap(struct file *filp, struct vm_area_struct *vma)
 	unsigned long vm_size = vma->vm_end - vma->vm_start;
 	int ret = 0;
 
-	mutex_lock(&vfd->lock);
+	/* We've hold mm->mmap_sem here. If it's a vfd for read, then it could
+	 * wait mm->mmap_sem when calling copy_to_user while holding vfd->lock
+	 * inside vfd_out_locked of virtwl_vfd_recv. Actually we don't support
+	 * mmap for this kind of vfd. Just return here to avoid possible dead
+	 * lock.
+	 */
+	if (vfd->flags)
+		return -EACCES;
+
+	mutex_lock_nested(&vfd->lock, 1);
 
 	if (!vfd->pfn) {
 		ret = -EACCES;
