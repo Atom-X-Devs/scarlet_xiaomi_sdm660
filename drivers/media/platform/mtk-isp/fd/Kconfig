@@ -1,5 +1,5 @@
 config VIDEO_MEDIATEK_FD
-	bool "Mediatek face detection processing function"
+	tristate "Mediatek face detection processing function"
 	depends on VIDEO_V4L2
 	depends on ARCH_MEDIATEK || COMPILE_TEST
 	select VIDEOBUF2_DMA_CONTIG
