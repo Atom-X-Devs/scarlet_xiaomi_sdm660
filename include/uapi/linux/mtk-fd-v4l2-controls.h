@@ -43,6 +43,7 @@
 #ifndef __UAPI_MTK_FD_V4L2_CONTROLS_H__
 #define __UAPI_MTK_FD_V4L2_CONTROLS_H__
 
+#include <linux/types.h>
 #include <linux/v4l2-controls.h>
 
 /* Set the face angle and directions to be detected */
