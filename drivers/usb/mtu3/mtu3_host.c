@@ -20,7 +20,7 @@
 
 /* mt8183 etc */
 #define PERI_WK_CTRL0	0x20
-#define WC0_IS_C(x)	(((x) & 0xf) << 28)  /* cycle debounce */
+#define WC0_IS_C(x)	(u32)((((x) & 0xf) << 28))  /* cycle debounce */
 #define WC0_IS_P	BIT(12)	/* polarity */
 #define WC0_IS_EN	BIT(6)
 
