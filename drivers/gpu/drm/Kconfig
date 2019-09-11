@@ -5,7 +5,7 @@
 # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
 #
 menuconfig DRM
-	tristate "Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)"
+	bool "Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)"
 	depends on (AGP || AGP=n) && !EMULATED_CMPXCHG && HAS_DMA
 	select DRM_PANEL_ORIENTATION_QUIRKS
 	select HDMI
@@ -249,7 +249,7 @@ source "drivers/gpu/drm/nouveau/Kconfig"
 source "drivers/gpu/drm/i915/Kconfig"
 
 config DRM_VGEM
-	tristate "Virtual GEM provider"
+	bool "Virtual GEM provider"
 	depends on DRM
 	help
 	  Choose this option to get a virtual graphics memory manager,
