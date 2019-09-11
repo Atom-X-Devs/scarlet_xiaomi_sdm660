@@ -22,6 +22,8 @@
 #define POC_BUFFER_SIZE			34
 #define SCALING_LIST_SIZE		(6 * 16 + 6 * 64)
 
+#define POC_CMP(p0, p1) ((p0) < (p1) ? -1 : 1)
+
 /* Data structure describing auxiliary buffer format. */
 struct hantro_h264_dec_priv_tbl {
 	u32 cabac_table[CABAC_INIT_BUFFER_SIZE];
@@ -29,7 +31,12 @@ struct hantro_h264_dec_priv_tbl {
 	u8 scaling_list[SCALING_LIST_SIZE];
 };
 
-/* Constant CABAC table. */
+/*
+ * Constant CABAC table.
+ * From drivers/media/platform/rk3288-vpu/rk3288_vpu_hw_h264d.c
+ * in https://chromium.googlesource.com/chromiumos/third_party/kernel,
+ * chromeos-3.14 branch.
+ */
 static const u32 h264_cabac_table[] = {
 	0x14f10236, 0x034a14f1, 0x0236034a, 0xe47fe968, 0xfa35ff36, 0x07330000,
 	0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
@@ -249,14 +256,6 @@ static void prepare_table(struct hantro_ctx *ctx)
 	const struct v4l2_h264_dpb_entry *dpb = ctx->h264_dec.dpb;
 	int i;
 
-	/*
-	 * Prepare auxiliary buffer.
-	 *
-	 * TODO: The CABAC table never changes, but maybe it would be better
-	 * to have it as a control, which is set by userspace once?
-	 */
-	memcpy(tbl->cabac_table, h264_cabac_table, sizeof(tbl->cabac_table));
-
 	for (i = 0; i < HANTRO_H264_DPB_SIZE; ++i) {
 		tbl->poc[i * 2] = dpb[i].top_field_order_cnt;
 		tbl->poc[i * 2 + 1] = dpb[i].bottom_field_order_cnt;
@@ -282,10 +281,8 @@ static s32 get_poc(enum v4l2_field field, s32 top_field_order_cnt,
 	switch (field) {
 	case V4L2_FIELD_TOP:
 		return top_field_order_cnt;
-
 	case V4L2_FIELD_BOTTOM:
 		return bottom_field_order_cnt;
-
 	default:
 		break;
 	}
@@ -395,11 +392,11 @@ static int b0_ref_list_cmp(const void *ptra, const void *ptrb, const void *data)
 	 * order.
 	 */
 	if ((poca < builder->curpoc) != (pocb < builder->curpoc))
-		return poca - pocb;
+		return POC_CMP(poca, pocb);
 	else if (poca < builder->curpoc)
-		return pocb - poca;
+		return POC_CMP(pocb, poca);
 
-	return poca - pocb;
+	return POC_CMP(poca, pocb);
 }
 
 static int b1_ref_list_cmp(const void *ptra, const void *ptrb, const void *data)
@@ -436,11 +433,11 @@ static int b1_ref_list_cmp(const void *ptra, const void *ptrb, const void *data)
 	 * order.
 	 */
 	if ((poca < builder->curpoc) != (pocb < builder->curpoc))
-		return pocb - poca;
+		return POC_CMP(pocb, poca);
 	else if (poca < builder->curpoc)
-		return pocb - poca;
+		return POC_CMP(pocb, poca);
 
-	return poca - pocb;
+	return POC_CMP(poca, pocb);
 }
 
 static void
@@ -576,26 +573,28 @@ int hantro_h264_dec_prepare_run(struct hantro_ctx *ctx)
 
 	hantro_prepare_run(ctx);
 
-	ctrls->scaling = hantro_get_ctrl(ctx,
-				V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX);
+	ctrls->scaling =
+		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX);
 	if (WARN_ON(!ctrls->scaling))
 		return -EINVAL;
 
-	ctrls->decode = hantro_get_ctrl(ctx,
-				V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
+	ctrls->decode =
+		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
 	if (WARN_ON(!ctrls->decode))
 		return -EINVAL;
 
-	ctrls->slices = hantro_get_ctrl(ctx,
-					V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS);
+	ctrls->slices =
+		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS);
 	if (WARN_ON(!ctrls->slices))
 		return -EINVAL;
 
-	ctrls->sps = hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SPS);
+	ctrls->sps =
+		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SPS);
 	if (WARN_ON(!ctrls->sps))
 		return -EINVAL;
 
-	ctrls->pps = hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_PPS);
+	ctrls->pps =
+		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_PPS);
 	if (WARN_ON(!ctrls->pps))
 		return -EINVAL;
 
@@ -628,6 +627,7 @@ int hantro_h264_dec_init(struct hantro_ctx *ctx)
 	struct hantro_h264_dec_hw_ctx *h264_dec = &ctx->h264_dec;
 	struct hantro_aux_buf *priv = &h264_dec->priv;
 	struct hantro_h264_dec_priv_tbl *tbl;
+	struct v4l2_pix_format_mplane pix_mp;
 
 	priv->cpu = dma_alloc_coherent(vpu->dev, sizeof(*tbl), &priv->dma,
 				       GFP_KERNEL);
@@ -636,7 +636,11 @@ int hantro_h264_dec_init(struct hantro_ctx *ctx)
 
 	priv->size = sizeof(*tbl);
 	tbl = priv->cpu;
-	memcpy(tbl->cabac_table, h264_cabac_table, sizeof(*tbl->cabac_table));
+	memcpy(tbl->cabac_table, h264_cabac_table, sizeof(tbl->cabac_table));
+
+	v4l2_fill_pixfmt_mp(&pix_mp, ctx->dst_fmt.pixelformat,
+			    ctx->dst_fmt.width, ctx->dst_fmt.height);
+	h264_dec->pic_size = pix_mp.plane_fmt[0].sizeimage;
 
 	return 0;
 }
