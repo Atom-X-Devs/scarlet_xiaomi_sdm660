@@ -29,6 +29,13 @@ struct img_addr {
 	u32 iova; /* Used by IOMMU HW access */
 } __attribute__ ((__packed__));
 
+struct tuning_addr {
+	u64	present;
+	u32	pa;	/* Used by CM4 access */
+	u32	iova;	/* Used by IOMMU HW access */
+} __attribute__ ((__packed__));
+
+
 struct img_sw_addr {
 	u64 va; /* Used by APMCU access */
 	u32 pa; /* Used by CM4 access */
@@ -96,15 +103,20 @@ struct img_ipi_frameparam {
 	u64 drv_data;
 	struct img_input inputs[IMG_MAX_HW_INPUTS];
 	struct img_output outputs[IMG_MAX_HW_OUTPUTS];
-	struct img_addr tuning_data;
+	struct tuning_addr tuning_data;
 	struct img_addr subfrm_data;
 	struct img_sw_addr config_data;
 	struct img_sw_addr self_data;
 } __attribute__ ((__packed__));
 
+struct img_sw_buffer {
+	u64	handle;		/* Used by APMCU access */
+	u32	scp_addr;	/* Used by CM4 access */
+} __attribute__ ((__packed__));
+
 struct img_ipi_param {
 	u8 usage;
-	struct img_sw_addr frm_param;
+	struct img_sw_buffer frm_param;
 } __attribute__ ((__packed__));
 
 struct img_frameparam {
