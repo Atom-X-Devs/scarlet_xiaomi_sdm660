@@ -43,6 +43,8 @@ static int mtk_gpu_corex_probe(struct platform_device *pdev)
 	else
 		probe_gpu_core2_dev = pdev;
 
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
+	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
 	return 0;
@@ -149,17 +151,20 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 
 	clk_disable_unprepare(mfg->clk_main_parent);
 
-	error = pm_runtime_put_sync(&mfg->gpu_core2_dev->dev);
+	pm_runtime_mark_last_busy(&mfg->gpu_core2_dev->dev);
+	error = pm_runtime_put_autosuspend(&mfg->gpu_core2_dev->dev);
 	if (error < 0)
 		dev_err(kbdev->dev,
 		"Power off core 2 failed (err: %d)\n", error);
 
-	error = pm_runtime_put_sync(&mfg->gpu_core1_dev->dev);
+	pm_runtime_mark_last_busy(&mfg->gpu_core1_dev->dev);
+	error = pm_runtime_put_autosuspend(&mfg->gpu_core1_dev->dev);
 	if (error < 0)
 		dev_err(kbdev->dev,
 		"Power off core 1 failed (err: %d)\n", error);
 
-	error = pm_runtime_put_sync(kbdev->dev);
+	pm_runtime_mark_last_busy(kbdev->dev);
+	error = pm_runtime_put_autosuspend(kbdev->dev);
 	if (error < 0)
 		dev_err(kbdev->dev,
 		"Power off core 0 failed (err: %d)\n", error);
@@ -425,6 +430,8 @@ static int platform_init(struct kbase_device *kbdev)
 		goto platform_init_err;
 
 	kbdev->platform_context = mfg;
+	pm_runtime_set_autosuspend_delay(kbdev->dev, 50);
+	pm_runtime_use_autosuspend(kbdev->dev);
 	pm_runtime_enable(kbdev->dev);
 
 	err = clk_set_parent(mfg->clk_mux, mfg->clk_sub_parent);
