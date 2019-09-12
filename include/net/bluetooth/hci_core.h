@@ -205,12 +205,18 @@ struct adv_info {
 
 #define HCI_MAX_SHORT_NAME_LENGTH	10
 
+/* Min encryption key size to match with SMP */
+#define HCI_MIN_ENC_KEY_SIZE		7
+
 /* Default LE RPA expiry time, 15 minutes */
 #define HCI_DEFAULT_RPA_TIMEOUT		(15 * 60)
 
 /* Default min/max age of connection information (1s/3s) */
 #define DEFAULT_CONN_INFO_MIN_AGE	1000
 #define DEFAULT_CONN_INFO_MAX_AGE	3000
+
+#define MAX_BLOCKED_LTKS		8
+#define LTK_LENGTH			16
 
 struct amp_assoc {
 	__u16	len;
@@ -221,6 +227,15 @@ struct amp_assoc {
 };
 
 #define HCI_MAX_PAGES	3
+
+#define CONTROLLER_ID(vendor, product) \
+	.idVendor = (vendor), \
+	.idProduct = (product)
+
+struct controller_id_t {
+	__u16	idVendor;
+	__u16	idProduct;
+};
 
 struct hci_dev {
 	struct list_head list;
@@ -240,6 +255,7 @@ struct hci_dev {
 	__u8		dev_name[HCI_MAX_NAME_LENGTH];
 	__u8		short_name[HCI_MAX_SHORT_NAME_LENGTH];
 	__u8		eir[HCI_MAX_EIR_LENGTH];
+	__u8		event_mask[HCI_SET_EVENT_MASK_SIZE];
 	__u16		appearance;
 	__u8		dev_class[3];
 	__u8		major_class;
@@ -284,12 +300,16 @@ struct hci_dev {
 	__u16		le_max_tx_time;
 	__u16		le_max_rx_len;
 	__u16		le_max_rx_time;
+	__u8		le_max_key_size;
+	__u8		le_min_key_size;
 	__u16		discov_interleaved_timeout;
 	__u16		conn_info_min_age;
 	__u16		conn_info_max_age;
 	__u8		ssp_debug_mode;
 	__u8		hw_error_code;
 	__u32		clock;
+	struct controller_id_t controller_id;
+	__u8		wide_band_speech;
 
 	__u16		devid_source;
 	__u16		devid_vendor;
@@ -329,6 +349,9 @@ struct hci_dev {
 	unsigned int	sco_cnt;
 	unsigned int	le_cnt;
 
+	unsigned int	count_adv_change_in_progress;
+	unsigned int	count_scan_change_in_progress;
+
 	unsigned int	acl_mtu;
 	unsigned int	sco_mtu;
 	unsigned int	le_mtu;
@@ -366,7 +389,8 @@ struct hci_dev {
 	struct work_struct	cmd_work;
 	struct work_struct	tx_work;
 
-	struct work_struct	discov_update;
+	struct work_struct	start_discov_update;
+	struct work_struct	stop_discov_update;
 	struct work_struct	bg_scan_update;
 	struct work_struct	scan_update;
 	struct work_struct	connectable_update;
@@ -425,6 +449,8 @@ struct hci_dev {
 	__u8			adv_data_len;
 	__u8			scan_rsp_data[HCI_MAX_AD_LENGTH];
 	__u8			scan_rsp_data_len;
+	/* These long term keys shouldn't be used */
+	__u8			blocked_ltks[MAX_BLOCKED_LTKS][LTK_LENGTH];
 
 	struct list_head	adv_instances;
 	unsigned int		adv_instance_cnt;
@@ -452,6 +478,7 @@ struct hci_dev {
 	int (*post_init)(struct hci_dev *hdev);
 	int (*set_diag)(struct hci_dev *hdev, bool enable);
 	int (*set_bdaddr)(struct hci_dev *hdev, const bdaddr_t *bdaddr);
+	void (*cmd_timeout)(struct hci_dev *hdev);
 };
 
 #define HCI_PHY_HANDLE(handle)	(handle & 0xff)
@@ -1196,23 +1223,33 @@ void hci_conn_del_sysfs(struct hci_conn *conn);
 #define bredr_sc_enabled(dev)  (lmp_sc_capable(dev) && \
 				hci_dev_test_flag(dev, HCI_SC_ENABLED))
 
-#define scan_1m(dev) (((dev)->le_tx_def_phys & HCI_LE_SET_PHY_1M) || \
-		      ((dev)->le_rx_def_phys & HCI_LE_SET_PHY_1M))
+/* Disable 5.0 features for unified behavior accross chromium BlueZ kernels */
+#define SPEC_5_x_LE_FEATURES_ENABLE (0)
 
-#define scan_2m(dev) (((dev)->le_tx_def_phys & HCI_LE_SET_PHY_2M) || \
-		      ((dev)->le_rx_def_phys & HCI_LE_SET_PHY_2M))
+#define scan_1m(dev) ((((dev)->le_tx_def_phys & HCI_LE_SET_PHY_1M) || \
+		      ((dev)->le_rx_def_phys & HCI_LE_SET_PHY_1M)) & \
+		      SPEC_5_x_LE_FEATURES_ENABLE)
 
-#define scan_coded(dev) (((dev)->le_tx_def_phys & HCI_LE_SET_PHY_CODED) || \
-			 ((dev)->le_rx_def_phys & HCI_LE_SET_PHY_CODED))
+#define scan_2m(dev) ((((dev)->le_tx_def_phys & HCI_LE_SET_PHY_2M) || \
+		      ((dev)->le_rx_def_phys & HCI_LE_SET_PHY_2M)) & \
+		      SPEC_5_x_LE_FEATURES_ENABLE)
+
+#define scan_coded(dev) ((((dev)->le_tx_def_phys & HCI_LE_SET_PHY_CODED) || \
+			 ((dev)->le_rx_def_phys & HCI_LE_SET_PHY_CODED)) & \
+			 SPEC_5_x_LE_FEATURES_ENABLE)
 
 /* Use ext scanning if set ext scan param and ext scan enable is supported */
-#define use_ext_scan(dev) (((dev)->commands[37] & 0x20) && \
-			   ((dev)->commands[37] & 0x40))
+#define use_ext_scan(dev) ((((dev)->commands[37] & 0x20) && \
+			   ((dev)->commands[37] & 0x40)) & \
+			   SPEC_5_x_LE_FEATURES_ENABLE)
+
 /* Use ext create connection if command is supported */
-#define use_ext_conn(dev) ((dev)->commands[37] & 0x80)
+#define use_ext_conn(dev) (((dev)->commands[37] & 0x80) & \
+			   SPEC_5_x_LE_FEATURES_ENABLE)
 
 /* Extended advertising support */
-#define ext_adv_capable(dev) (((dev)->le_features[1] & HCI_LE_EXT_ADV))
+#define ext_adv_capable(dev) ((((dev)->le_features[1] & HCI_LE_EXT_ADV)) & \
+			   SPEC_5_x_LE_FEATURES_ENABLE)
 
 /* ----- HCI protocols ----- */
 #define HCI_PROTO_DEFER             0x01
@@ -1596,6 +1633,8 @@ void hci_le_start_enc(struct hci_conn *conn, __le16 ediv, __le64 rand,
 
 void hci_copy_identity_address(struct hci_dev *hdev, bdaddr_t *bdaddr,
 			       u8 *bdaddr_type);
+
+bool is_ltk_blocked(struct smp_ltk *key, struct hci_dev *hdev);
 
 #define SCO_AIRMODE_MASK       0x0003
 #define SCO_AIRMODE_CVSD       0x0000

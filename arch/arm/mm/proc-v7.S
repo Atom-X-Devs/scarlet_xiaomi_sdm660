@@ -112,7 +112,7 @@ ENTRY(cpu_v7_hvc_switch_mm)
 	hvc	#0
 	ldmfd	sp!, {r0 - r3}
 	b	cpu_v7_switch_mm
-ENDPROC(cpu_v7_smc_switch_mm)
+ENDPROC(cpu_v7_hvc_switch_mm)
 #endif
 ENTRY(cpu_v7_iciallu_switch_mm)
 	mov	r3, #0
@@ -392,6 +392,11 @@ __ca12_errata:
 	orr	r10, r10, #1 << 24		@ set bit #24
 	mcr	p15, 0, r10, c15, c0, 1		@ write diagnostic register
 #endif
+#ifdef CONFIG_ARM_ERRATA_857271
+	mrc	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orr	r10, r10, #3 << 10		@ set bits #10 and #11
+	mcr	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
 	b	__errata_finish
 
 __ca17_errata:
@@ -406,6 +411,11 @@ __ca17_errata:
 	mrcle	p15, 0, r10, c15, c0, 1		@ read diagnostic register
 	orrle	r10, r10, #1 << 12		@ set bit #12
 	mcrle	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+#ifdef CONFIG_ARM_ERRATA_857272
+	mrc	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orr	r10, r10, #3 << 10		@ set bits #10 and #11
+	mcr	p15, 0, r10, c15, c0, 1		@ write diagnostic register
 #endif
 	b	__errata_finish
 

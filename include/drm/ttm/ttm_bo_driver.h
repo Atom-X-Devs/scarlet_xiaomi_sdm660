@@ -50,6 +50,8 @@
 #define TTM_MEMTYPE_FLAG_MAPPABLE      (1 << 1)	/* Memory mappable */
 #define TTM_MEMTYPE_FLAG_CMA           (1 << 3)	/* Can't map aperture */
 
+#define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
+
 struct ttm_mem_type_manager;
 
 struct ttm_mem_type_manager_func {
@@ -385,15 +387,6 @@ struct ttm_bo_driver {
 };
 
 /**
- * struct ttm_bo_global_ref - Argument to initialize a struct ttm_bo_global.
- */
-
-struct ttm_bo_global_ref {
-	struct drm_global_reference ref;
-	struct ttm_mem_global *mem_glob;
-};
-
-/**
  * struct ttm_bo_global - Buffer object driver global data.
  *
  * @mem_glob: Pointer to a struct ttm_mem_global object for accounting.
@@ -407,7 +400,7 @@ struct ttm_bo_global_ref {
  * @swap_lru: Lru list of buffer objects used for swapping.
  */
 
-struct ttm_bo_global {
+extern struct ttm_bo_global {
 
 	/**
 	 * Constant after init.
@@ -416,12 +409,12 @@ struct ttm_bo_global {
 	struct kobject kobj;
 	struct ttm_mem_global *mem_glob;
 	struct page *dummy_read_page;
-	struct mutex device_list_mutex;
 	spinlock_t lru_lock;
 
 	/**
-	 * Protected by device_list_mutex.
+	 * Protected by ttm_global_mutex.
 	 */
+	unsigned int use_count;
 	struct list_head device_list;
 
 	/**
@@ -433,7 +426,7 @@ struct ttm_bo_global {
 	 * Internal protection.
 	 */
 	atomic_t bo_count;
-};
+} ttm_bo_glob;
 
 
 #define TTM_NUM_MEM_TYPES 8
@@ -578,9 +571,6 @@ void ttm_bo_mem_put(struct ttm_buffer_object *bo, struct ttm_mem_reg *mem);
 void ttm_bo_mem_put_locked(struct ttm_buffer_object *bo,
 			   struct ttm_mem_reg *mem);
 
-void ttm_bo_global_release(struct drm_global_reference *ref);
-int ttm_bo_global_init(struct drm_global_reference *ref);
-
 int ttm_bo_device_release(struct ttm_bo_device *bdev);
 
 /**
@@ -598,10 +588,10 @@ int ttm_bo_device_release(struct ttm_bo_device *bdev);
  * Returns:
  * !0: Failure.
  */
-int ttm_bo_device_init(struct ttm_bo_device *bdev, struct ttm_bo_global *glob,
+int ttm_bo_device_init(struct ttm_bo_device *bdev,
 		       struct ttm_bo_driver *driver,
 		       struct address_space *mapping,
-		       uint64_t file_page_offset, bool need_dma32);
+		       bool need_dma32);
 
 /**
  * ttm_bo_unmap_virtual

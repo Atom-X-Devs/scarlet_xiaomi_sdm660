@@ -1333,7 +1333,7 @@ static int kbasep_vinstr_service_task(void *data)
 						ns_to_ktime(diff),
 						HRTIMER_MODE_REL);
 			}
-			wait_event(
+			wait_event_interruptible(
 					vinstr_ctx->waitq,
 					atomic_read(
 						&vinstr_ctx->request_pending) ||

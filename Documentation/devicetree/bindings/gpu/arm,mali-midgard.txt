@@ -37,6 +37,21 @@ Optional properties:
 - operating-points-v2 : Refer to Documentation/devicetree/bindings/opp/opp.txt
   for details.
 
+- #cooling-cells: Refer to Documentation/devicetree/bindings/thermal/thermal.txt
+  for details.
+
+- power_model : Sets power model parameters. Note that this model was designed for the Juno
+	        platform, and may not be suitable for other platforms. A structure containing :
+	- compatible: Should be arm,mali-simple-power-model
+	- dynamic-coefficient: Coefficient, in pW/(Hz V^2), which is multiplied
+	  by v^2*f to calculate the dynamic power consumption.
+	- static-coefficient: Coefficient, in uW/V^3, which is multiplied by
+	  v^3 to calculate the static power consumption.
+	- ts: An array containing coefficients for the temperature scaling
+	  factor. This is used to scale the static power by a factor of
+	  tsf/1000000, where tsf = ts[3]*T^3 + ts[2]*T^2 + ts[1]*T + ts[0],
+	  and T = temperature in degrees.
+	- thermal-zone: A string identifying the thermal zone used for the GPU
 
 Example for a Mali-T760:
 
@@ -51,6 +66,7 @@ gpu@ffa30000 {
 	mali-supply = <&vdd_gpu>;
 	operating-points-v2 = <&gpu_opp_table>;
 	power-domains = <&power RK3288_PD_GPU>;
+	#cooling-cells = <2>;
 };
 
 gpu_opp_table: opp_table0 {

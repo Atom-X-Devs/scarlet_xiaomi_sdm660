@@ -27,6 +27,35 @@ Optional Properties:
 
 - max-speed: Maximum PHY supported speed (10, 100, 1000...)
 
+- leds: Subnode with configuration of the PHY LEDs.
+
+  Required subnode properties:
+
+  - reg: The ID number of the LED, typically corresponds to a hardware ID.
+
+  Optional subnode properties:
+
+  - linux,default-trigger: This parameter, if present, is a string specifying
+                           the trigger assigned to the LED. Supported triggers
+			   are:
+
+      "none" - LED will be solid off
+      "phy-link" - LED will be solid on when a link is active
+      "phy-link-10m" - LED will be solid on when a 10Mb/s link is active
+      "phy-link-100m" - LED will be solid on when a 100Mb/s link is active
+      "phy-link-1g" - LED will be solid on when a 1Gb/s link is active
+      "phy-link-10g" - LED will be solid on when a 10Gb/s link is active
+      "phy-link-activity" - LED will be on when link is active and blink
+                            off with activity.
+      "phy-link-10m-activity" - LED will be on when 10Mb/s link is active
+                                and blink off with activity.
+      "phy-link-100m-activity" - LED will be on when 100Mb/s link is
+                                 active and blink off with activity.
+      "phy-link-1g-activity" - LED will be on when 1Gb/s link is active
+                               and blink off with activity.
+      "phy-link-10g-activity" - LED will be on when 10Gb/s link is active
+                                and blink off with activity.
+
 - broken-turn-around: If set, indicates the PHY device does not correctly
   release the turn around line low at the end of a MDIO transaction.
 
@@ -70,4 +99,19 @@ ethernet-phy@0 {
 	reset-gpios = <&gpio1 4 GPIO_ACTIVE_LOW>;
 	reset-assert-us = <1000>;
 	reset-deassert-us = <2000>;
+
+	leds {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		led@0 {
+			reg = <0>;
+			linux,default-trigger = "phy-link-1g";
+		};
+
+		led@1 {
+			reg = <1>;
+			linux,default-trigger = "phy-link-100m-activity";
+		};
+	};
 };

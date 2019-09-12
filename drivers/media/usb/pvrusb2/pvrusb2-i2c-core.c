@@ -343,11 +343,11 @@ static int i2c_hack_cx25840(struct pvr2_hdw *hdw,
 
 	if ((ret != 0) || (*rdata == 0x04) || (*rdata == 0x0a)) {
 		pvr2_trace(PVR2_TRACE_ERROR_LEGS,
-			   "WARNING: Detected a wedged cx25840 chip; the device will not work.");
+			   "***WARNING*** Detected a wedged cx25840 chip; the device will not work.");
 		pvr2_trace(PVR2_TRACE_ERROR_LEGS,
-			   "WARNING: Try power cycling the pvrusb2 device.");
+			   "***WARNING*** Try power cycling the pvrusb2 device.");
 		pvr2_trace(PVR2_TRACE_ERROR_LEGS,
-			   "WARNING: Disabling further access to the device to prevent other foul-ups.");
+			   "***WARNING*** Disabling further access to the device to prevent other foul-ups.");
 		// This blocks all further communication with the part.
 		hdw->i2c_func[0x44] = NULL;
 		pvr2_hdw_render_useless(hdw);
@@ -573,7 +573,7 @@ static void pvr2_i2c_register_ir(struct pvr2_hdw *hdw)
 		/* IR Receiver */
 		info.addr          = 0x18;
 		info.platform_data = init_data;
-		strlcpy(info.type, "ir_video", I2C_NAME_SIZE);
+		strscpy(info.type, "ir_video", I2C_NAME_SIZE);
 		pvr2_trace(PVR2_TRACE_INFO, "Binding %s to i2c address 0x%02x.",
 			   info.type, info.addr);
 		i2c_new_device(&hdw->i2c_adap, &info);
@@ -588,7 +588,7 @@ static void pvr2_i2c_register_ir(struct pvr2_hdw *hdw)
 		/* IR Transceiver */
 		info.addr = 0x71;
 		info.platform_data = init_data;
-		strlcpy(info.type, "ir_z8f0811_haup", I2C_NAME_SIZE);
+		strscpy(info.type, "ir_z8f0811_haup", I2C_NAME_SIZE);
 		pvr2_trace(PVR2_TRACE_INFO, "Binding %s to i2c address 0x%02x.",
 			   info.type, info.addr);
 		i2c_new_device(&hdw->i2c_adap, &info);
@@ -631,7 +631,7 @@ void pvr2_i2c_core_init(struct pvr2_hdw *hdw)
 	// Configure the adapter and set up everything else related to it.
 	hdw->i2c_adap = pvr2_i2c_adap_template;
 	hdw->i2c_algo = pvr2_i2c_algo_template;
-	strlcpy(hdw->i2c_adap.name,hdw->name,sizeof(hdw->i2c_adap.name));
+	strscpy(hdw->i2c_adap.name, hdw->name, sizeof(hdw->i2c_adap.name));
 	hdw->i2c_adap.dev.parent = &hdw->usb_dev->dev;
 	hdw->i2c_adap.algo = &hdw->i2c_algo;
 	hdw->i2c_adap.algo_data = hdw;

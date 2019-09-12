@@ -1106,6 +1106,8 @@ static uint16_t g4x_compute_wm(const struct intel_crtc_state *crtc_state,
 	if (!intel_wm_plane_visible(crtc_state, plane_state))
 		return 0;
 
+	cpp = plane_state->base.fb->format->cpp[0];
+
 	/*
 	 * Not 100% sure which way ELK should go here as the
 	 * spec only says CL/CTG should assume 32bpp and BW
@@ -1119,9 +1121,7 @@ static uint16_t g4x_compute_wm(const struct intel_crtc_state *crtc_state,
 	 */
 	if (IS_GM45(dev_priv) && plane->id == PLANE_PRIMARY &&
 	    level != G4X_WM_LEVEL_NORMAL)
-		cpp = 4;
-	else
-		cpp = plane_state->base.fb->format->cpp[0];
+		cpp = max(cpp, 4u);
 
 	clock = adjusted_mode->crtc_clock;
 	htotal = adjusted_mode->crtc_htotal;
@@ -2493,6 +2493,9 @@ static uint32_t ilk_compute_pri_wm(const struct intel_crtc_state *cstate,
 	uint32_t method1, method2;
 	int cpp;
 
+	if (mem_value == 0)
+		return U32_MAX;
+
 	if (!intel_wm_plane_visible(cstate, pstate))
 		return 0;
 
@@ -2522,6 +2525,9 @@ static uint32_t ilk_compute_spr_wm(const struct intel_crtc_state *cstate,
 	uint32_t method1, method2;
 	int cpp;
 
+	if (mem_value == 0)
+		return U32_MAX;
+
 	if (!intel_wm_plane_visible(cstate, pstate))
 		return 0;
 
@@ -2544,6 +2550,9 @@ static uint32_t ilk_compute_cur_wm(const struct intel_crtc_state *cstate,
 				   uint32_t mem_value)
 {
 	int cpp;
+
+	if (mem_value == 0)
+		return U32_MAX;
 
 	if (!intel_wm_plane_visible(cstate, pstate))
 		return 0;
@@ -2881,8 +2890,7 @@ static void intel_read_wm_latency(struct drm_i915_private *dev_priv,
 		 * any underrun. If not able to get Dimm info assume 16GB dimm
 		 * to avoid any underrun.
 		 */
-		if (!dev_priv->dram_info.valid_dimm ||
-		    dev_priv->dram_info.is_16gb_dimm)
+		if (dev_priv->dram_info.is_16gb_dimm)
 			wm[0] += 1;
 
 	} else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv)) {
@@ -3009,6 +3017,34 @@ static void snb_wm_latency_quirk(struct drm_i915_private *dev_priv)
 	intel_print_wm_latency(dev_priv, "Cursor", dev_priv->wm.cur_latency);
 }
 
+static void snb_wm_lp3_irq_quirk(struct drm_i915_private *dev_priv)
+{
+	/*
+	 * On some SNB machines (Thinkpad X220 Tablet at least)
+	 * LP3 usage can cause vblank interrupts to be lost.
+	 * The DEIIR bit will go high but it looks like the CPU
+	 * never gets interrupted.
+	 *
+	 * It's not clear whether other interrupt source could
+	 * be affected or if this is somehow limited to vblank
+	 * interrupts only. To play it safe we disable LP3
+	 * watermarks entirely.
+	 */
+	if (dev_priv->wm.pri_latency[3] == 0 &&
+	    dev_priv->wm.spr_latency[3] == 0 &&
+	    dev_priv->wm.cur_latency[3] == 0)
+		return;
+
+	dev_priv->wm.pri_latency[3] = 0;
+	dev_priv->wm.spr_latency[3] = 0;
+	dev_priv->wm.cur_latency[3] = 0;
+
+	DRM_DEBUG_KMS("LP3 watermarks disabled due to potential for lost interrupts\n");
+	intel_print_wm_latency(dev_priv, "Primary", dev_priv->wm.pri_latency);
+	intel_print_wm_latency(dev_priv, "Sprite", dev_priv->wm.spr_latency);
+	intel_print_wm_latency(dev_priv, "Cursor", dev_priv->wm.cur_latency);
+}
+
 static void ilk_setup_wm_latency(struct drm_i915_private *dev_priv)
 {
 	intel_read_wm_latency(dev_priv, dev_priv->wm.pri_latency);
@@ -3025,8 +3061,10 @@ static void ilk_setup_wm_latency(struct drm_i915_private *dev_priv)
 	intel_print_wm_latency(dev_priv, "Sprite", dev_priv->wm.spr_latency);
 	intel_print_wm_latency(dev_priv, "Cursor", dev_priv->wm.cur_latency);
 
-	if (IS_GEN6(dev_priv))
+	if (IS_GEN6(dev_priv)) {
 		snb_wm_latency_quirk(dev_priv);
+		snb_wm_lp3_irq_quirk(dev_priv);
+	}
 }
 
 static void skl_setup_wm_latency(struct drm_i915_private *dev_priv)
@@ -6608,7 +6646,9 @@ void gen6_rps_boost(struct i915_request *rq,
 		    struct intel_rps_client *rps_client)
 {
 	struct intel_rps *rps = &rq->i915->gt_pm.rps;
+	/* FIXME see below
 	unsigned long flags;
+	*/
 	bool boost;
 
 	/* This is intentionally racy! We peek at the state here, then
@@ -6622,12 +6662,18 @@ void gen6_rps_boost(struct i915_request *rq,
 
 	/* Serializes with i915_request_retire() */
 	boost = false;
+	/*
+	 * FIXME: This is temporary change to improve power consumption
+	 * in hangouts use case. (See: b/130638275)
+	 */
+	/*
 	spin_lock_irqsave(&rq->lock, flags);
 	if (!rq->waitboost && !dma_fence_is_signaled_locked(&rq->fence)) {
 		boost = !atomic_fetch_inc(&rps->num_waiters);
 		rq->waitboost = true;
 	}
 	spin_unlock_irqrestore(&rq->lock, flags);
+	*/
 	if (!boost)
 		return;
 

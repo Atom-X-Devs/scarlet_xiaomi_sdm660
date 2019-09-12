@@ -513,7 +513,7 @@ static int max98927_dac_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		max98927->tdm_mode = 0;
+		max98927->tdm_mode = false;
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		regmap_update_bits(max98927->regmap,
@@ -959,11 +959,11 @@ static int max98927_i2c_probe(struct i2c_client *i2c,
 	if (!of_property_read_u32(i2c->dev.of_node,
 		"interleave_mode", &value)) {
 		if (value > 0)
-			max98927->interleave_mode = 1;
+			max98927->interleave_mode = true;
 		else
-			max98927->interleave_mode = 0;
+			max98927->interleave_mode = false;
 	} else
-		max98927->interleave_mode = 0;
+		max98927->interleave_mode = false;
 
 	/* Gets optional GPIO for reset line. */
 	max98927->reset_gpio = devm_gpiod_get_optional(
@@ -1010,7 +1010,7 @@ static int max98927_i2c_probe(struct i2c_client *i2c,
 		ret = PTR_ERR(max98927->regmap);
 		dev_err(&i2c->dev,
 			"Failed to allocate regmap: %d\n", ret);
-		return ret;
+		goto err_i2c;
 	}
 
 	/* Check Revision ID */
@@ -1019,7 +1019,7 @@ static int max98927_i2c_probe(struct i2c_client *i2c,
 	if (ret < 0) {
 		dev_err(&i2c->dev,
 			"Failed to read: 0x%02X\n", MAX98927_R01FF_REV_ID);
-		return ret;
+		goto err_i2c;
 	}
 	dev_info(&i2c->dev, "MAX98927 revisionID: 0x%02X\n", reg);
 
@@ -1033,6 +1033,10 @@ static int max98927_i2c_probe(struct i2c_client *i2c,
 	if (ret < 0)
 		dev_err(&i2c->dev, "Failed to register component: %d\n", ret);
 
+	return ret;
+
+err_i2c:
+	list_del(&max98927->list);
 	return ret;
 }
 

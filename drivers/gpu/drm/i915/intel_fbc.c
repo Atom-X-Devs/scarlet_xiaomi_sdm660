@@ -40,7 +40,7 @@
 
 #include "intel_drv.h"
 #include "i915_drv.h"
-
+#include "intel_frontbuffer.h"
 static inline bool fbc_supported(struct drm_i915_private *dev_priv)
 {
 	return HAS_FBC(dev_priv);
@@ -1079,6 +1079,8 @@ void intel_fbc_enable(struct intel_crtc *crtc,
 		if (fbc->crtc == crtc) {
 			WARN_ON(!crtc_state->enable_fbc);
 			WARN_ON(fbc->active);
+			if (IS_GEN9(dev_priv))
+				intel_wait_for_vblank(dev_priv, crtc->pipe);
 		}
 		goto out;
 	}
@@ -1121,8 +1123,11 @@ void intel_fbc_disable(struct intel_crtc *crtc)
 	WARN_ON(crtc->active);
 
 	mutex_lock(&fbc->lock);
-	if (fbc->crtc == crtc)
+	if (fbc->crtc == crtc) {
 		__intel_fbc_disable(dev_priv);
+		if (IS_GEN9(dev_priv))
+			intel_wait_for_vblank(dev_priv, crtc->pipe);
+	}
 	mutex_unlock(&fbc->lock);
 }
 
@@ -1265,6 +1270,10 @@ static int intel_sanitize_fbc_option(struct drm_i915_private *dev_priv)
 		return !!i915_modparams.enable_fbc;
 
 	if (!HAS_FBC(dev_priv))
+		return 0;
+
+	/* https://bugs.freedesktop.org/show_bug.cgi?id=108085 */
+	if (IS_GEMINILAKE(dev_priv))
 		return 0;
 
 	if (IS_BROADWELL(dev_priv) || INTEL_GEN(dev_priv) >= 9)

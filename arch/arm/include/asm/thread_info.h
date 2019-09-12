@@ -65,7 +65,19 @@ struct thread_info {
 #ifdef CONFIG_ARM_THUMBEE
 	unsigned long		thumbee_state;	/* ThumbEE Handler Base register */
 #endif
+#ifdef CONFIG_ALT_SYSCALL
+	unsigned int		nr_syscalls;
+	const void		*sys_call_table;
+#endif
 };
+
+#ifdef CONFIG_ALT_SYSCALL
+#define INIT_THREAD_INFO_SYSCALL					\
+	.nr_syscalls	= __NR_syscalls,				\
+	.sys_call_table	= &sys_call_table,
+#else
+#define INIT_THREAD_INFO_SYSCALL
+#endif
 
 #define INIT_THREAD_INFO(tsk)						\
 {									\
@@ -73,6 +85,7 @@ struct thread_info {
 	.flags		= 0,						\
 	.preempt_count	= INIT_PREEMPT_COUNT,				\
 	.addr_limit	= KERNEL_DS,					\
+	INIT_THREAD_INFO_SYSCALL					\
 }
 
 /*
@@ -121,8 +134,8 @@ extern void vfp_flush_hwstate(struct thread_info *);
 struct user_vfp;
 struct user_vfp_exc;
 
-extern int vfp_preserve_user_clear_hwstate(struct user_vfp __user *,
-					   struct user_vfp_exc __user *);
+extern int vfp_preserve_user_clear_hwstate(struct user_vfp *,
+					   struct user_vfp_exc *);
 extern int vfp_restore_user_hwstate(struct user_vfp *,
 				    struct user_vfp_exc *);
 #endif

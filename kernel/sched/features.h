@@ -92,13 +92,6 @@ SCHED_FEAT(WA_BIAS, true)
 SCHED_FEAT(UTIL_EST, true)
 
 /*
- * Energy-Aware Scheduling. Whether or not tasks will be placed into an
- * energy-aware fashion depends on this feature being enabled and on the
- * root domain having an Energy Model attached.
- */
-SCHED_FEAT(ENERGY_AWARE, true)
-
-/*
  * Fast pre-selection of CPU candidates for EAS.
  */
 SCHED_FEAT(FIND_BEST_TARGET, true)

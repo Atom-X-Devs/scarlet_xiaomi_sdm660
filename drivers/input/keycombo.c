@@ -38,8 +38,8 @@ struct keycombo_state {
 	void (*key_down_fn)(void *);
 	void *priv;
 	int key_is_down;
-	struct wakeup_source combo_held_wake_source;
-	struct wakeup_source combo_up_wake_source;
+	struct wakeup_source *combo_held_wake_source;
+	struct wakeup_source *combo_up_wake_source;
 };
 
 static void do_key_down(struct work_struct *work)
@@ -58,7 +58,7 @@ static void do_key_up(struct work_struct *work)
 								key_up_work);
 	if (state->key_up_fn)
 		state->key_up_fn(state->priv);
-	__pm_relax(&state->combo_up_wake_source);
+	__pm_relax(state->combo_up_wake_source);
 }
 
 static void keycombo_event(struct input_handle *handle, unsigned int type,
@@ -92,17 +92,17 @@ static void keycombo_event(struct input_handle *handle, unsigned int type,
 			state->key_down--;
 	}
 	if (state->key_down == state->key_down_target && state->key_up == 0) {
-		__pm_stay_awake(&state->combo_held_wake_source);
+		__pm_stay_awake(state->combo_held_wake_source);
 		state->key_is_down = 1;
 		if (queue_delayed_work(state->wq, &state->key_down_work,
 								state->delay))
 			pr_debug("Key down work already queued!");
 	} else if (state->key_is_down) {
 		if (!cancel_delayed_work(&state->key_down_work)) {
-			__pm_stay_awake(&state->combo_up_wake_source);
+			__pm_stay_awake(state->combo_up_wake_source);
 			queue_work(state->wq, &state->key_up_work);
 		}
-		__pm_relax(&state->combo_held_wake_source);
+		__pm_relax(state->combo_held_wake_source);
 		state->key_is_down = 0;
 	}
 done:
@@ -180,6 +180,18 @@ static int keycombo_probe(struct platform_device *pdev)
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
 		return -ENOMEM;
+	state->combo_held_wake_source =
+		wakeup_source_register(&pdev->dev, "key combo");
+	if (!state->combo_held_wake_source) {
+		ret =  -ENOMEM;
+		goto err_held_ws_failed;
+	}
+	state->combo_up_wake_source =
+		wakeup_source_register(&pdev->dev, "key combo up");
+	if (!state->combo_up_wake_source) {
+		ret =  -ENOMEM;
+		goto err_up_ws_failed;
+	}
 
 	spin_lock_init(&state->lock);
 	keyp = pdata->keys_down;
@@ -213,8 +225,6 @@ static int keycombo_probe(struct platform_device *pdev)
 		state->key_up_fn = pdata->key_up_fn;
 	INIT_WORK(&state->key_up_work, do_key_up);
 
-	wakeup_source_init(&state->combo_held_wake_source, "key combo");
-	wakeup_source_init(&state->combo_up_wake_source, "key combo up");
 	state->delay = msecs_to_jiffies(pdata->key_down_delay);
 
 	state->input_handler.event = keycombo_event;
@@ -223,17 +233,25 @@ static int keycombo_probe(struct platform_device *pdev)
 	state->input_handler.name = KEYCOMBO_NAME;
 	state->input_handler.id_table = keycombo_ids;
 	ret = input_register_handler(&state->input_handler);
-	if (ret) {
-		kfree(state);
-		return ret;
-	}
+	if (ret)
+		goto err_input_register_failed;
 	platform_set_drvdata(pdev, state);
 	return 0;
+
+err_input_register_failed:
+	wakeup_source_unregister(state->combo_up_wake_source);
+err_up_ws_failed:
+	wakeup_source_unregister(state->combo_held_wake_source);
+err_held_ws_failed:
+	kfree(state);
+	return ret;
 }
 
 int keycombo_remove(struct platform_device *pdev)
 {
 	struct keycombo_state *state = platform_get_drvdata(pdev);
+	wakeup_source_unregister(state->combo_held_wake_source);
+	wakeup_source_unregister(state->combo_up_wake_source);
 	input_unregister_handler(&state->input_handler);
 	destroy_workqueue(state->wq);
 	kfree(state);

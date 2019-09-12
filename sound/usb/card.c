@@ -35,6 +35,7 @@
 
 
 #include <linux/bitops.h>
+#include <linux/cpufreq.h>
 #include <linux/init.h>
 #include <linux/list.h>
 #include <linux/slab.h>
@@ -47,6 +48,8 @@
 #include <linux/usb/audio-v2.h>
 #include <linux/usb/audio-v3.h>
 #include <linux/module.h>
+
+#include <soc/rockchip/dmc-sync.h>
 
 #include <sound/control.h>
 #include <sound/core.h>
@@ -246,7 +249,7 @@ static int snd_usb_create_streams(struct snd_usb_audio *chip, int ctrlif)
 		h1 = snd_usb_find_csint_desc(host_iface->extra,
 							 host_iface->extralen,
 							 NULL, UAC_HEADER);
-		if (!h1) {
+		if (!h1 || h1->bLength < sizeof(*h1)) {
 			dev_err(&dev->dev, "cannot find UAC_HEADER\n");
 			return -EINVAL;
 		}
@@ -675,6 +678,15 @@ static int usb_audio_probe(struct usb_interface *intf,
 
 	usb_chip[chip->index] = chip;
 	chip->num_interfaces++;
+
+	/*
+	 * when plug in usb audio device,
+	 * set the cpu min frequency define in dts
+	 * disable dmc
+	 */
+	cpufreq_start_complex_usb();
+	rockchip_dmc_disable();
+
 	usb_set_intfdata(intf, chip);
 	atomic_dec(&chip->active);
 	mutex_unlock(&register_mutex);
@@ -682,9 +694,12 @@ static int usb_audio_probe(struct usb_interface *intf,
 
  __error:
 	if (chip) {
+		/* chip->active is inside the chip->card object,
+		 * decrement before memory is possibly returned.
+		 */
+		atomic_dec(&chip->active);
 		if (!chip->num_interfaces)
 			snd_card_free(chip->card);
-		atomic_dec(&chip->active);
 	}
 	mutex_unlock(&register_mutex);
 	return err;
@@ -734,6 +749,14 @@ static void usb_audio_disconnect(struct usb_interface *intf)
 			snd_usb_mixer_disconnect(mixer);
 		}
 	}
+
+	/*
+	 * when unplug usb audio,
+	 * recovery cpu min frequency,
+	 * and enable dmc
+	 */
+	cpufreq_end_complex_usb();
+	rockchip_dmc_enable();
 
 	chip->num_interfaces--;
 	if (chip->num_interfaces <= 0) {
@@ -808,7 +831,6 @@ static int usb_audio_suspend(struct usb_interface *intf, pm_message_t message)
 		snd_power_change_state(chip->card, SNDRV_CTL_POWER_D3hot);
 	if (!chip->num_suspended_intf++) {
 		list_for_each_entry(as, &chip->pcm_list, list) {
-			snd_pcm_suspend_all(as->pcm);
 			snd_usb_pcm_suspend(as);
 			as->substream[0].need_setup_ep =
 				as->substream[1].need_setup_ep = true;

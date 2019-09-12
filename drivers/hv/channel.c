@@ -38,7 +38,7 @@
 
 static unsigned long virt_to_hvpfn(void *addr)
 {
-	unsigned long paddr;
+	phys_addr_t paddr;
 
 	if (is_vmalloc_addr(addr))
 		paddr = page_to_phys(vmalloc_to_page(addr)) +
@@ -481,6 +481,14 @@ int vmbus_establish_gpadl(struct vmbus_channel *channel, void *kbuffer,
 
 	}
 	wait_for_completion(&msginfo->waitevent);
+
+	if (msginfo->response.gpadl_created.creation_status != 0) {
+		pr_err("Failed to establish GPADL: err = 0x%x\n",
+		       msginfo->response.gpadl_created.creation_status);
+
+		ret = -EDQUOT;
+		goto cleanup;
+	}
 
 	if (channel->rescind) {
 		ret = -ENODEV;

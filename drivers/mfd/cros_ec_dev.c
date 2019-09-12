@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/mod_devicetable.h>
 #include <linux/notifier.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm.h>
 #include <linux/poll.h>
@@ -36,20 +37,9 @@
 #define CROS_MAX_DEV 128
 static int ec_major;
 
-static const struct attribute_group *cros_ec_groups[] = {
-	&cros_ec_attr_group,
-	&cros_ec_lightbar_attr_group,
-	&cros_ec_vbc_attr_group,
-#if IS_ENABLED(CONFIG_MFD_CROS_EC_PD_UPDATE)
-	&cros_ec_pd_attr_group,
-#endif
-	NULL,
-};
-
 static struct class cros_class = {
 	.owner          = THIS_MODULE,
 	.name           = "chromeos",
-	.dev_groups     = cros_ec_groups,
 };
 
 /* Basic communication */
@@ -97,7 +87,7 @@ exit:
 	return ret;
 }
 
-static int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
+int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
 {
 	struct cros_ec_command *msg;
 	int ret;
@@ -129,8 +119,9 @@ static int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
 		kfree(msg);
 	}
 
-	return ec->features[feature / 32] & EC_FEATURE_MASK_0(feature);
+	return !!(ec->features[feature / 32] & EC_FEATURE_MASK_0(feature));
 }
+EXPORT_SYMBOL_GPL(cros_ec_check_features);
 
 struct cros_ec_priv {
 	struct cros_ec_dev *ec;
@@ -219,7 +210,7 @@ static __poll_t ec_device_poll(struct file *filp, poll_table *wait)
 	if (list_empty(&priv->events))
 		return 0;
 
-	return POLLIN | POLLRDNORM;
+	return EPOLLIN | EPOLLRDNORM;
 }
 
 static int ec_device_release(struct inode *inode, struct file *filp)
@@ -421,26 +412,32 @@ static const struct file_operations fops = {
 #endif
 };
 
-static void cros_ec_sensors_register(struct cros_ec_dev *ec)
+static void cros_ec_class_release(struct device *dev)
+{
+	kfree(to_cros_ec_dev(dev));
+}
+
+/*
+ * Return the number of MEMS sensors supported.
+ * Return < 0 in case of error.
+ */
+static int cros_ec_get_sensor_count(struct cros_ec_dev *ec)
 {
 	/*
 	 * Issue a command to get the number of sensor reported.
 	 * Build an array of sensors driver and register them all.
 	 */
-	int ret, i, id, sensor_num;
-	struct mfd_cell *sensor_cells;
-	struct cros_ec_sensor_platform *sensor_platforms;
-	int sensor_type[MOTIONSENSE_TYPE_MAX];
+	int ret, sensor_count;
 	struct ec_params_motion_sense *params;
 	struct ec_response_motion_sense *resp;
 	struct cros_ec_command *msg;
 
 	msg = kzalloc(sizeof(struct cros_ec_command) +
-		      max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
+			max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
 	if (msg == NULL)
-		return;
+		return -ENOMEM;
 
-	msg->version = 2;
+	msg->version = 1;
 	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
 	msg->outsize = sizeof(*params);
 	msg->insize = sizeof(*resp);
@@ -449,28 +446,67 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 	params->cmd = MOTIONSENSE_CMD_DUMP;
 
 	ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
-	if (ret < 0 || msg->result != EC_RES_SUCCESS) {
-		dev_warn(ec->dev, "cannot get EC sensor information: %d/%d\n",
-			 ret, msg->result);
-		goto error;
+	if (ret < 0) {
+		sensor_count = ret;
+	} else if (msg->result != EC_RES_SUCCESS) {
+		sensor_count = -EPROTO;
+	} else {
+		resp = (struct ec_response_motion_sense *)msg->data;
+		sensor_count = resp->dump.sensor_count;
+	}
+	kfree(msg);
+
+	return sensor_count;
+}
+
+static void cros_ec_sensors_register(struct cros_ec_dev *ec)
+{
+	/*
+	 * Issue a command to get the number of sensor reported.
+	 * Build an array of sensors driver and register them all.
+	 */
+	int ret, i, sensor_num, id = 0;
+	struct mfd_cell *sensor_cells;
+	struct cros_ec_sensor_platform *sensor_platforms;
+	int sensor_type[MOTIONSENSE_TYPE_MAX] = { 0 };
+	struct ec_params_motion_sense *params;
+	struct ec_response_motion_sense *resp;
+	struct cros_ec_command *msg;
+
+	sensor_num = cros_ec_get_sensor_count(ec);
+	if (sensor_num <= 0) {
+		dev_err(ec->dev,
+			"Unable to retrieve sensor information (err:%d)\n",
+			sensor_num);
+		return;
 	}
 
+	msg = kzalloc(sizeof(struct cros_ec_command) +
+			max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
+	if (msg == NULL)
+		return;
+
+	msg->version = 2;
+	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
+	msg->outsize = sizeof(*params);
+	msg->insize = sizeof(*resp);
+	params = (struct ec_params_motion_sense *)msg->data;
 	resp = (struct ec_response_motion_sense *)msg->data;
-	sensor_num = resp->dump.sensor_count;
-	/* Allocate 1 extra sensors in FIFO are needed */
-	sensor_cells = kcalloc(sensor_num + 1, sizeof(struct mfd_cell),
+
+	/*
+	 * Allocate 2 extra sensors if lid angle sensor and/or FIFO are needed.
+	 */
+	sensor_cells = kcalloc(sensor_num + 2, sizeof(struct mfd_cell),
 			       GFP_KERNEL);
 	if (sensor_cells == NULL)
 		goto error;
 
-	sensor_platforms = kcalloc(sensor_num + 1,
+	sensor_platforms = kcalloc(sensor_num,
 				   sizeof(struct cros_ec_sensor_platform),
 				   GFP_KERNEL);
 	if (sensor_platforms == NULL)
 		goto error_platforms;
 
-	memset(sensor_type, 0, sizeof(sensor_type));
-	id = 0;
 	for (i = 0; i < sensor_num; i++) {
 		params->cmd = MOTIONSENSE_CMD_INFO;
 		params->info.sensor_num = i;
@@ -499,6 +535,9 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 		case MOTIONSENSE_TYPE_LIGHT:
 			sensor_cells[id].name = "cros-ec-light";
 			break;
+		case MOTIONSENSE_TYPE_LIGHT_RGB:
+			/* Processed with cros-ec-light. */
+			continue;
 		case MOTIONSENSE_TYPE_ACTIVITY:
 			sensor_cells[id].name = "cros-ec-activity";
 			break;
@@ -510,7 +549,6 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 			continue;
 		}
 		sensor_platforms[id].sensor_num = i;
-		sensor_cells[id].id = sensor_type[resp->info.type];
 		sensor_cells[id].platform_data = &sensor_platforms[id];
 		sensor_cells[id].pdata_size =
 			sizeof(struct cros_ec_sensor_platform);
@@ -526,8 +564,13 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 		sensor_cells[id].name = "cros-ec-ring";
 		id++;
 	}
+	if (cros_ec_check_features(ec,
+				EC_FEATURE_REFINED_TABLET_MODE_HYSTERESIS)) {
+		sensor_cells[id].name = "cros-ec-lid-angle";
+		id++;
+	}
 
-	ret = mfd_add_devices(ec->dev, 0, sensor_cells, id,
+	ret = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO, sensor_cells, id,
 			      NULL, 0, NULL);
 	if (ret)
 		dev_err(ec->dev, "failed to add EC sensors\n");
@@ -539,20 +582,8 @@ error:
 	kfree(msg);
 }
 
-static const struct mfd_cell cros_ec_cec_cells[] = {
-	{ .name = "cros-ec-cec" }
-};
-
-static const struct mfd_cell cros_ec_rtc_cells[] = {
-	{ .name = "cros-ec-rtc" }
-};
-
-static const struct mfd_cell cros_usbpd_charger_cells[] = {
-	{ .name = "cros-usbpd-charger" },
-	{ .name = "cros-usbpd-logger" }
-};
-
 #define CROS_EC_SENSOR_LEGACY_NUM 2
+
 static struct mfd_cell cros_ec_accel_legacy_cells[CROS_EC_SENSOR_LEGACY_NUM];
 
 static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
@@ -574,19 +605,36 @@ static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
 	 * Check if EC supports direct memory reads and if EC has
 	 * accelerometers.
 	 */
-	if (!ec_dev->cmd_readmem)
-		return;
+	if (ec_dev->cmd_readmem) {
+		ret = ec_dev->cmd_readmem(ec_dev, EC_MEMMAP_ACC_STATUS, 1,
+					  &status);
+		if (ret < 0) {
+			dev_warn(ec->dev, "EC direct read error %d.\n", ret);
+			return;
+		}
 
-	ret = ec_dev->cmd_readmem(ec_dev, EC_MEMMAP_ACC_STATUS, 1, &status);
-	if (ret < 0) {
-		dev_warn(ec->dev, "EC does not support direct reads.\n");
-		return;
-	}
-
-	/* Check if EC has accelerometers. */
-	if (!(status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)) {
-		dev_info(ec->dev, "EC does not have accelerometers.\n");
-		return;
+		/* Check if EC has accelerometers. */
+		if (!(status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)) {
+			dev_info(ec->dev, "EC does not have accelerometers.\n");
+			return;
+		}
+	} else {
+		ret = cros_ec_get_sensor_count(ec);
+		if (ret <= 0)
+			return;
+		if (ret != CROS_EC_SENSOR_LEGACY_NUM) {
+			/*
+			 * We expect one accelerometer in the lid, one in the
+			 * base.
+			 * If we have more than 2, one will not be an
+			 * accelerometer. If we have less, this is not a
+			 * device we support.
+			 */
+			dev_warn(ec->dev,
+				 "EC support more than %d sensors: %d.\n",
+				 CROS_EC_SENSOR_LEGACY_NUM, ret);
+			return;
+		}
 	}
 
 	/*
@@ -609,12 +657,37 @@ static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
 		dev_err(ec_dev->dev, "failed to add EC sensors\n");
 }
 
+static const struct mfd_cell cros_ec_cec_cells[] = {
+	{ .name = "cros-ec-cec" }
+};
+
+static const struct mfd_cell cros_ec_rtc_cells[] = {
+	{ .name = "cros-ec-rtc" }
+};
+
+static const struct mfd_cell cros_usbpd_charger_cells[] = {
+	{ .name = "cros-usbpd-charger" },
+	{ .name = "cros-usbpd-logger" },
+};
+
+static const struct mfd_cell cros_ec_platform_cells[] = {
+	{ .name = "cros-ec-debugfs" },
+	{ .name = "cros-ec-lightbar" },
+	{ .name = "cros-ec-pd-sysfs" },
+	{ .name = "cros-ec-sysfs" },
+};
+
+static const struct mfd_cell cros_ec_vbc_cells[] = {
+	{ .name = "cros-ec-vbc" }
+};
+
 static int ec_device_probe(struct platform_device *pdev)
 {
 	int retval = -ENOMEM;
+	struct device_node *node;
 	struct device *dev = &pdev->dev;
 	struct cros_ec_platform *ec_platform = dev_get_platdata(dev);
-	struct cros_ec_dev *ec = devm_kzalloc(dev, sizeof(*ec), GFP_KERNEL);
+	struct cros_ec_dev *ec = kzalloc(sizeof(*ec), GFP_KERNEL);
 
 	if (!ec)
 		return retval;
@@ -649,6 +722,29 @@ static int ec_device_probe(struct platform_device *pdev)
 	}
 
 	/*
+	 * Check whether this is actually an Integrated Sensor Hub (ISH)
+	 * rather than an EC.
+	 */
+	if (cros_ec_check_features(ec, EC_FEATURE_ISH)) {
+		dev_info(dev, "CrOS ISH MCU detected.\n");
+		/*
+		 * Help userspace differentiating ECs from ISH MCU,
+		 * regardless of the probing order.
+		 */
+		ec_platform->ec_name = CROS_EC_DEV_ISH_NAME;
+	}
+
+	/* Check whether this is actually a SCP rather than an EC. */
+	if (cros_ec_check_features(ec, EC_FEATURE_SCP)) {
+		dev_info(dev, "CrOS SCP MCU detected.\n");
+		/*
+		 * Help userspace differentiating ECs from SCP,
+		 * regardless of the probing order.
+		 */
+		ec_platform->ec_name = CROS_EC_DEV_SCP_NAME;
+	}
+
+	/*
 	 * Add the class device
 	 * Link to the character device for creating the /dev entry
 	 * in devtmpfs.
@@ -656,6 +752,7 @@ static int ec_device_probe(struct platform_device *pdev)
 	ec->class_dev.devt = MKDEV(ec_major, pdev->id);
 	ec->class_dev.class = &cros_class;
 	ec->class_dev.parent = dev;
+	ec->class_dev.release = cros_ec_class_release;
 
 	retval = dev_set_name(&ec->class_dev, "%s", ec_platform->ec_name);
 	if (retval) {
@@ -706,9 +803,6 @@ static int ec_device_probe(struct platform_device *pdev)
 				retval);
 	}
 
-	/* Take control of the lightbar from the EC. */
-	lb_manual_suspend_ctrl(ec, 1);
-
 	/* We can now add the sysfs class, we know which parameter to show */
 	retval = cdev_device_add(&ec->cdev, &ec->class_dev);
 	if (retval) {
@@ -716,8 +810,26 @@ static int ec_device_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	if (cros_ec_debugfs_init(ec))
-		dev_warn(dev, "failed to create debugfs directory\n");
+	retval = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO,
+				 cros_ec_platform_cells,
+				 ARRAY_SIZE(cros_ec_platform_cells),
+				 NULL, 0, NULL);
+	if (retval)
+		dev_warn(ec->dev,
+			 "failed to add cros-ec platform devices: %d\n",
+			 retval);
+
+	/* Check whether this EC instance has a VBC NVRAM */
+	node = ec->ec_dev->dev->of_node;
+	if (of_property_read_bool(node, "google,has-vbc-nvram")) {
+		retval = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO,
+					 cros_ec_vbc_cells,
+					 ARRAY_SIZE(cros_ec_vbc_cells),
+					 NULL, 0, NULL);
+		if (retval)
+			dev_warn(ec->dev, "failed to add VBC devices: %d\n",
+				 retval);
+	}
 
 	return 0;
 
@@ -730,22 +842,10 @@ static int ec_device_remove(struct platform_device *pdev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(&pdev->dev);
 
-	/* Let the EC take over the lightbar again. */
-	lb_manual_suspend_ctrl(ec, 0);
-
-	cros_ec_debugfs_remove(ec);
-
+	mfd_remove_devices(ec->dev);
 	cdev_del(&ec->cdev);
 	device_unregister(&ec->class_dev);
 	return 0;
-}
-
-static void ec_device_shutdown(struct platform_device *pdev)
-{
-	struct cros_ec_dev *ec = dev_get_drvdata(&pdev->dev);
-
-	/* Be sure to clear up debugfs delayed works */
-	cros_ec_debugfs_remove(ec);
 }
 
 static const struct platform_device_id cros_ec_id[] = {
@@ -754,43 +854,13 @@ static const struct platform_device_id cros_ec_id[] = {
 };
 MODULE_DEVICE_TABLE(platform, cros_ec_id);
 
-static __maybe_unused int ec_device_suspend(struct device *dev)
-{
-	struct cros_ec_dev *ec = dev_get_drvdata(dev);
-
-	cros_ec_debugfs_suspend(ec);
-
-	lb_suspend(ec);
-
-	return 0;
-}
-
-static __maybe_unused int ec_device_resume(struct device *dev)
-{
-	struct cros_ec_dev *ec = dev_get_drvdata(dev);
-
-	cros_ec_debugfs_resume(ec);
-
-	lb_resume(ec);
-
-	return 0;
-}
-
-static const struct dev_pm_ops cros_ec_dev_pm_ops = {
-#ifdef CONFIG_PM_SLEEP
-	.suspend = ec_device_suspend,
-	.resume = ec_device_resume,
-#endif
-};
-
 static struct platform_driver cros_ec_dev_driver = {
 	.driver = {
 		.name = DRV_NAME,
-		.pm = &cros_ec_dev_pm_ops,
 	},
+	.id_table = cros_ec_id,
 	.probe = ec_device_probe,
 	.remove = ec_device_remove,
-	.shutdown = ec_device_shutdown,
 };
 
 static int __init cros_ec_dev_init(void)

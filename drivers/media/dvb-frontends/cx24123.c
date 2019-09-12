@@ -440,7 +440,7 @@ static u32 cx24123_int_log2(u32 a, u32 b)
 	u32 div = a / b;
 	if (a % b >= b / 2)
 		++div;
-	if (div < (1 << 31)) {
+	if (div < (1UL << 31)) {
 		for (exp = 1; div > exp; nearest++)
 			exp += exp;
 	}
@@ -1087,7 +1087,7 @@ struct dvb_frontend *cx24123_attach(const struct cx24123_config *config,
 	if (config->dont_use_pll)
 		cx24123_repeater_mode(state, 1, 0);
 
-	strlcpy(state->tuner_i2c_adapter.name, "CX24123 tuner I2C bus",
+	strscpy(state->tuner_i2c_adapter.name, "CX24123 tuner I2C bus",
 		sizeof(state->tuner_i2c_adapter.name));
 	state->tuner_i2c_adapter.algo      = &cx24123_tuner_i2c_algo;
 	state->tuner_i2c_adapter.algo_data = NULL;

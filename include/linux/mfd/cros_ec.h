@@ -27,6 +27,8 @@
 #define CROS_EC_DEV_PD_NAME "cros_pd"
 #define CROS_EC_DEV_FP_NAME "cros_fp"
 #define CROS_EC_DEV_TP_NAME "cros_tp"
+#define CROS_EC_DEV_ISH_NAME "cros_ish"
+#define CROS_EC_DEV_SCP_NAME "cros_scp"
 
 /*
  * The EC is unresponsive for a time after a reboot command.  Add a
@@ -122,11 +124,16 @@ struct cros_ec_command {
  *            code.
  * @pkt_xfer: Send packet to EC and get response.
  * @lock: One transaction at a time.
- * @mkbp_event_supported: True if this EC supports the MKBP event protocol.
+ * @mkbp_event_supported: 0 if MKBP not supported. Otherwise its value is
+ *                        the maximum supported version of the MKBP host event
+ *                        command + 1.
+ * @host_sleep_v1: True if this EC supports the sleep v1 command.
  * @event_notifier: Interrupt event notifier for transport devices.
  * @event_data: Raw payload transferred with the MKBP event.
  * @event_size: Size in bytes of the event data.
  * @host_event_wake_mask: Mask of host events that cause wake from suspend.
+ * @last_event_time: exact time from the hard irq when we got notified of
+ *     a new event.
  */
 struct cros_ec_device {
 	/* These are used by other drivers that want to talk to the EC */
@@ -156,12 +163,16 @@ struct cros_ec_device {
 			struct cros_ec_command *msg);
 	struct power_supply *charger;
 	struct mutex lock;
-	bool mkbp_event_supported;
+	/* 0 == not supported, otherwise it supports version x - 1 */
+	u8 mkbp_event_supported;
+	bool host_sleep_v1;
 	struct blocking_notifier_head event_notifier;
 
 	struct ec_response_get_next_event_v1 event_data;
 	int event_size;
 	u32 host_event_wake_mask;
+	u32 last_resume_result;
+	s64 last_event_time;
 };
 
 /**
@@ -286,8 +297,18 @@ int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
 			    struct cros_ec_command *msg);
 
 /**
- * cros_ec_remove() - Remove a ChromeOS EC.
- * @ec_dev: Device to register.
+ * cros_ec_check_features - Test for the presence of EC features
+ *
+ * Call this function to test whether the ChromeOS EC supports a feature.
+ *
+ * @ec_dev: EC device
+ * @msg: One of ec_feature_code values
+ * @return: 1 if supported, 0 if not
+ */
+int cros_ec_check_features(struct cros_ec_dev *ec, int feature);
+
+/**
+ * cros_ec_remove - Remove a ChromeOS EC
  *
  * Call this to deregister a ChromeOS EC, then clean up any private data.
  *
@@ -339,16 +360,28 @@ int cros_ec_get_next_event(struct cros_ec_device *ec_dev, bool *wake_event);
  */
 u32 cros_ec_get_host_event(struct cros_ec_device *ec_dev);
 
-/* sysfs stuff */
-extern struct attribute_group cros_ec_attr_group;
-extern struct attribute_group cros_ec_lightbar_attr_group;
-extern struct attribute_group cros_ec_vbc_attr_group;
-extern struct attribute_group cros_ec_pd_attr_group;
+/**
+ * cros_ec_get_time_ns - Return time in ns.
+ *
+ * This is the function used to record the time for last_event_time in struct
+ * cros_ec_device during the hard irq.
+ *
+ * This function is probably implemented using ktime_get_boot_ns(), but it's
+ * exposed here to make sure all cros_ec drivers use the same code path to get
+ * the time.
+ */
+s64 cros_ec_get_time_ns(void);
 
-/* debugfs stuff */
-int cros_ec_debugfs_init(struct cros_ec_dev *ec);
-void cros_ec_debugfs_remove(struct cros_ec_dev *ec);
-void cros_ec_debugfs_suspend(struct cros_ec_dev *ec);
-void cros_ec_debugfs_resume(struct cros_ec_dev *ec);
+
+/**
+ * cros_ec_handle_event - process and forward pending events on EC
+ *
+ * Call this function in a loop when the kernel is notified that the EC has
+ * pending events.
+ *
+ * Returns true if more events are still pending and this function should be
+ * called again.
+ */
+bool cros_ec_handle_event(struct cros_ec_device *ec_dev);
 
 #endif /* __LINUX_MFD_CROS_EC_H */

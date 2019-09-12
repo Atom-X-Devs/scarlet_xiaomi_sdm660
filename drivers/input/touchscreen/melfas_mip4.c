@@ -374,12 +374,11 @@ static int mip4_query_device(struct mip4_ts *ts)
 
 static int mip4_power_on(struct mip4_ts *ts)
 {
-	if (ts->gpio_ce) {
+	if (ts->gpio_ce)
 		gpiod_set_value_cansleep(ts->gpio_ce, 1);
 
-		/* Booting delay : 200~300ms */
-		usleep_range(200 * 1000, 300 * 1000);
-	}
+	/* Booting delay : 200~300ms */
+	usleep_range(200 * 1000, 300 * 1000);
 
 	return 0;
 }

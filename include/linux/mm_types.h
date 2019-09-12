@@ -138,10 +138,15 @@ struct page {
 		struct {	/* Page table pages */
 			unsigned long _pt_pad_1;	/* compound_head */
 			pgtable_t pmd_huge_pte; /* protected by page->ptl */
-			unsigned long _pt_pad_2;	/* mapping */
 			union {
-				struct mm_struct *pt_mm; /* x86 pgds only */
-				atomic_t pt_frag_refcount; /* powerpc */
+				struct {
+					unsigned long _pt_pad_2;	/* mapping */
+					union {
+						struct mm_struct *pt_mm; /* x86 pgds only */
+						atomic_t pt_frag_refcount; /* powerpc */
+					};
+				};
+				struct list_head pmdp_list;	/* kstaled pmd page list */
 			};
 #if ALLOC_SPLIT_PTLOCKS
 			spinlock_t *ptl;
@@ -497,6 +502,9 @@ struct mm_struct {
 #if IS_ENABLED(CONFIG_HMM)
 		/* HMM needs to track a few things per mm */
 		struct hmm *hmm;
+#endif
+#ifdef CONFIG_KSTALED
+		atomic_t throttle_disabled;
 #endif
 	} __randomize_layout;
 

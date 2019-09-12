@@ -296,7 +296,7 @@ void drm_lease_destroy(struct drm_master *master)
 
 	if (master->lessor) {
 		/* Tell the master to check the lessee list */
-		drm_sysfs_hotplug_event(dev);
+		drm_sysfs_lease_event(dev);
 		drm_master_put(&master->lessor);
 	}
 
@@ -521,7 +521,8 @@ int drm_mode_create_lease_ioctl(struct drm_device *dev,
 
 	object_count = cl->object_count;
 
-	object_ids = memdup_user(u64_to_user_ptr(cl->object_ids), object_count * sizeof(__u32));
+	object_ids = memdup_user(u64_to_user_ptr(cl->object_ids),
+			array_size(object_count, sizeof(__u32)));
 	if (IS_ERR(object_ids))
 		return PTR_ERR(object_ids);
 

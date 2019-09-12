@@ -19,6 +19,10 @@
 
 extern const unsigned long sys_call_table[];
 
+typedef asmlinkage long (*sys_call_ptr_t)(unsigned long, unsigned long,
+					  unsigned long, unsigned long,
+					  unsigned long, unsigned long);
+
 static inline int syscall_get_nr(struct task_struct *task,
 				 struct pt_regs *regs)
 {

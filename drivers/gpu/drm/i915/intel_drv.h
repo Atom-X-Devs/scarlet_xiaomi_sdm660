@@ -209,6 +209,22 @@ struct intel_fbdev {
 	unsigned long vma_flags;
 	async_cookie_t cookie;
 	int preferred_bpp;
+
+	/* Whether or not fbdev hpd processing is temporarily suspended */
+	bool hpd_suspended : 1;
+	/* Set when a hotplug was received while HPD processing was
+	 * suspended
+	 */
+	bool hpd_waiting : 1;
+
+	/* Protects hpd_suspended */
+	struct mutex hpd_lock;
+};
+
+enum intel_hotplug_state {
+	INTEL_HOTPLUG_UNCHANGED,
+	INTEL_HOTPLUG_CHANGED,
+	INTEL_HOTPLUG_RETRY,
 };
 
 struct intel_encoder {
@@ -217,8 +233,9 @@ struct intel_encoder {
 	enum intel_output_type type;
 	enum port port;
 	unsigned int cloneable;
-	bool (*hotplug)(struct intel_encoder *encoder,
-			struct intel_connector *connector);
+	enum intel_hotplug_state (*hotplug)(struct intel_encoder *encoder,
+					    struct intel_connector *connector,
+					    bool irq_received);
 	enum intel_output_type (*compute_output_type)(struct intel_encoder *,
 						      struct intel_crtc_state *,
 						      struct drm_connector_state *);
@@ -243,6 +260,9 @@ struct intel_encoder {
 	void (*post_pll_disable)(struct intel_encoder *,
 				 const struct intel_crtc_state *,
 				 const struct drm_connector_state *);
+	void (*update_pipe)(struct intel_encoder *,
+			    const struct intel_crtc_state *,
+			    const struct drm_connector_state *);
 	/* Read out the current hw state of this connector, returning true if
 	 * the encoder is active. If the encoder is enabled it also set the pipe
 	 * it is connected to in the pipe parameter. */
@@ -547,6 +567,7 @@ struct intel_initial_plane_config {
 	unsigned int tiling;
 	int size;
 	u32 base;
+	u8 rotation;
 };
 
 #define SKL_MIN_SRC_W 8
@@ -868,7 +889,8 @@ struct intel_crtc_state {
 	struct intel_link_m_n fdi_m_n;
 
 	bool ips_enabled;
-	bool ips_force_disable;
+
+	bool crc_enabled;
 
 	bool enable_fbc;
 
@@ -1173,15 +1195,15 @@ struct intel_digital_port {
 	enum intel_display_power_domain ddi_io_power_domain;
 	enum tc_port_type tc_type;
 
-	void (*write_infoframe)(struct drm_encoder *encoder,
+	void (*write_infoframe)(struct intel_encoder *encoder,
 				const struct intel_crtc_state *crtc_state,
 				unsigned int type,
 				const void *frame, ssize_t len);
-	void (*set_infoframes)(struct drm_encoder *encoder,
+	void (*set_infoframes)(struct intel_encoder *encoder,
 			       bool enable,
 			       const struct intel_crtc_state *crtc_state,
 			       const struct drm_connector_state *conn_state);
-	bool (*infoframe_enabled)(struct drm_encoder *encoder,
+	bool (*infoframe_enabled)(struct intel_encoder *encoder,
 				  const struct intel_crtc_state *pipe_config);
 };
 
@@ -1517,6 +1539,7 @@ void intel_connector_attach_encoder(struct intel_connector *connector,
 				    struct intel_encoder *encoder);
 struct drm_display_mode *
 intel_encoder_current_mode(struct intel_encoder *encoder);
+bool intel_port_is_combophy(struct drm_i915_private *dev_priv, enum port port);
 bool intel_port_is_tc(struct drm_i915_private *dev_priv, enum port port);
 enum tc_port intel_port_to_tc(struct drm_i915_private *dev_priv,
 			      enum port port);
@@ -1774,8 +1797,10 @@ int intel_dsi_dcs_init_backlight_funcs(struct intel_connector *intel_connector);
 void intel_dvo_init(struct drm_i915_private *dev_priv);
 /* intel_hotplug.c */
 void intel_hpd_poll_init(struct drm_i915_private *dev_priv);
-bool intel_encoder_hotplug(struct intel_encoder *encoder,
-			   struct intel_connector *connector);
+enum intel_hotplug_state
+intel_encoder_hotplug(struct intel_encoder *encoder,
+				struct intel_connector *connector,
+				bool irq_received);
 
 /* legacy fbdev emulation in intel_fbdev.c */
 #ifdef CONFIG_DRM_FBDEV_EMULATION
@@ -1935,31 +1960,6 @@ int intel_hdcp_enable(struct intel_connector *connector);
 int intel_hdcp_disable(struct intel_connector *connector);
 int intel_hdcp_check_link(struct intel_connector *connector);
 bool is_hdcp_supported(struct drm_i915_private *dev_priv, enum port port);
-
-/* intel_psr.c */
-#define CAN_PSR(dev_priv) (HAS_PSR(dev_priv) && dev_priv->psr.sink_support)
-void intel_psr_init_dpcd(struct intel_dp *intel_dp);
-void intel_psr_enable(struct intel_dp *intel_dp,
-		      const struct intel_crtc_state *crtc_state);
-void intel_psr_disable(struct intel_dp *intel_dp,
-		      const struct intel_crtc_state *old_crtc_state);
-int intel_psr_set_debugfs_mode(struct drm_i915_private *dev_priv,
-			       struct drm_modeset_acquire_ctx *ctx,
-			       u64 value);
-void intel_psr_invalidate(struct drm_i915_private *dev_priv,
-			  unsigned frontbuffer_bits,
-			  enum fb_op_origin origin);
-void intel_psr_flush(struct drm_i915_private *dev_priv,
-		     unsigned frontbuffer_bits,
-		     enum fb_op_origin origin);
-void intel_psr_init(struct drm_i915_private *dev_priv);
-void intel_psr_compute_config(struct intel_dp *intel_dp,
-			      struct intel_crtc_state *crtc_state);
-void intel_psr_irq_control(struct drm_i915_private *dev_priv, u32 debug);
-void intel_psr_irq_handler(struct drm_i915_private *dev_priv, u32 psr_iir);
-void intel_psr_short_pulse(struct intel_dp *intel_dp);
-int intel_psr_wait_for_idle(const struct intel_crtc_state *new_crtc_state,
-			    u32 *out_value);
 
 /* intel_runtime_pm.c */
 int intel_power_domains_init(struct drm_i915_private *);
@@ -2140,6 +2140,7 @@ unsigned int skl_plane_max_stride(struct intel_plane *plane,
 				  unsigned int rotation);
 int skl_plane_check(struct intel_crtc_state *crtc_state,
 		    struct intel_plane_state *plane_state);
+int intel_plane_check_stride(const struct intel_plane_state *plane_state);
 int intel_plane_check_src_coordinates(struct intel_plane_state *plane_state);
 int chv_plane_check_rotation(const struct intel_plane_state *plane_state);
 

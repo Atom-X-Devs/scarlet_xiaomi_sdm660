@@ -424,7 +424,8 @@ static u64 execlists_update_context(struct i915_request *rq)
 
 	reg_state[CTX_RING_TAIL+1] = intel_ring_set_tail(rq->ring, rq->tail);
 
-	/* True 32b PPGTT with dynamic page allocation: update PDP
+	/*
+	 * True 32b PPGTT with dynamic page allocation: update PDP
 	 * registers and point the unallocated PDPs to scratch page.
 	 * PML4 is allocated during ppgtt init, so this is not needed
 	 * in 48-bit mode.
@@ -432,6 +433,22 @@ static u64 execlists_update_context(struct i915_request *rq)
 	if (ppgtt && !i915_vm_is_48bit(&ppgtt->vm))
 		execlists_update_context_pdps(ppgtt, reg_state);
 
+	/*
+	 * Make sure the context image is complete before we submit it to HW.
+	 *
+	 * Ostensibly, writes (including the WCB) should be flushed prior to
+	 * an uncached write such as our mmio register access, the empirical
+	 * evidence (esp. on Braswell) suggests that the WC write into memory
+	 * may not be visible to the HW prior to the completion of the UC
+	 * register write and that we may begin execution from the context
+	 * before its image is complete leading to invalid PD chasing.
+	 *
+	 * Furthermore, Braswell, at least, wants a full mb to be sure that
+	 * the writes are coherent in memory (visible to the GPU) prior to
+	 * execution, and not just visible to other CPUs (as is the result of
+	 * wmb).
+	 */
+	mb();
 	return ce->lrc_desc;
 }
 
@@ -482,7 +499,7 @@ static void execlists_submit_ports(struct intel_engine_cs *engine)
 			desc = execlists_update_context(rq);
 			GEM_DEBUG_EXEC(port[n].context_id = upper_32_bits(desc));
 
-			GEM_TRACE("%s in[%d]:  ctx=%d.%d, global=%d (fence %llx:%d) (current %d), prio=%d\n",
+			GEM_TRACE("%s in[%d]:  ctx=%d.%d, global=%d (fence %llx:%lld) (current %d), prio=%d\n",
 				  engine->name, n,
 				  port[n].context_id, count,
 				  rq->global_seqno,
@@ -779,7 +796,7 @@ execlists_cancel_port_requests(struct intel_engine_execlists * const execlists)
 	while (num_ports-- && port_isset(port)) {
 		struct i915_request *rq = port_request(port);
 
-		GEM_TRACE("%s:port%u global=%d (fence %llx:%d), (current %d)\n",
+		GEM_TRACE("%s:port%u global=%d (fence %llx:%lld), (current %d)\n",
 			  rq->engine->name,
 			  (unsigned int)(port - execlists->port),
 			  rq->global_seqno,
@@ -988,7 +1005,7 @@ static void process_csb(struct intel_engine_cs *engine)
 						EXECLISTS_ACTIVE_USER));
 
 		rq = port_unpack(port, &count);
-		GEM_TRACE("%s out[0]: ctx=%d.%d, global=%d (fence %llx:%d) (current %d), prio=%d\n",
+		GEM_TRACE("%s out[0]: ctx=%d.%d, global=%d (fence %llx:%lld) (current %d), prio=%d\n",
 			  engine->name,
 			  port->context_id, count,
 			  rq ? rq->global_seqno : 0,
@@ -1781,6 +1798,8 @@ static bool unexpected_starting_state(struct intel_engine_cs *engine)
 
 static int gen8_init_common_ring(struct intel_engine_cs *engine)
 {
+	intel_engine_apply_workarounds(engine);
+
 	intel_mocs_init_engine(engine);
 
 	intel_engine_reset_breadcrumbs(engine);
@@ -2478,6 +2497,8 @@ int logical_render_ring_init(struct intel_engine_cs *engine)
 		DRM_ERROR("WA batch buffer initialization failed: %d\n",
 			  ret);
 	}
+
+	intel_engine_init_workarounds(engine);
 
 	return 0;
 

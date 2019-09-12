@@ -717,12 +717,12 @@ config DEV_PAGEMAP_OPS
 
 config HMM
 	bool
+	select MMU_NOTIFIER
 	select MIGRATE_VMA_HELPER
 
 config HMM_MIRROR
 	bool "HMM mirror CPU page table into a device page table"
 	depends on ARCH_HAS_HMM
-	select MMU_NOTIFIER
 	select HMM
 	help
 	  Select HMM_MIRROR if you want to mirror range of the CPU page table of a
@@ -791,5 +791,29 @@ config GUP_BENCHMARK
 
 config ARCH_HAS_PTE_SPECIAL
 	bool
+
+config MM_METRICS
+	bool "Collect additional memory statistics"
+	help
+	  Collect swap refault distances (seconds), swap read latencies and direct
+	  reclaim latencies (nanoseconds). They are provided userspace via
+	  /sys/kernel/debug/mm_metrics/{swap_refault,swap_latency,reclaim_latency}
+	  in histograms.
+	default n
+
+config KSTALED
+	bool "kstaled: a kswapd alternative"
+	depends on X86_64
+	depends on NR_CPUS >= SPLIT_PTLOCK_CPUS && ARCH_ENABLE_SPLIT_PMD_PTLOCK
+	depends on !NEED_MULTIPLE_NODES && !IDLE_PAGE_TRACKING
+	help
+	  kstaled wakes up every second, checks how fast free pages drop,
+	  and if necessary, updates age of accessed pages and reclaims the
+	  LRU pages based on the age.
+
+	  By default, kstaled is disabled. To enable it, write a positive
+	  integer to /sys/kernel/mm/kstaled/ratio. Larger values make
+	  kstaled more proactive but also consume more CPU.
+	default n
 
 endmenu

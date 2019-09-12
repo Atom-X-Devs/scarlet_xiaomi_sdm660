@@ -131,9 +131,13 @@ static int rvin_group_link_notify(struct media_link *link, u32 flags,
 	    !is_media_entity_v4l2_video_device(link->sink->entity))
 		return 0;
 
-	/* If any entity is in use don't allow link changes. */
+	/*
+	 * Don't allow link changes if any entity in the graph is
+	 * streaming, modifying the CHSEL register fields can disrupt
+	 * running streams.
+	 */
 	media_device_for_each_entity(entity, &group->mdev)
-		if (entity->use_count)
+		if (entity->stream_count)
 			return -EBUSY;
 
 	mutex_lock(&group->lock);
@@ -268,8 +272,8 @@ static int rvin_group_init(struct rvin_group *group, struct rvin_dev *vin)
 	match = of_match_node(vin->dev->driver->of_match_table,
 			      vin->dev->of_node);
 
-	strlcpy(mdev->driver_name, KBUILD_MODNAME, sizeof(mdev->driver_name));
-	strlcpy(mdev->model, match->compatible, sizeof(mdev->model));
+	strscpy(mdev->driver_name, KBUILD_MODNAME, sizeof(mdev->driver_name));
+	strscpy(mdev->model, match->compatible, sizeof(mdev->model));
 	snprintf(mdev->bus_info, sizeof(mdev->bus_info), "platform:%s",
 		 dev_name(mdev->dev));
 
@@ -611,6 +615,8 @@ static int rvin_parallel_init(struct rvin_dev *vin)
 {
 	int ret;
 
+	v4l2_async_notifier_init(&vin->notifier);
+
 	ret = v4l2_async_notifier_parse_fwnode_endpoints_by_port(
 		vin->dev, &vin->notifier, sizeof(struct rvin_parallel_entity),
 		0, rvin_parallel_parse_v4l2);
@@ -803,6 +809,8 @@ static int rvin_mc_parse_of_graph(struct rvin_dev *vin)
 		return 0;
 	}
 
+	v4l2_async_notifier_init(&vin->group->notifier);
+
 	/*
 	 * Have all VIN's look for CSI-2 subdevices. Some subdevices will
 	 * overlap but the parser function can handle it, so each subdevice
@@ -824,7 +832,7 @@ static int rvin_mc_parse_of_graph(struct rvin_dev *vin)
 
 	mutex_unlock(&vin->group->lock);
 
-	if (!vin->group->notifier.num_subdevs)
+	if (list_empty(&vin->group->notifier.asd_list))
 		return 0;
 
 	vin->group->notifier.ops = &rvin_group_notify_ops;

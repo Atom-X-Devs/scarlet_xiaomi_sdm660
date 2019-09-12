@@ -15,6 +15,7 @@
 #define MTK_DRM_DRV_H
 
 #include <linux/io.h>
+#include "mtk_drm_ddp.h"
 #include "mtk_drm_ddp_comp.h"
 
 #define MAX_CRTC	3
@@ -36,6 +37,8 @@ struct mtk_mmsys_driver_data {
 	const enum mtk_ddp_comp_id *third_path;
 	unsigned int third_len;
 
+	const struct mtk_mmsys_reg_data *reg_data;
+
 	bool shadow_register;
 };
 
@@ -53,12 +56,22 @@ struct mtk_drm_private {
 	const struct mtk_mmsys_driver_data *data;
 
 	struct {
-		struct drm_atomic_state *state;
-		struct work_struct work;
-		struct mutex lock;
+		uint32_t crtcs;
+		wait_queue_head_t crtcs_event;
+		uint32_t flush_for_cursor;
 	} commit;
 
 	struct drm_atomic_state *suspend_state;
+
+	struct {
+		struct work_struct	work;
+		struct list_head	list;
+		spinlock_t		lock;
+	} unreference;
+
+	struct mutex hw_lock;
+
+	bool dma_parms_allocated;
 };
 
 extern struct platform_driver mtk_ddp_driver;
@@ -68,5 +81,7 @@ extern struct platform_driver mtk_disp_rdma_driver;
 extern struct platform_driver mtk_dpi_driver;
 extern struct platform_driver mtk_dsi_driver;
 extern struct platform_driver mtk_mipi_tx_driver;
+
+void mtk_atomic_state_put_queue(struct drm_atomic_state *state);
 
 #endif /* MTK_DRM_DRV_H */

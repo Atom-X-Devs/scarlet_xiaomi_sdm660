@@ -151,7 +151,7 @@ static inline void check_bogus_address(const unsigned long ptr, unsigned long n,
 				       bool to_user)
 {
 	/* Reject if object wraps past end of memory. */
-	if (ptr + n < ptr)
+	if (ptr + (n - 1) < ptr)
 		usercopy_abort("wrapped address", NULL, to_user, 0, ptr + n);
 
 	/* Reject if NULL or ZERO-allocation. */
@@ -247,7 +247,8 @@ static DEFINE_STATIC_KEY_FALSE_RO(bypass_usercopy_checks);
 /*
  * Validates that the given object is:
  * - not bogus address
- * - known-safe heap or stack object
+ * - fully contained by stack (or stack frame, when available)
+ * - fully within SLAB object (or object whitelist area, when available)
  * - not in kernel text
  */
 void __check_object_size(const void *ptr, unsigned long n, bool to_user)
@@ -261,9 +262,6 @@ void __check_object_size(const void *ptr, unsigned long n, bool to_user)
 
 	/* Check for invalid addresses. */
 	check_bogus_address((const unsigned long)ptr, n, to_user);
-
-	/* Check for bad heap object. */
-	check_heap_object(ptr, n, to_user);
 
 	/* Check for bad stack object. */
 	switch (check_stack_object(ptr, n)) {
@@ -281,6 +279,9 @@ void __check_object_size(const void *ptr, unsigned long n, bool to_user)
 	default:
 		usercopy_abort("process stack", NULL, to_user, 0, n);
 	}
+
+	/* Check for bad heap object. */
+	check_heap_object(ptr, n, to_user);
 
 	/* Check for object in kernel to avoid text exposure. */
 	check_kernel_text_object((const unsigned long)ptr, n, to_user);

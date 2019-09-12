@@ -16,6 +16,7 @@
 
 / {
 	aliases {
+		bluetooth0 = &bluetooth;
 		hsuart0 = &uart6;
 		serial0 = &uart9;
 		wifi0 = &wifi;
@@ -32,16 +33,6 @@
 		power-supply = <&ppvar_sys>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ap_edp_bklten>;
-	};
-
-	reserved-memory {
-		rmtfs@88f00000 {
-			compatible = "qcom,rmtfs-mem";
-			reg = <0x0 0x88f00000 0x0 0x200000>;
-			no-map;
-
-			qcom,client-id = <1>;
-		};
 	};
 
 	/* FIXED REGULATORS - parents above children */
@@ -138,7 +129,62 @@
 			wakeup-source;
 		};
 	};
+
+	panel: panel {
+		compatible ="innolux,p120zdg-bf1";
+		power-supply = <&pp3300_dx_edp>;
+		backlight = <&backlight>;
+		no-hpd;
+
+		ports {
+			panel_in: port {
+				panel_in_edp: endpoint {
+					remote-endpoint = <&sn65dsi86_out>;
+				};
+			};
+		};
+	};
 };
+
+/*
+ * Reserved memory changes
+ *
+ * Putting this all together (out of order with the rest of the file) to keep
+ * all modifications to the memory map (from sdm845.dtsi) in one place.
+ */
+
+/*
+ * Our mpss_region is 8MB bigger than the default one and that conflicts
+ * with venus_mem and cdsp_mem.
+ *
+ * For venus_mem we'll delete and re-create at a different address.
+ *
+ * cdsp_mem isn't used on cheza right now so we won't bother re-creating it; but
+ * that also means we need to delete cdsp_pas.
+ */
+/delete-node/ &venus_mem;
+/delete-node/ &cdsp_mem;
+/delete-node/ &cdsp_pas;
+
+/* Increase the size from 120 MB to 128 MB */
+&mpss_region {
+	reg = <0 0x8e000000 0 0x8000000>;
+};
+
+/* Increase the size from 2MB to 8MB */
+&rmtfs_mem {
+	reg = <0 0x88f00000 0 0x800000>;
+};
+
+/ {
+	reserved-memory {
+		venus_mem: memory@96000000 {
+			reg = <0 0x96000000 0 0x500000>;
+			no-map;
+		};
+	};
+};
+
 
 &qspi {
 	status = "okay";
@@ -460,9 +506,67 @@
 	};
 };
 
+&dsi0 {
+	status = "okay";
+	vdda-supply = <&vdda_mipi_dsi0_1p2>;
+
+	ports {
+		port@1 {
+			endpoint {
+				remote-endpoint = <&sn65dsi86_in>;
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+};
+
+&dsi0_phy {
+	status = "okay";
+	vdds-supply = <&vdda_mipi_dsi0_pll>;
+};
+
 edp_brij_i2c: &i2c3 {
 	status = "okay";
 	clock-frequency = <400000>;
+
+	sn65dsi86_bridge: bridge@2d {
+		compatible = "ti,sn65dsi86";
+		reg = <0x2d>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&edp_brij_en &edp_brij_irq>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
+
+		enable-gpios = <&tlmm 102 GPIO_ACTIVE_HIGH>;
+
+		vpll-supply = <&src_pp1800_s4a>;
+		vccio-supply = <&src_pp1800_s4a>;
+		vcca-supply = <&src_pp1200_l2a>;
+		vcc-supply = <&src_pp1200_l2a>;
+
+		clocks = <&rpmhcc RPMH_LN_BB_CLK2>;
+		clock-names = "refclk";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				sn65dsi86_in: endpoint {
+					remote-endpoint = <&dsi0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				sn65dsi86_out: endpoint {
+					remote-endpoint = <&panel_in_edp>;
+				};
+			};
+		};
+	};
 };
 
 ap_pen_1v8: &i2c11 {
@@ -510,12 +614,41 @@ ap_ts_i2c: &i2c14 {
 	};
 };
 
+&lpasscc {
+	status = "okay";
+};
+
+&mdss {
+	status = "okay";
+};
+
+&mdss_mdp {
+	status = "okay";
+};
+
+&mss_pil {
+	firmware-name = "qcom/sdm845-mss/google-cheza/mba.mbn",
+			"qcom/sdm845-mss/google-cheza/modem.mdt";
+};
+
 &qupv3_id_0 {
 	status = "okay";
 };
 
 &qupv3_id_1 {
 	status = "okay";
+};
+
+&sdhc_2 {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdc2_clk &sdc2_cmd &sdc2_data &sd_cd_odl>;
+
+	vmmc-supply = <&src_pp2950_l21a>;
+	vqmmc-supply = <&vddpx_2>;
+
+	cd-gpios = <&tlmm 44 GPIO_ACTIVE_LOW>;
 };
 
 &spi0 {
@@ -573,13 +706,22 @@ ap_ts_i2c: &i2c14 {
 
 &uart6 {
 	status = "okay";
+
+	bluetooth: wcn3990-bt {
+		compatible = "qcom,wcn3990-bt";
+		vddio-supply = <&src_pp1800_s4a>;
+		vddxo-supply = <&pp1800_l7a_wcn3990>;
+		vddrf-supply = <&src_pp1300_l17a>;
+		vddch0-supply = <&pp3300_l25a_ch0_wcn3990>;
+		max-speed = <3200000>;
+	};
 };
 
 &uart9 {
 	status = "okay";
 };
 
-&ufshc1 {
+&ufs_mem_hc {
 	status = "okay";
 	pinctrl-names = "init", "default";
 	pinctrl-0 = <&ufs_dev_reset_assert>;
@@ -589,7 +731,7 @@ ap_ts_i2c: &i2c14 {
 	vcc-max-microamp = <600000>;
 };
 
-&ufsphy1 {
+&ufs_mem_phy {
 	status = "okay";
 
 	vdda-phy-supply = <&vdda_ufs1_core>;
@@ -792,15 +934,31 @@ ap_ts_i2c: &i2c14 {
 		       "gpio47", "gpio48";
 	};
 
-	pinconf {
+	pinconf-cts {
 		/*
-		 * - We'll drive 46 (RTS) and 47 (TX), so no pull
-		 * - The Bluetooth module will always drive 45 (CTS) and
-		 *   48 (RX) so no pulls there either.
+		 * Configure a pull-down on 45 (CTS) to match the pull of
+		 * the Bluetooth module.
 		 */
-		pins = "gpio45", "gpio46", "gpio47", "gpio48";
+		pins = "gpio45";
+		bias-pull-down;
+	};
+
+	pinconf-rts-tx {
+		/* We'll drive 46 (RTS) and 47 (TX), so no pull */
+		pins = "gpio46", "gpio47";
 		drive-strength = <2>;
 		bias-disable;
+	};
+
+	pinconf-rx {
+		/*
+		 * Configure a pull-up on 48 (RX). This is needed to avoid
+		 * garbage data when the TX pin of the Bluetooth module is
+		 * in tri-state (module powered off or not driving the
+		 * signal yet).
+		 */
+		pins = "gpio48";
+		bias-pull-up;
 	};
 };
 
@@ -886,8 +1044,22 @@ ap_ts_i2c: &i2c14 {
 	/*
 	 * pinctrl settings for pins that have no real owners.
 	 */
-	pinctrl-names = "default";
-	pinctrl-0 = <&bios_flash_wp_r_l>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&bios_flash_wp_r_l>,
+		    <&ap_suspend_l_deassert>;
+
+	pinctrl-1 = <&bios_flash_wp_r_l>,
+		    <&ap_suspend_l_assert>;
+
+	/*
+	 * Hogs prevent usermode from changing the value. A GPIO can be both
+	 * here and in the pinctrl section.
+	 */
+	ap-suspend-l-hog {
+		gpio-hog;
+		gpios = <126 GPIO_ACTIVE_LOW>;
+		output-low;
+	};
 
 	ap_edp_bklten: ap-edp-bklten {
 		pinmux {
@@ -938,6 +1110,19 @@ ap_ts_i2c: &i2c14 {
 			pins = "gpio102";
 			drive-strength = <2>;
 			bias-disable;
+		};
+	};
+
+	edp_brij_irq: edp-brij-irq {
+		pinmux {
+			pins = "gpio10";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio10";
+			drive-strength = <2>;
+			bias-pull-down;
 		};
 	};
 
@@ -1029,6 +1214,47 @@ ap_ts_i2c: &i2c14 {
 		};
 	};
 
+	sdc2_clk: sdc2-clk {
+		pinconf {
+			pins = "sdc2_clk";
+			bias-disable;
+
+			/*
+			 * It seems that mmc_test reports errors if drive
+			 * strength is not 16.
+			 */
+			drive-strength = <16>;
+		};
+	};
+
+	sdc2_cmd: sdc2-cmd {
+		pinconf {
+			pins = "sdc2_cmd";
+			bias-pull-up;
+			drive-strength = <16>;
+		};
+	};
+
+	sdc2_data: sdc2-data {
+		pinconf {
+			pins = "sdc2_data";
+			bias-pull-up;
+			drive-strength = <16>;
+		};
+	};
+
+	sd_cd_odl: sd-cd-odl {
+		pinmux {
+			pins = "gpio44";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio44";
+			bias-pull-up;
+		};
+	};
+
 	ts_int_l: ts-int-l {
 		pinmux  {
 			pins = "gpio125";
@@ -1097,6 +1323,26 @@ ap_ts_i2c: &i2c14 {
 			 */
 			drive-strength = <8>;
 			output-high; /* active low reset */
+		};
+	};
+
+	ap_suspend_l_assert: ap_suspend_l_assert {
+		config {
+			pins = "gpio126";
+			function = "gpio";
+			bias-no-pull;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	ap_suspend_l_deassert: ap_suspend_l_deassert {
+		config {
+			pins = "gpio126";
+			function = "gpio";
+			bias-no-pull;
+			drive-strength = <2>;
+			output-high;
 		};
 	};
 };

@@ -22,6 +22,7 @@
 #include <drm/drm_gem.h>
 
 #include <linux/module.h>
+#include <linux/clk.h>
 #include <linux/component.h>
 
 #define ROCKCHIP_MAX_FB_BUFFER	3
@@ -56,6 +57,8 @@ struct rockchip_drm_private {
 	struct drm_mm mm;
 	struct list_head psr_list;
 	struct mutex psr_list_lock;
+
+	bool dmc_disable_flag;
 };
 
 int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,
@@ -63,6 +66,8 @@ int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,
 void rockchip_drm_dma_detach_device(struct drm_device *drm_dev,
 				    struct device *dev);
 int rockchip_drm_wait_vact_end(struct drm_crtc *crtc, unsigned int mstimeout);
+
+uint32_t rockchip_drm_get_vblank_ns(struct drm_display_mode *mode);
 
 int rockchip_drm_endpoint_is_subdriver(struct device_node *ep);
 extern struct platform_driver cdn_dp_driver;

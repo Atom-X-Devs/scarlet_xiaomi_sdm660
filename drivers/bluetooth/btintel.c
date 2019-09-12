@@ -313,7 +313,15 @@ EXPORT_SYMBOL_GPL(btintel_load_ddc_config);
 
 int btintel_set_event_mask(struct hci_dev *hdev, bool debug)
 {
-	u8 mask[8] = { 0x87, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	/* Three events are enabled by default in the event mask as they are
+	 * used during the startup sequence of the device and debugging purpose.
+	 * The remaining events are thereby disabled by default but can be
+	 * enabled as desired. Enabled events are
+	 * 0000000000000001H HCI_Intel_Bootup ,
+	 * 0000000000000400H HCI_Intel_Fatal_Exception Event and
+	 * 0000000000000800H HCI_Intel_System_Exception Event
+	 */
+	u8 mask[8] = { 0x01, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	struct sk_buff *skb;
 	int err;
 
@@ -723,6 +731,33 @@ done:
 	return err;
 }
 EXPORT_SYMBOL_GPL(btintel_download_firmware);
+
+void btintel_retry_fw_download(struct hci_dev *hdev)
+{
+	/* Send Intel Reset command. This will result in
+	 * re-enumeration of BT controller.
+	 */
+	static const u8 reset_param[] = { 0x00, 0x01, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00 };
+	struct sk_buff *skb;
+
+	skb = __hci_cmd_sync(hdev, 0xfc01, sizeof(reset_param),
+				reset_param, HCI_INIT_TIMEOUT);
+	if (IS_ERR(skb)) {
+		bt_dev_err(hdev, "Sending Intel Reset failed (%ld)",
+				PTR_ERR(skb));
+		return;
+	}
+	bt_dev_info(hdev, "Intel reset sent to retry FW download");
+	kfree_skb(skb);
+	/* Current Intel BT controllers(ThP/JfP) hold the USB reset
+	 * lines for 2ms when it receives Intel Reset in bootloader mode.
+	 * Whereas, the upcoming Intel BT controllers will hold USB reset
+	 * for 150ms. To keep the delay generic, 150ms is chosen here.
+	 */
+	msleep(150);
+}
+EXPORT_SYMBOL_GPL(btintel_retry_fw_download);
 
 MODULE_AUTHOR("Marcel Holtmann <marcel@holtmann.org>");
 MODULE_DESCRIPTION("Bluetooth support for Intel devices ver " VERSION);

@@ -54,7 +54,8 @@ static int hclge_shaper_para_calc(u32 ir, u8 shaper_level,
 	u32 tick;
 
 	/* Calc tick */
-	if (shaper_level >= HCLGE_SHAPER_LVL_CNT)
+	if (shaper_level >= HCLGE_SHAPER_LVL_CNT ||
+	    ir > HCLGE_ETHER_MAX_RATE)
 		return -EINVAL;
 
 	tick = tick_array[shaper_level];
@@ -1057,6 +1058,9 @@ static int hclge_tm_schd_mode_vnet_base_cfg(struct hclge_vport *vport)
 	int ret;
 	u8 i;
 
+	if (vport->vport_id >= HNAE3_MAX_TC)
+		return -EINVAL;
+
 	ret = hclge_tm_pri_schd_mode_cfg(hdev, vport->vport_id);
 	if (ret)
 		return ret;
@@ -1167,14 +1171,14 @@ static int hclge_pfc_setup_hw(struct hclge_dev *hdev)
  */
 static int hclge_bp_setup_hw(struct hclge_dev *hdev, u8 tc)
 {
-	struct hclge_vport *vport = hdev->vport;
-	u32 i, k, qs_bitmap;
-	int ret;
+	int i;
 
 	for (i = 0; i < HCLGE_BP_GRP_NUM; i++) {
-		qs_bitmap = 0;
+		u32 qs_bitmap = 0;
+		int k, ret;
 
 		for (k = 0; k < hdev->num_alloc_vport; k++) {
+			struct hclge_vport *vport = &hdev->vport[k];
 			u16 qs_id = vport->qs_offset + tc;
 			u8 grp, sub_grp;
 
@@ -1184,8 +1188,6 @@ static int hclge_bp_setup_hw(struct hclge_dev *hdev, u8 tc)
 						  HCLGE_BP_SUB_GRP_ID_S);
 			if (i == grp)
 				qs_bitmap |= (1 << sub_grp);
-
-			vport++;
 		}
 
 		ret = hclge_tm_qs_bp_cfg(hdev, tc, i, qs_bitmap);

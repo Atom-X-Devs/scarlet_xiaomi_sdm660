@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 menuconfig STAGING_MEDIA
 	bool "Media staging drivers"
 	default n
@@ -22,6 +23,8 @@ if STAGING_MEDIA && MEDIA_SUPPORT
 source "drivers/staging/media/bcm2048/Kconfig"
 
 source "drivers/staging/media/davinci_vpfe/Kconfig"
+
+source "drivers/staging/media/hantro/Kconfig"
 
 source "drivers/staging/media/imx/Kconfig"
 
