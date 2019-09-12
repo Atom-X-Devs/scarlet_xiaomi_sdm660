@@ -255,7 +255,7 @@ static int mtk_fd_vb2_buf_prepare(struct vb2_buffer *vb)
 	switch (vq->type) {
 	case V4L2_BUF_TYPE_META_CAPTURE:
 		if (vb2_plane_size(vb, 0) < ctx->dst_fmt.buffersize) {
-			dev_dbg(dev, "meta size %d is too small\n",
+			dev_dbg(dev, "meta size %lu is too small\n",
 				vb2_plane_size(vb, 0));
 			return -EINVAL;
 		}
@@ -272,7 +272,7 @@ static int mtk_fd_vb2_buf_prepare(struct vb2_buffer *vb)
 			return -EINVAL;
 		}
 		if (vb2_plane_size(vb, 0) < pixfmt->plane_fmt[0].sizeimage) {
-			dev_dbg(dev, "plane %d is too small\n",
+			dev_dbg(dev, "plane %lu is too small\n",
 				vb2_plane_size(vb, 0));
 			return -EINVAL;
 		}
