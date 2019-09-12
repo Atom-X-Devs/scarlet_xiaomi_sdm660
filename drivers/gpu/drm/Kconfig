@@ -5,7 +5,7 @@
 # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
 #
 menuconfig DRM
-	bool "Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)"
+	tristate "Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)"
 	depends on (AGP || AGP=n) && !EMULATED_CMPXCHG && HAS_DMA
 	select DRM_PANEL_ORIENTATION_QUIRKS
 	select HDMI
@@ -251,8 +251,9 @@ source "drivers/gpu/drm/nouveau/Kconfig"
 source "drivers/gpu/drm/i915/Kconfig"
 
 config DRM_VGEM
-	bool "Virtual GEM provider"
+	tristate "Virtual GEM provider"
 	depends on DRM
+	depends on ARM || ARM64 || (!ARCH_HAS_SYNC_DMA_FOR_DEVICE && !ARCH_HAS_SYNC_DMA_FOR_CPU)
 	help
 	  Choose this option to get a virtual graphics memory manager,
 	  as used by Mesa's software renderer for enhanced performance.
