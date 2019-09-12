@@ -594,7 +594,7 @@ mtk_fd_queue_init(void *priv, struct vb2_queue *src_vq,
 	return vb2_queue_init(dst_vq);
 }
 
-struct v4l2_ctrl_config mtk_fd_controls[] = {
+static struct v4l2_ctrl_config mtk_fd_controls[] = {
 	{
 		.id = V4L2_CID_MTK_FD_SCALE_DOWN_IMG_WIDTH,
 		.name = "FD scale image widths",
@@ -657,7 +657,6 @@ struct v4l2_ctrl_config mtk_fd_controls[] = {
 static int mtk_fd_ctrls_setup(struct mtk_fd_ctx *ctx)
 {
 	struct v4l2_ctrl_handler *hdl = &ctx->hdl;
-	struct v4l2_ctrl *ctl;
 	int i;
 
 	v4l2_ctrl_handler_init(hdl, V4L2_CID_MTK_FD_MAX);
@@ -665,7 +664,7 @@ static int mtk_fd_ctrls_setup(struct mtk_fd_ctx *ctx)
 		return hdl->error;
 
 	for (i = 0; i < ARRAY_SIZE(mtk_fd_controls); i++) {
-		ctl = v4l2_ctrl_new_custom(hdl, &mtk_fd_controls[i], ctx);
+		v4l2_ctrl_new_custom(hdl, &mtk_fd_controls[i], ctx);
 		if (hdl->error) {
 			v4l2_ctrl_handler_free(hdl);
 			dev_err(ctx->dev, "Failed to register controls:%d", i);
