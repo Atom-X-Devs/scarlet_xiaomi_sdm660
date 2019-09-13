@@ -632,23 +632,25 @@ static int ath10k_sdio_mbox_rx_packet(struct ath10k *ar,
 
 	ret = ath10k_sdio_readsb(ar, ar_sdio->mbox_info.htc_addr,
 				 skb->data, pkt->alloc_len);
+	if (ret)
+		goto out;
 
-	if (!ret) {
-		/* Update actual length. The original length may be incorrect,
-		 * as the FW will bundle multiple packets as long as their sizes
-		 * fit within the same aligned length (pkt->alloc_len).
-		 */
-		htc_hdr = (struct ath10k_htc_hdr *)skb->data;
-		pkt->act_len = le16_to_cpu(htc_hdr->len) + sizeof(*htc_hdr);
-		if (pkt->act_len <= pkt->alloc_len) {
-			skb_put(skb, pkt->act_len);
-		} else {
-			ath10k_warn(ar, "rx packet too large (%zu > %zu)\n",
-				    pkt->act_len, pkt->alloc_len);
-			ret = -EMSGSIZE;
-		}
+	/* Update actual length. The original length may be incorrect,
+	 * as the FW will bundle multiple packets as long as their sizes
+	 * fit within the same aligned length (pkt->alloc_len).
+	 */
+	htc_hdr = (struct ath10k_htc_hdr *)skb->data;
+	pkt->act_len = le16_to_cpu(htc_hdr->len) + sizeof(*htc_hdr);
+	if (pkt->act_len > pkt->alloc_len) {
+		ath10k_warn(ar, "rx packet too large (%zu > %zu)\n",
+			    pkt->act_len, pkt->alloc_len);
+		ret = -EMSGSIZE;
+		goto out;
 	}
 
+	skb_put(skb, pkt->act_len);
+
+out:
 	pkt->status = ret;
 
 	return ret;
