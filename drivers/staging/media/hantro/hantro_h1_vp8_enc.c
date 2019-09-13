@@ -151,7 +151,7 @@ void hantro_vp8_enc_assemble_bitstream(struct hantro_ctx *ctx,
 	if (WARN_ON(ctx->vp8_enc.buf_data.dct_offset + dct_size > dst_size))
 		return;
 
-	vpu_debug(1, "%s: hdr_size = %u, ext_hdr_size = %u, dct_size = %u\n",
+	vpu_debug(1, "%s: hdr_size = %zu, ext_hdr_size = %zu, dct_size = %zu\n",
 		  __func__, hdr_size, ext_hdr_size, dct_size);
 
 	memmove(dst + hdr_size + ext_hdr_size,
