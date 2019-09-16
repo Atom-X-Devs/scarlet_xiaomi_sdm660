@@ -70,8 +70,6 @@ obj-$(CONFIG_VIDEO_ROCKCHIP_RGA)	+= rockchip/rga/
 
 obj-y	+= omap/
 
-obj-y	+= mtk-isp/
-
 obj-$(CONFIG_VIDEO_AM437X_VPFE)		+= am437x/
 
 obj-$(CONFIG_VIDEO_XILINX)		+= xilinx/
@@ -97,6 +95,8 @@ obj-$(CONFIG_VIDEO_MEDIATEK_ISP_PASS1)	+= mtk-isp/isp_50/
 obj-$(CONFIG_VIDEO_MEDIATEK_FD)		+= mtk-isp/fd/
 
 obj-$(CONFIG_VIDEO_MEDIATEK_ISP_DIP)	+= mtk-isp/isp_50/
+
+obj-$(CONFIG_MTK_SENINF)		+= mtk-isp/isp_50/
 
 obj-$(CONFIG_VIDEO_QCOM_CAMSS)		+= qcom/camss/
 
