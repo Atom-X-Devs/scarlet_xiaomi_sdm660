@@ -1394,7 +1394,6 @@ static int ov8856_set_stream(struct v4l2_subdev *sd, int enable)
 	struct ov8856 *ov8856 = to_ov8856(sd);
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
-	u32 val;
 
 	if (ov8856->streaming == enable)
 		return 0;
