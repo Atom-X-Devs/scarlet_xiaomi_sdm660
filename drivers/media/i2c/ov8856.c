@@ -1855,8 +1855,29 @@ probe_error_v4l2_ctrl_handler_free:
 	return ret;
 }
 
+static int __maybe_unused ov8856_runtime_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct ov8856 *ov8856 = to_ov8856(sd);
+
+	return __ov8856_power_on(ov8856);
+}
+
+static int __maybe_unused ov8856_runtime_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct ov8856 *ov8856 = to_ov8856(sd);
+
+	__ov8856_power_off(ov8856);
+
+	return 0;
+}
+
 static const struct dev_pm_ops ov8856_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(ov8856_suspend, ov8856_resume)
+	SET_RUNTIME_PM_OPS(ov8856_runtime_suspend, ov8856_runtime_resume, NULL)
 };
 
 #ifdef CONFIG_ACPI
