@@ -1951,9 +1951,8 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans)
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	trans->dbg_cfg = current_dbg_config;
 	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
-
-	iwl_load_fw_dbg_tlv(drv->trans->dev, drv->trans);
 #endif
+	iwl_load_fw_dbg_tlv(drv->trans->dev, drv->trans);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	/* Create the device debugfs entries. */
@@ -1990,8 +1989,8 @@ err_fw:
 #endif
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	debugfs_remove_recursive(drv->dbgfs_drv);
-	iwl_fw_dbg_free(drv->trans);
 #endif
+	iwl_fw_dbg_free(drv->trans);
 	kfree(drv);
 err:
 	return ERR_PTR(ret);
