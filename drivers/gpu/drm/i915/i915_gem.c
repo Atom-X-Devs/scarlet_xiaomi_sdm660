@@ -5595,8 +5595,6 @@ err_uc_misc:
 		i915_gem_cleanup_userptr(dev_priv);
 
 	if (ret == -EIO) {
-		mutex_lock(&dev_priv->drm.struct_mutex);
-
 		/*
 		 * Allow engine initialisation to fail by marking the GPU as
 		 * wedged. But we only want to do this where the GPU is angry,
@@ -5607,14 +5605,7 @@ err_uc_misc:
 					"Failed to initialize GPU, declaring it wedged!\n");
 			i915_gem_set_wedged(dev_priv);
 		}
-
-		/* Minimal basic recovery for KMS */
-		ret = i915_ggtt_enable_hw(dev_priv);
-		i915_gem_restore_gtt_mappings(dev_priv);
-		i915_gem_restore_fences(dev_priv);
-		intel_init_clock_gating(dev_priv);
-
-		mutex_unlock(&dev_priv->drm.struct_mutex);
+		ret = 0;
 	}
 
 	i915_gem_drain_freed_objects(dev_priv);
