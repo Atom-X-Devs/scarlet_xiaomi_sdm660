@@ -89,7 +89,8 @@ static int dw9768_write_array(struct dw9768 *dw9768, struct regval_list *vals,
 	int ret;
 
 	for (i = 0; i < len; i++) {
-		ret = dw9768_write_smbus(dw9768, vals->reg_num, vals->value);
+		ret = dw9768_write_smbus(dw9768, vals[i].reg_num,
+					 vals[i].value);
 		if (ret < 0)
 			return ret;
 	}
@@ -99,13 +100,9 @@ static int dw9768_write_array(struct dw9768 *dw9768, struct regval_list *vals,
 static int dw9768_set_position(struct dw9768 *dw9768, u16 val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&dw9768->sd);
-	u8 addr[2];
 
-	addr[0] = (val >> DW9768_DAC_SHIFT) & DW9768_REG_MASK_MSB;
-	addr[1] = val & DW9768_REG_MASK_LSB;
-
-	return i2c_smbus_write_block_data(client, DW9768_SET_POSITION_ADDR,
-					  ARRAY_SIZE(addr), addr);
+	return i2c_smbus_write_word_data(client, DW9768_SET_POSITION_ADDR,
+					 swab16(val));
 }
 
 static int dw9768_release(struct dw9768 *dw9768)
@@ -148,6 +145,12 @@ static int dw9768_power_on(struct dw9768 *dw9768)
 	ret = regulator_enable(dw9768->vdd);
 	if (ret < 0)
 		return ret;
+
+	/*
+	 * TODO(b/139784289): Confirm hardware requirements and adjust/remove
+	 * the delay.
+	 */
+	usleep_range(DW9768_CTRL_DELAY_US, DW9768_CTRL_DELAY_US + 100);
 
 	ret = dw9768_init(dw9768);
 	if (ret < 0)
