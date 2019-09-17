@@ -36,7 +36,7 @@ config VIDEO_MEDIATEK_ISP_DIP
 	    based on a single input image at the same time.
 
 config MTK_SENINF
-	bool "Mediatek mipi csi2 driver"
+	tristate "Mediatek mipi csi2 driver"
 	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
 	depends on MEDIA_CAMERA_SUPPORT
 	select V4L2_FWNODE
