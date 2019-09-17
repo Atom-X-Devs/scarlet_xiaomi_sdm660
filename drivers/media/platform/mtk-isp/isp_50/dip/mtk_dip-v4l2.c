@@ -360,13 +360,12 @@ static int mtk_dip_vb2_meta_queue_setup(struct vb2_queue *vq,
 {
 	struct mtk_dip_video_device *node = mtk_dip_vbq_to_node(vq);
 	const struct v4l2_format *fmt = &node->vdev_fmt;
-	unsigned int size;
 
 	if (!*num_planes)
 		*num_planes = 1;
 
 	if (sizes[0] <= 0)
-		size = fmt->fmt.meta.buffersize;
+		sizes[0] = fmt->fmt.meta.buffersize;
 
 	*num_buffers = clamp_val(*num_buffers, 1, VB2_MAX_FRAME);
 
@@ -1117,7 +1116,8 @@ int mtk_dip_pipe_v4l2_register(struct mtk_dip_pipe *pipe,
 			MEDIA_PAD_FL_SINK : MEDIA_PAD_FL_SOURCE;
 
 	snprintf(pipe->subdev.name, sizeof(pipe->subdev.name),
-		 "%s", pipe->desc->name);
+		 "%s %s", dev_driver_string(pipe->dip_dev->dev),
+		 pipe->desc->name);
 	v4l2_set_subdevdata(&pipe->subdev, pipe);
 
 	ret = v4l2_device_register_subdev(&pipe->dip_dev->v4l2_dev,

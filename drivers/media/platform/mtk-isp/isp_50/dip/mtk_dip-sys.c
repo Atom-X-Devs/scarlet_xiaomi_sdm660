@@ -274,12 +274,13 @@ static void dip_scp_handler(void *data, unsigned int len, void *priv)
 		return;
 
 	ipi_param = (struct img_ipi_param *)data;
-	if (ipi_param->usage == IMG_IPI_INIT)
+	if (ipi_param->usage == IMG_IPI_INIT ||
+	    ipi_param->usage == IMG_IPI_DEINIT )
 		return;
 
 	if (ipi_param->usage != IMG_IPI_FRAME) {
 		dev_warn(dip_dev->dev,
-			 "%s: recevied unknown ipi_param, usage(%d)\n",
+			 "%s: received unknown ipi_param, usage(%d)\n",
 			 __func__, ipi_param->usage);
 		return;
 	}
@@ -437,16 +438,15 @@ static int mtk_dip_hw_connect(struct mtk_dip_dev *dip_dev)
 
 static void mtk_dip_hw_disconnect(struct mtk_dip_dev *dip_dev)
 {
-	struct img_ipi_param ipi_param;
 	int ret;
+	struct img_ipi_param ipi_param;
 
 	ipi_param.usage = IMG_IPI_DEINIT;
 	ret = scp_ipi_send(dip_dev->scp_pdev, SCP_IPI_DIP, &ipi_param,
-			   sizeof(ipi_param), 0);
-	if (ret) {
+			   sizeof(ipi_param), 200);
+	if (ret)
 		dev_err(dip_dev->dev,
 			"%s: SCP IMG_IPI_DEINIT failed(%d)\n", __func__, ret);
-	}
 
 	scp_ipi_unregister(dip_dev->scp_pdev, SCP_IPI_DIP);
 }
