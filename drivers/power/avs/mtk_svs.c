@@ -418,6 +418,7 @@ struct mtk_svs {
 };
 
 unsigned long claim_mtk_svs_lock(void)
+	__acquires(&mtk_svs_lock)
 {
 	unsigned long flags;
 
@@ -428,6 +429,7 @@ unsigned long claim_mtk_svs_lock(void)
 EXPORT_SYMBOL_GPL(claim_mtk_svs_lock);
 
 void release_mtk_svs_lock(unsigned long flags)
+	__releases(&mtk_svs_lock)
 {
 	spin_unlock_irqrestore(&mtk_svs_lock, flags);
 }
@@ -1782,12 +1784,12 @@ static int svs_create_svs_procfs(struct mtk_svs *svs)
 	return 0;
 }
 
-struct svs_bank_ops svs_mt8183_banks_ops = {
+static struct svs_bank_ops svs_mt8183_banks_ops = {
 	.set_freqs_pct	= svs_set_freqs_pct_v2,
 	.get_vops	= svs_get_vops_v2,
 };
 
-struct svs_bank svs_mt8183_banks[4] = {
+static struct svs_bank svs_mt8183_banks[4] = {
 	{
 		.of_compatible		= "mediatek,mt8183-svs-cpu-little",
 		.sw_id			= SVS_CPU_LITTLE,
