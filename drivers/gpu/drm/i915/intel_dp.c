@@ -624,6 +624,7 @@ static enum drm_mode_status
 intel_dp_mode_valid(struct drm_connector *connector,
 		    struct drm_display_mode *mode)
 {
+	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 	struct drm_display_mode *fixed_mode = intel_connector->panel.fixed_mode;
@@ -661,7 +662,7 @@ intel_dp_mode_valid(struct drm_connector *connector,
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		return MODE_H_ILLEGAL;
 
-	return MODE_OK;
+	return intel_mode_valid_max_plane_size(dev_priv, mode);
 }
 
 uint32_t intel_dp_pack_aux(const uint8_t *src, int src_bytes)

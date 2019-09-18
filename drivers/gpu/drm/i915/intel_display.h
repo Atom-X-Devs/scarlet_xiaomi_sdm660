@@ -27,6 +27,9 @@
 
 #include <drm/drm_util.h>
 
+struct drm_i915_private;
+struct drm_display_mode;
+
 enum i915_gpio {
 	GPIOA,
 	GPIOB,
@@ -406,6 +409,10 @@ void intel_link_compute_m_n(int bpp, int nlanes,
 			    int pixel_clock, int link_clock,
 			    struct intel_link_m_n *m_n,
 			    bool constant_n);
+
+enum drm_mode_status
+intel_mode_valid_max_plane_size(struct drm_i915_private *dev_priv,
+			       const struct drm_display_mode *mode);
 
 bool is_ccs_modifier(u64 modifier);
 #endif
