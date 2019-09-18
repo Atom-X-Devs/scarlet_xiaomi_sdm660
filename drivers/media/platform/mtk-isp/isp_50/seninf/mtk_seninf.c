@@ -50,7 +50,7 @@ struct mtk_seninf {
 	struct clk_bulk_data *clks;
 	void __iomem *base_reg;
 	void __iomem *rx_reg;
-	unsigned char *csi2_rx[CFG_CSI_PORT_MAX_NUM];
+	unsigned char __iomem *csi2_rx[CFG_CSI_PORT_MAX_NUM];
 	unsigned int port;
 	unsigned int mux_sel;
 };
@@ -137,8 +137,8 @@ static void mtk_seninf_set_mux(struct mtk_seninf *priv,
 			       int seninf)
 {
 	unsigned int mux = priv->mux_sel;
-	void *pseninf_top = priv->base_reg;
-	void *pseninf = priv->base_reg + 0x1000 * mux;
+	void __iomem *pseninf_top = priv->base_reg;
+	void __iomem *pseninf = priv->base_reg + 0x1000 * mux;
 	unsigned int val;
 	unsigned int pix_sel_ext;
 	unsigned int pix_sel;
@@ -148,15 +148,15 @@ static void mtk_seninf_set_mux(struct mtk_seninf *priv,
 	unsigned int input_data_type;
 
 	/* Enable mux */
-	writel(0x7fffffff & readl(pseninf + SENINF1_MUX_CTRL) |
+	writel((0x7fffffff & readl(pseninf + SENINF1_MUX_CTRL)) |
 		0x80000000, pseninf + SENINF1_MUX_CTRL);
 
 	input_data_type = mtk_seninf_map_fmt(priv);
 	/* Set mux ctrl */
-	writel(0xffff0fff & readl(pseninf + SENINF1_MUX_CTRL) |
+	writel((0xffff0fff & readl(pseninf + SENINF1_MUX_CTRL)) |
 		0x8000, pseninf + SENINF1_MUX_CTRL);
 
-	writel(0xfffffffc & readl(pseninf + SENINF1_MUX_CTRL_EXT) |
+	writel((0xfffffffc & readl(pseninf + SENINF1_MUX_CTRL_EXT)) |
 		0x1, pseninf + SENINF1_MUX_CTRL_EXT);
 
 	switch (pixel_mode) {
@@ -174,26 +174,26 @@ static void mtk_seninf_set_mux(struct mtk_seninf *priv,
 		break;
 	}
 
-	writel(0xffffffef & readl(pseninf + SENINF1_MUX_CTRL_EXT) |
+	writel((0xffffffef & readl(pseninf + SENINF1_MUX_CTRL_EXT)) |
 		pix_sel_ext, pseninf + SENINF1_MUX_CTRL_EXT);
-	writel(0xfffffeff & readl(pseninf + SENINF1_MUX_CTRL) |
+	writel((0xfffffeff & readl(pseninf + SENINF1_MUX_CTRL)) |
 		pix_sel, pseninf + SENINF1_MUX_CTRL);
 
 	val = 0;
 	if (input_data_type != JPEG_FMT)
 		val = 0x20000000;
 
-	writel(0xcfffffff & readl(pseninf + SENINF1_MUX_CTRL) |
+	writel((0xcfffffff & readl(pseninf + SENINF1_MUX_CTRL)) |
 		val, pseninf + SENINF1_MUX_CTRL);
 
 	if (input_data_type != JPEG_FMT)
-		writel(0xf000ffff & readl(pseninf + SENINF1_MUX_CTRL) |
+		writel((0xf000ffff & readl(pseninf + SENINF1_MUX_CTRL)) |
 			0x6df0000, pseninf + SENINF1_MUX_CTRL);
 	else
-		writel(0xf000ffff & readl(pseninf + SENINF1_MUX_CTRL) |
+		writel((0xf000ffff & readl(pseninf + SENINF1_MUX_CTRL)) |
 			0x61e0000, pseninf + SENINF1_MUX_CTRL);
 
-	writel((0xfffff9ff) & readl(pseninf + SENINF1_MUX_CTRL)	|
+	writel((0xfffff9ff & readl(pseninf + SENINF1_MUX_CTRL)) |
 		(hs_pol << 10) | (vs_pol << 9), pseninf + SENINF1_MUX_CTRL);
 
 	val = (readl(pseninf + SENINF1_MUX_CTRL) | 0x3) & 0xFFFFFFFC;
@@ -207,15 +207,15 @@ static void mtk_seninf_set_mux(struct mtk_seninf *priv,
 
 static void mtk_seninf_set_dphy(struct mtk_seninf *priv, unsigned int seninf)
 {
-	void *pmipi_rx_base = priv->csi2_rx[CFG_CSI_PORT_0];
+	void __iomem *pmipi_rx_base = priv->csi2_rx[CFG_CSI_PORT_0];
 	unsigned int port = priv->port;
-	void *pmipi_rx = priv->csi2_rx[port];
-	void *pmipi_rx_conf = priv->base_reg + 0x1000 * seninf;
+	void __iomem *pmipi_rx = priv->csi2_rx[port];
+	void __iomem *pmipi_rx_conf = priv->base_reg + 0x1000 * seninf;
 
 	/* Set analog phy mode to DPHY */
 	if (is_cdphy_combo(port))
-		writel(0xfffffffe & readl(pmipi_rx + MIPI_RX_ANA00_CSI0A)
-			, pmipi_rx + MIPI_RX_ANA00_CSI0A);
+		writel(0xfffffffe & readl(pmipi_rx + MIPI_RX_ANA00_CSI0A),
+		       pmipi_rx + MIPI_RX_ANA00_CSI0A);
 
 	/* 4D1C: MIPIRX_ANALOG_A_BASE = 0x00001A40 */
 	if (is_4d1c(port))
@@ -226,94 +226,94 @@ static void mtk_seninf_set_dphy(struct mtk_seninf *priv, unsigned int seninf)
 			0x100, pmipi_rx + MIPI_RX_ANA00_CSI0A);
 
 	if (is_cdphy_combo(port))
-		writel(0xfffffffe & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B)
-			, pmipi_rx + MIPI_RX_ANA00_CSI0B);
+		writel(0xfffffffe & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B),
+			pmipi_rx + MIPI_RX_ANA00_CSI0B);
 
 	/* Only 4d1c need set CSIB: MIPIRX_ANALOG_B_BASE = 0x00001240 */
 	if (is_4d1c(port))
-		writel(0xffffe49f & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B) |
+		writel((0xffffe49f & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B)) |
 			0x1240, pmipi_rx + MIPI_RX_ANA00_CSI0B);
 	else /* MIPIRX_ANALOG_BASE = 0x100 */
-		writel(0xffffe49f & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B) |
+		writel((0xffffe49f & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B)) |
 			0x100, pmipi_rx + MIPI_RX_ANA00_CSI0B);
 
 	/* Byte clock invert */
-	writel(0xfffffff8 & readl(pmipi_rx + MIPI_RX_ANAA8_CSI0A) |
+	writel((0xfffffff8 & readl(pmipi_rx + MIPI_RX_ANAA8_CSI0A)) |
 		0x7, pmipi_rx + MIPI_RX_ANAA8_CSI0A);
 	if (is_4d1c(port))
-		writel(0xfffffff8 & readl(pmipi_rx + MIPI_RX_ANAA8_CSI0B) |
+		writel((0xfffffff8 & readl(pmipi_rx + MIPI_RX_ANAA8_CSI0B)) |
 			0x7, pmipi_rx + MIPI_RX_ANAA8_CSI0B);
 
 	/* Start ANA EQ tuning */
 	if (is_cdphy_combo(port)) {
-		writel(0xffffff0f & readl(pmipi_rx + MIPI_RX_ANA18_CSI0A) |
+		writel((0xffffff0f & readl(pmipi_rx + MIPI_RX_ANA18_CSI0A)) |
 			0x50, pmipi_rx + MIPI_RX_ANA18_CSI0A);
-		writel(0xff0fffff & readl(pmipi_rx + MIPI_RX_ANA1C_CSI0A) |
+		writel((0xff0fffff & readl(pmipi_rx + MIPI_RX_ANA1C_CSI0A)) |
 			0x500000, pmipi_rx + MIPI_RX_ANA1C_CSI0A);
-		writel(0xff0fffff & readl(pmipi_rx + MIPI_RX_ANA20_CSI0A) |
+		writel((0xff0fffff & readl(pmipi_rx + MIPI_RX_ANA20_CSI0A)) |
 			0x500000, pmipi_rx + MIPI_RX_ANA20_CSI0A);
 		if (is_4d1c(port)) { /* 4d1c */
-			writel(0xffffff0f &
-				readl(pmipi_rx + MIPI_RX_ANA18_CSI0B) |
+			writel((0xffffff0f &
+				readl(pmipi_rx + MIPI_RX_ANA18_CSI0B)) |
 				0x50, pmipi_rx + MIPI_RX_ANA18_CSI0B);
-			writel(0xff0fffff &
-				readl(pmipi_rx + MIPI_RX_ANA1C_CSI0B) |
+			writel((0xff0fffff &
+				readl(pmipi_rx + MIPI_RX_ANA1C_CSI0B)) |
 				0x500000, pmipi_rx + MIPI_RX_ANA1C_CSI0B);
-			writel(0xff0fffff &
-				readl(pmipi_rx + MIPI_RX_ANA20_CSI0B) |
+			writel((0xff0fffff &
+				readl(pmipi_rx + MIPI_RX_ANA20_CSI0B)) |
 				0x500000, pmipi_rx + MIPI_RX_ANA20_CSI0B);
 		}
 	} else {
-		writel(0xff0fff0f & readl(pmipi_rx + MIPI_RX_ANA18_CSI1A) |
+		writel((0xff0fff0f & readl(pmipi_rx + MIPI_RX_ANA18_CSI1A)) |
 			0x500050, pmipi_rx + MIPI_RX_ANA18_CSI1A);
-		writel(0xffffff0f & readl(pmipi_rx + MIPI_RX_ANA1C_CSI1A) |
+		writel((0xffffff0f & readl(pmipi_rx + MIPI_RX_ANA1C_CSI1A)) |
 			0x50, pmipi_rx + MIPI_RX_ANA1C_CSI1A);
 
 		if (is_4d1c(port)) { /* 4d1c */
-			writel(0xff0fff0f &
-				readl(pmipi_rx + MIPI_RX_ANA18_CSI1B) |
+			writel((0xff0fff0f &
+				readl(pmipi_rx + MIPI_RX_ANA18_CSI1B)) |
 				0x500050, pmipi_rx + MIPI_RX_ANA18_CSI1B);
-			writel(0xffffff0f &
-				readl(pmipi_rx + MIPI_RX_ANA1C_CSI1B) |
+			writel((0xffffff0f &
+				readl(pmipi_rx + MIPI_RX_ANA1C_CSI1B)) |
 				0x50, pmipi_rx + MIPI_RX_ANA1C_CSI1B);
 		}
 	}
 
 	/* End ANA EQ tuning */
 	writel(0x90, pmipi_rx_base + MIPI_RX_ANA40_CSI0A);
-	writel(0xffffff & readl(pmipi_rx + MIPI_RX_ANA24_CSI0A) |
+	writel((0xffffff & readl(pmipi_rx + MIPI_RX_ANA24_CSI0A)) |
 		0x40000000, pmipi_rx + MIPI_RX_ANA24_CSI0A);
 	if (is_4d1c(port))
-		writel(0xffffff & readl(pmipi_rx + MIPI_RX_ANA24_CSI0B) |
+		writel((0xffffff & readl(pmipi_rx + MIPI_RX_ANA24_CSI0B)) |
 			0x40000000, pmipi_rx + MIPI_RX_ANA24_CSI0B);
-	writel(0xfffcffff & readl(pmipi_rx + MIPI_RX_WRAPPER80_CSI0A)
-		, pmipi_rx + MIPI_RX_WRAPPER80_CSI0A);
+	writel(0xfffcffff & readl(pmipi_rx + MIPI_RX_WRAPPER80_CSI0A),
+	       pmipi_rx + MIPI_RX_WRAPPER80_CSI0A);
 	if (is_4d1c(port))
-		writel(0xfffcffff & readl(pmipi_rx + MIPI_RX_WRAPPER80_CSI0B)
-			, pmipi_rx + MIPI_RX_WRAPPER80_CSI0B);
+		writel(0xfffcffff & readl(pmipi_rx + MIPI_RX_WRAPPER80_CSI0B),
+		       pmipi_rx + MIPI_RX_WRAPPER80_CSI0B);
 	/* ANA power on */
-	writel(0xfffffff7 & readl(pmipi_rx + MIPI_RX_ANA00_CSI0A) |
+	writel((0xfffffff7 & readl(pmipi_rx + MIPI_RX_ANA00_CSI0A)) |
 		0x8, pmipi_rx + MIPI_RX_ANA00_CSI0A);
 	if (is_4d1c(port))
-		writel(0xfffffff7 & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B) |
+		writel((0xfffffff7 & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B)) |
 			0x8, pmipi_rx + MIPI_RX_ANA00_CSI0B);
 
 	usleep_range(20, 40);
-	writel(0xfffffff7 & readl(pmipi_rx + MIPI_RX_ANA00_CSI0A) |
+	writel((0xfffffff7 & readl(pmipi_rx + MIPI_RX_ANA00_CSI0A)) |
 		0x8, pmipi_rx + MIPI_RX_ANA00_CSI0A);
 	if (is_4d1c(port))
-		writel(0xfffffffb & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B) |
+		writel((0xfffffffb & readl(pmipi_rx + MIPI_RX_ANA00_CSI0B)) |
 			0x4, pmipi_rx + MIPI_RX_ANA00_CSI0B);
 
 	udelay(1);
 	/* 4d1c: MIPIRX_CONFIG_CSI_BASE = 0xC9000000; */
 	if (is_4d1c(port)) {
-		writel(0xffffff &
-			readl(pmipi_rx_conf + MIPI_RX_CON24_CSI0) |
+		writel((0xffffff &
+			readl(pmipi_rx_conf + MIPI_RX_CON24_CSI0)) |
 			0xc9000000, pmipi_rx_conf + MIPI_RX_CON24_CSI0);
 	} else { /* 2d1c: MIPIRX_CONFIG_CSI_BASE = 0xE4000000; */
-		writel(0xffffff &
-			readl(pmipi_rx_conf + MIPI_RX_CON24_CSI0) |
+		writel((0xffffff &
+			readl(pmipi_rx_conf + MIPI_RX_CON24_CSI0)) |
 			0xe4000000, pmipi_rx_conf + MIPI_RX_CON24_CSI0);
 	}
 }
@@ -321,8 +321,8 @@ static void mtk_seninf_set_dphy(struct mtk_seninf *priv, unsigned int seninf)
 static void mtk_seninf_set_csi_mipi(struct mtk_seninf *priv,
 				    unsigned int seninf)
 {
-	void *seninf_base = priv->base_reg;
-	void *pseninf = priv->base_reg + 0x1000 * seninf;
+	void __iomem *seninf_base = priv->base_reg;
+	void __iomem *pseninf = priv->base_reg + 0x1000 * seninf;
 	unsigned int dpcm = mtk_seninf_get_dpcm(priv);
 	unsigned int data_lane_num = priv->sensor[priv->port].num_data_lanes;
 	unsigned int cal_sel;
@@ -336,39 +336,39 @@ static void mtk_seninf_set_csi_mipi(struct mtk_seninf *priv,
 	switch (priv->port) {
 	case CFG_CSI_PORT_1:
 		cal_sel = 1;
-		writel(0x7ffff8fe & readl(seninf_base +
-			SENINF_TOP_PHY_SENINF_CTL_CSI1)	| 0x80000200
-			, seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI1);
+		writel((0x7ffff8fe & readl(seninf_base +
+			SENINF_TOP_PHY_SENINF_CTL_CSI1)) | 0x80000200,
+		       seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI1);
 		break;
 	case CFG_CSI_PORT_2:
 		cal_sel = 2;
-		writel(0x7ffff8fe & readl(seninf_base +
-			SENINF_TOP_PHY_SENINF_CTL_CSI2)	| 0x80000200
-			, seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI2);
+		writel((0x7ffff8fe & readl(seninf_base +
+			SENINF_TOP_PHY_SENINF_CTL_CSI2)) | 0x80000200,
+		       seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI2);
 		break;
 	case CFG_CSI_PORT_0:
 		cal_sel = 0;
-		writel(0x7ffff8fe & readl(seninf_base +
-			SENINF_TOP_PHY_SENINF_CTL_CSI0)	| 0x80000200
-			, seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI0);
+		writel((0x7ffff8fe & readl(seninf_base +
+			SENINF_TOP_PHY_SENINF_CTL_CSI0)) | 0x80000200,
+		       seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI0);
 		break;
 	case CFG_CSI_PORT_0A:
 	case CFG_CSI_PORT_0B:
 		cal_sel = 0;
-		writel(0x7fffc8fe & readl(seninf_base +
-			SENINF_TOP_PHY_SENINF_CTL_CSI0)	| 0x80001100
-			, seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI0);
+		writel((0x7fffc8fe & readl(seninf_base +
+			SENINF_TOP_PHY_SENINF_CTL_CSI0)) | 0x80001100,
+		       seninf_base + SENINF_TOP_PHY_SENINF_CTL_CSI0);
 		break;
 	}
 
 	/* First Enable Sensor interface and select pad (0x1a04_0200) */
-	writel(readl(pseninf + SENINF1_CTRL) | 0x1
-		, pseninf + SENINF1_CTRL);
-	writel(0x8fffffff & readl(pseninf + SENINF1_CTRL) |
+	writel(readl(pseninf + SENINF1_CTRL) | 0x1,
+	       pseninf + SENINF1_CTRL);
+	writel((0x8fffffff & readl(pseninf + SENINF1_CTRL)) |
 		(pad_sel << 28), pseninf + SENINF1_CTRL);
-	writel(0xffff0fff & readl(pseninf + SENINF1_CTRL)
-		, pseninf + SENINF1_CTRL);
-	writel(0xffffff9f & readl(pseninf + SENINF1_CTRL_EXT) |
+	writel(0xffff0fff & readl(pseninf + SENINF1_CTRL),
+	       pseninf + SENINF1_CTRL);
+	writel((0xffffff9f & readl(pseninf + SENINF1_CTRL_EXT)) |
 		0x40, pseninf + SENINF1_CTRL_EXT);
 
 	mtk_seninf_set_dphy(priv, seninf);
@@ -378,23 +378,23 @@ static void mtk_seninf_set_csi_mipi(struct mtk_seninf *priv,
 	writel(val, pseninf + SENINF1_CSI2_DPCM);
 
 	/* Settle delay */
-	writel(0xffff00ff & readl(pseninf + SENINF1_CSI2_LNRD_TIMING) |
+	writel((0xffff00ff & readl(pseninf + SENINF1_CSI2_LNRD_TIMING)) |
 		(SENINF_SETTLE_DELAY << 8), pseninf + SENINF1_CSI2_LNRD_TIMING);
 	/* CSI2 control */
 	val = readl(pseninf + SENINF1_CSI2_CTL) | (data_header_order << 16) |
 		0x10 | ((1 << data_lane_num) - 1);
 	writel(val, pseninf + SENINF1_CSI2_CTL);
-	writel(0xfffff3f8 & readl(pseninf + SENINF1_CSI2_RESYNC_MERGE_CTL) |
+	writel((0xfffff3f8 & readl(pseninf + SENINF1_CSI2_RESYNC_MERGE_CTL)) |
 		0x3, pseninf + SENINF1_CSI2_RESYNC_MERGE_CTL);
-	writel(0xfffff800 & readl(pseninf + SENINF1_CSI2_MODE)
-		, pseninf + SENINF1_CSI2_MODE);
+	writel(0xfffff800 & readl(pseninf + SENINF1_CSI2_MODE),
+	       pseninf + SENINF1_CSI2_MODE);
 	writel(0x1dff00, pseninf + SENINF1_CSI2_DPHY_SYNC);
-	writel(0xfffffffe & readl(pseninf + SENINF1_CSI2_SPARE0)
-		, pseninf + SENINF1_CSI2_SPARE0);
-	writel(0xf5ffff7f & readl(pseninf + SENINF1_CSI2_CTL) |
-		0x2000000, pseninf + SENINF1_CSI2_CTL);
-	writel(0xffffff00 & readl(pseninf + SENINF1_CSI2_HS_TRAIL) |
-		SENINF_HS_TRAIL_PARAMETER, pseninf + SENINF1_CSI2_HS_TRAIL);
+	writel(0xfffffffe & readl(pseninf + SENINF1_CSI2_SPARE0),
+	       pseninf + SENINF1_CSI2_SPARE0);
+	writel((0xf5ffff7f & readl(pseninf + SENINF1_CSI2_CTL)) |
+	       0x2000000, pseninf + SENINF1_CSI2_CTL);
+	writel((0xffffff00 & readl(pseninf + SENINF1_CSI2_HS_TRAIL)) |
+	       SENINF_HS_TRAIL_PARAMETER, pseninf + SENINF1_CSI2_HS_TRAIL);
 
 	/* Set debug port to output packet number */
 	writel(0x8000001A, pseninf + SENINF1_CSI2_DGB_SEL);
@@ -406,7 +406,7 @@ static void mtk_seninf_set_csi_mipi(struct mtk_seninf *priv,
 	/* Enable CSI2 Extend IRQ mask */
 	/* Turn on all interrupt */
 	writel(0x0000001f, pseninf + SENINF1_CSI2_INT_EN_EXT);
-	writel(0xffffff7f & readl(pseninf + SENINF1_CTRL) |
+	writel((0xffffff7f & readl(pseninf + SENINF1_CTRL)) |
 		0x80, pseninf + SENINF1_CTRL);
 
 	udelay(1);
@@ -416,7 +416,7 @@ static void mtk_seninf_set_csi_mipi(struct mtk_seninf *priv,
 
 static int mtk_seninf_power_on(struct mtk_seninf *priv)
 {
-	void *pseninf = priv->base_reg;
+	void __iomem *pseninf = priv->base_reg;
 	struct device *dev = priv->dev;
 	int seninf;
 	int ret;
@@ -437,7 +437,7 @@ static int mtk_seninf_power_on(struct mtk_seninf *priv)
 	/* Configure timestamp */
 	writel(readl(pseninf + SENINF1_CTRL) | 0x1
 		, pseninf + SENINF1_CTRL);
-	writel(0xffffffbfU & readl(pseninf + SENINF1_CTRL_EXT) |
+	writel((0xffffffbfU & readl(pseninf + SENINF1_CTRL_EXT)) |
 		0x40, pseninf + SENINF1_CTRL_EXT);
 	writel(SENINF_TIMESTAMP_STEP, pseninf + SENINF_TG1_TM_STP);
 
@@ -452,9 +452,9 @@ static int mtk_seninf_power_on(struct mtk_seninf *priv)
 
 static void mtk_seninf_power_off(struct mtk_seninf *priv)
 {
-	void *pmipi_rx = priv->csi2_rx[priv->port];
+	void __iomem *pmipi_rx = priv->csi2_rx[priv->port];
 	unsigned int seninf = mtk_seninf_csi_port_to_seninf(priv->port);
-	void *pseninf = priv->base_reg + 0x1000 * seninf;
+	void __iomem *pseninf = priv->base_reg + 0x1000 * seninf;
 
 	/* Disable CSI2(2.5G) first */
 	writel(readl(pseninf + SENINF1_CSI2_CTL) & 0xFFFFFFE0
@@ -619,7 +619,7 @@ static int seninf_link_setup(struct media_entity *entity,
 	dev_dbg(dev, "mtk_seninf: remote %d-%d, local %d-%d\n"
 		, remote->entity->graph_obj.id, remote->index
 		, local->entity->graph_obj.id, local->index);
-	dev_dbg(dev, "local->flags %d flags %d\n", local->flags, flags);
+	dev_dbg(dev, "local->flags %lu flags %u\n", local->flags, flags);
 
 	if ((local->flags & MEDIA_PAD_FL_SOURCE) &&
 	    (flags & MEDIA_LNK_FL_ENABLED)) {
@@ -629,7 +629,7 @@ static int seninf_link_setup(struct media_entity *entity,
 
 	if ((local->flags & MEDIA_PAD_FL_SINK) &&
 	    (flags & MEDIA_LNK_FL_ENABLED)) {
-		dev_dbg(dev, "set sensor port\n", local->index);
+		dev_dbg(dev, "set sensor port %d\n", local->index);
 		/* Select port */
 		priv->port = local->index;
 		if (priv->port >= NUM_SENSORS) {
@@ -703,7 +703,7 @@ static int mtk_seninf_fwnode_parse(struct device *dev,
 
 static int seninf_enable_test_pattern(struct mtk_seninf *priv, u32 pattern)
 {
-	void *pseninf = priv->base_reg;
+	void __iomem *pseninf = priv->base_reg;
 	struct device *dev = priv->dev;
 	unsigned int val;
 
@@ -718,7 +718,7 @@ static int seninf_enable_test_pattern(struct mtk_seninf *priv, u32 pattern)
 		writel(0x0, pseninf + SENINF1_MUX_CTRL_EXT);
 		writel(0x404C1, pseninf + SENINF_TG1_TM_CTL);
 		val = (priv->fmt[priv->port].format.height + 0x100) << 16
-			| priv->fmt[priv->port].format.width + 0x100;
+			| (priv->fmt[priv->port].format.width + 0x100);
 		writel(val, pseninf + SENINF_TG1_TM_SIZE);
 		writel(0x0, pseninf + SENINF_TG1_TM_CLK);
 		writel(0x1, pseninf + SENINF_TG1_TM_STP);
