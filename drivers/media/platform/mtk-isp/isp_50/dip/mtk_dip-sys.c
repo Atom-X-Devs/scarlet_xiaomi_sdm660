@@ -39,7 +39,7 @@ int mtk_dip_hw_working_buf_pool_init(struct mtk_dip_dev *dip_dev)
 				   GFP_KERNEL);
 	if (!dip_dev->working_buf_mem_vaddr) {
 		dev_err(dip_dev->dev,
-			"memory alloc size %ld failed\n",
+			"memory alloc size %d failed\n",
 			dip_dev->working_buf_mem_size);
 		return -ENOMEM;
 	}
@@ -270,7 +270,7 @@ static void dip_scp_handler(void *data, unsigned int len, void *priv)
 		return;
 
 	if (WARN_ONCE(len == sizeof(ipi_param),
-		      "%s: len(%d) not match ipi_param\n", __func__))
+		      "%s: len(%d) not match ipi_param\n", __func__, len))
 		return;
 
 	ipi_param = (struct img_ipi_param *)data;

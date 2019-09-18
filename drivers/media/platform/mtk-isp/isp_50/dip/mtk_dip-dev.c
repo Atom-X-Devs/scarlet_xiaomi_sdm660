@@ -475,8 +475,8 @@ static u32 mtk_dip_to_fixed(u32 *r, struct v4l2_fract *f)
 	}
 
 	q = f->numerator / f->denominator;
-	*r = (((u64)f->numerator - q * f->denominator) << IMG_SUBPIXEL_SHIFT)
-		/ f->denominator;
+	*r = div_u64(((u64)f->numerator - q * f->denominator) <<
+		     IMG_SUBPIXEL_SHIFT, f->denominator);
 	return q;
 }
 
