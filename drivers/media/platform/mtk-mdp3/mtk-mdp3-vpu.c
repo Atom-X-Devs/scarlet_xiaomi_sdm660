@@ -69,7 +69,7 @@ static void mdp_vpu_ipi_handle_frame_ack(void *data, unsigned int len,
 {
 	struct img_sw_addr *addr = (struct img_sw_addr *)data;
 	struct img_ipi_frameparam *param =
-		(struct img_ipi_frameparam *)addr->va;
+		(struct img_ipi_frameparam *)(unsigned long)addr->va;
 	struct mdp_vpu_ctx *ctx =
 		(struct mdp_vpu_ctx *)(unsigned long)param->drv_data;
 
@@ -179,16 +179,16 @@ int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct platform_device *pdev,
 	pool = ALIGN((phys_addr_t)vpu->work + vpu->work_size, 8);
 	if (pool + pool_size - (phys_addr_t)vpu->work > mem_size) {
 		dev_err(&mdp->pdev->dev,
-			"VPU memory insufficient: %lx + %lx > %llx",
+			"VPU memory insufficient: %zx + %zx > %zx",
 			vpu->work_size, pool_size, mem_size);
 		err = -ENOMEM;
 		goto err_mem_size;
 	}
 
 	dev_info(&mdp->pdev->dev,
-		 "VPU work:%llx pa:%llx sz:%lx pool:%llx sz:%lx (mem sz:%llx)",
-		vpu->work, vpu->work_addr, vpu->work_size,
-		pool, pool_size, mem_size);
+		 "VPU work:%pK pa:%pad sz:%zx pool:%pa sz:%zx (mem sz:%zx)",
+		vpu->work, &vpu->work_addr, vpu->work_size,
+		&pool, pool_size, mem_size);
 	vpu->pool = (struct mdp_config_pool *)pool;
 	msg.work_addr = vpu->work_addr;
 	msg.work_size = vpu->work_size;

@@ -135,8 +135,7 @@ static int mdp_probe(struct platform_device *pdev)
 
 	mdp->rproc_handle = rproc_get_by_phandle(rproc_phandle);
 
-	dev_info(&pdev->dev, "MDP rproc_handle: %llx",
-		 (unsigned long long)mdp->rproc_handle);
+	dev_info(&pdev->dev, "MDP rproc_handle: %pK", mdp->rproc_handle);
 
 	if (!mdp->rproc_handle) {
 		dev_err(&pdev->dev, "Could not get MDP's rproc_handle\n");
@@ -223,7 +222,7 @@ static int __maybe_unused mdp_pm_suspend(struct device *dev)
 				"%s:flushed cmdq task incomplete\n",
 				__func__);
 		else//need to remove
-			pr_err("%s:ret=%d\n", __func__);
+			pr_err("%s:ret=%d\n", __func__, ret);
 	}
 
 	return 0;

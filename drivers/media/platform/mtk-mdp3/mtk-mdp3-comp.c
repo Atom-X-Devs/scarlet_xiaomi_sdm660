@@ -1013,6 +1013,7 @@ static const struct of_device_id mdp_comp_dt_ids[] = {
 		.compatible = "mediatek,mt8183-mdp-dl",
 		.data = (void *)MDP_COMP_TYPE_DL_PATH,
 	},
+	{}
 };
 
 static int mdp_comp_get_id(struct device *dev, struct device_node *node,
