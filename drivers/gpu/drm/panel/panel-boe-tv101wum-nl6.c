@@ -458,6 +458,8 @@ static int boe_panel_init(struct boe_panel *boe)
 							 &cmd->data[1],
 							 cmd->len - 1);
 				break;
+			default:
+				err = -EINVAL;
 			}
 
 			if (err < 0) {
