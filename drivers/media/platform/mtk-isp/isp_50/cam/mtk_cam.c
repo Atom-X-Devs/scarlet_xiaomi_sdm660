@@ -951,7 +951,8 @@ static int mtk_cam_vb2_queue_setup(struct vb2_queue *vq,
 	if (max_buffer_count)
 		*num_buffers = clamp_val(*num_buffers, 1, max_buffer_count);
 
-	vq->dma_attrs |= DMA_ATTR_NON_CONSISTENT;
+	if (node->desc.smem_alloc)
+		vq->dma_attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 
 	if (vq->type == V4L2_BUF_TYPE_META_OUTPUT ||
 	    vq->type == V4L2_BUF_TYPE_META_CAPTURE)
