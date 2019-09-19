@@ -205,7 +205,6 @@ hantro_vdev_to_func(struct video_device *vdev)
  *			encoder hardware state.
  * @dummy_encode_src:	Source buffers used for dummy frame encoding.
  * @dummy_encode_dst:	Destination buffer used for dummy frame encoding.
- * @dummy_src:		Dummy v4l2 source buffers.
  * @dummy_dst:		Dummy v4l2 destination buffers.
  * @job_rerun:		Work to rerun the same job after running the dummy one.
  * @was_decoding:	Indicates whether last run context was a decoder.
@@ -232,7 +231,6 @@ struct hantro_dev {
 	struct hantro_ctx *dummy_encode_ctx;
 	struct hantro_aux_buf dummy_encode_src[VIDEO_MAX_PLANES];
 	struct hantro_aux_buf dummy_encode_dst;
-	struct vb2_v4l2_buffer dummy_src;
 	struct vb2_v4l2_buffer dummy_dst;
 	struct work_struct job_rerun;
 	bool was_decoding;

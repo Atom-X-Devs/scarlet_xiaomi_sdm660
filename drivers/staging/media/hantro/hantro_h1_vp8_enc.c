@@ -402,6 +402,7 @@ static void hantro_h1_vp8_enc_set_buffers(struct hantro_dev *vpu,
 	int i;
 
 	if (hantro_ctx_is_dummy_encode(ctx)) {
+		src_buf = NULL; /* unused, to make compiler happy */
 		dst_buf = &ctx->dev->dummy_dst;
 	} else {
 		src_buf = &hantro_get_src_buf(ctx)->vb2_buf;
@@ -622,7 +623,6 @@ int hantro_dummy_enc_init(struct hantro_dev *vpu)
 	ctx->vp8_enc.src_crop.width = ctx->src_fmt.width;
 	ctx->vp8_enc.src_crop.left = ctx->src_fmt.height;
 
-	memset(&ctx->dev->dummy_src, 0, sizeof(struct vb2_v4l2_buffer));
 	memset(&ctx->dev->dummy_dst, 0, sizeof(struct vb2_v4l2_buffer));
 
 	ret = hantro_vp8_enc_init(ctx);
