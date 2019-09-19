@@ -663,15 +663,15 @@ static const struct panel_desc auo_kd101n80_45na_desc = {
 };
 
 static const struct drm_display_mode boe_tv101wum_n53_default_mode = {
-	.clock = 159260,
+	.clock = 159833,
 	.hdisplay = 1200,
-	.hsync_start = 1200 + 60,
-	.hsync_end = 1200 + 60 + 24,
-	.htotal = 1200 + 60 + 24 + 80,
+	.hsync_start = 1200 + 114,
+	.hsync_end = 1200 + 114 + 10,
+	.htotal = 1200 + 114 + 10 + 40,
 	.vdisplay = 1920,
-	.vsync_start = 1920 + 14,
-	.vsync_end = 1920 + 14 + 2,
-	.vtotal = 1920 + 14 + 2 + 10,
+	.vsync_start = 1920 + 19,
+	.vsync_end = 1920 + 19 + 4,
+	.vtotal = 1920 + 19 + 4 + 10,
 	.vrefresh = 60,
 	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
 };
