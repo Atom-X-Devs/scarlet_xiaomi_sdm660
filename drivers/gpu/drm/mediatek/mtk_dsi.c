@@ -250,7 +250,7 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	timing->lpx = NS_TO_CYCLE(60, cycle_time);
 	timing->da_hs_prepare = NS_TO_CYCLE(50 + 5 * ui, cycle_time);
 	timing->da_hs_zero = NS_TO_CYCLE(110 + 6 * ui, cycle_time);
-	timing->da_hs_trail = NS_TO_CYCLE(90 + 4 * ui, cycle_time);
+	timing->da_hs_trail = NS_TO_CYCLE(77 + 4 * ui, cycle_time);
 
 	timing->ta_go = 4 * timing->lpx;
 	timing->ta_sure = 3 * timing->lpx / 2;
