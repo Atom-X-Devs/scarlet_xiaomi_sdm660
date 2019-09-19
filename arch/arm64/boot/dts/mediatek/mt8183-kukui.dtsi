@@ -309,23 +309,9 @@
 	clock-frequency = <100000>;
 };
 
-&i2c2 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c2_pins>;
-	status = "okay";
-	clock-frequency = <100000>;
-};
-
 &i2c3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c3_pins>;
-	status = "okay";
-	clock-frequency = <100000>;
-};
-
-&i2c4 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c4_pins>;
 	status = "okay";
 	clock-frequency = <100000>;
 };
@@ -478,6 +464,18 @@
 		pins_bt_en {
 			pinmux = <PINMUX_GPIO120__FUNC_GPIO120>;
 			output-low;
+		};
+	};
+
+	camera_pins_cam0_mclk_on: cam0@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+		};
+	};
+
+	camera_pins_cam1_mclk_on: cam1@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
 		};
 	};
 
