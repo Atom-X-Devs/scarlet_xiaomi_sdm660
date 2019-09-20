@@ -218,7 +218,7 @@ err_cancel_job:
 	hantro_job_finish(ctx->dev, ctx, 0, VB2_BUF_STATE_ERROR);
 }
 
-void hantro_job_rerun(struct work_struct *work)
+static void hantro_job_rerun(struct work_struct *work)
 {
 	struct hantro_dev *vpu =
 		container_of(work, struct hantro_dev, job_rerun);
