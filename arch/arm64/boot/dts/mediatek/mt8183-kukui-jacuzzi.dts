@@ -113,7 +113,10 @@
 };
 
 &i2c2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2_pins>;
 	status = "okay";
+	clock-frequency = <100000>;
 
 	trackpad@15 {
 		compatible = "elan,ekth3000";
@@ -129,6 +132,11 @@
 };
 
 &i2c4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c4_pins>;
+	status = "okay";
+	clock-frequency = <100000>;
+
 	ps8640: edp-bridge@8 {
 		compatible = "parade,ps8640";
 		reg = <0x8>;
