@@ -22,7 +22,7 @@ config ROCKCHIP_IODOMAIN
 config MTK_SVS
 	bool "MediaTek Smart Voltage Scaling(SVS)"
 	depends on POWER_AVS && MTK_EFUSE
-	depends on THERMAL || THERMAL=n
+	depends on THERMAL!=m
 	help
 	  The SVS engine is a piece of hardware which is used to calculate
 	  optimized voltage values of several power domains, e.g.
