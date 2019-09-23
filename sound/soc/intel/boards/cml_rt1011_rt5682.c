@@ -100,19 +100,18 @@ static int cml_rt5682_codec_init(struct snd_soc_pcm_runtime *rtd)
 	int ret;
 
 	/* need to enable ASRC function for 24MHz mclk rate */
-	rt5682_sel_asrc_clk_src(component, RT5682_DA_STEREO1_FILTER |
-                                        RT5682_AD_STEREO1_FILTER,
-                                        RT5682_CLK_SEL_I2S1_ASRC);
+	rt5682_sel_asrc_clk_src(component, RT5682_DA_STEREO1_FILTER,
+					RT5682_CLK_SEL_I2S1_ASRC);
+
 
 	/*
 	 * Headset buttons map to the google Reference headset.
 	 * These can be configured by userspace.
 	 */
 	ret = snd_soc_card_jack_new(rtd->card, "Headset Jack",
-					SND_JACK_HEADSET | SND_JACK_BTN_0 |
-					SND_JACK_BTN_1 | SND_JACK_BTN_2 |
-					SND_JACK_BTN_3,
-					&ctx->cml_headset, NULL, 0);
+			SND_JACK_HEADSET | SND_JACK_BTN_0 | SND_JACK_BTN_1 |
+			SND_JACK_BTN_2 | SND_JACK_BTN_3 | SND_JACK_LINEOUT,
+			&ctx->cml_headset, NULL, 0);
 	if (ret) {
 		dev_err(rtd->dev, "Headset Jack creation failed: %d\n", ret);
 		return ret;
@@ -339,6 +338,8 @@ static struct snd_soc_dai_link cml_rt1011_rt5682_dailink[] = {
 		.codec_name = "i2c-10EC5682:00",
 		.codec_dai_name = CML_RT5682_CODEC_DAI,
 		.init = cml_rt5682_codec_init,
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBS_CFS,
 		.ignore_pmdown_time = 1,
 		.ops = &cml_rt5682_ops,
 		.dpcm_playback = 1,
