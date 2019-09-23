@@ -16,4 +16,5 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-krane-rev3-sku0.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-krane-rev3-sku176.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-krane-sku0.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-krane-sku176.dtb
-dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-jacuzzi.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-jacuzzi-rev0.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-juniper.dtb

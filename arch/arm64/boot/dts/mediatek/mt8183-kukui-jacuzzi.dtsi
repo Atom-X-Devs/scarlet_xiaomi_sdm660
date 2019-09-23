@@ -3,13 +3,9 @@
  * Copyright 2019 Google LLC
  */
 
-/dts-v1/;
 #include "mt8183-kukui.dtsi"
 
 / {
-	model = "Google jacuzzi board";
-	compatible = "google,jacuzzi", "mediatek,mt8183";
-
 	panel: panel {
 		compatible = "auo,b116xw03";
 		power-supply = <&pp3300_panel>;
@@ -33,6 +29,18 @@
 		regulator-boot-on;
 
 		gpio = <&pio 54 GPIO_ACTIVE_HIGH>;
+	};
+
+	pp1800_mipibrdg: pp1800-mipibrdg {
+		compatible = "regulator-fixed";
+		regulator-name = "pp1800_mipibrdg";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pp1800_lcd_en>;
+
+		enable-active-high;
+		regulator-boot-on;
+
+		gpio = <&pio 36 GPIO_ACTIVE_HIGH>;
 	};
 
 	pp3300_panel: pp3300-panel {
@@ -137,18 +145,20 @@
 	status = "okay";
 	clock-frequency = <100000>;
 
-	ps8640: edp-bridge@8 {
-		compatible = "parade,ps8640";
-		reg = <0x8>;
-		sleep-gpios = <&pio 45 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&pio 73 GPIO_ACTIVE_HIGH>;
+	anx_bridge: anx7625@58 {
+		compatible = "analogix,anx7625";
+		reg = <0x58>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ps8640_pins>;
-		vdd12-supply = <&pp1200_mipibrdg>;
+		panel_flags = <1>;
+		enable-gpios = <&pio 45 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pio 73 GPIO_ACTIVE_HIGH>;
+		vdd10-supply = <&pp1200_mipibrdg>;
+		vdd18-supply = <&pp1800_mipibrdg>;
 		vdd33-supply = <&vddio_mipibrdg>;
+
 		#address-cells = <1>;
 		#size-cells = <0>;
-
 		port@0 {
 			reg = <0>;
 
@@ -157,8 +167,8 @@
 			};
 		};
 
-		port@1 {
-			reg = <1>;
+		port@2 {
+			reg = <2>;
 
 			ps8640_out: endpoint {
 				remote-endpoint = <&panel_in>;
@@ -406,6 +416,12 @@
 		pins1 {
 			pinmux = <PINMUX_GPIO45__FUNC_GPIO45>,
 				 <PINMUX_GPIO73__FUNC_GPIO73>;
+			output-low;
+		};
+		pins2 {
+			pinmux = <PINMUX_GPIO4__FUNC_GPIO4>;
+			input-enable;
+			bias-pull-up;
 		};
 	};
 
