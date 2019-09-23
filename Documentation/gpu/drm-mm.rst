@@ -79,13 +79,10 @@ count for the TTM, which will call your initialization function.
 
 See the radeon_ttm.c file for an example of usage.
 
-<<<<<<< HEAD
 .. kernel-doc:: drivers/gpu/drm/drm_global.c
    :export:
 
 
-=======
->>>>>>> 96352eca5c7c3... drm: Add VRAM MM, a simple memory manager for dedicated VRAM
 The Graphics Execution Manager (GEM)
 ====================================
 
