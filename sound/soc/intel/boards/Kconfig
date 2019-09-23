@@ -381,18 +381,6 @@ config SND_SOC_INTEL_SOF_RT5682_MACH
 	   with rt5682 codec.
 	   Say Y if you have such a device.
 	   If unsure select "N".
-
-config SND_SOC_INTEL_SOF_CML_RT1011_RT5682_MACH
-	tristate "CML SOF with RT1011 in I2S Mode"
-	depends on I2C && ACPI
-	depends on (SND_SOC_SOF_HDA_COMMON && MFD_INTEL_LPSS) ||\
-	           (SND_SOC_SOF_BAYTRAIL && X86_INTEL_LPSS)
-	select SND_SOC_RT1011
-	help
-	  This adds support for ASoC machine driver for SOF platform with
-	  RT1011 I2S codec.
-	  Say Y if you have such a device.
-	  If unsure select "N".
 endif ## SND_SOC_SOF_HDA_COMMON || SND_SOC_SOF_BAYTRAIL
 
 config SND_SOC_INTEL_CML_DA7219_MAX98357A_MACH

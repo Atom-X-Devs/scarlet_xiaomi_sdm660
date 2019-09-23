@@ -29,7 +29,6 @@ snd-skl_nau88l25_max98357a-objs := skl_nau88l25_max98357a.o
 snd-soc-skl_nau88l25_ssm4567-objs := skl_nau88l25_ssm4567.o
 snd-soc-cnl-rt274-objs := cnl_rt274.o
 snd-soc-cnl-max98373-objs := cnl_max98373.o
-snd-soc-cml_rt1011_rt5682-objs := cml_rt1011_rt5682.o
 
 obj-$(CONFIG_SND_SOC_INTEL_SOF_RT5682_MACH) += snd-soc-sof_rt5682.o
 obj-$(CONFIG_SND_SOC_INTEL_CML_DA7219_MAX98357A_MACH) += snd-soc-cml_da7219_max98357a.o
@@ -61,4 +60,3 @@ obj-$(CONFIG_SND_SOC_INTEL_SKL_NAU88L25_SSM4567_MACH) += snd-soc-skl_nau88l25_ss
 obj-$(CONFIG_SND_SOC_INTEL_CNL_RT274_MACH) += snd-soc-cnl-rt274.o
 obj-$(CONFIG_SND_SOC_INTEL_CNL_MAX98373_MACH) += snd-soc-cnl-max98373.o
 obj-$(CONFIG_SND_SOC_INTEL_SKL_HDA_DSP_GENERIC_MACH) += snd-soc-skl_hda_dsp.o
-obj-$(CONFIG_SND_SOC_INTEL_SOF_CML_RT1011_RT5682_MACH) += snd-soc-cml_rt1011_rt5682.o
