@@ -61,6 +61,11 @@
 	};
 };
 
+&mt6358_vcama2_reg {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
+};
+
 &i2c2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2_pins>;
@@ -93,7 +98,7 @@
 		port {
 			ov5695_endpoint: endpoint {
 				data-lanes = <1 3>;
-				remote-endpoint = <&seninf_port1_endpoint>;
+				remote-endpoint = <&seninf_port0_endpoint>;
 			};
 		};
 	};
@@ -138,11 +143,11 @@
 		dvdd-supply = <&mt6358_vcn18_reg>;
 		dovdd-supply = <&mt6358_vcamio_reg>;
 
-		port@0 {
+		port {
 			ov02a10_endpoint: endpoint {
 				data-lanes = <1>;
 				link-frequencies = /bits/ 64 <390000000>;
-				remote-endpoint = <&seninf_port0_endpoint>;
+				remote-endpoint = <&seninf_port1_endpoint>;
 			};
 		};
 	};
@@ -402,9 +407,8 @@
 			reg = <0>;
 
 			seninf_port0_endpoint: endpoint {
-				data-lanes = <1>;
-				link-frequencies = /bits/ 64 <390000000>;
-				remote-endpoint = <&ov02a10_endpoint>;
+				data-lanes = <1 3>;
+				remote-endpoint = <&ov5695_endpoint>;
 			};
 		};
 
@@ -412,8 +416,9 @@
 			reg = <1>;
 
 			seninf_port1_endpoint: endpoint {
-				data-lanes = <1 3>;
-				remote-endpoint = <&ov5695_endpoint>;
+				data-lanes = <1>;
+				link-frequencies = /bits/ 64 <390000000>;
+				remote-endpoint = <&ov02a10_endpoint>;
 			};
 		};
 	};
