@@ -9,8 +9,8 @@
 #include "hantro_vp8.h"
 #include "hantro_h1_regs.h"
 
-#define DUMMY_W		64
-#define DUMMY_H		64
+#define DUMMY_W		144
+#define DUMMY_H		96
 #define DUMMY_SRC_FMT	V4L2_PIX_FMT_YUYV
 #define DUMMY_DST_FMT	V4L2_PIX_FMT_VP8
 #define DUMMY_DST_SIZE	(32 * 1024)
@@ -366,18 +366,17 @@ static inline u32 enc_in_img_ctrl(struct hantro_ctx *ctx)
 {
 	struct v4l2_pix_format_mplane *pix_fmt = &ctx->src_fmt;
 	struct v4l2_rect *crop = &ctx->vp8_enc.src_crop;
-	unsigned int bytes_per_line, overfill_r, overfill_b;
+	unsigned int overfill_r, overfill_b;
 
 	/*
 	 * The hardware needs only the value for luma plane, because
 	 * values of other planes are calculated internally based on
 	 * format setting.
 	 */
-	bytes_per_line = pix_fmt->plane_fmt[0].bytesperline;
 	overfill_r = (pix_fmt->width - crop->width) / 4;
 	overfill_b = pix_fmt->height - crop->height;
 
-	return H1_REG_IN_IMG_CTRL_ROW_LEN(bytes_per_line)
+	return H1_REG_IN_IMG_CTRL_ROW_LEN(pix_fmt->width)
 			| H1_REG_IN_IMG_CTRL_OVRFLR_D4(overfill_r)
 			| H1_REG_IN_IMG_CTRL_OVRFLB_D4(overfill_b)
 			| H1_REG_IN_IMG_CTRL_FMT(ctx->vpu_src_fmt->enc_fmt);
@@ -599,18 +598,12 @@ int hantro_dummy_enc_init(struct hantro_dev *vpu)
 	formats = ctx->dev->variant->enc_fmts;
 	num_fmts = ctx->dev->variant->num_enc_fmts;
 	ctx->vpu_src_fmt = hantro_find_format(formats, num_fmts,
-					      V4L2_PIX_FMT_YUYV);
-	ctx->src_fmt.width = DUMMY_W;
-	ctx->src_fmt.height = DUMMY_H;
-	ctx->src_fmt.pixelformat = ctx->vpu_src_fmt->fourcc;
-	ctx->src_fmt.num_planes = 1;
-
-	ctx->src_fmt.plane_fmt[0].bytesperline = ctx->src_fmt.width * 12 / 8;
-	ctx->src_fmt.plane_fmt[0].sizeimage =
-		ctx->src_fmt.height * ctx->src_fmt.plane_fmt[0].bytesperline;
+					      DUMMY_SRC_FMT);
+	v4l2_fill_pixfmt_mp(&ctx->src_fmt, ctx->vpu_src_fmt->fourcc, DUMMY_W,
+			    DUMMY_H);
 
 	ctx->vpu_dst_fmt = hantro_find_format(formats, num_fmts,
-					      V4L2_PIX_FMT_VP8);
+					      DUMMY_DST_FMT);
 	ctx->dst_fmt.width = ctx->src_fmt.width;
 	ctx->dst_fmt.height = ctx->src_fmt.height;
 	ctx->dst_fmt.pixelformat = ctx->vpu_dst_fmt->fourcc;
