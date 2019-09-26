@@ -343,6 +343,7 @@
 		reset-gpios = <&pio 179 1>;
 		hpd-gpios = <&pio 9 0>;
 		extcon = <&usbc_extcon>;
+		no-laneswap;
 		port {
 			it6505_in: endpoint {
 				remote-endpoint = <&dpi_out>;

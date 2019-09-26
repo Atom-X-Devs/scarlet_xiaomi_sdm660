@@ -2,10 +2,10 @@
 /*
  * Copyright 2019 Google LLC
  *
- * Device-tree for Krane sku176.
+ * Device-tree for Krane rev3/rev4 sku0.
  *
- * SKU is a 8-bit value (0xb0 == 176):
- *  - Bits 7..4: Panel ID: 0xb (BOE)
+ * SKU is a 8-bit value (0x00 == 0):
+ *  - Bits 7..4: Panel ID: 0x0 (AUO)
  *  - Bits 3..0: SKU ID:   0x0 (default)
  */
 
@@ -13,13 +13,18 @@
 #include "mt8183-kukui-krane.dtsi"
 
 / {
-	model = "MediaTek krane sku176 board";
-	compatible = "google,krane-sku176", "google,krane", "mediatek,mt8183";
+	model = "MediaTek krane rev3/rev4 sku0 board";
+	compatible = "google,krane-rev3-sku0", "google,krane-rev4-sku0",
+		   "google,krane-sku0", "google,krane", "mediatek,mt8183";
+};
+
+&it6505dptx {
+	/delete-property/ no-laneswap;
 };
 
 &panel {
 	status = "okay";
-	compatible = "boe,tv101wum-nl6";
+	compatible = "auo,kd101n80-45na";
 	reg = <0>;
 	enable-gpios = <&pio 45 0>;
 	pinctrl-names = "default";
