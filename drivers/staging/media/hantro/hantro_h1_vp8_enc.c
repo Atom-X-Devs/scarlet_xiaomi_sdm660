@@ -620,12 +620,12 @@ int hantro_dummy_enc_init(struct hantro_dev *vpu)
 
 	ret = hantro_vp8_enc_init(ctx);
 	if (ret)
-		goto err_free_ctx;
+		return ret;
 
 	ret = hantro_aux_buf_alloc(vpu, &vpu->dummy_encode_src[0],
 				   ctx->src_fmt.plane_fmt[0].sizeimage);
 	if (ret)
-		goto err_free_ctx;
+		return ret;
 
 	memset(vpu->dummy_encode_src[0].cpu, 0,
 	       vpu->dummy_encode_src[0].size);
@@ -643,9 +643,6 @@ int hantro_dummy_enc_init(struct hantro_dev *vpu)
 
 err_free_src:
 	hantro_aux_buf_free(vpu, &vpu->dummy_encode_src[0]);
-err_free_ctx:
-	kfree(ctx);
-
 	return ret;
 }
 
@@ -659,6 +656,4 @@ void hantro_dummy_enc_release(struct hantro_dev *vpu)
 		hantro_aux_buf_free(vpu, &vpu->dummy_encode_src[0]);
 
 	hantro_vp8_enc_exit(ctx);
-
-	kfree(ctx);
 };
