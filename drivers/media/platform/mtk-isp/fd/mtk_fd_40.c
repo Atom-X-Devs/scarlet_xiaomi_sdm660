@@ -827,6 +827,7 @@ static void mtk_fd_device_run(void *priv)
 	struct mtk_fd_dev *fd = ctx->fd_dev;
 	struct vb2_v4l2_buffer *src_buf, *dst_buf;
 	struct fd_enq_param fd_param;
+	void *plane_vaddr;
 
 	src_buf = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
 	dst_buf = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
@@ -835,7 +836,8 @@ static void mtk_fd_device_run(void *priv)
 		vb2_dma_contig_plane_dma_addr(&src_buf->vb2_buf, 0);
 	fd_param.user_result.dma_addr =
 		vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
-	fd_param.output_vaddr = (u64)vb2_plane_vaddr(&dst_buf->vb2_buf, 0);
+	plane_vaddr = vb2_plane_vaddr(&dst_buf->vb2_buf, 0);
+	fd_param.output_vaddr = (u64)(unsigned long)plane_vaddr;
 	fd_param.user_param.src_img_fmt =
 		get_fd_img_fmt(ctx->src_fmt.pixelformat);
 	if (ctx->src_fmt.num_planes == 2)
@@ -846,7 +848,7 @@ static void mtk_fd_device_run(void *priv)
 	/* Complete request controls if any */
 	v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req, &ctx->hdl);
 
-	fd->output = (struct fd_user_output *)fd_param.output_vaddr;
+	fd->output = plane_vaddr;
 	mtk_fd_hw_job_exec(fd, &fd_param);
 }
 
