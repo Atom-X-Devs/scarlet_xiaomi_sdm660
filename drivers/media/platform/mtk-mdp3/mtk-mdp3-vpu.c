@@ -185,8 +185,8 @@ int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct platform_device *pdev,
 		goto err_mem_size;
 	}
 
-	dev_info(&mdp->pdev->dev,
-		 "VPU work:%pK pa:%pad sz:%zx pool:%pa sz:%zx (mem sz:%zx)",
+	dev_dbg(&mdp->pdev->dev,
+		"VPU work:%pK pa:%pad sz:%zx pool:%pa sz:%zx (mem sz:%zx)",
 		vpu->work, &vpu->work_addr, vpu->work_size,
 		&pool, pool_size, mem_size);
 	vpu->pool = (struct mdp_config_pool *)pool;

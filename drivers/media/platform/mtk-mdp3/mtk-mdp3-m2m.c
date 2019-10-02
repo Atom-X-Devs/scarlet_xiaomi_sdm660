@@ -694,7 +694,7 @@ static int mdp_m2m_open(struct file *file)
 
 	mutex_unlock(&mdp->m2m_lock);
 
-	mdp_dbg(0, "%s [%d]", dev_name(&mdp->pdev->dev), ctx->id);
+	mdp_dbg(1, "%s [%d]", dev_name(&mdp->pdev->dev), ctx->id);
 
 	return 0;
 
@@ -731,7 +731,7 @@ static int mdp_m2m_release(struct file *file)
 	ida_free(&mdp->mdp_ida, ctx->id);
 	mutex_unlock(&mdp->m2m_lock);
 
-	mdp_dbg(0, "%s [%d]", dev_name(&mdp->pdev->dev), ctx->id);
+	mdp_dbg(1, "%s [%d]", dev_name(&mdp->pdev->dev), ctx->id);
 	kfree(ctx);
 
 	return 0;
