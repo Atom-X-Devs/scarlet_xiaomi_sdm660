@@ -486,16 +486,6 @@ static int vidioc_vdec_s_fmt(struct file *file, void *priv,
 
 		ctx->last_decoded_picinfo = ctx->picinfo;
 
-		printk("S_FMT on %s: ",
-		       f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ?
-			       "OUTPUT" :
-			       "CAPTURE");
-
-		printk("%d %d %d %d %d\n",
-		       ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes,
-		       ctx->picinfo.fb_sz[0], ctx->picinfo.fb_sz[1],
-		       ctx->picinfo.buf_w, ctx->picinfo.buf_h);
-
 		if (ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes == 1) {
 			ctx->q_data[MTK_Q_DATA_DST].sizeimage[0] =
 				ctx->picinfo.fb_sz[0] +
