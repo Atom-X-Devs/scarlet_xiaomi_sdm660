@@ -357,7 +357,7 @@ static int friio_ext_ctl(struct dvb_usb_device *d,
 	ret += i2c_transfer(&d->i2c_adap, &msg, 1);
 
 	/* send 32bit(satur, R, G, B) data in serial */
-	mask = 1 << 31;
+	mask = 1UL << 31;
 	for (i = 0; i < 32; i++) {
 		buf[1] = power | FRIIO_CTL_STROBE;
 		if (sat_color & mask)
@@ -507,7 +507,7 @@ static int friio_frontend_attach(struct dvb_usb_adapter *adap)
 	priv->i2c_client_demod = cl;
 	priv->tuner_adap.algo = &friio_tuner_i2c_algo;
 	priv->tuner_adap.dev.parent = &d->udev->dev;
-	strlcpy(priv->tuner_adap.name, d->name, sizeof(priv->tuner_adap.name));
+	strscpy(priv->tuner_adap.name, d->name, sizeof(priv->tuner_adap.name));
 	strlcat(priv->tuner_adap.name, "-tuner", sizeof(priv->tuner_adap.name));
 	priv->demod_sub_i2c = &priv->tuner_adap;
 	i2c_set_adapdata(&priv->tuner_adap, d);

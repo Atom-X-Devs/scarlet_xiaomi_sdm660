@@ -1316,7 +1316,7 @@ static void buffer_copy(struct cx231xx *dev, char *data, int len, struct urb *ur
 
 		buf->vb.state = VIDEOBUF_DONE;
 		buf->vb.field_count++;
-		v4l2_get_timestamp(&buf->vb.ts);
+		buf->vb.ts = ktime_get_ns();
 		list_del(&buf->vb.queue);
 		wake_up(&buf->vb.done);
 		dma_q->mpeg_buffer_completed = 0;
@@ -1347,7 +1347,7 @@ static void buffer_filled(char *data, int len, struct urb *urb,
 	memcpy(vbuf, data, len);
 	buf->vb.state = VIDEOBUF_DONE;
 	buf->vb.field_count++;
-	v4l2_get_timestamp(&buf->vb.ts);
+	buf->vb.ts = ktime_get_ns();
 	list_del(&buf->vb.queue);
 	wake_up(&buf->vb.done);
 }
@@ -1583,7 +1583,7 @@ static int vidioc_enum_fmt_vid_cap(struct file *file, void  *priv,
 	if (f->index != 0)
 		return -EINVAL;
 
-	strlcpy(f->description, "MPEG", sizeof(f->description));
+	strscpy(f->description, "MPEG", sizeof(f->description));
 	f->pixelformat = V4L2_PIX_FMT_MPEG;
 
 	return 0;

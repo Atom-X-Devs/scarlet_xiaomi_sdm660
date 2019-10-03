@@ -31,6 +31,7 @@
 #include <linux/sched/mm.h>
 #include "intel_drv.h"
 #include "intel_guc_submission.h"
+#include "intel_psr.h"
 
 static inline struct drm_i915_private *node_to_i915(struct drm_info_node *node)
 {
@@ -1788,6 +1789,8 @@ static int i915_emon_status(struct seq_file *m, void *unused)
 	if (!IS_GEN5(dev_priv))
 		return -ENODEV;
 
+	intel_runtime_pm_get(dev_priv);
+
 	ret = mutex_lock_interruptible(&dev->struct_mutex);
 	if (ret)
 		return ret;
@@ -1801,6 +1804,8 @@ static int i915_emon_status(struct seq_file *m, void *unused)
 	seq_printf(m, "Chipset power: %ld\n", chipset);
 	seq_printf(m, "GFX power: %ld\n", gfx);
 	seq_printf(m, "Total power: %ld\n", chipset + gfx);
+
+	intel_runtime_pm_put(dev_priv);
 
 	return 0;
 }
@@ -2645,7 +2650,8 @@ DEFINE_SHOW_ATTRIBUTE(i915_psr_sink_status);
 static void
 psr_source_status(struct drm_i915_private *dev_priv, struct seq_file *m)
 {
-	u32 val, psr_status;
+	u32 val, status_val;
+	const char *status = "unknown";
 
 	if (dev_priv->psr.psr2_enabled) {
 		static const char * const live_status[] = {
@@ -2661,14 +2667,11 @@ psr_source_status(struct drm_i915_private *dev_priv, struct seq_file *m)
 			"BUF_ON",
 			"TG_ON"
 		};
-		psr_status = I915_READ(EDP_PSR2_STATUS);
-		val = (psr_status & EDP_PSR2_STATUS_STATE_MASK) >>
-			EDP_PSR2_STATUS_STATE_SHIFT;
-		if (val < ARRAY_SIZE(live_status)) {
-			seq_printf(m, "Source PSR status: 0x%x [%s]\n",
-				   psr_status, live_status[val]);
-			return;
-		}
+		val = I915_READ(EDP_PSR2_STATUS);
+		status_val = (val & EDP_PSR2_STATUS_STATE_MASK) >>
+			      EDP_PSR2_STATUS_STATE_SHIFT;
+		if (status_val < ARRAY_SIZE(live_status))
+			status = live_status[status_val];
 	} else {
 		static const char * const live_status[] = {
 			"IDLE",
@@ -2680,74 +2683,98 @@ psr_source_status(struct drm_i915_private *dev_priv, struct seq_file *m)
 			"SRDOFFACK",
 			"SRDENT_ON",
 		};
-		psr_status = I915_READ(EDP_PSR_STATUS);
-		val = (psr_status & EDP_PSR_STATUS_STATE_MASK) >>
-			EDP_PSR_STATUS_STATE_SHIFT;
-		if (val < ARRAY_SIZE(live_status)) {
-			seq_printf(m, "Source PSR status: 0x%x [%s]\n",
-				   psr_status, live_status[val]);
-			return;
-		}
+		val = I915_READ(EDP_PSR_STATUS);
+		status_val = (val & EDP_PSR_STATUS_STATE_MASK) >>
+			      EDP_PSR_STATUS_STATE_SHIFT;
+		if (status_val < ARRAY_SIZE(live_status))
+			status = live_status[status_val];
 	}
 
-	seq_printf(m, "Source PSR status: 0x%x [%s]\n", psr_status, "unknown");
+	seq_printf(m, "Source PSR status: %s [0x%08x]\n", status, val);
 }
 
 static int i915_edp_psr_status(struct seq_file *m, void *data)
 {
 	struct drm_i915_private *dev_priv = node_to_i915(m->private);
-	u32 psrperf = 0;
-	bool enabled = false;
-	bool sink_support;
+	struct i915_psr *psr = &dev_priv->psr;
+	const char *status;
+	bool enabled;
+	u32 val;
 
 	if (!HAS_PSR(dev_priv))
 		return -ENODEV;
+	seq_printf(m, "Sink support: %s", yesno(psr->sink_support));
+	if (psr->dp)
+		seq_printf(m, " [0x%02x]", psr->dp->psr_dpcd[0]);
+	seq_puts(m, "\n");
 
-	sink_support = dev_priv->psr.sink_support;
-	seq_printf(m, "Sink_Support: %s\n", yesno(sink_support));
-	if (!sink_support)
+	if (!psr->sink_support)
 		return 0;
 
 	intel_runtime_pm_get(dev_priv);
-
-	mutex_lock(&dev_priv->psr.lock);
-	seq_printf(m, "PSR mode: %s\n",
-		   dev_priv->psr.psr2_enabled ? "PSR2" : "PSR1");
-	seq_printf(m, "Enabled: %s\n", yesno(dev_priv->psr.enabled));
-	seq_printf(m, "Busy frontbuffer bits: 0x%03x\n",
-		   dev_priv->psr.busy_frontbuffer_bits);
-
-	if (dev_priv->psr.psr2_enabled)
-		enabled = I915_READ(EDP_PSR2_CTL) & EDP_PSR2_ENABLE;
+	mutex_lock(&psr->lock);
+	if (psr->enabled)
+		status = psr->psr2_enabled ? "PSR2 enabled" : "PSR1 enabled";
 	else
-		enabled = I915_READ(EDP_PSR_CTL) & EDP_PSR_ENABLE;
+		status = "disabled";
+	seq_printf(m, "PSR mode: %s\n", status);
 
-	seq_printf(m, "Main link in standby mode: %s\n",
-		   yesno(dev_priv->psr.link_standby));
+	if (!psr->enabled)
+		goto unlock;
 
-	seq_printf(m, "HW Enabled & Active bit: %s\n", yesno(enabled));
+	if (psr->psr2_enabled) {
+		val = I915_READ(EDP_PSR2_CTL);
+		enabled = val & EDP_PSR2_ENABLE;
+	} else {
+		val = I915_READ(EDP_PSR_CTL);
+		enabled = val & EDP_PSR_ENABLE;
+	}
+	seq_printf(m, "Source PSR ctl: %s [0x%08x]\n",
+		   enableddisabled(enabled), val);
+	psr_source_status(dev_priv, m);
+	seq_printf(m, "Busy frontbuffer bits: 0x%08x\n",
+		   psr->busy_frontbuffer_bits);
 
 	/*
 	 * SKL+ Perf counter is reset to 0 everytime DC state is entered
 	 */
 	if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv)) {
-		psrperf = I915_READ(EDP_PSR_PERF_CNT) &
-			EDP_PSR_PERF_CNT_MASK;
-
-		seq_printf(m, "Performance_Counter: %u\n", psrperf);
+		val = I915_READ(EDP_PSR_PERF_CNT) & EDP_PSR_PERF_CNT_MASK;
+		seq_printf(m, "Performance counter: %u\n", val);
 	}
-
-	psr_source_status(dev_priv, m);
-	mutex_unlock(&dev_priv->psr.lock);
-
-	if (READ_ONCE(dev_priv->psr.debug) & I915_PSR_DEBUG_IRQ) {
+	if (psr->debug & I915_PSR_DEBUG_IRQ) {
 		seq_printf(m, "Last attempted entry at: %lld\n",
-			   dev_priv->psr.last_entry_attempt);
-		seq_printf(m, "Last exit at: %lld\n",
-			   dev_priv->psr.last_exit);
+			   psr->last_entry_attempt);
+		seq_printf(m, "Last exit at: %lld\n", psr->last_exit);
 	}
 
+	if (psr->psr2_enabled) {
+		u32 su_frames_val[3];
+		int frame;
+
+		/*
+		 * Reading all 3 registers before hand to minimize crossing a
+		 * frame boundary between register reads
+		 */
+		for (frame = 0; frame < PSR2_SU_STATUS_FRAMES; frame += 3)
+			su_frames_val[frame / 3] = I915_READ(PSR2_SU_STATUS(frame));
+
+		seq_puts(m, "Frame:\tPSR2 SU blocks:\n");
+
+		for (frame = 0; frame < PSR2_SU_STATUS_FRAMES; frame++) {
+			u32 su_blocks;
+
+			su_blocks = su_frames_val[frame / 3] &
+				    PSR2_SU_STATUS_MASK(frame);
+			su_blocks = su_blocks >> PSR2_SU_STATUS_SHIFT(frame);
+			seq_printf(m, "%d\t%d\n", frame, su_blocks);
+		}
+	}
+
+unlock:
+	mutex_unlock(&psr->lock);
 	intel_runtime_pm_put(dev_priv);
+
 	return 0;
 }
 
@@ -2755,7 +2782,6 @@ static int
 i915_edp_psr_debug_set(void *data, u64 val)
 {
 	struct drm_i915_private *dev_priv = data;
-	struct drm_modeset_acquire_ctx ctx;
 	int ret;
 
 	if (!CAN_PSR(dev_priv))
@@ -2765,18 +2791,7 @@ i915_edp_psr_debug_set(void *data, u64 val)
 
 	intel_runtime_pm_get(dev_priv);
 
-	drm_modeset_acquire_init(&ctx, DRM_MODESET_ACQUIRE_INTERRUPTIBLE);
-
-retry:
-	ret = intel_psr_set_debugfs_mode(dev_priv, &ctx, val);
-	if (ret == -EDEADLK) {
-		ret = drm_modeset_backoff(&ctx);
-		if (!ret)
-			goto retry;
-	}
-
-	drm_modeset_drop_locks(&ctx);
-	drm_modeset_acquire_fini(&ctx);
+	ret = intel_psr_debug_set(dev_priv, val);
 
 	intel_runtime_pm_put(dev_priv);
 
@@ -4189,7 +4204,7 @@ i915_drop_caches_set(void *data, u64 val)
 						     I915_WAIT_LOCKED,
 						     MAX_SCHEDULE_TIMEOUT);
 
-		if (val & DROP_RESET_SEQNO) {
+		if (ret == 0 && val & DROP_RESET_SEQNO) {
 			intel_runtime_pm_get(i915);
 			ret = i915_gem_set_global_seqno(&i915->drm, 1);
 			intel_runtime_pm_put(i915);
@@ -4570,6 +4585,13 @@ static int i915_hpd_storm_ctl_show(struct seq_file *m, void *data)
 {
 	struct drm_i915_private *dev_priv = m->private;
 	struct i915_hotplug *hotplug = &dev_priv->hotplug;
+
+	/* Synchronize with everything first in case there's been an HPD
+	 * storm, but we haven't finished handling it in the kernel yet
+	 */
+	synchronize_irq(dev_priv->drm.irq);
+	flush_work(&dev_priv->hotplug.dig_port_work);
+	flush_delayed_work(&dev_priv->hotplug.hotplug_work);
 
 	seq_printf(m, "Threshold: %d\n", hotplug->hpd_storm_threshold);
 	seq_printf(m, "Detected: %s\n",

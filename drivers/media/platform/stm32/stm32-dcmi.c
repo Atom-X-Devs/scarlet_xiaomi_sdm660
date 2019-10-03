@@ -808,6 +808,9 @@ static int dcmi_try_fmt(struct stm32_dcmi *dcmi, struct v4l2_format *f,
 
 	sd_fmt = find_format_by_fourcc(dcmi, pix->pixelformat);
 	if (!sd_fmt) {
+		if (!dcmi->num_of_sd_formats)
+			return -ENODATA;
+
 		sd_fmt = dcmi->sd_formats[dcmi->num_of_sd_formats - 1];
 		pix->pixelformat = sd_fmt->fourcc;
 	}
@@ -986,6 +989,9 @@ static int dcmi_set_sensor_format(struct stm32_dcmi *dcmi,
 
 	sd_fmt = find_format_by_fourcc(dcmi, pix->pixelformat);
 	if (!sd_fmt) {
+		if (!dcmi->num_of_sd_formats)
+			return -ENODATA;
+
 		sd_fmt = dcmi->sd_formats[dcmi->num_of_sd_formats - 1];
 		pix->pixelformat = sd_fmt->fourcc;
 	}
@@ -1147,10 +1153,10 @@ static int dcmi_s_selection(struct file *file, void *priv,
 static int dcmi_querycap(struct file *file, void *priv,
 			 struct v4l2_capability *cap)
 {
-	strlcpy(cap->driver, DRV_NAME, sizeof(cap->driver));
-	strlcpy(cap->card, "STM32 Camera Memory Interface",
+	strscpy(cap->driver, DRV_NAME, sizeof(cap->driver));
+	strscpy(cap->card, "STM32 Camera Memory Interface",
 		sizeof(cap->card));
-	strlcpy(cap->bus_info, "platform:dcmi", sizeof(cap->bus_info));
+	strscpy(cap->bus_info, "platform:dcmi", sizeof(cap->bus_info));
 	return 0;
 }
 
@@ -1161,7 +1167,7 @@ static int dcmi_enum_input(struct file *file, void *priv,
 		return -EINVAL;
 
 	i->type = V4L2_INPUT_TYPE_CAMERA;
-	strlcpy(i->name, "Camera", sizeof(i->name));
+	strscpy(i->name, "Camera", sizeof(i->name));
 	return 0;
 }
 
@@ -1541,7 +1547,7 @@ static void dcmi_graph_notify_unbind(struct v4l2_async_notifier *notifier,
 
 	dev_dbg(dcmi->dev, "Removing %s\n", video_device_node_name(dcmi->vdev));
 
-	/* Checks internaly if vdev has been init or not */
+	/* Checks internally if vdev has been init or not */
 	video_unregister_device(dcmi->vdev);
 }
 
@@ -1587,7 +1593,6 @@ static int dcmi_graph_parse(struct stm32_dcmi *dcmi, struct device_node *node)
 
 static int dcmi_graph_init(struct stm32_dcmi *dcmi)
 {
-	struct v4l2_async_subdev **subdevs = NULL;
 	int ret;
 
 	/* Parse the graph to extract a list of subdevice DT nodes. */
@@ -1597,23 +1602,21 @@ static int dcmi_graph_init(struct stm32_dcmi *dcmi)
 		return ret;
 	}
 
-	/* Register the subdevices notifier. */
-	subdevs = devm_kzalloc(dcmi->dev, sizeof(*subdevs), GFP_KERNEL);
-	if (!subdevs) {
+	v4l2_async_notifier_init(&dcmi->notifier);
+
+	ret = v4l2_async_notifier_add_subdev(&dcmi->notifier,
+					     &dcmi->entity.asd);
+	if (ret) {
 		of_node_put(dcmi->entity.node);
-		return -ENOMEM;
+		return ret;
 	}
 
-	subdevs[0] = &dcmi->entity.asd;
-
-	dcmi->notifier.subdevs = subdevs;
-	dcmi->notifier.num_subdevs = 1;
 	dcmi->notifier.ops = &dcmi_graph_notify_ops;
 
 	ret = v4l2_async_notifier_register(&dcmi->v4l2_dev, &dcmi->notifier);
 	if (ret < 0) {
 		dev_err(dcmi->dev, "Notifier registration failed\n");
-		of_node_put(dcmi->entity.node);
+		v4l2_async_notifier_cleanup(&dcmi->notifier);
 		return ret;
 	}
 
@@ -1624,7 +1627,7 @@ static int dcmi_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *match = NULL;
-	struct v4l2_fwnode_endpoint ep;
+	struct v4l2_fwnode_endpoint ep = { .bus_type = 0 };
 	struct stm32_dcmi *dcmi;
 	struct vb2_queue *q;
 	struct dma_chan *chan;
@@ -1645,7 +1648,7 @@ static int dcmi_probe(struct platform_device *pdev)
 	dcmi->rstc = devm_reset_control_get_exclusive(&pdev->dev, NULL);
 	if (IS_ERR(dcmi->rstc)) {
 		dev_err(&pdev->dev, "Could not get reset control\n");
-		return -ENODEV;
+		return PTR_ERR(dcmi->rstc);
 	}
 
 	/* Get bus characteristics from devicetree */
@@ -1660,10 +1663,10 @@ static int dcmi_probe(struct platform_device *pdev)
 	of_node_put(np);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not parse the endpoint\n");
-		return -ENODEV;
+		return ret;
 	}
 
-	if (ep.bus_type == V4L2_MBUS_CSI2) {
+	if (ep.bus_type == V4L2_MBUS_CSI2_DPHY) {
 		dev_err(&pdev->dev, "CSI bus not supported\n");
 		return -ENODEV;
 	}
@@ -1673,8 +1676,9 @@ static int dcmi_probe(struct platform_device *pdev)
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq <= 0) {
-		dev_err(&pdev->dev, "Could not get irq\n");
-		return -ENODEV;
+		if (irq != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Could not get irq\n");
+		return irq ? irq : -ENXIO;
 	}
 
 	dcmi->res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1694,12 +1698,13 @@ static int dcmi_probe(struct platform_device *pdev)
 					dev_name(&pdev->dev), dcmi);
 	if (ret) {
 		dev_err(&pdev->dev, "Unable to request irq %d\n", irq);
-		return -ENODEV;
+		return ret;
 	}
 
 	mclk = devm_clk_get(&pdev->dev, "mclk");
 	if (IS_ERR(mclk)) {
-		dev_err(&pdev->dev, "Unable to get mclk\n");
+		if (PTR_ERR(mclk) != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Unable to get mclk\n");
 		return PTR_ERR(mclk);
 	}
 
@@ -1736,7 +1741,7 @@ static int dcmi_probe(struct platform_device *pdev)
 	dcmi->vdev->fops = &dcmi_fops;
 	dcmi->vdev->v4l2_dev = &dcmi->v4l2_dev;
 	dcmi->vdev->queue = &dcmi->queue;
-	strlcpy(dcmi->vdev->name, KBUILD_MODNAME, sizeof(dcmi->vdev->name));
+	strscpy(dcmi->vdev->name, KBUILD_MODNAME, sizeof(dcmi->vdev->name));
 	dcmi->vdev->release = video_device_release;
 	dcmi->vdev->ioctl_ops = &dcmi_ioctl_ops;
 	dcmi->vdev->lock = &dcmi->lock;
@@ -1770,7 +1775,7 @@ static int dcmi_probe(struct platform_device *pdev)
 	ret = reset_control_assert(dcmi->rstc);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to assert the reset line\n");
-		goto err_device_release;
+		goto err_cleanup;
 	}
 
 	usleep_range(3000, 5000);
@@ -1778,7 +1783,7 @@ static int dcmi_probe(struct platform_device *pdev)
 	ret = reset_control_deassert(dcmi->rstc);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to deassert the reset line\n");
-		goto err_device_release;
+		goto err_cleanup;
 	}
 
 	dev_info(&pdev->dev, "Probe done\n");
@@ -1789,6 +1794,8 @@ static int dcmi_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_cleanup:
+	v4l2_async_notifier_cleanup(&dcmi->notifier);
 err_device_release:
 	video_device_release(dcmi->vdev);
 err_device_unregister:
@@ -1806,6 +1813,7 @@ static int dcmi_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 
 	v4l2_async_notifier_unregister(&dcmi->notifier);
+	v4l2_async_notifier_cleanup(&dcmi->notifier);
 	v4l2_device_unregister(&dcmi->v4l2_dev);
 
 	dma_release_channel(dcmi->dma_chan);

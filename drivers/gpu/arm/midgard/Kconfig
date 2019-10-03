@@ -45,6 +45,7 @@ config MALI_GATOR_SUPPORT
 config MALI_MIDGARD_DVFS
 	bool "Enable legacy DVFS"
 	depends on MALI_MIDGARD && !MALI_DEVFREQ
+	depends on BROKEN
 	default n
 	help
 	  Choose this option to enable legacy DVFS in the Mali Midgard DDK.

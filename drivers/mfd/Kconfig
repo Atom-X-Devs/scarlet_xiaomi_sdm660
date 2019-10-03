@@ -16,7 +16,7 @@ config MFD_CS5535
 	depends on PCI && (X86_32 || (X86 && COMPILE_TEST))
 	---help---
 	  This is the core driver for CS5535/CS5536 MFD functions.  This is
-          necessary for using the board's GPIO and MFGPT functionality.
+	  necessary for using the board's GPIO and MFGPT functionality.
 
 config MFD_ALTERA_A10SR
 	bool "Altera Arria10 DevKit System Resource chip"
@@ -190,38 +190,18 @@ config MFD_AXP20X_RSB
 	  components like regulators or the PEK (Power Enable Key) under the
 	  corresponding menus.
 
-config MFD_CROS_EC
-	tristate "ChromeOS Embedded Controller"
+config MFD_CROS_EC_DEV
+	tristate "ChromeOS Embedded Controller multifunction device"
 	select MFD_CORE
-	select CHROME_PLATFORMS
-	select CROS_EC_PROTO
-	depends on X86 || ARM || ARM64 || COMPILE_TEST
+	depends on CROS_EC
+	default CROS_EC
 	help
-	  If you say Y here you get support for the ChromeOS Embedded
-	  Controller (EC) providing keyboard, battery and power services.
-	  You also need to enable the driver for the bus you are using. The
-	  protocol for talking to the EC is defined by the bus driver.
-
-config MFD_CROS_EC_PD_UPDATE
-	tristate "ChromeOS Embedded Controller PD device update driver"
-	depends on MFD_CROS_EC
-
-	help
-	  If you say Y here, you get support for updating ChromeOS
-	  PD device firmware.
+	  Select this to get support for ChromeOS Embedded Controller
+	  sub-devices. This driver will instantiate additional drivers such
+	  as RTC, USBPD, etc. but you have to select the individual drivers.
 
 	  To compile this driver as a module, choose M here: the module will be
-	  called cros_ec_pd_update.
-
-config MFD_CROS_EC_CHARDEV
-        tristate "Chrome OS Embedded Controller userspace device interface"
-        depends on MFD_CROS_EC
-        select CROS_EC_CTL
-        ---help---
-          This driver adds support to talk with the ChromeOS EC from userspace.
-
-          If you have a supported Chromebook, choose Y or M here.
-          The module will be called cros_ec_dev.
+	  called cros-ec-dev.
 
 config MFD_MADERA
 	tristate "Cirrus Logic Madera codecs"
@@ -520,10 +500,10 @@ config INTEL_SOC_PMIC
 	bool "Support for Crystal Cove PMIC"
 	depends on ACPI && HAS_IOMEM && I2C=y && GPIOLIB && COMMON_CLK
 	depends on X86 || COMPILE_TEST
+	depends on I2C_DESIGNWARE_PLATFORM=y
 	select MFD_CORE
 	select REGMAP_I2C
 	select REGMAP_IRQ
-	select I2C_DESIGNWARE_PLATFORM
 	help
 	  Select this option to enable support for Crystal Cove PMIC
 	  on some Intel SoC systems. The PMIC provides ADC, GPIO,
@@ -549,10 +529,10 @@ config INTEL_SOC_PMIC_CHTWC
 	bool "Support for Intel Cherry Trail Whiskey Cove PMIC"
 	depends on ACPI && HAS_IOMEM && I2C=y && COMMON_CLK
 	depends on X86 || COMPILE_TEST
+	depends on I2C_DESIGNWARE_PLATFORM=y
 	select MFD_CORE
 	select REGMAP_I2C
 	select REGMAP_IRQ
-	select I2C_DESIGNWARE_PLATFORM
 	help
 	  Select this option to enable support for the Intel Cherry Trail
 	  Whiskey Cove PMIC found on some Intel Cherry Trail systems.
@@ -869,7 +849,7 @@ config MFD_CPCAP
 	  At least Motorola Droid 4 is known to use CPCAP.
 
 config MFD_VIPERBOARD
-        tristate "Nano River Technologies Viperboard"
+	tristate "Nano River Technologies Viperboard"
 	select MFD_CORE
 	depends on USB
 	default n
@@ -905,15 +885,15 @@ config PCF50633_ADC
 	tristate "NXP PCF50633 ADC"
 	depends on MFD_PCF50633
 	help
-	 Say yes here if you want to include support for ADC in the
-	 NXP PCF50633 chip.
+	  Say yes here if you want to include support for ADC in the
+	  NXP PCF50633 chip.
 
 config PCF50633_GPIO
 	tristate "NXP PCF50633 GPIO"
 	depends on MFD_PCF50633
 	help
-	 Say yes here if you want to include support GPIO for pins on
-	 the PCF50633 chip.
+	  Say yes here if you want to include support GPIO for pins on
+	  the PCF50633 chip.
 
 config UCB1400_CORE
 	tristate "Philips UCB1400 Core driver"
@@ -1028,7 +1008,7 @@ config MFD_RN5T618
 	select REGMAP_I2C
 	help
 	  Say yes here to add support for the Ricoh RN5T567,
-          RN5T618, RC5T619 PMIC.
+	  RN5T618, RC5T619 PMIC.
 	  This driver provides common support for accessing the device,
 	  additional drivers must be enabled in order to use the
 	  functionality of the device.
@@ -1072,9 +1052,9 @@ config MFD_SM501_GPIO
 	bool "Export GPIO via GPIO layer"
 	depends on MFD_SM501 && GPIOLIB
 	 ---help---
-	 This option uses the gpio library layer to export the 64 GPIO
-	 lines on the SM501. The platform data is used to supply the
-	 base number for the first GPIO line to register.
+	  This option uses the gpio library layer to export the 64 GPIO
+	  lines on the SM501. The platform data is used to supply the
+	  base number for the first GPIO line to register.
 
 config MFD_SKY81452
 	tristate "Skyworks Solutions SKY81452"
@@ -1089,16 +1069,16 @@ config MFD_SKY81452
 	  will be called sky81452.
 
 config MFD_SMSC
-       bool "SMSC ECE1099 series chips"
-       depends on I2C=y
-       select MFD_CORE
-       select REGMAP_I2C
-       help
-        If you say yes here you get support for the
-        ece1099 chips from SMSC.
+	bool "SMSC ECE1099 series chips"
+	depends on I2C=y
+	select MFD_CORE
+	select REGMAP_I2C
+	help
+	  If you say yes here you get support for the
+	  ece1099 chips from SMSC.
 
-        To compile this driver as a module, choose M here: the
-        module will be called smsc.
+	  To compile this driver as a module, choose M here: the
+	  module will be called smsc.
 
 config MFD_SC27XX_PMIC
 	tristate "Spreadtrum SC27xx PMICs"
@@ -1164,12 +1144,12 @@ config AB8500_CORE
 	  This chip embeds various other multimedia funtionalities as well.
 
 config AB8500_DEBUG
-       bool "Enable debug info via debugfs"
-       depends on AB8500_GPADC && DEBUG_FS
-       default y if DEBUG_FS
-       help
-         Select this option if you want debug information using the debug
-         filesystem, debugfs.
+	bool "Enable debug info via debugfs"
+	depends on AB8500_GPADC && DEBUG_FS
+	default y if DEBUG_FS
+	help
+	  Select this option if you want debug information using the debug
+	  filesystem, debugfs.
 
 config AB8500_GPADC
 	bool "ST-Ericsson AB8500 GPADC driver"
@@ -1414,9 +1394,9 @@ config MFD_TPS65217
 config MFD_TPS68470
 	bool "TI TPS68470 Power Management / LED chips"
 	depends on ACPI && I2C=y
+	depends on I2C_DESIGNWARE_PLATFORM=y
 	select MFD_CORE
 	select REGMAP_I2C
-	select I2C_DESIGNWARE_PLATFORM
 	help
 	  If you say yes here you get support for the TPS68470 series of
 	  Power Management / LED chips.

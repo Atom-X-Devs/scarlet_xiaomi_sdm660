@@ -144,15 +144,15 @@ struct ftrace_likely_data {
 #define __visible
 #endif
 
-#ifndef __nocfi
-#define __nocfi
-#endif
-
 /*
  * Assume alignment of return value.
  */
 #ifndef __assume_aligned
 #define __assume_aligned(a, ...)
+#endif
+
+#ifndef asm_volatile_goto
+#define asm_volatile_goto(x...) asm goto(x)
 #endif
 
 /* Are two types/vars the same type (ignoring qualifiers)? */
@@ -178,6 +178,10 @@ struct ftrace_likely_data {
 
 #ifndef __diag_GCC
 #define __diag_GCC(version, severity, string)
+#endif
+
+#ifndef __copy
+# define __copy(symbol)
 #endif
 
 #define __diag_push()	__diag(push)

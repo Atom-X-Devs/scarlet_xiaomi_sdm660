@@ -110,67 +110,58 @@ static bool intel_dp_aux_set_pwm_freq(struct intel_connector *connector)
 {
 	struct drm_i915_private *dev_priv = to_i915(connector->base.dev);
 	struct intel_dp *intel_dp = enc_to_intel_dp(&connector->encoder->base);
-	int freq, fxp, fxp_min, fxp_max, fxp_actual, f = 1;
-	u8 pn, pn_min, pn_max;
+	int freq, fxp, f, fxp_actual, fxp_min, fxp_max;
+	u8 pn;
 
-	/* Find desired value of (F x P)
-	 * Note that, if F x P is out of supported range, the maximum value or
-	 * minimum value will applied automatically. So no need to check that.
-	 */
 	freq = dev_priv->vbt.backlight.pwm_freq_hz;
-	DRM_DEBUG_KMS("VBT defined backlight frequency %u Hz\n", freq);
 	if (!freq) {
 		DRM_DEBUG_KMS("Use panel default backlight frequency\n");
 		return false;
 	}
 
+	if (drm_dp_dpcd_readb(&intel_dp->aux, DP_EDP_PWMGEN_BIT_COUNT,
+			      &pn) < 0) {
+		DRM_DEBUG_KMS("Failed to read aux pwmgen bit count\n");
+		return false;
+	}
+
 	fxp = DIV_ROUND_CLOSEST(KHz(DP_EDP_BACKLIGHT_FREQ_BASE_KHZ), freq);
+	f = clamp(DIV_ROUND_CLOSEST(fxp, 1 << pn), 1, 255);
+	fxp_actual = f << pn;
 
-	/* Use highest possible value of Pn for more granularity of brightness
-	 * adjustment while satifying the conditions below.
-	 * - Pn is in the range of Pn_min and Pn_max
-	 * - F is in the range of 1 and 255
-	 * - FxP is within 25% of desired value.
-	 *   Note: 25% is arbitrary value and may need some tweak.
-	 */
-	if (drm_dp_dpcd_readb(&intel_dp->aux,
-			       DP_EDP_PWMGEN_BIT_COUNT_CAP_MIN, &pn_min) != 1) {
-		DRM_DEBUG_KMS("Failed to read pwmgen bit count cap min\n");
-		return false;
-	}
-	if (drm_dp_dpcd_readb(&intel_dp->aux,
-			       DP_EDP_PWMGEN_BIT_COUNT_CAP_MAX, &pn_max) != 1) {
-		DRM_DEBUG_KMS("Failed to read pwmgen bit count cap max\n");
-		return false;
-	}
-	pn_min &= DP_EDP_PWMGEN_BIT_COUNT_MASK;
-	pn_max &= DP_EDP_PWMGEN_BIT_COUNT_MASK;
-
+	/* Ensure frequency is within 25% of desired value */
 	fxp_min = DIV_ROUND_CLOSEST(fxp * 3, 4);
 	fxp_max = DIV_ROUND_CLOSEST(fxp * 5, 4);
-	if (fxp_min < (1 << pn_min) || (255 << pn_max) < fxp_max) {
-		DRM_DEBUG_KMS("VBT defined backlight frequency out of range\n");
+
+	if (fxp_min > fxp_actual || fxp_actual > fxp_max) {
+		DRM_DEBUG_KMS("Actual frequency out of range\n");
 		return false;
 	}
 
-	for (pn = pn_max; pn >= pn_min; pn--) {
-		f = clamp(DIV_ROUND_CLOSEST(fxp, 1 << pn), 1, 255);
-		fxp_actual = f << pn;
-		if (fxp_min <= fxp_actual && fxp_actual <= fxp_max)
-			break;
-	}
-
-	if (drm_dp_dpcd_writeb(&intel_dp->aux,
-			       DP_EDP_PWMGEN_BIT_COUNT, pn) < 0) {
-		DRM_DEBUG_KMS("Failed to write aux pwmgen bit count\n");
-		return false;
-	}
 	if (drm_dp_dpcd_writeb(&intel_dp->aux,
 			       DP_EDP_BACKLIGHT_FREQ_SET, (u8) f) < 0) {
 		DRM_DEBUG_KMS("Failed to write aux backlight freq\n");
 		return false;
 	}
 	return true;
+}
+
+/*
+ * Some panels require the backlight to be enabled _after_ the
+ * level is set. This function returns true if the connected panel
+ * requires this out-of-spec behavior
+ */
+static bool intel_dp_enable_backlight_after_set(struct intel_connector *intel_connector)
+{
+	/* old display */
+	if (intel_connector->detect_edid &&
+	    (intel_connector->detect_edid->mfg_id[0] == 0x4c &&
+	     intel_connector->detect_edid->mfg_id[1] == 0x83 &&
+	     intel_connector->detect_edid->prod_code[0] == 0x42 &&
+	     intel_connector->detect_edid->prod_code[1] == 0x41))
+		return true;
+
+	return false;
 }
 
 static void intel_dp_aux_enable_backlight(const struct intel_crtc_state *crtc_state,
@@ -217,6 +208,9 @@ static void intel_dp_aux_enable_backlight(const struct intel_crtc_state *crtc_st
 
 	set_aux_backlight_enable(intel_dp, true);
 	intel_dp_aux_set_backlight(conn_state, connector->panel.backlight.level);
+
+	if (intel_dp_enable_backlight_after_set(connector))
+		set_aux_backlight_enable(intel_dp, true);
 }
 
 static void intel_dp_aux_disable_backlight(const struct drm_connector_state *old_conn_state)
@@ -224,16 +218,86 @@ static void intel_dp_aux_disable_backlight(const struct drm_connector_state *old
 	set_aux_backlight_enable(enc_to_intel_dp(old_conn_state->best_encoder), false);
 }
 
+static u32 intel_dp_aux_calc_max_backlight(struct intel_connector *connector)
+{
+	struct drm_i915_private *dev_priv = to_i915(connector->base.dev);
+	struct intel_dp *intel_dp = enc_to_intel_dp(&connector->encoder->base);
+	u32 max_backlight = 0;
+	int freq, fxp, fxp_min, fxp_max, fxp_actual, f = 1;
+	u8 pn, pn_min, pn_max;
+
+	if (drm_dp_dpcd_readb(&intel_dp->aux, DP_EDP_PWMGEN_BIT_COUNT, &pn)) {
+		pn &= DP_EDP_PWMGEN_BIT_COUNT_MASK;
+		max_backlight = (1 << pn) - 1;
+	}
+
+	/* Find desired value of (F x P)
+	 * Note that, if F x P is out of supported range, the maximum value or
+	 * minimum value will applied automatically. So no need to check that.
+	 */
+	freq = dev_priv->vbt.backlight.pwm_freq_hz;
+	DRM_DEBUG_KMS("VBT defined backlight frequency %u Hz\n", freq);
+	if (!freq) {
+		DRM_DEBUG_KMS("Use panel default backlight frequency\n");
+		return max_backlight;
+	}
+
+	fxp = DIV_ROUND_CLOSEST(KHz(DP_EDP_BACKLIGHT_FREQ_BASE_KHZ), freq);
+
+	/* Use highest possible value of Pn for more granularity of brightness
+	 * adjustment while satifying the conditions below.
+	 * - Pn is in the range of Pn_min and Pn_max
+	 * - F is in the range of 1 and 255
+	 * - FxP is within 25% of desired value.
+	 *   Note: 25% is arbitrary value and may need some tweak.
+	 */
+	if (drm_dp_dpcd_readb(&intel_dp->aux,
+			       DP_EDP_PWMGEN_BIT_COUNT_CAP_MIN, &pn_min) != 1) {
+		DRM_DEBUG_KMS("Failed to read pwmgen bit count cap min\n");
+		return max_backlight;
+	}
+	if (drm_dp_dpcd_readb(&intel_dp->aux,
+			       DP_EDP_PWMGEN_BIT_COUNT_CAP_MAX, &pn_max) != 1) {
+		DRM_DEBUG_KMS("Failed to read pwmgen bit count cap max\n");
+		return max_backlight;
+	}
+	pn_min &= DP_EDP_PWMGEN_BIT_COUNT_MASK;
+	pn_max &= DP_EDP_PWMGEN_BIT_COUNT_MASK;
+
+	fxp_min = DIV_ROUND_CLOSEST(fxp * 3, 4);
+	fxp_max = DIV_ROUND_CLOSEST(fxp * 5, 4);
+	if (fxp_min < (1 << pn_min) || (255 << pn_max) < fxp_max) {
+		DRM_DEBUG_KMS("VBT defined backlight frequency out of range\n");
+		return max_backlight;
+	}
+
+	for (pn = pn_max; pn >= pn_min; pn--) {
+		f = clamp(DIV_ROUND_CLOSEST(fxp, 1 << pn), 1, 255);
+		fxp_actual = f << pn;
+		if (fxp_min <= fxp_actual && fxp_actual <= fxp_max)
+			break;
+	}
+
+	if (drm_dp_dpcd_writeb(&intel_dp->aux,
+			       DP_EDP_PWMGEN_BIT_COUNT, pn) < 0) {
+		DRM_DEBUG_KMS("Failed to write aux pwmgen bit count\n");
+		return max_backlight;
+	}
+
+	max_backlight = (1 << pn) - 1;
+
+	return max_backlight;
+}
+
 static int intel_dp_aux_setup_backlight(struct intel_connector *connector,
 					enum pipe pipe)
 {
-	struct intel_dp *intel_dp = enc_to_intel_dp(&connector->encoder->base);
 	struct intel_panel *panel = &connector->panel;
 
-	if (intel_dp->edp_dpcd[2] & DP_EDP_BACKLIGHT_BRIGHTNESS_BYTE_COUNT)
-		panel->backlight.max = 0xFFFF;
-	else
-		panel->backlight.max = 0xFF;
+	panel->backlight.max = intel_dp_aux_calc_max_backlight(connector);
+
+	if (!panel->backlight.max)
+		return -ENODEV;
 
 	panel->backlight.min = 0;
 	panel->backlight.level = intel_dp_aux_get_backlight(connector);
@@ -263,8 +327,11 @@ intel_dp_aux_display_control_capable(struct intel_connector *connector)
 int intel_dp_aux_init_backlight_funcs(struct intel_connector *intel_connector)
 {
 	struct intel_panel *panel = &intel_connector->panel;
+	struct drm_i915_private *dev_priv = to_i915(intel_connector->base.dev);
 
-	if (!i915_modparams.enable_dpcd_backlight)
+	if (i915_modparams.enable_dpcd_backlight == 0 ||
+	    (i915_modparams.enable_dpcd_backlight == -1 &&
+	    dev_priv->vbt.backlight.type != INTEL_BACKLIGHT_VESA_EDP_AUX_INTERFACE))
 		return -ENODEV;
 
 	if (!intel_dp_aux_display_control_capable(intel_connector))

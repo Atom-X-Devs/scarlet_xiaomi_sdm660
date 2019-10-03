@@ -28,11 +28,14 @@
 #include "alt-syscall.h"
 
 static struct syscall_whitelist_entry third_party_whitelist[] = {
+	SYSCALL_ENTRY(accept),
+	SYSCALL_ENTRY(bind),
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(chdir),
 	SYSCALL_ENTRY(clock_gettime),
 	SYSCALL_ENTRY(clone),
 	SYSCALL_ENTRY(close),
+	SYSCALL_ENTRY(connect),
 	SYSCALL_ENTRY(dup),
 	SYSCALL_ENTRY(execve),
 	SYSCALL_ENTRY(exit),
@@ -46,10 +49,10 @@ static struct syscall_whitelist_entry third_party_whitelist[] = {
 	SYSCALL_ENTRY(getpgid),
 	SYSCALL_ENTRY(getppid),
 	SYSCALL_ENTRY(getpriority),
-	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getsid),
 	SYSCALL_ENTRY(gettimeofday),
 	SYSCALL_ENTRY(ioctl),
+	SYSCALL_ENTRY(listen),
 	SYSCALL_ENTRY(lseek),
 	SYSCALL_ENTRY(madvise),
         SYSCALL_ENTRY(memfd_create),
@@ -59,15 +62,22 @@ static struct syscall_whitelist_entry third_party_whitelist[] = {
 	SYSCALL_ENTRY(openat),
 	SYSCALL_ENTRY(prlimit64),
 	SYSCALL_ENTRY(read),
+	SYSCALL_ENTRY(recvfrom),
+	SYSCALL_ENTRY(recvmsg),
 	SYSCALL_ENTRY(rt_sigaction),
 	SYSCALL_ENTRY(rt_sigprocmask),
 	SYSCALL_ENTRY(rt_sigreturn),
 	SYSCALL_ENTRY(sendfile),
+	SYSCALL_ENTRY(sendmsg),
+	SYSCALL_ENTRY(sendto),
 	SYSCALL_ENTRY(set_robust_list),
 	SYSCALL_ENTRY(set_tid_address),
 	SYSCALL_ENTRY(setpgid),
 	SYSCALL_ENTRY(setpriority),
 	SYSCALL_ENTRY(setsid),
+	SYSCALL_ENTRY(setsockopt),
+	SYSCALL_ENTRY(socket),
+	SYSCALL_ENTRY(socketpair),
 	SYSCALL_ENTRY(syslog),
 	SYSCALL_ENTRY(statfs),
 	SYSCALL_ENTRY(umask),
@@ -96,8 +106,8 @@ static struct syscall_whitelist_entry third_party_whitelist[] = {
 	SYSCALL_ENTRY(unlink),
 #endif
 
-	/* 32-bit only syscalls. */
-#if defined(CONFIG_ARM) || defined(CONFIG_X86_32)
+	/* ARM32 only syscalls. */
+#if defined(CONFIG_ARM)
 	SYSCALL_ENTRY(fcntl64),
 	SYSCALL_ENTRY(fstat64),
 	SYSCALL_ENTRY(geteuid32),
@@ -110,29 +120,12 @@ static struct syscall_whitelist_entry third_party_whitelist[] = {
 	SYSCALL_ENTRY(ugetrlimit),
 #endif
 
-
-	/* IA32 uses the common socketcall(2) entrypoint for socket calls. */
-#ifdef CONFIG_X86_32
-	SYSCALL_ENTRY(socketcall),
-#else
-	SYSCALL_ENTRY(accept),
-	SYSCALL_ENTRY(bind),
-	SYSCALL_ENTRY(connect),
-	SYSCALL_ENTRY(listen),
-	SYSCALL_ENTRY(recvfrom),
-	SYSCALL_ENTRY(recvmsg),
-	SYSCALL_ENTRY(sendmsg),
-	SYSCALL_ENTRY(sendto),
-	SYSCALL_ENTRY(setsockopt),
-	SYSCALL_ENTRY(socket),
-	SYSCALL_ENTRY(socketpair),
-#endif
-
 	/* 64-bit only syscalls. */
 #if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
 	SYSCALL_ENTRY(getegid),
 	SYSCALL_ENTRY(geteuid),
 	SYSCALL_ENTRY(getgid),
+	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getuid),
 	SYSCALL_ENTRY(mmap),
 	SYSCALL_ENTRY(setgid),
@@ -231,9 +224,11 @@ static struct syscall_whitelist_entry third_party_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(writev),
 
 	/* IA32 uses the common socketcall(2) entrypoint for socket calls. */
-#ifdef CONFIG_X86
+#ifdef CONFIG_X86_64
 	COMPAT_SYSCALL_ENTRY(socketcall),
-#else
+#endif
+
+#ifdef CONFIG_ARM64
 	COMPAT_SYSCALL_ENTRY(accept),
 	COMPAT_SYSCALL_ENTRY(bind),
 	COMPAT_SYSCALL_ENTRY(connect),

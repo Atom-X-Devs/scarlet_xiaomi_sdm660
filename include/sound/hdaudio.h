@@ -79,9 +79,9 @@ struct hdac_device {
 
 	/* misc flags */
 	atomic_t in_pm;		/* suspend/resume being performed */
-	bool  link_power_control:1;
 
 	/* sysfs */
+	struct mutex widget_lock;
 	struct hdac_widget_tree *widgets;
 
 	/* regmap */
@@ -237,8 +237,6 @@ struct hdac_bus_ops {
 	/* get a response from the last command */
 	int (*get_response)(struct hdac_bus *bus, unsigned int addr,
 			    unsigned int *res);
-	/* control the link power  */
-	int (*link_power)(struct hdac_bus *bus, bool enable);
 };
 
 /*
@@ -354,6 +352,9 @@ struct hdac_bus {
 	bool align_bdle_4k:1;		/* BDLE align 4K boundary */
 	bool reverse_assign:1;		/* assign devices in reverse order */
 	bool corbrp_self_clear:1;	/* CORBRP clears itself after reset */
+	bool polling_mode:1;
+
+	int poll_count;
 
 	int bdl_pos_adj;		/* BDL position adjustment */
 
@@ -363,7 +364,8 @@ struct hdac_bus {
 
 	/* DRM component interface */
 	struct drm_audio_component *audio_component;
-	int drm_power_refcount;
+	long display_power_status;
+	bool display_power_active;
 
 	/* parameters required for enhanced capabilities */
 	int num_streams;
@@ -389,6 +391,7 @@ void snd_hdac_bus_queue_event(struct hdac_bus *bus, u32 res, u32 res_ex);
 int snd_hdac_bus_add_device(struct hdac_bus *bus, struct hdac_device *codec);
 void snd_hdac_bus_remove_device(struct hdac_bus *bus,
 				struct hdac_device *codec);
+void snd_hdac_bus_process_unsol_events(struct work_struct *work);
 
 static inline void snd_hdac_codec_link_up(struct hdac_device *codec)
 {
@@ -404,7 +407,6 @@ int snd_hdac_bus_send_cmd(struct hdac_bus *bus, unsigned int val);
 int snd_hdac_bus_get_response(struct hdac_bus *bus, unsigned int addr,
 			      unsigned int *res);
 int snd_hdac_bus_parse_capabilities(struct hdac_bus *bus);
-int snd_hdac_link_power(struct hdac_device *codec, bool enable);
 
 bool snd_hdac_bus_init_chip(struct hdac_bus *bus, bool full_reset);
 void snd_hdac_bus_stop_chip(struct hdac_bus *bus);
@@ -535,6 +537,9 @@ void snd_hdac_stream_sync(struct hdac_stream *azx_dev, bool start,
 			  unsigned int streams);
 void snd_hdac_stream_timecounter_init(struct hdac_stream *azx_dev,
 				      unsigned int streams);
+int snd_hdac_get_stream_stripe_ctl(struct hdac_bus *bus,
+				struct snd_pcm_substream *substream);
+
 /*
  * macros for easy use
  */

@@ -185,6 +185,11 @@ intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 		DRM_DEBUG_KMS("Found Cannon Lake LP PCH (CNP-LP)\n");
 		WARN_ON(!IS_CANNONLAKE(dev_priv) && !IS_COFFEELAKE(dev_priv));
 		return PCH_CNP;
+	case INTEL_PCH_CMP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Comet Lake PCH (CMP)\n");
+		WARN_ON(!IS_COFFEELAKE(dev_priv));
+		/* CometPoint is CNP Compatible */
+		return PCH_CNP;
 	case INTEL_PCH_ICP_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ice Lake PCH\n");
 		WARN_ON(!IS_ICELAKE(dev_priv));
@@ -1175,8 +1180,6 @@ skl_dram_get_channels_info(struct drm_i915_private *dev_priv)
 		return -EINVAL;
 	}
 
-	dram_info->valid_dimm = true;
-
 	/*
 	 * If any of the channel is single rank channel, worst case output
 	 * will be same as if single rank memory, so consider single rank
@@ -1193,8 +1196,7 @@ skl_dram_get_channels_info(struct drm_i915_private *dev_priv)
 		return -EINVAL;
 	}
 
-	if (ch0.is_16gb_dimm || ch1.is_16gb_dimm)
-		dram_info->is_16gb_dimm = true;
+	dram_info->is_16gb_dimm = ch0.is_16gb_dimm || ch1.is_16gb_dimm;
 
 	dev_priv->dram_info.symmetric_memory = intel_is_dram_symmetric(val_ch0,
 								       val_ch1,
@@ -1314,7 +1316,6 @@ bxt_get_dram_info(struct drm_i915_private *dev_priv)
 		return -EINVAL;
 	}
 
-	dram_info->valid_dimm = true;
 	dram_info->valid = true;
 	return 0;
 }
@@ -1327,11 +1328,16 @@ intel_get_dram_info(struct drm_i915_private *dev_priv)
 	int ret;
 
 	dram_info->valid = false;
-	dram_info->valid_dimm = false;
-	dram_info->is_16gb_dimm = false;
 	dram_info->rank = I915_DRAM_RANK_INVALID;
 	dram_info->bandwidth_kbps = 0;
 	dram_info->num_channels = 0;
+
+	/*
+	 * Assume 16Gb DIMMs are present until proven otherwise.
+	 * This is only used for the level 0 watermark latency
+	 * w/a which does not apply to bxt/glk.
+	 */
+	dram_info->is_16gb_dimm = !IS_GEN9_LP(dev_priv);
 
 	if (INTEL_GEN(dev_priv) < 9 || IS_GEMINILAKE(dev_priv))
 		return;
@@ -1410,6 +1416,12 @@ static int i915_driver_init_hw(struct drm_i915_private *dev_priv)
 
 	pci_set_master(pdev);
 
+	/*
+	 * We don't have a max segment size, so set it to the max so sg's
+	 * debugging layer doesn't complain
+	 */
+	dma_set_max_seg_size(&pdev->dev, UINT_MAX);
+
 	/* overlay on gen2 is broken and can't address above 1G */
 	if (IS_GEN2(dev_priv)) {
 		ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(30));
@@ -1443,6 +1455,7 @@ static int i915_driver_init_hw(struct drm_i915_private *dev_priv)
 
 	intel_uncore_sanitize(dev_priv);
 
+	intel_gt_init_workarounds(dev_priv);
 	i915_gem_load_init_fences(dev_priv);
 
 	/* On the 945G/GM, the chipset reports the MSI capability on the

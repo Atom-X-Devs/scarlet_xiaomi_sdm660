@@ -207,6 +207,10 @@ static int __vb2_buf_mem_alloc(struct vb2_buffer *vb)
 	for (plane = 0; plane < vb->num_planes; ++plane) {
 		unsigned long size = PAGE_ALIGN(vb->planes[plane].length);
 
+		/* Did it wrap around? */
+		if (size < vb->planes[plane].length)
+			goto free;
+
 		mem_priv = call_ptr_memop(vb, alloc,
 				q->alloc_devs[plane] ? : q->dev,
 				q->dma_attrs, size, q->dma_dir, q->gfp_flags);
@@ -499,9 +503,9 @@ static int __vb2_queue_free(struct vb2_queue *q, unsigned int buffers)
 			pr_info("     buf_init: %u buf_cleanup: %u buf_prepare: %u buf_finish: %u\n",
 				vb->cnt_buf_init, vb->cnt_buf_cleanup,
 				vb->cnt_buf_prepare, vb->cnt_buf_finish);
-			pr_info("     buf_queue: %u buf_done: %u buf_request_complete: %u\n",
-				vb->cnt_buf_queue, vb->cnt_buf_done,
-				vb->cnt_buf_request_complete);
+			pr_info("     buf_out_validate: %u buf_queue: %u buf_done: %u buf_request_complete: %u\n",
+				vb->cnt_buf_out_validate, vb->cnt_buf_queue,
+				vb->cnt_buf_done, vb->cnt_buf_request_complete);
 			pr_info("     alloc: %u put: %u prepare: %u finish: %u mmap: %u\n",
 				vb->cnt_mem_alloc, vb->cnt_mem_put,
 				vb->cnt_mem_prepare, vb->cnt_mem_finish,
@@ -552,6 +556,20 @@ bool vb2_buffer_in_use(struct vb2_queue *q, struct vb2_buffer *vb)
 	return false;
 }
 EXPORT_SYMBOL(vb2_buffer_in_use);
+
+/*
+ * __buffers_in_use() - return true if any buffers on the queue are in use and
+ * the queue cannot be freed (by the means of REQBUFS(0)) call
+ */
+static bool __buffers_in_use(struct vb2_queue *q)
+{
+	unsigned int buffer;
+	for (buffer = 0; buffer < q->num_buffers; ++buffer) {
+		if (vb2_buffer_in_use(q, q->bufs[buffer]))
+			return true;
+	}
+	return false;
+}
 
 void vb2_core_querybuf(struct vb2_queue *q, unsigned int index, void *pb)
 {
@@ -657,9 +675,22 @@ int vb2_core_reqbufs(struct vb2_queue *q, enum vb2_memory memory,
 		return -EBUSY;
 	}
 
+	if (q->waiting_in_dqbuf && *count) {
+		dprintk(1, "another dup()ped fd is waiting for a buffer\n");
+		return -EBUSY;
+	}
+
 	if (*count == 0 || q->num_buffers != 0 ||
 	    (q->memory != VB2_MEMORY_UNKNOWN && q->memory != memory)) {
+		/*
+		 * We already have buffers allocated, so first check if they
+		 * are not in use and can be freed.
+		 */
 		mutex_lock(&q->mmap_lock);
+		if (debug && q->memory == VB2_MEMORY_MMAP &&
+		    __buffers_in_use(q))
+			dprintk(1, "memory in use, orphaning buffers\n");
+
 		/*
 		 * Call queue_cancel to clean up any buffers in the
 		 * QUEUED state which is possible if buffers were prepared or
@@ -776,9 +807,16 @@ int vb2_core_create_bufs(struct vb2_queue *q, enum vb2_memory memory,
 	}
 
 	if (!q->num_buffers) {
+		if (q->waiting_in_dqbuf && *count) {
+			dprintk(1, "another dup()ped fd is waiting for a buffer\n");
+			return -EBUSY;
+		}
 		memset(q->alloc_devs, 0, sizeof(q->alloc_devs));
 		q->memory = memory;
 		q->waiting_for_buffers = !q->is_output;
+	} else if (q->memory != memory) {
+		dprintk(1, "memory model mismatch\n");
+		return -EINVAL;
 	}
 
 	num_buffers = min(*count, VB2_MAX_FRAME - q->num_buffers);
@@ -874,14 +912,14 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 {
 	struct vb2_queue *q = vb->vb2_queue;
 	unsigned long flags;
+	unsigned int plane;
 
 	if (WARN_ON(vb->state != VB2_BUF_STATE_ACTIVE))
 		return;
 
 	if (WARN_ON(state != VB2_BUF_STATE_DONE &&
 		    state != VB2_BUF_STATE_ERROR &&
-		    state != VB2_BUF_STATE_QUEUED &&
-		    state != VB2_BUF_STATE_REQUEUEING))
+		    state != VB2_BUF_STATE_QUEUED))
 		state = VB2_BUF_STATE_ERROR;
 
 #ifdef CONFIG_VIDEO_ADV_DEBUG
@@ -894,9 +932,15 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 	dprintk(4, "done processing on buffer %d, state: %d\n",
 			vb->index, state);
 
+	if (state != VB2_BUF_STATE_QUEUED) {
+		/* sync buffers */
+		for (plane = 0; plane < vb->num_planes; ++plane)
+			call_void_memop(vb, finish, vb->planes[plane].mem_priv);
+		vb->synced = 0;
+	}
+
 	spin_lock_irqsave(&q->done_lock, flags);
-	if (state == VB2_BUF_STATE_QUEUED ||
-	    state == VB2_BUF_STATE_REQUEUEING) {
+	if (state == VB2_BUF_STATE_QUEUED) {
 		vb->state = VB2_BUF_STATE_QUEUED;
 	} else {
 		/* Add the buffer to the done buffers list */
@@ -905,9 +949,7 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 	}
 	atomic_dec(&q->owned_by_drv_count);
 
-	if (vb->req_obj.req) {
-		/* This is not supported at the moment */
-		WARN_ON(state == VB2_BUF_STATE_REQUEUEING);
+	if (state != VB2_BUF_STATE_QUEUED && vb->req_obj.req) {
 		media_request_object_unbind(&vb->req_obj);
 		media_request_object_put(&vb->req_obj);
 	}
@@ -918,10 +960,6 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 
 	switch (state) {
 	case VB2_BUF_STATE_QUEUED:
-		return;
-	case VB2_BUF_STATE_REQUEUEING:
-		if (q->start_streaming_called)
-			__enqueue_in_driver(vb);
 		return;
 	default:
 		/* Inform any processes that may be waiting for buffers */
@@ -990,7 +1028,7 @@ static int __prepare_userptr(struct vb2_buffer *vb)
 		mem_priv = call_ptr_memop(vb, get_userptr,
 				q->alloc_devs[plane] ? : q->dev,
 				planes[plane].m.userptr,
-				planes[plane].length, q->dma_dir, q->dma_attrs);
+				planes[plane].length, q->dma_dir);
 		if (IS_ERR(mem_priv)) {
 			dprintk(1, "failed acquiring userspace memory for plane %d\n",
 				plane);
@@ -1096,6 +1134,7 @@ static int __prepare_dmabuf(struct vb2_buffer *vb)
 
 		if (!reacquired) {
 			reacquired = true;
+			vb->copied_timestamp = 0;
 			call_void_vb_qop(vb, buf_cleanup, vb);
 		}
 
@@ -1127,8 +1166,9 @@ static int __prepare_dmabuf(struct vb2_buffer *vb)
 	 * userspace knows sooner rather than later if the dma-buf map fails.
 	 */
 	for (plane = 0; plane < vb->num_planes; ++plane) {
-		if (vb->planes[plane].dbuf_mapped == 1)
+		if (vb->planes[plane].dbuf_mapped)
 			continue;
+
 		ret = call_memop(vb, map_dmabuf, vb->planes[plane].mem_priv);
 		if (ret) {
 			dprintk(1, "failed to map dmabuf for plane %d\n",
@@ -1207,6 +1247,14 @@ static int __buf_prepare(struct vb2_buffer *vb)
 		return 0;
 	WARN_ON(vb->synced);
 
+	if (q->is_output) {
+		ret = call_vb_qop(vb, buf_out_validate, vb);
+		if (ret) {
+			dprintk(1, "buffer validation failed\n");
+			return ret;
+		}
+	}
+
 	vb->state = VB2_BUF_STATE_PREPARING;
 
 	switch (q->memory) {
@@ -1235,8 +1283,8 @@ static int __buf_prepare(struct vb2_buffer *vb)
 	for (plane = 0; plane < vb->num_planes; ++plane)
 		call_void_memop(vb, prepare, vb->planes[plane].mem_priv);
 
-	vb->synced = true;
-	vb->prepared = true;
+	vb->synced = 1;
+	vb->prepared = 1;
 	vb->state = orig_state;
 
 	return 0;
@@ -1293,8 +1341,12 @@ static void vb2_req_release(struct media_request_object *obj)
 {
 	struct vb2_buffer *vb = container_of(obj, struct vb2_buffer, req_obj);
 
-	if (vb->state == VB2_BUF_STATE_IN_REQUEST)
+	if (vb->state == VB2_BUF_STATE_IN_REQUEST) {
 		vb->state = VB2_BUF_STATE_DEQUEUED;
+		if (vb->request)
+			media_request_put(vb->request);
+		vb->request = NULL;
+	}
 }
 
 static const struct media_request_object_ops vb2_core_req_ops = {
@@ -1432,6 +1484,12 @@ int vb2_core_qbuf(struct vb2_queue *q, unsigned int index, void *pb,
 
 	vb = q->bufs[index];
 
+	if (!req && vb->state != VB2_BUF_STATE_IN_REQUEST &&
+	    q->requires_requests) {
+		dprintk(1, "qbuf requires a request\n");
+		return -EBADR;
+	}
+
 	if ((req && q->uses_qbuf) ||
 	    (!req && vb->state != VB2_BUF_STATE_IN_REQUEST &&
 	     q->uses_requests)) {
@@ -1449,6 +1507,14 @@ int vb2_core_qbuf(struct vb2_queue *q, unsigned int index, void *pb,
 			return -EINVAL;
 		}
 
+		if (q->is_output && !vb->prepared) {
+			ret = call_vb_qop(vb, buf_out_validate, vb);
+			if (ret) {
+				dprintk(1, "buffer validation failed\n");
+				return ret;
+			}
+		}
+
 		media_request_object_init(&vb->req_obj);
 
 		/* Make sure the request is in a safe state for updating. */
@@ -1462,6 +1528,18 @@ int vb2_core_qbuf(struct vb2_queue *q, unsigned int index, void *pb,
 			return ret;
 
 		vb->state = VB2_BUF_STATE_IN_REQUEST;
+
+		/*
+		 * Increment the refcount and store the request.
+		 * The request refcount is decremented again when the
+		 * buffer is dequeued. This is to prevent vb2_buffer_done()
+		 * from freeing the request from interrupt context, which can
+		 * happen if the application closed the request fd after
+		 * queueing the request.
+		 */
+		media_request_get(req);
+		vb->request = req;
+
 		/* Fill buffer information for the userspace */
 		if (pb) {
 			call_void_bufop(q, copy_timestamp, vb, pb);
@@ -1555,6 +1633,11 @@ static int __vb2_wait_for_done_vb(struct vb2_queue *q, int nonblocking)
 	for (;;) {
 		int ret;
 
+		if (q->waiting_in_dqbuf) {
+			dprintk(1, "another dup()ped fd is waiting for a buffer\n");
+			return -EBUSY;
+		}
+
 		if (!q->streaming) {
 			dprintk(1, "streaming off, will not wait for buffers\n");
 			return -EINVAL;
@@ -1582,6 +1665,7 @@ static int __vb2_wait_for_done_vb(struct vb2_queue *q, int nonblocking)
 			return -EAGAIN;
 		}
 
+		q->waiting_in_dqbuf = 1;
 		/*
 		 * We are streaming and blocking, wait for another buffer to
 		 * become ready or for streamoff. Driver's lock is released to
@@ -1602,6 +1686,7 @@ static int __vb2_wait_for_done_vb(struct vb2_queue *q, int nonblocking)
 		 * the locks or return an error if one occurred.
 		 */
 		call_void_qop(q, wait_finish, q);
+		q->waiting_in_dqbuf = 0;
 		if (ret) {
 			dprintk(1, "sleep was interrupted\n");
 			return ret;
@@ -1675,11 +1760,6 @@ static void __vb2_dqbuf(struct vb2_buffer *vb)
 
 	vb->state = VB2_BUF_STATE_DEQUEUED;
 
-	/* sync buffers */
-	for (i = 0; i < vb->num_planes; ++i)
-		call_void_memop(vb, finish, vb->planes[i].mem_priv);
-	vb->synced = false;
-
 	if (q->memory == VB2_MEMORY_USERPTR) {
 		call_void_vb_qop(vb, buf_cleanup, vb);
 
@@ -1693,11 +1773,6 @@ static void __vb2_dqbuf(struct vb2_buffer *vb)
 			vb->planes[i].m.userptr = 0;
 			vb->planes[i].data_offset = 0;
 		}
-	}
-
-	if (vb->req_obj.req) {
-		media_request_object_unbind(&vb->req_obj);
-		media_request_object_put(&vb->req_obj);
 	}
 	call_void_bufop(q, init_buffer, vb);
 }
@@ -1725,7 +1800,7 @@ int vb2_core_dqbuf(struct vb2_queue *q, unsigned int *pindex, void *pb,
 	}
 
 	call_void_vb_qop(vb, buf_finish, vb);
-	vb->prepared = false;
+	vb->prepared = 0;
 
 	if (pindex)
 		*pindex = vb->index;
@@ -1742,6 +1817,14 @@ int vb2_core_dqbuf(struct vb2_queue *q, unsigned int *pindex, void *pb,
 
 	/* go back to dequeued state */
 	__vb2_dqbuf(vb);
+
+	if (WARN_ON(vb->req_obj.req)) {
+		media_request_object_unbind(&vb->req_obj);
+		media_request_object_put(&vb->req_obj);
+	}
+	if (vb->request)
+		media_request_put(vb->request);
+	vb->request = NULL;
 
 	dprintk(2, "dqbuf of buffer %d, with state %d\n",
 			vb->index, vb->state);
@@ -1841,14 +1924,23 @@ static void __vb2_queue_cancel(struct vb2_queue *q)
 			for (plane = 0; plane < vb->num_planes; ++plane)
 				call_void_memop(vb, finish,
 						vb->planes[plane].mem_priv);
-			vb->synced = false;
+			vb->synced = 0;
 		}
 
 		if (vb->prepared) {
 			call_void_vb_qop(vb, buf_finish, vb);
-			vb->prepared = false;
+			vb->prepared = 0;
 		}
 		__vb2_dqbuf(vb);
+
+		if (vb->req_obj.req) {
+			media_request_object_unbind(&vb->req_obj);
+			media_request_object_put(&vb->req_obj);
+		}
+		if (vb->request)
+			media_request_put(vb->request);
+		vb->request = NULL;
+		vb->copied_timestamp = 0;
 	}
 }
 
@@ -1886,10 +1978,8 @@ int vb2_core_streamon(struct vb2_queue *q, unsigned int type)
 		if (ret)
 			return ret;
 		ret = vb2_start_streaming(q);
-		if (ret) {
-			__vb2_queue_cancel(q);
+		if (ret)
 			return ret;
-		}
 	}
 
 	q->streaming = 1;
@@ -2063,9 +2153,13 @@ int vb2_mmap(struct vb2_queue *q, struct vm_area_struct *vma)
 			return -EINVAL;
 		}
 	}
+
+	mutex_lock(&q->mmap_lock);
+
 	if (vb2_fileio_is_active(q)) {
 		dprintk(1, "mmap: file io in progress\n");
-		return -EBUSY;
+		ret = -EBUSY;
+		goto unlock;
 	}
 
 	/*
@@ -2073,7 +2167,7 @@ int vb2_mmap(struct vb2_queue *q, struct vm_area_struct *vma)
 	 */
 	ret = __find_plane_by_offset(q, off, &buffer, &plane);
 	if (ret)
-		return ret;
+		goto unlock;
 
 	vb = q->bufs[buffer];
 
@@ -2086,11 +2180,13 @@ int vb2_mmap(struct vb2_queue *q, struct vm_area_struct *vma)
 	if (length < (vma->vm_end - vma->vm_start)) {
 		dprintk(1,
 			"MMAP invalid, as it would overflow buffer length\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto unlock;
 	}
 
-	mutex_lock(&q->mmap_lock);
 	ret = call_memop(vb, mmap, vb->planes[plane].mem_priv, vma);
+
+unlock:
 	mutex_unlock(&q->mmap_lock);
 	if (ret)
 		return ret;
@@ -2147,6 +2243,9 @@ int vb2_core_queue_init(struct vb2_queue *q)
 	    WARN_ON(!q->ops->buf_queue))
 		return -EINVAL;
 
+	if (WARN_ON(q->requires_requests && !q->supports_requests))
+		return -EINVAL;
+
 	INIT_LIST_HEAD(&q->queued_list);
 	INIT_LIST_HEAD(&q->done_list);
 	spin_lock_init(&q->done_lock);
@@ -2190,6 +2289,8 @@ __poll_t vb2_core_poll(struct vb2_queue *q, struct file *file,
 		return 0;
 	if (q->is_output && !(req_events & (EPOLLOUT | EPOLLWRNORM)))
 		return 0;
+
+	poll_wait(file, &q->done_wq, wait);
 
 	/*
 	 * Start file I/O emulator only if streaming API has not been used yet.
@@ -2242,8 +2343,6 @@ __poll_t vb2_core_poll(struct vb2_queue *q, struct file *file,
 		 */
 		if (q->last_buffer_dequeued)
 			return EPOLLIN | EPOLLRDNORM;
-
-		poll_wait(file, &q->done_wq, wait);
 	}
 
 	/*
@@ -2484,6 +2583,12 @@ static size_t __vb2_perform_fileio(struct vb2_queue *q, char __user *data, size_
 
 	if (!data)
 		return -EINVAL;
+
+	if (q->waiting_in_dqbuf) {
+		dprintk(3, "another dup()ped fd is %s\n",
+			read ? "reading" : "writing");
+		return -EBUSY;
+	}
 
 	/*
 	 * Initialize emulator on first call.

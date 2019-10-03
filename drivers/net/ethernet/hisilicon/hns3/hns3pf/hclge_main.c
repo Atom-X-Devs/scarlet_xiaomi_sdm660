@@ -663,8 +663,7 @@ static u8 *hclge_comm_get_strings(u32 stringset,
 		return buff;
 
 	for (i = 0; i < size; i++) {
-		snprintf(buff, ETH_GSTRING_LEN,
-			 strs[i].desc);
+		snprintf(buff, ETH_GSTRING_LEN, "%s", strs[i].desc);
 		buff = buff + ETH_GSTRING_LEN;
 	}
 
@@ -2804,14 +2803,17 @@ static void hclge_reset(struct hclge_dev *hdev)
 	handle = &hdev->vport[0].nic;
 	rtnl_lock();
 	hclge_notify_client(hdev, HNAE3_DOWN_CLIENT);
+	rtnl_unlock();
 
 	if (!hclge_reset_wait(hdev)) {
+		rtnl_lock();
 		hclge_notify_client(hdev, HNAE3_UNINIT_CLIENT);
 		hclge_reset_ae_dev(hdev->ae_dev);
 		hclge_notify_client(hdev, HNAE3_INIT_CLIENT);
 
 		hclge_clear_reset_cause(hdev);
 	} else {
+		rtnl_lock();
 		/* schedule again to check pending resets later */
 		set_bit(hdev->reset_type, &hdev->reset_pending);
 		hclge_reset_task_schedule(hdev);
@@ -4297,8 +4299,11 @@ int hclge_add_uc_addr_common(struct hclge_vport *vport,
 		return hclge_add_mac_vlan_tbl(vport, &req, NULL);
 
 	/* check if we just hit the duplicate */
-	if (!ret)
-		ret = -EINVAL;
+	if (!ret) {
+		dev_warn(&hdev->pdev->dev, "VF %d mac(%pM) exists\n",
+			 vport->vport_id, addr);
+		return 0;
+	}
 
 	dev_err(&hdev->pdev->dev,
 		"PF failed to add unicast entry(%pM) in the MAC table\n",

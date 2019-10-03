@@ -95,8 +95,6 @@ struct vbox_private {
 	int fb_mtrr;
 
 	struct {
-		struct drm_global_reference mem_global_ref;
-		struct ttm_bo_global_ref bo_global_ref;
 		struct ttm_bo_device bdev;
 	} ttm;
 
@@ -226,8 +224,6 @@ void vbox_gem_free_object(struct drm_gem_object *obj);
 int vbox_dumb_mmap_offset(struct drm_file *file,
 			  struct drm_device *dev,
 			  u32 handle, u64 *offset);
-
-#define DRM_FILE_PAGE_OFFSET (0x10000000ULL >> PAGE_SHIFT)
 
 int vbox_mm_init(struct vbox_private *vbox);
 void vbox_mm_fini(struct vbox_private *vbox);

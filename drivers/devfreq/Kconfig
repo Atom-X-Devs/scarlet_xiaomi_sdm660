@@ -72,6 +72,8 @@ config DEVFREQ_GOV_PASSIVE
 	  device. This governor does not change the frequency by itself
 	  through sysfs entries. The passive governor recommends that
 	  devfreq device uses the OPP table to get the frequency/voltage.
+	  Alternatively the governor can also be chosen to scale based on
+	  the online CPUs current frequency.
 
 comment "DEVFREQ Drivers"
 
@@ -90,6 +92,16 @@ config ARM_EXYNOS_BUS_DEVFREQ
 	  PPMU counters of memory controllers by using DEVFREQ-event device
 	  and adjusts the operating frequencies and voltages with OPP support.
 	  This does not yet operate with optimal voltages.
+
+config ARM_MT8183_CCI_DEVFREQ
+	tristate "MT8183 CCI DEVFREQ Driver"
+	depends on ARM_MEDIATEK_CPUFREQ
+	help
+		This adds a devfreq driver for Cache Coherent Interconnect
+		of Mediatek MT8183, which is shared the same regulator
+		with cpu cluster.
+		It can track buck voltage and update a proper cci frequency.
+		Use notification to get regulator status.
 
 config ARM_TEGRA_DEVFREQ
 	tristate "Tegra DEVFREQ Driver"
@@ -114,5 +126,6 @@ config ARM_RK3399_DMC_DEVFREQ
           from hardware.
 
 source "drivers/devfreq/event/Kconfig"
+source "drivers/devfreq/rockchip/Kconfig"
 
 endif # PM_DEVFREQ

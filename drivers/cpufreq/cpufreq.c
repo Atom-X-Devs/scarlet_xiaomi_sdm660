@@ -19,14 +19,14 @@
 
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
-#include <linux/cpufreq_times.h>
+#include <linux/cpu_cooling.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/sched/cpufreq.h>
+#include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
@@ -313,11 +313,14 @@ static void cpufreq_notify_transition(struct cpufreq_policy *policy,
 				      struct cpufreq_freqs *freqs,
 				      unsigned int state)
 {
+	int cpu;
+
 	BUG_ON(irqs_disabled());
 
 	if (cpufreq_disabled())
 		return;
 
+	freqs->policy = policy;
 	freqs->flags = cpufreq_driver->flags;
 	pr_debug("notification %u of frequency transition to %u kHz\n",
 		 state, freqs->new);
@@ -337,10 +340,8 @@ static void cpufreq_notify_transition(struct cpufreq_policy *policy,
 			}
 		}
 
-		for_each_cpu(freqs->cpu, policy->cpus) {
-			srcu_notifier_call_chain(&cpufreq_transition_notifier_list,
-						 CPUFREQ_PRECHANGE, freqs);
-		}
+		srcu_notifier_call_chain(&cpufreq_transition_notifier_list,
+					 CPUFREQ_PRECHANGE, freqs);
 
 		adjust_jiffies(CPUFREQ_PRECHANGE, freqs);
 		break;
@@ -350,14 +351,13 @@ static void cpufreq_notify_transition(struct cpufreq_policy *policy,
 		pr_debug("FREQ: %u - CPUs: %*pbl\n", freqs->new,
 			 cpumask_pr_args(policy->cpus));
 
-		for_each_cpu(freqs->cpu, policy->cpus) {
-			trace_cpu_frequency(freqs->new, freqs->cpu);
-			srcu_notifier_call_chain(&cpufreq_transition_notifier_list,
-						 CPUFREQ_POSTCHANGE, freqs);
-		}
+		for_each_cpu(cpu, policy->cpus)
+			trace_cpu_frequency(freqs->new, cpu);
+
+		srcu_notifier_call_chain(&cpufreq_transition_notifier_list,
+					 CPUFREQ_POSTCHANGE, freqs);
 
 		cpufreq_stats_record_transition(policy, freqs->new);
-		cpufreq_times_record_transition(freqs);
 		policy->cur = freqs->new;
 	}
 }
@@ -554,13 +554,13 @@ EXPORT_SYMBOL_GPL(cpufreq_policy_transition_delay_us);
  *                          SYSFS INTERFACE                          *
  *********************************************************************/
 static ssize_t show_boost(struct kobject *kobj,
-				 struct attribute *attr, char *buf)
+			  struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", cpufreq_driver->boost_enabled);
 }
 
-static ssize_t store_boost(struct kobject *kobj, struct attribute *attr,
-				  const char *buf, size_t count)
+static ssize_t store_boost(struct kobject *kobj, struct kobj_attribute *attr,
+			   const char *buf, size_t count)
 {
 	int ret, enable;
 
@@ -1112,6 +1112,7 @@ static struct cpufreq_policy *cpufreq_policy_alloc(unsigned int cpu)
 				   cpufreq_global_kobject, "policy%u", cpu);
 	if (ret) {
 		pr_err("%s: failed to init policy->kobj: %d\n", __func__, ret);
+		kobject_put(&policy->kobj);
 		goto err_free_real_cpus;
 	}
 
@@ -1304,7 +1305,6 @@ static int cpufreq_online(unsigned int cpu)
 			goto out_destroy_policy;
 
 		cpufreq_stats_create_table(policy);
-		cpufreq_times_create_policy(policy);
 
 		write_lock_irqsave(&cpufreq_driver_lock, flags);
 		list_add(&policy->policy_list, &cpufreq_policy_list);
@@ -1327,6 +1327,10 @@ static int cpufreq_online(unsigned int cpu)
 	/* Callback for handling stuff after policy is ready */
 	if (cpufreq_driver->ready)
 		cpufreq_driver->ready(policy);
+
+	if (IS_ENABLED(CONFIG_CPU_THERMAL) &&
+	    cpufreq_driver->flags & CPUFREQ_IS_COOLING_DEV)
+		policy->cdev = of_cpufreq_cooling_register(policy);
 
 	pr_debug("initialization complete\n");
 
@@ -1366,10 +1370,20 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 			return ret;
 	}
 
-	/* Create sysfs link on CPU registration */
 	policy = per_cpu(cpufreq_cpu_data, cpu);
-	if (policy)
+	if (policy) {
+		/* Create sysfs link on CPU registration */
 		add_cpu_dev_symlink(policy, cpu);
+
+		/*
+		 * Some usb devices request cpu frequency larger than a
+		 * specific value
+		 */
+		down_write(&policy->rwsem);
+		of_property_read_u32(dev->of_node, "complex-usb-min-frequency",
+				     &policy->complexusb_minfreq);
+		up_write(&policy->rwsem);
+	}
 
 	return 0;
 }
@@ -1413,6 +1427,12 @@ static int cpufreq_offline(unsigned int cpu)
 		}
 
 		goto unlock;
+	}
+
+	if (IS_ENABLED(CONFIG_CPU_THERMAL) &&
+	    cpufreq_driver->flags & CPUFREQ_IS_COOLING_DEV) {
+		cpufreq_cooling_unregister(policy->cdev);
+		policy->cdev = NULL;
 	}
 
 	if (cpufreq_driver->stop_cpu)
@@ -1540,17 +1560,16 @@ static unsigned int __cpufreq_get(struct cpufreq_policy *policy)
 {
 	unsigned int ret_freq = 0;
 
-	if (!cpufreq_driver->get)
+	if (unlikely(policy_is_inactive(policy)) || !cpufreq_driver->get)
 		return ret_freq;
 
 	ret_freq = cpufreq_driver->get(policy->cpu);
 
 	/*
-	 * Updating inactive policies is invalid, so avoid doing that.  Also
-	 * if fast frequency switching is used with the given policy, the check
+	 * If fast frequency switching is used with the given policy, the check
 	 * against policy->cur is pointless, so skip it in that case too.
 	 */
-	if (unlikely(policy_is_inactive(policy)) || policy->fast_switch_enabled)
+	if (policy->fast_switch_enabled)
 		return ret_freq;
 
 	if (ret_freq && policy->cur &&
@@ -1579,10 +1598,7 @@ unsigned int cpufreq_get(unsigned int cpu)
 
 	if (policy) {
 		down_read(&policy->rwsem);
-
-		if (!policy_is_inactive(policy))
-			ret_freq = __cpufreq_get(policy);
-
+		ret_freq = __cpufreq_get(policy);
 		up_read(&policy->rwsem);
 
 		cpufreq_cpu_put(policy);
@@ -2238,6 +2254,21 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 			CPUFREQ_ADJUST, new_policy);
 
 	/*
+	 * adjust if plug complex usb device
+	 * This code doesn't use cpufreq_verify_within_limits()
+	 * because we don't want to override someone else's max
+	 * (if the device is thermally throttled we'd rather just
+	 * sacrifice the quality of USB instead of going over our
+	 * thermal budget).
+	 */
+	if (policy->complexusb_cnt && policy->complexusb_minfreq) {
+		if (policy->complexusb_minfreq > new_policy->min)
+			new_policy->min = policy->complexusb_minfreq;
+		if (new_policy->min > new_policy->max)
+			new_policy->min = new_policy->max;
+	}
+
+	/*
 	 * verify the cpu speed can be set within this limit, which might be
 	 * different to the first one
 	 */
@@ -2354,6 +2385,49 @@ unlock:
 	cpufreq_cpu_put(policy);
 }
 EXPORT_SYMBOL(cpufreq_update_policy);
+
+/**
+ * cpufreq_start_complex_usb
+ *
+ * set cpu min frequency to complex-usb-min-frequency
+ * which define in dts
+ */
+void cpufreq_start_complex_usb(void)
+{
+	struct cpufreq_policy *policy = cpufreq_cpu_get(0);
+	bool need_update;
+
+	down_write(&policy->rwsem);
+	policy->complexusb_cnt++;
+	need_update = policy->complexusb_cnt == 1;
+	up_write(&policy->rwsem);
+	cpufreq_cpu_put(policy);
+
+	if (need_update)
+		cpufreq_update_policy(0);
+}
+EXPORT_SYMBOL(cpufreq_start_complex_usb);
+
+/**
+ * cpufreq_end_complex_usb
+ *
+ * revover cpu min frequency
+ */
+void cpufreq_end_complex_usb(void)
+{
+	struct cpufreq_policy *policy = cpufreq_cpu_get(0);
+	bool need_update;
+
+	down_write(&policy->rwsem);
+	policy->complexusb_cnt--;
+	need_update = policy->complexusb_cnt == 0;
+	up_write(&policy->rwsem);
+	cpufreq_cpu_put(policy);
+
+	if (need_update)
+		cpufreq_update_policy(0);
+}
+EXPORT_SYMBOL(cpufreq_end_complex_usb);
 
 /*********************************************************************
  *               BOOST						     *

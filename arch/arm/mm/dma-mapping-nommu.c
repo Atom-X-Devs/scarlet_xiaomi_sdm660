@@ -105,6 +105,13 @@ static void __dma_page_cpu_to_dev(phys_addr_t paddr, size_t size,
 		outer_clean_range(paddr, paddr + size);
 }
 
+void arch_sync_dma_for_device(struct device *dev, phys_addr_t paddr,
+		size_t size, enum dma_data_direction dir)
+{
+	__dma_page_cpu_to_dev(paddr, size, dir);
+}
+EXPORT_SYMBOL_GPL(arch_sync_dma_for_device);
+
 static void __dma_page_dev_to_cpu(phys_addr_t paddr, size_t size,
 				  enum dma_data_direction dir)
 {
@@ -113,6 +120,13 @@ static void __dma_page_dev_to_cpu(phys_addr_t paddr, size_t size,
 		dmac_unmap_area(__va(paddr), size, dir);
 	}
 }
+
+void arch_sync_dma_for_cpu(struct device *dev, phys_addr_t paddr,
+		size_t size, enum dma_data_direction dir)
+{
+	__dma_page_dev_to_cpu(paddr, size, dir);
+}
+EXPORT_SYMBOL_GPL(arch_sync_dma_for_cpu);
 
 static dma_addr_t arm_nommu_dma_map_page(struct device *dev, struct page *page,
 					 unsigned long offset, size_t size,

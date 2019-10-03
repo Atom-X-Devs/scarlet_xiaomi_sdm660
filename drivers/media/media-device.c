@@ -70,14 +70,14 @@ static long media_device_get_info(struct media_device *dev, void *arg)
 	memset(info, 0, sizeof(*info));
 
 	if (dev->driver_name[0])
-		strlcpy(info->driver, dev->driver_name, sizeof(info->driver));
+		strscpy(info->driver, dev->driver_name, sizeof(info->driver));
 	else
-		strlcpy(info->driver, dev->dev->driver->name,
+		strscpy(info->driver, dev->dev->driver->name,
 			sizeof(info->driver));
 
-	strlcpy(info->model, dev->model, sizeof(info->model));
-	strlcpy(info->serial, dev->serial, sizeof(info->serial));
-	strlcpy(info->bus_info, dev->bus_info, sizeof(info->bus_info));
+	strscpy(info->model, dev->model, sizeof(info->model));
+	strscpy(info->serial, dev->serial, sizeof(info->serial));
+	strscpy(info->bus_info, dev->bus_info, sizeof(info->bus_info));
 
 	info->media_version = LINUX_VERSION_CODE;
 	info->driver_version = info->media_version;
@@ -116,7 +116,7 @@ static long media_device_enum_entities(struct media_device *mdev, void *arg)
 
 	entd->id = media_entity_id(ent);
 	if (ent->name)
-		strlcpy(entd->name, ent->name, sizeof(entd->name));
+		strscpy(entd->name, ent->name, sizeof(entd->name));
 	entd->type = ent->function;
 	entd->revision = 0;		/* Unused */
 	entd->flags = ent->flags;
@@ -269,7 +269,7 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 		kentity.id = entity->graph_obj.id;
 		kentity.function = entity->function;
 		kentity.flags = entity->flags;
-		strlcpy(kentity.name, entity->name,
+		strscpy(kentity.name, entity->name,
 			sizeof(kentity.name));
 
 		if (copy_to_user(uentity, &kentity, sizeof(kentity)))
@@ -381,10 +381,14 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 static long media_device_request_alloc(struct media_device *mdev,
 				       int *alloc_fd)
 {
+#ifdef CONFIG_MEDIA_CONTROLLER_REQUEST_API
 	if (!mdev->ops || !mdev->ops->req_validate || !mdev->ops->req_queue)
 		return -ENOTTY;
 
 	return media_request_alloc(mdev, alloc_fd);
+#else
+	return -ENOTTY;
+#endif
 }
 
 static long copy_arg_from_user(void *karg, void __user *uarg, unsigned int cmd)
@@ -498,6 +502,7 @@ static long media_device_enum_links32(struct media_device *mdev,
 {
 	struct media_links_enum links;
 	compat_uptr_t pads_ptr, links_ptr;
+	int ret;
 
 	memset(&links, 0, sizeof(links));
 
@@ -509,7 +514,14 @@ static long media_device_enum_links32(struct media_device *mdev,
 	links.pads = compat_ptr(pads_ptr);
 	links.links = compat_ptr(links_ptr);
 
-	return media_device_enum_links(mdev, &links);
+	ret = media_device_enum_links(mdev, &links);
+	if (ret)
+		return ret;
+
+	if (copy_to_user(ulinks->reserved, links.reserved,
+			 sizeof(ulinks->reserved)))
+		return -EFAULT;
+	return 0;
 }
 
 #define MEDIA_IOC_ENUM_LINKS32		_IOWR('|', 0x02, struct media_links_enum32)
@@ -852,9 +864,9 @@ void media_device_pci_init(struct media_device *mdev,
 	mdev->dev = &pci_dev->dev;
 
 	if (name)
-		strlcpy(mdev->model, name, sizeof(mdev->model));
+		strscpy(mdev->model, name, sizeof(mdev->model));
 	else
-		strlcpy(mdev->model, pci_name(pci_dev), sizeof(mdev->model));
+		strscpy(mdev->model, pci_name(pci_dev), sizeof(mdev->model));
 
 	sprintf(mdev->bus_info, "PCI:%s", pci_name(pci_dev));
 
@@ -875,17 +887,17 @@ void __media_device_usb_init(struct media_device *mdev,
 	mdev->dev = &udev->dev;
 
 	if (driver_name)
-		strlcpy(mdev->driver_name, driver_name,
+		strscpy(mdev->driver_name, driver_name,
 			sizeof(mdev->driver_name));
 
 	if (board_name)
-		strlcpy(mdev->model, board_name, sizeof(mdev->model));
+		strscpy(mdev->model, board_name, sizeof(mdev->model));
 	else if (udev->product)
-		strlcpy(mdev->model, udev->product, sizeof(mdev->model));
+		strscpy(mdev->model, udev->product, sizeof(mdev->model));
 	else
-		strlcpy(mdev->model, "unknown model", sizeof(mdev->model));
+		strscpy(mdev->model, "unknown model", sizeof(mdev->model));
 	if (udev->serial)
-		strlcpy(mdev->serial, udev->serial, sizeof(mdev->serial));
+		strscpy(mdev->serial, udev->serial, sizeof(mdev->serial));
 	usb_make_path(udev, mdev->bus_info, sizeof(mdev->bus_info));
 	mdev->hw_revision = le16_to_cpu(udev->descriptor.bcdDevice);
 

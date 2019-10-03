@@ -34,6 +34,7 @@
 #include <linux/ramfs.h>
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-noncoherent.h>
 #include "vgem_drv.h"
 
 #define DRIVER_NAME	"vgem"
@@ -47,9 +48,15 @@ static struct vgem_device {
 	struct platform_device *platform;
 } *vgem_device;
 
+static void sync_and_unpin(struct drm_vgem_gem_object *bo);
+static struct page **pin_and_sync(struct drm_vgem_gem_object *bo);
+
 static void vgem_gem_free_object(struct drm_gem_object *obj)
 {
 	struct drm_vgem_gem_object *vgem_obj = to_vgem_bo(obj);
+
+	if (!obj->import_attach)
+		sync_and_unpin(vgem_obj);
 
 	kvfree(vgem_obj->pages);
 	mutex_destroy(&vgem_obj->pages_lock);
@@ -78,40 +85,15 @@ static vm_fault_t vgem_gem_fault(struct vm_fault *vmf)
 		return VM_FAULT_SIGBUS;
 
 	mutex_lock(&obj->pages_lock);
+	if (!obj->pages)
+		pin_and_sync(obj);
 	if (obj->pages) {
 		get_page(obj->pages[page_offset]);
 		vmf->page = obj->pages[page_offset];
 		ret = 0;
 	}
 	mutex_unlock(&obj->pages_lock);
-	if (ret) {
-		struct page *page;
 
-		page = shmem_read_mapping_page(
-					file_inode(obj->base.filp)->i_mapping,
-					page_offset);
-		if (!IS_ERR(page)) {
-			vmf->page = page;
-			ret = 0;
-		} else switch (PTR_ERR(page)) {
-			case -ENOSPC:
-			case -ENOMEM:
-				ret = VM_FAULT_OOM;
-				break;
-			case -EBUSY:
-				ret = VM_FAULT_RETRY;
-				break;
-			case -EFAULT:
-			case -EINVAL:
-				ret = VM_FAULT_SIGBUS;
-				break;
-			default:
-				WARN_ON(PTR_ERR(page));
-				ret = VM_FAULT_SIGBUS;
-				break;
-		}
-
-	}
 	return ret;
 }
 
@@ -191,13 +173,9 @@ static struct drm_gem_object *vgem_gem_create(struct drm_device *dev,
 	ret = drm_gem_handle_create(file, &obj->base, handle);
 	drm_gem_object_put_unlocked(&obj->base);
 	if (ret)
-		goto err;
+		return ERR_PTR(ret);
 
 	return &obj->base;
-
-err:
-	__vgem_gem_destroy(obj);
-	return ERR_PTR(ret);
 }
 
 static int vgem_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
@@ -281,32 +259,107 @@ static const struct file_operations vgem_driver_fops = {
 	.release	= drm_release,
 };
 
-static struct page **vgem_pin_pages(struct drm_vgem_gem_object *bo)
+/* Called under pages_lock, except in free path (where it can't race): */
+static void sync_and_unpin(struct drm_vgem_gem_object *bo)
 {
-	mutex_lock(&bo->pages_lock);
-	if (bo->pages_pin_count++ == 0) {
-		struct page **pages;
+	struct device *dev = bo->base.dev->dev;
 
-		pages = drm_gem_get_pages(&bo->base);
-		if (IS_ERR(pages)) {
-			bo->pages_pin_count--;
-			mutex_unlock(&bo->pages_lock);
-			return pages;
+	if (bo->table) {
+		struct scatterlist *sg;
+		int i;
+
+		for_each_sg(bo->table->sgl, sg, bo->table->nents, i) {
+			arch_sync_dma_for_cpu(dev, sg_phys(sg), sg->length,
+					      DMA_BIDIRECTIONAL);
 		}
 
-		bo->pages = pages;
+		sg_free_table(bo->table);
+		kfree(bo->table);
+		bo->table = NULL;
+	}
+
+	if (bo->pages) {
+		drm_gem_put_pages(&bo->base, bo->pages, true, true);
+		bo->pages = NULL;
+	}
+}
+
+static struct page **pin_and_sync(struct drm_vgem_gem_object *bo)
+{
+	struct device *dev = bo->base.dev->dev;
+	int npages = bo->base.size >> PAGE_SHIFT;
+	struct page **pages;
+	struct sg_table *sgt;
+	struct scatterlist *sg;
+	int i;
+
+	WARN_ON(!mutex_is_locked(&bo->pages_lock));
+
+	pages = drm_gem_get_pages(&bo->base);
+	if (IS_ERR(pages)) {
+		bo->pages_pin_count--;
+		mutex_unlock(&bo->pages_lock);
+		return pages;
+	}
+
+	sgt = drm_prime_pages_to_sg(pages, npages);
+	if (IS_ERR(sgt)) {
+		dev_err(dev, "failed to allocate sgt: %ld\n",
+			PTR_ERR(bo->table));
+		drm_gem_put_pages(&bo->base, pages, false, false);
+		mutex_unlock(&bo->pages_lock);
+		return ERR_CAST(bo->table);
+	}
+
+	/*
+	 * Flush the object from the CPU cache so that importers
+	 * can rely on coherent indirect access via the exported
+	 * dma-address.
+	 */
+	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
+		arch_sync_dma_for_device(dev, sg_phys(sg), sg->length,
+					 DMA_BIDIRECTIONAL);
+	}
+
+#if defined(CONFIG_X86)
+	/* x86 doesn't have arch_sync_dma_*() */
+	drm_clflush_pages(pages, npages);
+#endif
+
+	bo->pages = pages;
+	bo->table = sgt;
+
+	return pages;
+}
+
+static struct page **vgem_pin_pages(struct drm_vgem_gem_object *bo)
+{
+	struct page **pages;
+
+	mutex_lock(&bo->pages_lock);
+	if (bo->pages_pin_count++ == 0 && !bo->pages) {
+		pages = pin_and_sync(bo);
+	} else {
+		WARN_ON(!bo->pages);
+		pages = bo->pages;
 	}
 	mutex_unlock(&bo->pages_lock);
 
-	return bo->pages;
+	return pages;
 }
 
 static void vgem_unpin_pages(struct drm_vgem_gem_object *bo)
 {
+	/*
+	 * We shouldn't hit this for imported bo's.. in the import
+	 * case we don't own the scatter-table
+	 */
+	WARN_ON(bo->base.import_attach);
+
 	mutex_lock(&bo->pages_lock);
 	if (--bo->pages_pin_count == 0) {
-		drm_gem_put_pages(&bo->base, bo->pages, true, true);
-		bo->pages = NULL;
+		WARN_ON(!bo->table);
+		sync_and_unpin(bo);
 	}
 	mutex_unlock(&bo->pages_lock);
 }
@@ -314,17 +367,11 @@ static void vgem_unpin_pages(struct drm_vgem_gem_object *bo)
 static int vgem_prime_pin(struct drm_gem_object *obj)
 {
 	struct drm_vgem_gem_object *bo = to_vgem_bo(obj);
-	long n_pages = obj->size >> PAGE_SHIFT;
 	struct page **pages;
 
 	pages = vgem_pin_pages(bo);
 	if (IS_ERR(pages))
 		return PTR_ERR(pages);
-
-	/* Flush the object from the CPU cache so that importers can rely
-	 * on coherent indirect access via the exported dma-address.
-	 */
-	drm_clflush_pages(pages, n_pages);
 
 	return 0;
 }
@@ -463,6 +510,18 @@ static struct drm_driver vgem_driver = {
 	.minor	= DRIVER_MINOR,
 };
 
+static int vgem_map_sg(struct device *dev, struct scatterlist *sgl,
+		int nelems, enum dma_data_direction dir,
+		unsigned long attrs)
+{
+	return 1;
+}
+
+
+static const struct dma_map_ops vgem_dma_ops = {
+	.map_sg = vgem_map_sg,
+};
+
 static int __init vgem_init(void)
 {
 	int ret;
@@ -471,31 +530,33 @@ static int __init vgem_init(void)
 	if (!vgem_device)
 		return -ENOMEM;
 
-	ret = drm_dev_init(&vgem_device->drm, &vgem_driver, NULL);
-	if (ret)
-		goto out_free;
-
 	vgem_device->platform =
 		platform_device_register_simple("vgem", -1, NULL, 0);
 	if (IS_ERR(vgem_device->platform)) {
 		ret = PTR_ERR(vgem_device->platform);
-		goto out_fini;
+		goto out_free;
 	}
+
+	vgem_device->platform->dev.dma_ops = &vgem_dma_ops;
 
 	dma_coerce_mask_and_coherent(&vgem_device->platform->dev,
 				     DMA_BIT_MASK(64));
+	ret = drm_dev_init(&vgem_device->drm, &vgem_driver,
+			   &vgem_device->platform->dev);
+	if (ret)
+		goto out_unregister;
 
 	/* Final step: expose the device/driver to userspace */
 	ret  = drm_dev_register(&vgem_device->drm, 0);
 	if (ret)
-		goto out_unregister;
+		goto out_fini;
 
 	return 0;
 
-out_unregister:
-	platform_device_unregister(vgem_device->platform);
 out_fini:
 	drm_dev_fini(&vgem_device->drm);
+out_unregister:
+	platform_device_unregister(vgem_device->platform);
 out_free:
 	kfree(vgem_device);
 	return ret;

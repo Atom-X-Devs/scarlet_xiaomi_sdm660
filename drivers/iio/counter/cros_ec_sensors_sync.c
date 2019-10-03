@@ -28,8 +28,9 @@
 #include <linux/iio/trigger_consumer.h>
 #include <linux/kernel.h>
 #include <linux/mfd/cros_ec.h>
-#include <linux/mfd/cros_ec_commands.h>
 #include <linux/module.h>
+#include <linux/platform_data/cros_ec_commands.h>
+#include <linux/platform_data/cros_ec_proto.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
@@ -122,8 +123,6 @@ static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
 	channel->scan_index = 0;
 	channel->ext_info = cros_ec_sensors_ext_info;
 	channel->scan_type.sign = 'u';
-
-	state->core.calib[0] = 0;
 
 	/* sensor specific */
 	switch (state->core.type) {

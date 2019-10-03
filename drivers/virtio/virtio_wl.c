@@ -43,6 +43,7 @@
 #include <linux/cdev.h>
 #include <linux/compat.h>
 #include <linux/completion.h>
+#include <linux/dma-buf.h>
 #include <linux/err.h>
 #include <linux/fdtable.h>
 #include <linux/file.h>
@@ -58,7 +59,12 @@
 #include <linux/virtio.h>
 #include <linux/virtio_wl.h>
 
+#include <drm/virtio_drm.h>
 #include <uapi/linux/dma-buf.h>
+
+#ifdef CONFIG_DRM_VIRTIO_GPU
+#define SEND_VIRTGPU_RESOURCES
+#endif
 
 #define VFD_ILLEGAL_SIGN_BIT 0x80000000
 #define VFD_HOST_VFD_ID_BIT 0x40000000
@@ -473,6 +479,7 @@ static void virtwl_vfd_remove(struct virtwl_vfd *vfd)
 		kfree(qentry);
 	}
 	mutex_unlock(vq_lock);
+	virtqueue_kick(vq);
 
 	virtwl_vfd_free(vfd);
 }
@@ -638,6 +645,9 @@ static ssize_t virtwl_vfd_recv(struct file *filp, char __user *buffer,
 	size_t vfd_read_count = 0;
 	bool force_to_wait = false;
 
+	if (!vfd->flags)
+		return -EINVAL;
+
 	mutex_lock(&vi->vfds_lock);
 	mutex_lock(&vfd->lock);
 
@@ -684,6 +694,48 @@ out_unlock:
 	return read_count;
 }
 
+static int encode_vfd_ids(struct virtwl_vfd **vfds, size_t vfd_count,
+			  __le32 *vfd_ids)
+{
+	size_t i;
+
+	for (i = 0; i < vfd_count; i++) {
+		if (vfds[i])
+			vfd_ids[i] = cpu_to_le32(vfds[i]->id);
+		else
+			return -EBADFD;
+	}
+	return 0;
+}
+
+#ifdef SEND_VIRTGPU_RESOURCES
+static int encode_vfd_ids_foreign(struct virtwl_vfd **vfds,
+				  struct dma_buf **virtgpu_dma_bufs,
+				  size_t vfd_count,
+				  struct virtio_wl_ctrl_vfd_send_vfd *vfd_ids)
+{
+	size_t i;
+	int ret;
+
+	for (i = 0; i < vfd_count; i++) {
+		if (vfds[i]) {
+			vfd_ids[i].kind = VIRTIO_WL_CTRL_VFD_SEND_KIND_LOCAL;
+			vfd_ids[i].id = cpu_to_le32(vfds[i]->id);
+		} else if (virtgpu_dma_bufs[i]) {
+			ret = virtio_gpu_dma_buf_to_handle(virtgpu_dma_bufs[i],
+							   false,
+							   &vfd_ids[i].id);
+			if (ret)
+				return ret;
+			vfd_ids[i].kind = VIRTIO_WL_CTRL_VFD_SEND_KIND_VIRTGPU;
+		} else {
+			return -EBADFD;
+		}
+	}
+	return 0;
+}
+#endif
+
 static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 					       u32 len, int *vfd_fds)
 {
@@ -691,16 +743,24 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 	struct virtwl_info *vi = vfd->vi;
 	struct fd vfd_files[VIRTWL_SEND_MAX_ALLOCS] = { { 0 } };
 	struct virtwl_vfd *vfds[VIRTWL_SEND_MAX_ALLOCS] = { 0 };
+#ifdef SEND_VIRTGPU_RESOURCES
+	struct dma_buf *virtgpu_dma_bufs[VIRTWL_SEND_MAX_ALLOCS] = { 0 };
+	bool foreign_id = false;
+#endif
 	size_t vfd_count = 0;
-	size_t post_send_size;
+	size_t vfd_ids_size;
+	size_t ctrl_send_size;
 	struct virtio_wl_ctrl_vfd_send *ctrl_send;
-	__le32 *vfd_ids;
+	u8 *vfd_ids;
 	u8 *out_buffer;
 	struct completion finish_completion;
 	struct scatterlist out_sg;
 	struct scatterlist in_sg;
 	int ret;
 	int i;
+
+	if (!vfd->flags)
+		return -EINVAL;
 
 	if (vfd_fds) {
 		for (i = 0; i < VIRTWL_SEND_MAX_ALLOCS; i++) {
@@ -715,15 +775,34 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 				ret = -EBADFD;
 				goto put_files;
 			}
-			vfd_files[i] = vfd_file;
 
-			vfds[i] = vfd_file.file->private_data;
-			if (!vfds[i] || !vfds[i]->id) {
+			if (vfd_file.file->f_op == &virtwl_vfd_fops) {
+				vfd_files[i] = vfd_file;
+
+				vfds[i] = vfd_file.file->private_data;
+				if (vfds[i] && vfds[i]->id) {
+					vfd_count++;
+					continue;
+				}
+
 				ret = -EINVAL;
 				goto put_files;
+			} else {
+				struct dma_buf *dma_buf = ERR_PTR(-EINVAL);
+#ifdef SEND_VIRTGPU_RESOURCES
+				dma_buf = dma_buf_get(vfd_fds[i]);
+				if (!IS_ERR(dma_buf)) {
+					fdput(vfd_file);
+					virtgpu_dma_bufs[i] = dma_buf;
+					foreign_id = true;
+					vfd_count++;
+					continue;
+				}
+#endif
+				fdput(vfd_file);
+				ret = PTR_ERR(dma_buf);
+				goto put_files;
 			}
-
-			vfd_count++;
 		}
 	}
 
@@ -731,21 +810,39 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 	if (len == 0 && vfd_count == 0)
 		return 0;
 
-	post_send_size = vfd_count * sizeof(__le32) + len;
-	ctrl_send = kzalloc(sizeof(*ctrl_send) + post_send_size, GFP_KERNEL);
+	vfd_ids_size = vfd_count * sizeof(__le32);
+#ifdef SEND_VIRTGPU_RESOURCES
+	if (foreign_id) {
+		vfd_ids_size = vfd_count *
+			       sizeof(struct virtio_wl_ctrl_vfd_send_vfd);
+	}
+#endif
+	ctrl_send_size = sizeof(*ctrl_send) + vfd_ids_size + len;
+	ctrl_send = kzalloc(ctrl_send_size, GFP_KERNEL);
 	if (!ctrl_send) {
 		ret = -ENOMEM;
 		goto put_files;
 	}
 
-	vfd_ids = (__le32 *)((u8 *)ctrl_send + sizeof(*ctrl_send));
-	out_buffer = (u8 *)vfd_ids + vfd_count * sizeof(__le32);
+	vfd_ids = (u8 *)ctrl_send + sizeof(*ctrl_send);
+	out_buffer = (u8 *)ctrl_send + ctrl_send_size - len;
 
 	ctrl_send->hdr.type = VIRTIO_WL_CMD_VFD_SEND;
+#ifdef SEND_VIRTGPU_RESOURCES
+	if (foreign_id) {
+		ctrl_send->hdr.type = VIRTIO_WL_CMD_VFD_SEND_FOREIGN_ID;
+		ret = encode_vfd_ids_foreign(vfds, virtgpu_dma_bufs, vfd_count,
+			(struct virtio_wl_ctrl_vfd_send_vfd *)vfd_ids);
+	} else {
+		ret = encode_vfd_ids(vfds, vfd_count, (__le32 *)vfd_ids);
+	}
+#else
+	ret = encode_vfd_ids(vfds, vfd_count, (__le32 *)vfd_ids);
+#endif
+	if (ret)
+		goto free_ctrl_send;
 	ctrl_send->vfd_id = vfd->id;
 	ctrl_send->vfd_count = vfd_count;
-	for (i = 0; i < vfd_count; i++)
-		vfd_ids[i] = cpu_to_le32(vfds[i]->id);
 
 	if (copy_from_user(out_buffer, buffer, len)) {
 		ret = -EFAULT;
@@ -753,7 +850,7 @@ static int virtwl_vfd_send(struct file *filp, const char __user *buffer,
 	}
 
 	init_completion(&finish_completion);
-	sg_init_one(&out_sg, ctrl_send, sizeof(*ctrl_send) + post_send_size);
+	sg_init_one(&out_sg, ctrl_send, ctrl_send_size);
 	sg_init_one(&in_sg, ctrl_send, sizeof(struct virtio_wl_ctrl_hdr));
 
 	ret = vq_queue_out(vi, &out_sg, &in_sg, &finish_completion,
@@ -769,9 +866,12 @@ free_ctrl_send:
 	kfree(ctrl_send);
 put_files:
 	for (i = 0; i < VIRTWL_SEND_MAX_ALLOCS; i++) {
-		if (!vfd_files[i].file)
-			continue;
-		fdput(vfd_files[i]);
+		if (vfd_files[i].file)
+			fdput(vfd_files[i]);
+#ifdef SEND_VIRTGPU_RESOURCES
+		if (virtgpu_dma_bufs[i])
+			dma_buf_put(virtgpu_dma_bufs[i]);
+#endif
 	}
 	return ret;
 }
@@ -843,7 +943,16 @@ static int virtwl_vfd_mmap(struct file *filp, struct vm_area_struct *vma)
 	unsigned long vm_size = vma->vm_end - vma->vm_start;
 	int ret = 0;
 
-	mutex_lock(&vfd->lock);
+	/* We've hold mm->mmap_sem here. If it's a vfd for read, then it could
+	 * wait mm->mmap_sem when calling copy_to_user while holding vfd->lock
+	 * inside vfd_out_locked of virtwl_vfd_recv. Actually we don't support
+	 * mmap for this kind of vfd. Just return here to avoid possible dead
+	 * lock.
+	 */
+	if (vfd->flags)
+		return -EACCES;
+
+	mutex_lock_nested(&vfd->lock, 1);
 
 	if (!vfd->pfn) {
 		ret = -EACCES;

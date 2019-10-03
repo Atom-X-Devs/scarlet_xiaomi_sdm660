@@ -874,16 +874,15 @@ static void iface_create_proc_worker(struct work_struct *work)
 	struct proc_dir_entry *proc_entry;
 	struct iface_stat_work *isw = container_of(work, struct iface_stat_work,
 						   iface_work);
+	struct qtaguid_net *qtaguid_net = qtaguid_pernet(dev_net(isw->net_dev));
 	struct iface_stat *new_iface  = isw->iface_entry;
-	struct qtaguid_net *qtaguid_net = qtaguid_pernet(isw->net);
 
 	/* iface_entries are not deleted, so safe to manipulate. */
 	proc_entry = proc_mkdir(new_iface->ifname,
 				qtaguid_net->iface_stat_procdir);
 	if (IS_ERR_OR_NULL(proc_entry)) {
 		pr_err("qtaguid: iface_stat: create_proc(): alloc failed.\n");
-		kfree(isw);
-		return;
+		goto abort;
 	}
 
 	new_iface->proc_ptr = proc_entry;
@@ -905,7 +904,8 @@ static void iface_create_proc_worker(struct work_struct *work)
 
 	IF_DEBUG("qtaguid: iface_stat: create_proc(): done "
 		 "entry=%p dev=%s\n", new_iface, new_iface->ifname);
-	put_net(isw->net);
+abort:
+	dev_put(isw->net_dev);
 	kfree(isw);
 }
 
@@ -947,7 +947,6 @@ static void _iface_stat_set_active(struct iface_stat *entry,
 			 "disable tracking. rfcnt=%d\n", __func__,
 			 entry->ifname,
 			 __this_cpu_read(*net_dev->pcpu_refcnt));
-
 	}
 }
 
@@ -989,7 +988,8 @@ static struct iface_stat *iface_alloc(struct net_device *net_dev)
 		return NULL;
 	}
 	isw->iface_entry = new_iface;
-	isw->net = get_net(dev_net(net_dev));
+	dev_hold(net_dev);
+	isw->net_dev = net_dev;
 	INIT_WORK(&isw->iface_work, iface_create_proc_worker);
 	schedule_work(&isw->iface_work);
 	list_add(&new_iface->list, &qtaguid_net->iface_stat_list);
@@ -2539,6 +2539,14 @@ int qtaguid_untag(struct socket *el_socket, bool kernel)
 	struct tag_ref *tag_ref_entry;
 	struct uid_tag_data *utd_entry;
 	struct proc_qtu_data *pqd_entry;
+
+	/* qtaguid_untag() may be called from inet_release(), which in turn
+	 * may be called from the error handler in setup_net() if creating
+	 * the network namespace failed. In this case, there is no guarantee
+	 * that qtaguid_net was ever initialized, and qtaguid_net may be NULL.
+	 */
+	if (!qtaguid_net)
+		return -EINVAL;
 
 	spin_lock_bh(&qtaguid_net->sock_tag_list_lock);
 	sock_tag_entry = get_sock_stat_nl(qtaguid_net, el_socket->sk);

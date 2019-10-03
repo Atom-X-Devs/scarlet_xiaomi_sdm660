@@ -18,3 +18,14 @@ config ROCKCHIP_IODOMAIN
           Say y here to enable support io domains on Rockchip SoCs. It is
           necessary for the io domain setting of the SoC to match the
           voltage supplied by the regulators.
+
+config MTK_SVS
+	bool "MediaTek Smart Voltage Scaling(SVS)"
+	depends on POWER_AVS && MTK_EFUSE
+	depends on THERMAL!=m
+	help
+	  The SVS engine is a piece of hardware which is used to calculate
+	  optimized voltage values of several power domains, e.g.
+	  CPU clusters/GPU/CCI, according to chip process corner, temperatures,
+	  and other factors. Then DVFS driver could apply those optimized voltage
+	  values to reduce power consumption.

@@ -683,6 +683,9 @@
  *	@cred contains the cred of the process where the signal originated, or
  *	NULL if the current task is the originator.
  *	Return 0 if permission is granted.
+ * @task_exit:
+ *      Called early when a task is exiting before all state is lost.
+ *      @p contains the task_struct for process.
  * @task_prctl:
  *	Check permission before performing a process control operation on the
  *	current process.
@@ -1270,7 +1273,7 @@
  *	@cred contains the credentials to use.
  *	@ns contains the user namespace we want the capability in
  *	@cap contains the capability <include/linux/capability.h>.
- *	@audit contains whether to write an audit message or not
+ *	@opts contains options for the capable check <include/linux/security.h>
  *	Return 0 if the capability is granted for @tsk.
  * @syslog:
  *	Check permission before accessing the kernel message ring or changing
@@ -1446,8 +1449,10 @@ union security_list_options {
 			const kernel_cap_t *effective,
 			const kernel_cap_t *inheritable,
 			const kernel_cap_t *permitted);
-	int (*capable)(const struct cred *cred, struct user_namespace *ns,
-			int cap, int audit);
+	int (*capable)(const struct cred *cred,
+			struct user_namespace *ns,
+			int cap,
+			unsigned int opts);
 	int (*quotactl)(int cmds, int type, int id, struct super_block *sb);
 	int (*quota_on)(struct dentry *dentry);
 	int (*syslog)(int type);
@@ -1608,6 +1613,7 @@ union security_list_options {
 	int (*task_movememory)(struct task_struct *p);
 	int (*task_kill)(struct task_struct *p, struct siginfo *info,
 				int sig, const struct cred *cred);
+	void (*task_exit)(struct task_struct *p);
 	int (*task_prctl)(int option, unsigned long arg2, unsigned long arg3,
 				unsigned long arg4, unsigned long arg5);
 	void (*task_to_inode)(struct task_struct *p, struct inode *inode);
@@ -1895,6 +1901,7 @@ struct security_hook_heads {
 	struct hlist_head task_getscheduler;
 	struct hlist_head task_movememory;
 	struct hlist_head task_kill;
+	struct hlist_head task_exit;
 	struct hlist_head task_prctl;
 	struct hlist_head task_to_inode;
 	struct hlist_head ipc_permission;

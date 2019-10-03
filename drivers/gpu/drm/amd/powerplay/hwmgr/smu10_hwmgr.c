@@ -1005,6 +1005,7 @@ static int smu10_get_clock_by_type_with_latency(struct pp_hwmgr *hwmgr,
 		break;
 	case amd_pp_dpp_clock:
 		pclk_vol_table = pinfo->vdd_dep_on_dppclk;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1153,6 +1154,14 @@ static int smu10_powergate_mmhub(struct pp_hwmgr *hwmgr)
 	return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerGateMmHub);
 }
 
+static int smu10_powergate_sdma(struct pp_hwmgr *hwmgr, bool gate)
+{
+	if (gate)
+		return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerDownSdma);
+	else
+		return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerUpSdma);
+}
+
 static void smu10_powergate_vcn(struct pp_hwmgr *hwmgr, bool bgate)
 {
 	if (bgate) {
@@ -1208,6 +1217,7 @@ static const struct pp_hwmgr_func smu10_hwmgr_funcs = {
 	.smus_notify_pwe = smu10_smus_notify_pwe,
 	.display_clock_voltage_request = smu10_display_clock_voltage_request,
 	.powergate_gfx = smu10_gfx_off_control,
+	.powergate_sdma = smu10_powergate_sdma,
 };
 
 int smu10_init_function_pointers(struct pp_hwmgr *hwmgr)

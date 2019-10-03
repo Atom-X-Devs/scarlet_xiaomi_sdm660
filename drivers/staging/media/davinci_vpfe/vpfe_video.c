@@ -422,6 +422,9 @@ static int vpfe_open(struct file *file)
 	/* If decoder is not initialized. initialize it */
 	if (!video->initialized && vpfe_update_pipe_state(video)) {
 		mutex_unlock(&video->lock);
+		v4l2_fh_del(&handle->vfh);
+		v4l2_fh_exit(&handle->vfh);
+		kfree(handle);
 		return -ENODEV;
 	}
 	/* Increment device users counter */
@@ -618,9 +621,9 @@ static int vpfe_querycap(struct file *file, void  *priv,
 		cap->device_caps = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_STREAMING;
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OUTPUT |
 			    V4L2_CAP_STREAMING | V4L2_CAP_DEVICE_CAPS;
-	strlcpy(cap->driver, CAPTURE_DRV_NAME, sizeof(cap->driver));
-	strlcpy(cap->bus_info, "VPFE", sizeof(cap->bus_info));
-	strlcpy(cap->card, vpfe_dev->cfg->card_name, sizeof(cap->card));
+	strscpy(cap->driver, CAPTURE_DRV_NAME, sizeof(cap->driver));
+	strscpy(cap->bus_info, "VPFE", sizeof(cap->bus_info));
+	strscpy(cap->card, vpfe_dev->cfg->card_name, sizeof(cap->card));
 
 	return 0;
 }

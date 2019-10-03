@@ -37,8 +37,6 @@
 
 #include <linux/delay.h>
 
-#define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
-
 static struct
 virtio_gpu_device *virtio_gpu_get_vgdev(struct ttm_bo_device *bdev)
 {
@@ -48,62 +46,6 @@ virtio_gpu_device *virtio_gpu_get_vgdev(struct ttm_bo_device *bdev)
 	mman = container_of(bdev, struct virtio_gpu_mman, bdev);
 	vgdev = container_of(mman, struct virtio_gpu_device, mman);
 	return vgdev;
-}
-
-static int virtio_gpu_ttm_mem_global_init(struct drm_global_reference *ref)
-{
-	return ttm_mem_global_init(ref->object);
-}
-
-static void virtio_gpu_ttm_mem_global_release(struct drm_global_reference *ref)
-{
-	ttm_mem_global_release(ref->object);
-}
-
-static int virtio_gpu_ttm_global_init(struct virtio_gpu_device *vgdev)
-{
-	struct drm_global_reference *global_ref;
-	int r;
-
-	vgdev->mman.mem_global_referenced = false;
-	global_ref = &vgdev->mman.mem_global_ref;
-	global_ref->global_type = DRM_GLOBAL_TTM_MEM;
-	global_ref->size = sizeof(struct ttm_mem_global);
-	global_ref->init = &virtio_gpu_ttm_mem_global_init;
-	global_ref->release = &virtio_gpu_ttm_mem_global_release;
-
-	r = drm_global_item_ref(global_ref);
-	if (r != 0) {
-		DRM_ERROR("Failed setting up TTM memory accounting "
-			  "subsystem.\n");
-		return r;
-	}
-
-	vgdev->mman.bo_global_ref.mem_glob =
-		vgdev->mman.mem_global_ref.object;
-	global_ref = &vgdev->mman.bo_global_ref.ref;
-	global_ref->global_type = DRM_GLOBAL_TTM_BO;
-	global_ref->size = sizeof(struct ttm_bo_global);
-	global_ref->init = &ttm_bo_global_init;
-	global_ref->release = &ttm_bo_global_release;
-	r = drm_global_item_ref(global_ref);
-	if (r != 0) {
-		DRM_ERROR("Failed setting up TTM BO subsystem.\n");
-		drm_global_item_unref(&vgdev->mman.mem_global_ref);
-		return r;
-	}
-
-	vgdev->mman.mem_global_referenced = true;
-	return 0;
-}
-
-static void virtio_gpu_ttm_global_fini(struct virtio_gpu_device *vgdev)
-{
-	if (vgdev->mman.mem_global_referenced) {
-		drm_global_item_unref(&vgdev->mman.bo_global_ref.ref);
-		drm_global_item_unref(&vgdev->mman.mem_global_ref);
-		vgdev->mman.mem_global_referenced = false;
-	}
 }
 
 int virtio_gpu_mmap(struct file *filp, struct vm_area_struct *vma)
@@ -172,10 +114,6 @@ static const struct ttm_mem_type_manager_func virtio_gpu_bo_manager_func = {
 static int virtio_gpu_init_mem_type(struct ttm_bo_device *bdev, uint32_t type,
 				    struct ttm_mem_type_manager *man)
 {
-	struct virtio_gpu_device *vgdev;
-
-	vgdev = virtio_gpu_get_vgdev(bdev);
-
 	switch (type) {
 	case TTM_PL_SYSTEM:
 		/* System memory */
@@ -185,6 +123,12 @@ static int virtio_gpu_init_mem_type(struct ttm_bo_device *bdev, uint32_t type,
 		break;
 	case TTM_PL_TT:
 		man->func = &virtio_gpu_bo_manager_func;
+		man->flags = TTM_MEMTYPE_FLAG_MAPPABLE;
+		man->available_caching = TTM_PL_MASK_CACHING;
+		man->default_caching = TTM_PL_FLAG_CACHED;
+		break;
+	case TTM_PL_VRAM:
+		man->func = &ttm_bo_manager_func;
 		man->flags = TTM_MEMTYPE_FLAG_MAPPABLE;
 		man->available_caching = TTM_PL_MASK_CACHING;
 		man->default_caching = TTM_PL_FLAG_CACHED;
@@ -220,6 +164,7 @@ static int virtio_gpu_verify_access(struct ttm_buffer_object *bo,
 static int virtio_gpu_ttm_io_mem_reserve(struct ttm_bo_device *bdev,
 					 struct ttm_mem_reg *mem)
 {
+	struct virtio_gpu_device *vgdev = virtio_gpu_get_vgdev(bdev);
 	struct ttm_mem_type_manager *man = &bdev->man[mem->mem_type];
 
 	mem->bus.addr = NULL;
@@ -233,12 +178,23 @@ static int virtio_gpu_ttm_io_mem_reserve(struct ttm_bo_device *bdev,
 	case TTM_PL_SYSTEM:
 	case TTM_PL_TT:
 		/* system memory */
+		mem->bus.offset = 0;
+		mem->bus.base = 0;
+		mem->bus.is_iomem = false;
+		return 0;
+	case TTM_PL_VRAM:
+		/* coherent memory (pci bar) */
+		mem->bus.offset = mem->start << PAGE_SHIFT;
+		mem->bus.base = vgdev->caddr;
+		mem->bus.is_iomem = true;
 		return 0;
 	default:
+		DRM_ERROR("Unsupported memory type %u\n", mem->mem_type);
 		return -EINVAL;
 	}
 	return 0;
 }
+
 
 static void virtio_gpu_ttm_io_mem_free(struct ttm_bo_device *bdev,
 				       struct ttm_mem_reg *mem)
@@ -250,116 +206,108 @@ static void virtio_gpu_ttm_io_mem_free(struct ttm_bo_device *bdev,
  */
 struct virtio_gpu_ttm_tt {
 	struct ttm_dma_tt		ttm;
-	struct virtio_gpu_device	*vgdev;
-	u64				offset;
+	struct virtio_gpu_object        *obj;
 };
 
-static int virtio_gpu_ttm_backend_bind(struct ttm_tt *ttm,
-				       struct ttm_mem_reg *bo_mem)
+static int virtio_gpu_ttm_vram_bind(struct ttm_tt *ttm,
+				    struct ttm_mem_reg *bo_mem)
 {
-	struct virtio_gpu_ttm_tt *gtt = (void *)ttm;
-
-	gtt->offset = (unsigned long)(bo_mem->start << PAGE_SHIFT);
-	if (!ttm->num_pages)
-		WARN(1, "nothing to bind %lu pages for mreg %p back %p!\n",
-		     ttm->num_pages, bo_mem, ttm);
-
-	/* Not implemented */
 	return 0;
 }
 
-static int virtio_gpu_ttm_backend_unbind(struct ttm_tt *ttm)
+static int virtio_gpu_ttm_vram_unbind(struct ttm_tt *ttm)
 {
-	/* Not implemented */
+	struct virtio_gpu_ttm_tt *gtt =
+		container_of(ttm, struct virtio_gpu_ttm_tt, ttm.ttm);
+	struct virtio_gpu_device *vgdev =
+		virtio_gpu_get_vgdev(gtt->obj->tbo.bdev);
+	struct virtio_gpu_object *obj = gtt->obj;
+
+	virtio_gpu_cmd_resource_v2_unref(vgdev, obj->hw_res_handle, NULL);
 	return 0;
 }
 
-static void virtio_gpu_ttm_backend_destroy(struct ttm_tt *ttm)
+static int virtio_gpu_ttm_tt_bind(struct ttm_tt *ttm,
+				  struct ttm_mem_reg *bo_mem)
 {
-	struct virtio_gpu_ttm_tt *gtt = (void *)ttm;
+	struct virtio_gpu_ttm_tt *gtt =
+		container_of(ttm, struct virtio_gpu_ttm_tt, ttm.ttm);
+	struct virtio_gpu_device *vgdev =
+		virtio_gpu_get_vgdev(gtt->obj->tbo.bdev);
+
+	virtio_gpu_object_attach(vgdev, gtt->obj, NULL);
+	return 0;
+}
+
+static int virtio_gpu_ttm_tt_unbind(struct ttm_tt *ttm)
+{
+	struct virtio_gpu_ttm_tt *gtt =
+		container_of(ttm, struct virtio_gpu_ttm_tt, ttm.ttm);
+	struct virtio_gpu_device *vgdev =
+		virtio_gpu_get_vgdev(gtt->obj->tbo.bdev);
+
+	virtio_gpu_object_detach(vgdev, gtt->obj);
+	return 0;
+}
+
+static void virtio_gpu_ttm_tt_destroy(struct ttm_tt *ttm)
+{
+	struct virtio_gpu_ttm_tt *gtt =
+		container_of(ttm, struct virtio_gpu_ttm_tt, ttm.ttm);
 
 	ttm_dma_tt_fini(&gtt->ttm);
 	kfree(gtt);
 }
 
-static struct ttm_backend_func virtio_gpu_backend_func = {
-	.bind = &virtio_gpu_ttm_backend_bind,
-	.unbind = &virtio_gpu_ttm_backend_unbind,
-	.destroy = &virtio_gpu_ttm_backend_destroy,
+static struct ttm_backend_func virtio_gpu_tt_func = {
+	.bind = &virtio_gpu_ttm_tt_bind,
+	.unbind = &virtio_gpu_ttm_tt_unbind,
+	.destroy = &virtio_gpu_ttm_tt_destroy,
+};
+
+static struct ttm_backend_func virtio_gpu_vram_func = {
+	.bind = &virtio_gpu_ttm_vram_bind,
+	.unbind = &virtio_gpu_ttm_vram_unbind,
+	.destroy = &virtio_gpu_ttm_tt_destroy,
 };
 
 static struct ttm_tt *virtio_gpu_ttm_tt_create(struct ttm_buffer_object *bo,
 					       uint32_t page_flags)
 {
 	struct virtio_gpu_device *vgdev;
+	struct virtio_gpu_object *obj;
 	struct virtio_gpu_ttm_tt *gtt;
 
 	vgdev = virtio_gpu_get_vgdev(bo->bdev);
+	obj = container_of(bo, struct virtio_gpu_object, tbo);
+
 	gtt = kzalloc(sizeof(struct virtio_gpu_ttm_tt), GFP_KERNEL);
 	if (gtt == NULL)
 		return NULL;
-	gtt->ttm.ttm.func = &virtio_gpu_backend_func;
-	gtt->vgdev = vgdev;
-	if (ttm_dma_tt_init(&gtt->ttm, bo, page_flags)) {
-		kfree(gtt);
-		return NULL;
-	}
-	return &gtt->ttm.ttm;
-}
+	gtt->obj = obj;
 
-static void virtio_gpu_move_null(struct ttm_buffer_object *bo,
-				 struct ttm_mem_reg *new_mem)
-{
-	struct ttm_mem_reg *old_mem = &bo->mem;
-
-	BUG_ON(old_mem->mm_node != NULL);
-	*old_mem = *new_mem;
-	new_mem->mm_node = NULL;
-}
-
-static int virtio_gpu_bo_move(struct ttm_buffer_object *bo, bool evict,
-			      struct ttm_operation_ctx *ctx,
-			      struct ttm_mem_reg *new_mem)
-{
-	int ret;
-
-	ret = ttm_bo_wait(bo, ctx->interruptible, ctx->no_wait_gpu);
-	if (ret)
-		return ret;
-
-	virtio_gpu_move_null(bo, new_mem);
-	return 0;
-}
-
-static void virtio_gpu_bo_move_notify(struct ttm_buffer_object *tbo,
-				      bool evict,
-				      struct ttm_mem_reg *new_mem)
-{
-	struct virtio_gpu_object *bo;
-	struct virtio_gpu_device *vgdev;
-
-	bo = container_of(tbo, struct virtio_gpu_object, tbo);
-	vgdev = (struct virtio_gpu_device *)bo->gem_base.dev->dev_private;
-
-	if (!new_mem || (new_mem->placement & TTM_PL_FLAG_SYSTEM)) {
-		if (bo->hw_res_handle)
-			virtio_gpu_object_detach(vgdev, bo);
-
-	} else if (new_mem->placement & TTM_PL_FLAG_TT) {
-		if (bo->hw_res_handle) {
-			virtio_gpu_object_attach(vgdev, bo, bo->hw_res_handle,
-						 NULL);
+	if (obj->guest_memory_type == VIRTIO_GPU_MEMORY_HOST_COHERENT) {
+		gtt->ttm.ttm.func = &virtio_gpu_vram_func;
+		if (ttm_tt_init(&gtt->ttm.ttm, bo, page_flags)) {
+			kfree(gtt);
+			return NULL;
+		}
+	} else {
+		gtt->ttm.ttm.func = &virtio_gpu_tt_func;
+		if (ttm_dma_tt_init(&gtt->ttm, bo, page_flags)) {
+			kfree(gtt);
+			return NULL;
 		}
 	}
+
+	return &gtt->ttm.ttm;
 }
 
 static void virtio_gpu_bo_swap_notify(struct ttm_buffer_object *tbo)
 {
 	struct virtio_gpu_object *bo;
-	struct virtio_gpu_device *vgdev;
 
 	bo = container_of(tbo, struct virtio_gpu_object, tbo);
-	vgdev = (struct virtio_gpu_device *)bo->gem_base.dev->dev_private;
 
 	if (bo->pages)
 		virtio_gpu_object_free_sg_table(bo);
@@ -371,11 +319,9 @@ static struct ttm_bo_driver virtio_gpu_bo_driver = {
 	.init_mem_type = &virtio_gpu_init_mem_type,
 	.eviction_valuable = ttm_bo_eviction_valuable,
 	.evict_flags = &virtio_gpu_evict_flags,
-	.move = &virtio_gpu_bo_move,
 	.verify_access = &virtio_gpu_verify_access,
 	.io_mem_reserve = &virtio_gpu_ttm_io_mem_reserve,
 	.io_mem_free = &virtio_gpu_ttm_io_mem_free,
-	.move_notify = &virtio_gpu_bo_move_notify,
 	.swap_notify = &virtio_gpu_bo_swap_notify,
 };
 
@@ -383,15 +329,11 @@ int virtio_gpu_ttm_init(struct virtio_gpu_device *vgdev)
 {
 	int r;
 
-	r = virtio_gpu_ttm_global_init(vgdev);
-	if (r)
-		return r;
 	/* No others user of address space so set it to 0 */
 	r = ttm_bo_device_init(&vgdev->mman.bdev,
-			       vgdev->mman.bo_global_ref.ref.object,
 			       &virtio_gpu_bo_driver,
 			       vgdev->ddev->anon_inode->i_mapping,
-			       DRM_FILE_PAGE_OFFSET, 0);
+			       false);
 	if (r) {
 		DRM_ERROR("failed initializing buffer object driver(%d).\n", r);
 		goto err_dev_init;
@@ -402,18 +344,25 @@ int virtio_gpu_ttm_init(struct virtio_gpu_device *vgdev)
 		DRM_ERROR("Failed initializing GTT heap.\n");
 		goto err_mm_init;
 	}
+
+	if (vgdev->has_host_coherent) {
+		r = ttm_bo_init_mm(&vgdev->mman.bdev, TTM_PL_VRAM,
+				   vgdev->csize >> PAGE_SHIFT);
+		if (r) {
+			DRM_ERROR("Failed initializing VRAM heap.\n");
+			goto err_mm_init;
+		}
+	}
 	return 0;
 
 err_mm_init:
 	ttm_bo_device_release(&vgdev->mman.bdev);
 err_dev_init:
-	virtio_gpu_ttm_global_fini(vgdev);
 	return r;
 }
 
 void virtio_gpu_ttm_fini(struct virtio_gpu_device *vgdev)
 {
 	ttm_bo_device_release(&vgdev->mman.bdev);
-	virtio_gpu_ttm_global_fini(vgdev);
 	DRM_INFO("virtio_gpu: ttm finalized\n");
 }

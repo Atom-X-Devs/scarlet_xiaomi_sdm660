@@ -1,22 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2016 MediaTek Inc.
  * Author: Jungchang Tsao <jungchang.tsao@mediatek.com>
  *	   Daniel Hsiao <daniel.hsiao@mediatek.com>
  *	   Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #ifndef _VENC_IPI_MSG_H_
 #define _VENC_IPI_MSG_H_
+
+#include "linux/types.h"
 
 #define AP_IPIMSG_VENC_BASE 0xC000
 #define VPU_IPIMSG_VENC_BASE 0xD000

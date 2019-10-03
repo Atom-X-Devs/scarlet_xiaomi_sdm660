@@ -196,7 +196,7 @@ static int current_power_get(void *data, u64 *val)
 
 	kbase_pm_context_active(kbdev);
 	kbase_get_real_power(df, &power,
-		kbdev->current_nominal_freq, (kbdev->current_voltage / 1000));
+		kbdev->current_nominal_freq, (kbdev->current_voltage[0] / 1000));
 	kbase_pm_context_idle(kbdev);
 
 	*val = power;

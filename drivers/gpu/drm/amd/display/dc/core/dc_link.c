@@ -332,7 +332,7 @@ bool dc_link_is_dp_sink_present(struct dc_link *link)
 {
 	enum gpio_result gpio_result;
 	uint32_t clock_pin = 0;
-
+	uint8_t retry = 0;
 	struct ddc *ddc;
 
 	enum connector_id connector_id =
@@ -361,11 +361,22 @@ bool dc_link_is_dp_sink_present(struct dc_link *link)
 		return present;
 	}
 
-	/* Read GPIO: DP sink is present if both clock and data pins are zero */
-	/* [anaumov] in DAL2, there was no check for GPIO failure */
-
-	gpio_result = dal_gpio_get_value(ddc->pin_clock, &clock_pin);
-	ASSERT(gpio_result == GPIO_RESULT_OK);
+	/*
+	 * Read GPIO: DP sink is present if both clock and data pins are zero
+	 *
+	 * [W/A] plug-unplug DP cable, sometimes customer board has
+	 * one short pulse on clk_pin(1V, < 1ms). DP will be config to HDMI/DVI
+	 * then monitor can't br light up. Add retry 3 times
+	 * But in real passive dongle, it need additional 3ms to detect
+	 */
+	do {
+		gpio_result = dal_gpio_get_value(ddc->pin_clock, &clock_pin);
+		ASSERT(gpio_result == GPIO_RESULT_OK);
+		if (clock_pin)
+			udelay(1000);
+		else
+			break;
+	} while (retry++ < 3);
 
 	present = (gpio_result == GPIO_RESULT_OK) && !clock_pin;
 
@@ -1722,7 +1733,7 @@ static void write_i2c_retimer_setting(
 		i2c_success = i2c_write(pipe_ctx, slave_address,
 				buffer, sizeof(buffer));
 		RETIMER_REDRIVER_INFO("retimer write to slave_address = 0x%x,\
-			offset = 0x%d, reg_val = 0x%d, i2c_success = %d\n",
+			offset = 0x%x, reg_val = 0x%x, i2c_success = %d\n",
 			slave_address, buffer[0], buffer[1], i2c_success?1:0);
 		if (!i2c_success)
 			/* Write failure */
@@ -1734,7 +1745,7 @@ static void write_i2c_retimer_setting(
 		i2c_success = i2c_write(pipe_ctx, slave_address,
 				buffer, sizeof(buffer));
 		RETIMER_REDRIVER_INFO("retimer write to slave_address = 0x%x,\
-			offset = 0x%d, reg_val = 0x%d, i2c_success = %d\n",
+			offset = 0x%x, reg_val = 0x%x, i2c_success = %d\n",
 			slave_address, buffer[0], buffer[1], i2c_success?1:0);
 		if (!i2c_success)
 			/* Write failure */
@@ -2617,10 +2628,10 @@ void core_link_disable_stream(struct pipe_ctx *pipe_ctx, int option)
 {
 	struct dc  *core_dc = pipe_ctx->stream->ctx->dc;
 
+	core_dc->hwss.blank_stream(pipe_ctx);
+
 	if (pipe_ctx->stream->signal == SIGNAL_TYPE_DISPLAY_PORT_MST)
 		deallocate_mst_payload(pipe_ctx);
-
-	core_dc->hwss.blank_stream(pipe_ctx);
 
 	core_dc->hwss.disable_stream(pipe_ctx, option);
 

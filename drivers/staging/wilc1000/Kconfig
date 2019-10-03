@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 config WILC1000
 	tristate
 	---help---
@@ -33,8 +34,7 @@ config WILC1000_SPI
 config WILC1000_HW_OOB_INTR
 	bool "WILC1000 out of band interrupt"
 	depends on WILC1000_SDIO
-	default n
-	---help---
+	help
 	  This option enables out-of-band interrupt support for the WILC1000
 	  chipset. This OOB interrupt is intended to provide a faster interrupt
 	  mechanism for SDIO host controllers that don't support SDIO interrupt.

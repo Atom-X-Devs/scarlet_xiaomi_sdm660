@@ -50,8 +50,6 @@
 #include "amdgpu_sdma.h"
 #include "bif/bif_4_1_d.h"
 
-#define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
-
 static int amdgpu_map_buffer(struct ttm_buffer_object *bo,
 			     struct ttm_mem_reg *mem, unsigned num_pages,
 			     uint64_t offset, unsigned window,
@@ -60,100 +58,6 @@ static int amdgpu_map_buffer(struct ttm_buffer_object *bo,
 
 static int amdgpu_ttm_debugfs_init(struct amdgpu_device *adev);
 static void amdgpu_ttm_debugfs_fini(struct amdgpu_device *adev);
-
-/*
- * Global memory.
- */
-
-/**
- * amdgpu_ttm_mem_global_init - Initialize and acquire reference to
- * memory object
- *
- * @ref: Object for initialization.
- *
- * This is called by drm_global_item_ref() when an object is being
- * initialized.
- */
-static int amdgpu_ttm_mem_global_init(struct drm_global_reference *ref)
-{
-	return ttm_mem_global_init(ref->object);
-}
-
-/**
- * amdgpu_ttm_mem_global_release - Drop reference to a memory object
- *
- * @ref: Object being removed
- *
- * This is called by drm_global_item_unref() when an object is being
- * released.
- */
-static void amdgpu_ttm_mem_global_release(struct drm_global_reference *ref)
-{
-	ttm_mem_global_release(ref->object);
-}
-
-/**
- * amdgpu_ttm_global_init - Initialize global TTM memory reference structures.
- *
- * @adev: AMDGPU device for which the global structures need to be registered.
- *
- * This is called as part of the AMDGPU ttm init from amdgpu_ttm_init()
- * during bring up.
- */
-static int amdgpu_ttm_global_init(struct amdgpu_device *adev)
-{
-	struct drm_global_reference *global_ref;
-	int r;
-
-	/* ensure reference is false in case init fails */
-	adev->mman.mem_global_referenced = false;
-
-	global_ref = &adev->mman.mem_global_ref;
-	global_ref->global_type = DRM_GLOBAL_TTM_MEM;
-	global_ref->size = sizeof(struct ttm_mem_global);
-	global_ref->init = &amdgpu_ttm_mem_global_init;
-	global_ref->release = &amdgpu_ttm_mem_global_release;
-	r = drm_global_item_ref(global_ref);
-	if (r) {
-		DRM_ERROR("Failed setting up TTM memory accounting "
-			  "subsystem.\n");
-		goto error_mem;
-	}
-
-	adev->mman.bo_global_ref.mem_glob =
-		adev->mman.mem_global_ref.object;
-	global_ref = &adev->mman.bo_global_ref.ref;
-	global_ref->global_type = DRM_GLOBAL_TTM_BO;
-	global_ref->size = sizeof(struct ttm_bo_global);
-	global_ref->init = &ttm_bo_global_init;
-	global_ref->release = &ttm_bo_global_release;
-	r = drm_global_item_ref(global_ref);
-	if (r) {
-		DRM_ERROR("Failed setting up TTM BO subsystem.\n");
-		goto error_bo;
-	}
-
-	mutex_init(&adev->mman.gtt_window_lock);
-
-	adev->mman.mem_global_referenced = true;
-
-	return 0;
-
-error_bo:
-	drm_global_item_unref(&adev->mman.mem_global_ref);
-error_mem:
-	return r;
-}
-
-static void amdgpu_ttm_global_fini(struct amdgpu_device *adev)
-{
-	if (adev->mman.mem_global_referenced) {
-		mutex_destroy(&adev->mman.gtt_window_lock);
-		drm_global_item_unref(&adev->mman.bo_global_ref.ref);
-		drm_global_item_unref(&adev->mman.mem_global_ref);
-		adev->mman.mem_global_referenced = false;
-	}
-}
 
 static int amdgpu_invalidate_caches(struct ttm_bo_device *bdev, uint32_t flags)
 {
@@ -1758,17 +1662,12 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
 	int r;
 	u64 vis_vram_limit;
 
-	/* initialize global references for vram/gtt */
-	r = amdgpu_ttm_global_init(adev);
-	if (r) {
-		return r;
-	}
+	mutex_init(&adev->mman.gtt_window_lock);
+
 	/* No others user of address space so set it to 0 */
 	r = ttm_bo_device_init(&adev->mman.bdev,
-			       adev->mman.bo_global_ref.ref.object,
 			       &amdgpu_bo_driver,
 			       adev->ddev->anon_inode->i_mapping,
-			       DRM_FILE_PAGE_OFFSET,
 			       adev->need_dma32);
 	if (r) {
 		DRM_ERROR("failed initializing buffer object driver(%d).\n", r);
@@ -1922,7 +1821,6 @@ void amdgpu_ttm_fini(struct amdgpu_device *adev)
 	ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_GWS);
 	ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_OA);
 	ttm_bo_device_release(&adev->mman.bdev);
-	amdgpu_ttm_global_fini(adev);
 	adev->mman.initialized = false;
 	DRM_INFO("amdgpu: ttm finalized\n");
 }

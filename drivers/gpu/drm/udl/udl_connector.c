@@ -70,7 +70,7 @@ static bool udl_get_edid(struct udl_device *udl, u8 **result_buff,
 			memcpy(buff_ptr, block_buff, EDID_LENGTH);
 			kfree(block_buff);
 			buff_ptr += EDID_LENGTH;
-			for (i = 1; i < extensions; ++i) {
+			for (i = 1; i <= extensions; ++i) {
 				if (udl_get_edid_block(udl, i, buff_ptr)) {
 					buff_ptr += EDID_LENGTH;
 				} else {
@@ -109,6 +109,14 @@ static enum drm_mode_status udl_mode_valid(struct drm_connector *connector,
 			  struct drm_display_mode *mode)
 {
 	struct udl_device *udl = connector->dev->dev_private;
+	int con_type = connector->connector_type;
+
+	if ((con_type == DRM_MODE_CONNECTOR_DVII ||
+	     con_type == DRM_MODE_CONNECTOR_DVID ||
+	     con_type == DRM_MODE_CONNECTOR_DVIA) &&
+	    mode->clock > 165000)
+		return MODE_CLOCK_HIGH;
+
 	if (!udl->sku_pixel_limit)
 		return 0;
 

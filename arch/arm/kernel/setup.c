@@ -115,6 +115,11 @@ EXPORT_SYMBOL(elf_hwcap2);
 
 #ifdef MULTI_CPU
 struct processor processor __ro_after_init;
+#if defined(CONFIG_BIG_LITTLE) && defined(CONFIG_HARDEN_BRANCH_PREDICTOR)
+struct processor *cpu_vtable[NR_CPUS] = {
+	[0] = &processor,
+};
+#endif
 #endif
 #ifdef MULTI_TLB
 struct cpu_tlb_fns cpu_tlb __ro_after_init;
@@ -667,28 +672,33 @@ static void __init smp_build_mpidr_hash(void)
 }
 #endif
 
+/*
+ * locate processor in the list of supported processor types.  The linker
+ * builds this table for us from the entries in arch/arm/mm/proc-*.S
+ */
+struct proc_info_list *lookup_processor(u32 midr)
+{
+	struct proc_info_list *list = lookup_processor_type(midr);
+
+	if (!list) {
+		pr_err("CPU%u: configuration botched (ID %08x), CPU halted\n",
+		       smp_processor_id(), midr);
+		while (1)
+		/* can't use cpu_relax() here as it may require MMU setup */;
+	}
+
+	return list;
+}
+
 static void __init setup_processor(void)
 {
-	struct proc_info_list *list;
-
-	/*
-	 * locate processor in the list of supported processor
-	 * types.  The linker builds this table for us from the
-	 * entries in arch/arm/mm/proc-*.S
-	 */
-	list = lookup_processor_type(read_cpuid_id());
-	if (!list) {
-		pr_err("CPU configuration botched (ID %08x), unable to continue.\n",
-		       read_cpuid_id());
-		while (1);
-	}
+	unsigned int midr = read_cpuid_id();
+	struct proc_info_list *list = lookup_processor(midr);
 
 	cpu_name = list->cpu_name;
 	__cpu_architecture = __get_cpu_architecture();
 
-#ifdef MULTI_CPU
-	processor = *list->proc;
-#endif
+	init_proc_vtable(list->proc);
 #ifdef MULTI_TLB
 	cpu_tlb = *list->tlb;
 #endif
@@ -700,7 +710,7 @@ static void __init setup_processor(void)
 #endif
 
 	pr_info("CPU: %s [%08x] revision %d (ARMv%s), cr=%08lx\n",
-		cpu_name, read_cpuid_id(), read_cpuid_id() & 15,
+		list->cpu_name, midr, midr & 15,
 		proc_arch[cpu_architecture()], get_cr());
 
 	snprintf(init_utsname()->machine, __NEW_UTS_LEN + 1, "%s%c",
@@ -1175,6 +1185,89 @@ static int __init topology_init(void)
 	return 0;
 }
 subsys_initcall(topology_init);
+
+#ifdef CONFIG_DEBUG_FS
+#include <linux/debugfs.h>
+
+/*
+ * arm_coprocessor_show - Show various CP14 / CP15 registers
+ *
+ * Getting access to CP14 / CP15 registers from userspace isn't trivial because
+ * userspace just doesn't have access to them.  That makes it very hard to
+ * write tests that confirm the value of these registers.
+ *
+ * This function attempts to expose any CP14 / CP15 registers that are safe and
+ * secure to to expose in a read-only manner.
+ *
+ * To simplify things, this file is intended to include a whole bunch of
+ * registers.  The format should be easily parseable by a script.  Format
+ * looks like:
+ *    CPU <NUM>: <REG DESC>: (pXX, X, cXX, cX, X): <VALUE>
+ *
+ * Or, an example:
+ *    CPU 0: diag register: (p15, 0, c15, c0, 1): 0x00001000
+ *
+ * The CPU number is printed because often there are separate copies of CP14
+ * and CP15 registers per core.  Note also that for parsing purposes you're
+ * encouraged to rely on the numbering and not the description.
+ */
+static int arm_coprocessor_show(struct seq_file *s, void *data)
+{
+	unsigned int processor_id = get_cpu();
+	unsigned long part_number;
+	u32 tmp;
+
+	part_number = read_cpuid_part();
+
+	if (part_number == ARM_CPU_PART_CORTEX_A12 ||
+	    part_number == ARM_CPU_PART_CORTEX_A17) {
+		/* As far as I know these are only present on A12 / A17 */
+		asm volatile("mrc p15, 0, %0, c15, c0, 1" : "=r" (tmp));
+		seq_printf(s,
+			"CPU %u: diag register: (p15, 0, c15, c0, 1): %#010x\n",
+			processor_id, tmp);
+
+		asm volatile("mrc p15, 0, %0, c15, c0, 2" : "=r" (tmp));
+		seq_printf(s,
+			"CPU %u: int feat reg: (p15, 0, c15, c0, 2): %#010x\n",
+			processor_id, tmp);
+	}
+
+	put_cpu();
+
+	return 0;
+}
+
+static int arm_coprocessor_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, arm_coprocessor_show, inode->i_private);
+}
+
+static const struct file_operations arm_coprocessor_fops = {
+	.open		= arm_coprocessor_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int __init arm_debug_init(void)
+{
+	unsigned long implementor = read_cpuid_implementor();
+	struct dentry *d;
+
+	/* Nothing to do if this isn't implemented by ARM */
+	if (implementor != ARM_CPU_IMP_ARM)
+		return 0;
+
+	d = debugfs_create_file("arm_coprocessor_debug", 0444, NULL, NULL,
+				&arm_coprocessor_fops);
+	if (!d)
+		return -ENOMEM;
+
+	return 0;
+}
+subsys_initcall(arm_debug_init);
+#endif
 
 #ifdef CONFIG_HAVE_PROC_CPU
 static int __init proc_cpu_init(void)

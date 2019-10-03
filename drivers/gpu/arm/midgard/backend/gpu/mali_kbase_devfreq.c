@@ -79,6 +79,46 @@ static unsigned long opp_translate(struct kbase_device *kbdev,
 	return freq;
 }
 
+static void voltage_range_check(struct kbase_device *kbdev,
+				unsigned long *voltages)
+{
+	if (kbdev->devfreq_ops.voltage_range_check)
+		kbdev->devfreq_ops.voltage_range_check(kbdev, voltages);
+}
+
+#ifdef CONFIG_REGULATOR
+static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
+			bool inc)
+{
+	int i;
+	int err;
+
+	if (kbdev->devfreq_ops.set_voltages)
+		return kbdev->devfreq_ops.set_voltages(kbdev, voltages, inc);
+
+	for (i = 0; i < kbdev->regulator_num; i++) {
+		err = regulator_set_voltage(kbdev->regulator[i],
+					    voltages[i], voltages[i]);
+		if (err) {
+			dev_err(kbdev->dev,
+				"Failed to set reg %d voltage err:(%d)\n",
+				i, err);
+			return err;
+		}
+	}
+
+	return 0;
+}
+#endif
+
+static int set_frequency(struct kbase_device *kbdev, unsigned long freq)
+{
+	if (kbdev->devfreq_ops.set_frequency)
+		return kbdev->devfreq_ops.set_frequency(kbdev, freq);
+
+	return clk_set_rate(kbdev->clock, freq);
+}
+
 static int
 kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 {
@@ -86,8 +126,8 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	struct dev_pm_opp *opp;
 	unsigned long nominal_freq;
 	unsigned long freq = 0;
-	unsigned long voltage;
-	int err;
+	unsigned long target_volt[KBASE_MAX_REGULATORS];
+	int err, i;
 	u64 core_mask;
 
 	freq = *target_freq;
@@ -96,7 +136,6 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	rcu_read_lock();
 #endif
 	opp = devfreq_recommended_opp(dev, &freq, flags);
-	voltage = dev_pm_opp_get_voltage(opp);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	rcu_read_unlock();
 #endif
@@ -104,6 +143,9 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 		dev_err(dev, "Failed to get opp (%ld)\n", PTR_ERR(opp));
 		return PTR_ERR(opp);
 	}
+
+	for (i = 0; i < kbdev->regulator_num; i++)
+		target_volt[i] = dev_pm_opp_get_voltage_supply(opp, i);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	dev_pm_opp_put(opp);
 #endif
@@ -113,24 +155,26 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	/*
 	 * Only update if there is a change of frequency
 	 */
-	if (kbdev->current_nominal_freq == nominal_freq) {
+	if (kbdev->current_nominal_freq == nominal_freq &&
+		kbdev->current_voltage[0] == target_volt[0]) {
 		*target_freq = nominal_freq;
 		return 0;
 	}
 
 	freq = opp_translate(kbdev, nominal_freq, &core_mask);
+	voltage_range_check(kbdev, target_volt);
+
 #ifdef CONFIG_REGULATOR
-	if (kbdev->regulator && kbdev->current_voltage != voltage
-			&& kbdev->current_freq < freq) {
-		err = regulator_set_voltage(kbdev->regulator, voltage, voltage);
+	if (kbdev->current_voltage[0] < target_volt[0]) {
+		err = set_voltages(kbdev, target_volt, true);
 		if (err) {
-			dev_err(dev, "Failed to increase voltage (%d)\n", err);
+			dev_err(kbdev->dev, "Failed to increase voltage\n");
 			return err;
 		}
 	}
 #endif
 
-	err = clk_set_rate(kbdev->clock, freq);
+	err = set_frequency(kbdev, freq);
 	if (err) {
 		dev_err(dev, "Failed to set clock %lu (target %lu)\n",
 				freq, *target_freq);
@@ -138,11 +182,10 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	}
 
 #ifdef CONFIG_REGULATOR
-	if (kbdev->regulator && kbdev->current_voltage != voltage
-			&& kbdev->current_freq > freq) {
-		err = regulator_set_voltage(kbdev->regulator, voltage, voltage);
+	if (kbdev->current_voltage[0] > target_volt[0]) {
+		err = set_voltages(kbdev, target_volt, false);
 		if (err) {
-			dev_err(dev, "Failed to decrease voltage (%d)\n", err);
+			dev_err(kbdev->dev, "Failed to decrease voltage\n");
 			return err;
 		}
 	}
@@ -151,7 +194,8 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	kbase_devfreq_set_core_mask(kbdev, core_mask);
 
 	*target_freq = nominal_freq;
-	kbdev->current_voltage = voltage;
+	for (i = 0; i < kbdev->regulator_num; i++)
+		kbdev->current_voltage[i] = target_volt[i];
 	kbdev->current_nominal_freq = nominal_freq;
 	kbdev->current_freq = freq;
 	kbdev->current_core_mask = core_mask;
@@ -338,6 +382,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 
 	if (!kbdev->clock) {
 		dev_err(kbdev->dev, "Clock not available for devfreq\n");
+		return -ENODEV;
+	}
+
+	/* Can't do devfreq without this table */
+	if (!kbdev->dev_opp_table) {
+		dev_err(kbdev->dev, "Uninitialized devfreq opp table\n");
 		return -ENODEV;
 	}
 

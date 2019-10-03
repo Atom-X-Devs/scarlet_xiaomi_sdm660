@@ -1127,11 +1127,7 @@ i915_gem_shmem_pread(struct drm_i915_gem_object *obj,
 	offset = offset_in_page(args->offset);
 	for (idx = args->offset >> PAGE_SHIFT; remain; idx++) {
 		struct page *page = i915_gem_object_get_page(obj, idx);
-		int length;
-
-		length = remain;
-		if (offset + length > PAGE_SIZE)
-			length = PAGE_SIZE - offset;
+		unsigned int length = min_t(u64, remain, PAGE_SIZE - offset);
 
 		ret = shmem_pread(page, offset, length, user_data,
 				  page_to_phys(page) & obj_do_bit17_swizzling,
@@ -1575,11 +1571,7 @@ i915_gem_shmem_pwrite(struct drm_i915_gem_object *obj,
 	offset = offset_in_page(args->offset);
 	for (idx = args->offset >> PAGE_SHIFT; remain; idx++) {
 		struct page *page = i915_gem_object_get_page(obj, idx);
-		int length;
-
-		length = remain;
-		if (offset + length > PAGE_SIZE)
-			length = PAGE_SIZE - offset;
+		unsigned int length = min_t(u64, remain, PAGE_SIZE - offset);
 
 		ret = shmem_pwrite(page, offset, length, user_data,
 				   page_to_phys(page) & obj_do_bit17_swizzling,
@@ -1834,6 +1826,17 @@ i915_gem_sw_finish_ioctl(struct drm_device *dev, void *data,
 	return 0;
 }
 
+static inline bool
+__vma_matches(struct vm_area_struct *vma, struct file *filp,
+	      unsigned long addr, unsigned long size)
+{
+	if (vma->vm_file != filp)
+		return false;
+
+	return vma->vm_start == addr &&
+	       (vma->vm_end - vma->vm_start) == PAGE_ALIGN(size);
+}
+
 /**
  * i915_gem_mmap_ioctl - Maps the contents of an object, returning the address
  *			 it is mapped to.
@@ -1892,7 +1895,7 @@ i915_gem_mmap_ioctl(struct drm_device *dev, void *data,
 			return -EINTR;
 		}
 		vma = find_vma(mm, addr);
-		if (vma)
+		if (vma && __vma_matches(vma, obj->base.filp, addr, args->size))
 			vma->vm_page_prot =
 				pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
 		else
@@ -3194,7 +3197,7 @@ i915_gem_reset_request(struct intel_engine_cs *engine,
 	 */
 
 	if (i915_request_completed(request)) {
-		GEM_TRACE("%s pardoned global=%d (fence %llx:%d), current %d\n",
+		GEM_TRACE("%s pardoned global=%d (fence %llx:%lld), current %d\n",
 			  engine->name, request->global_seqno,
 			  request->fence.context, request->fence.seqno,
 			  intel_engine_get_seqno(engine));
@@ -3328,7 +3331,7 @@ static void nop_complete_submit_request(struct i915_request *request)
 {
 	unsigned long flags;
 
-	GEM_TRACE("%s fence %llx:%d -> -EIO\n",
+	GEM_TRACE("%s fence %llx:%lld -> -EIO\n",
 		  request->engine->name,
 		  request->fence.context, request->fence.seqno);
 	dma_fence_set_error(&request->fence, -EIO);
@@ -5339,7 +5342,7 @@ int i915_gem_init_hw(struct drm_i915_private *dev_priv)
 		}
 	}
 
-	intel_gt_workarounds_apply(dev_priv);
+	intel_gt_apply_workarounds(dev_priv);
 
 	i915_gem_init_swizzling(dev_priv);
 
@@ -5710,6 +5713,8 @@ void i915_gem_fini(struct drm_i915_private *dev_priv)
 	i915_gem_cleanup_engines(dev_priv);
 	i915_gem_contexts_fini(dev_priv);
 	mutex_unlock(&dev_priv->drm.struct_mutex);
+
+	intel_wa_list_free(&dev_priv->gt_wa_list);
 
 	intel_cleanup_gt_powersave(dev_priv);
 

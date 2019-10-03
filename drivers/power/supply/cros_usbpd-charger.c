@@ -5,9 +5,10 @@
  * Copyright (c) 2014 - 2018 Google, Inc
  */
 
-#include <linux/module.h>
 #include <linux/mfd/cros_ec.h>
-#include <linux/mfd/cros_ec_commands.h>
+#include <linux/module.h>
+#include <linux/platform_data/cros_ec_commands.h>
+#include <linux/platform_data/cros_ec_proto.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
 #include <linux/slab.h>
@@ -53,6 +54,7 @@ static enum power_supply_property cros_usbpd_charger_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX,
 	POWER_SUPPLY_PROP_MODEL_NAME,
 	POWER_SUPPLY_PROP_MANUFACTURER,
 	POWER_SUPPLY_PROP_USB_TYPE
@@ -99,6 +101,27 @@ static int cros_usbpd_charger_ec_command(struct charger_data *charger,
 
 	kfree(msg);
 	return ret;
+}
+
+static int cros_usbpd_set_override_ports(struct charger_data *charger,
+					 int port_num)
+{
+	struct device *dev = charger->dev;
+	struct ec_params_charge_port_override req;
+	int ret;
+
+	req.override_port = port_num;
+
+	ret = cros_usbpd_charger_ec_command(charger, 0,
+		EC_CMD_PD_CHARGE_PORT_OVERRIDE,
+		(uint8_t *)&req, sizeof(req),
+		NULL, 0);
+	if (ret < 0) {
+		dev_warn(dev, "Port Override command returned 0x%x\n", ret);
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int cros_usbpd_charger_get_num_ports(struct charger_data *charger)
@@ -329,6 +352,7 @@ static int cros_usbpd_charger_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
 		ret = cros_usbpd_charger_get_port_status(port, true);
 		if (ret < 0) {
 			dev_err(dev, "Failed to get port status (err:0x%x)\n",
@@ -356,6 +380,9 @@ static int cros_usbpd_charger_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = port->psy_voltage_now * 1000;
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
+		val->intval = 0;
+		break;
 	case POWER_SUPPLY_PROP_USB_TYPE:
 		val->intval = port->psy_usb_type;
 		break;
@@ -370,6 +397,47 @@ static int cros_usbpd_charger_get_prop(struct power_supply *psy,
 	}
 
 	return 0;
+}
+
+static int cros_usb_pd_charger_set_prop(struct power_supply *psy,
+					enum power_supply_property psp,
+					const union power_supply_propval *val)
+{
+	struct port_data *port = power_supply_get_drvdata(psy);
+	struct charger_data *charger = port->charger;
+	int port_number;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
+		/*
+		 * A value of -1 implies switching to battery as the power
+		 * source. Any other value implies using this port as the
+		 * power source.
+		 */
+		port_number = val->intval;
+		if (port_number != -1)
+			port_number = port->port_number;
+		return cros_usbpd_set_override_ports(charger, port_number);
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int cros_usb_pd_charger_is_writeable(struct power_supply *psy,
+		enum power_supply_property psp)
+{
+	int ret;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+	}
+
+	return ret;
 }
 
 static int cros_usbpd_charger_ec_event(struct notifier_block *nb,
@@ -454,6 +522,9 @@ static int cros_usbpd_charger_probe(struct platform_device *pd)
 		psy_desc->name = port->name;
 		psy_desc->type = POWER_SUPPLY_TYPE_USB;
 		psy_desc->get_property = cros_usbpd_charger_get_prop;
+		psy_desc->set_property = cros_usb_pd_charger_set_prop;
+		psy_desc->property_is_writeable =
+			cros_usb_pd_charger_is_writeable;
 		psy_desc->external_power_changed =
 					cros_usbpd_charger_power_changed;
 		psy_desc->properties = cros_usbpd_charger_props;
@@ -473,6 +544,7 @@ static int cros_usbpd_charger_probe(struct platform_device *pd)
 		port->psy = psy;
 
 		charger->ports[charger->num_registered_psy++] = port;
+		ec_device->charger = psy;
 	}
 
 	if (!charger->num_registered_psy) {
@@ -501,6 +573,7 @@ static int cros_usbpd_charger_probe(struct platform_device *pd)
 	return 0;
 
 fail:
+	ec_device->charger = NULL;
 	WARN(1, "%s: Failing probe (err:0x%x)\n", dev_name(dev), ret);
 
 fail_nowarn:

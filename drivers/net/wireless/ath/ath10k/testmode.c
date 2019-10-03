@@ -1,17 +1,6 @@
+// SPDX-License-Identifier: ISC
 /*
  * Copyright (c) 2014-2017 Qualcomm Atheros, Inc.
- *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 #include "testmode.h"
@@ -185,8 +174,23 @@ static int ath10k_tm_fetch_firmware(struct ath10k *ar)
 {
 	struct ath10k_fw_components *utf_mode_fw;
 	int ret;
+	char fw_name[100];
+	int fw_api2 = 2;
 
-	ret = ath10k_core_fetch_firmware_api_n(ar, ATH10K_FW_UTF_API2_FILE,
+	switch (ar->hif.bus) {
+	case ATH10K_BUS_SDIO:
+	case ATH10K_BUS_USB:
+		scnprintf(fw_name, sizeof(fw_name), "%s-%s-%d.bin",
+			  ATH10K_FW_UTF_FILE_BASE, ath10k_bus_str(ar->hif.bus),
+			  fw_api2);
+		break;
+	default:
+		scnprintf(fw_name, sizeof(fw_name), "%s-%d.bin",
+			  ATH10K_FW_UTF_FILE_BASE, fw_api2);
+		break;
+	}
+
+	ret = ath10k_core_fetch_firmware_api_n(ar, fw_name,
 					       &ar->testmode.utf_mode_fw.fw_file);
 	if (ret == 0) {
 		ath10k_dbg(ar, ATH10K_DBG_TESTMODE, "testmode using fw utf api 2");

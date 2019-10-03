@@ -17,22 +17,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define pr_fmt(fmt) "cros_ec_sysfs: " fmt
-
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/kobject.h>
 #include <linux/mfd/cros_ec.h>
-#include <linux/mfd/cros_ec_commands.h>
 #include <linux/module.h>
+#include <linux/platform_data/cros_ec_commands.h>
+#include <linux/platform_data/cros_ec_proto.h>
 #include <linux/platform_device.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
+
+#define DRV_NAME "cros-ec-sysfs"
 
 /* Accessor functions */
 
@@ -349,11 +350,43 @@ static umode_t cros_ec_ctrl_visible(struct kobject *kobj,
 	return a->mode;
 }
 
-struct attribute_group cros_ec_attr_group = {
+static struct attribute_group cros_ec_attr_group = {
 	.attrs = __ec_attrs,
 	.is_visible = cros_ec_ctrl_visible,
 };
-EXPORT_SYMBOL(cros_ec_attr_group);
+
+static int cros_ec_sysfs_probe(struct platform_device *pd)
+{
+	struct cros_ec_dev *ec_dev = dev_get_drvdata(pd->dev.parent);
+	struct device *dev = &pd->dev;
+	int ret;
+
+	ret = sysfs_create_group(&ec_dev->class_dev.kobj, &cros_ec_attr_group);
+	if (ret < 0)
+		dev_err(dev, "failed to create attributes. err=%d\n", ret);
+
+	return ret;
+}
+
+static int cros_ec_sysfs_remove(struct platform_device *pd)
+{
+	struct cros_ec_dev *ec_dev = dev_get_drvdata(pd->dev.parent);
+
+	sysfs_remove_group(&ec_dev->class_dev.kobj, &cros_ec_attr_group);
+
+	return 0;
+}
+
+static struct platform_driver cros_ec_sysfs_driver = {
+	.driver = {
+		.name = DRV_NAME,
+	},
+	.probe = cros_ec_sysfs_probe,
+	.remove = cros_ec_sysfs_remove,
+};
+
+module_platform_driver(cros_ec_sysfs_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ChromeOS EC control driver");
+MODULE_ALIAS("platform:" DRV_NAME);

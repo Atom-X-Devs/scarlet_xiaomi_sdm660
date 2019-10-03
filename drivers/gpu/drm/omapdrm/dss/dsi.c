@@ -1342,12 +1342,9 @@ static int dsi_pll_enable(struct dss_pll *pll)
 	 */
 	dsi_enable_scp_clk(dsi);
 
-	if (!dsi->vdds_dsi_enabled) {
-		r = regulator_enable(dsi->vdds_dsi_reg);
-		if (r)
-			goto err0;
-		dsi->vdds_dsi_enabled = true;
-	}
+	r = regulator_enable(dsi->vdds_dsi_reg);
+	if (r)
+		goto err0;
 
 	/* XXX PLL does not come out of reset without this... */
 	dispc_pck_free_enable(dsi->dss->dispc, 1);
@@ -1372,41 +1369,30 @@ static int dsi_pll_enable(struct dss_pll *pll)
 
 	return 0;
 err1:
-	if (dsi->vdds_dsi_enabled) {
-		regulator_disable(dsi->vdds_dsi_reg);
-		dsi->vdds_dsi_enabled = false;
-	}
+	regulator_disable(dsi->vdds_dsi_reg);
 err0:
 	dsi_disable_scp_clk(dsi);
 	dsi_runtime_put(dsi);
 	return r;
 }
 
-static void dsi_pll_uninit(struct dsi_data *dsi, bool disconnect_lanes)
-{
-	dsi_pll_power(dsi, DSI_PLL_POWER_OFF);
-	if (disconnect_lanes) {
-		WARN_ON(!dsi->vdds_dsi_enabled);
-		regulator_disable(dsi->vdds_dsi_reg);
-		dsi->vdds_dsi_enabled = false;
-	}
-
-	dsi_disable_scp_clk(dsi);
-	dsi_runtime_put(dsi);
-
-	DSSDBG("PLL uninit done\n");
-}
-
 static void dsi_pll_disable(struct dss_pll *pll)
 {
 	struct dsi_data *dsi = container_of(pll, struct dsi_data, pll);
 
-	dsi_pll_uninit(dsi, true);
+	dsi_pll_power(dsi, DSI_PLL_POWER_OFF);
+
+	regulator_disable(dsi->vdds_dsi_reg);
+
+	dsi_disable_scp_clk(dsi);
+	dsi_runtime_put(dsi);
+
+	DSSDBG("PLL disable done\n");
 }
 
 static int dsi_dump_dsi_clocks(struct seq_file *s, void *p)
 {
-	struct dsi_data *dsi = p;
+	struct dsi_data *dsi = s->private;
 	struct dss_pll_clock_info *cinfo = &dsi->pll.cinfo;
 	enum dss_clk_source dispc_clk_src, dsi_clk_src;
 	int dsi_module = dsi->module_id;
@@ -1467,7 +1453,7 @@ static int dsi_dump_dsi_clocks(struct seq_file *s, void *p)
 #ifdef CONFIG_OMAP2_DSS_COLLECT_IRQ_STATS
 static int dsi_dump_dsi_irqs(struct seq_file *s, void *p)
 {
-	struct dsi_data *dsi = p;
+	struct dsi_data *dsi = s->private;
 	unsigned long flags;
 	struct dsi_irq_stats stats;
 
@@ -1558,7 +1544,7 @@ static int dsi_dump_dsi_irqs(struct seq_file *s, void *p)
 
 static int dsi_dump_dsi_regs(struct seq_file *s, void *p)
 {
-	struct dsi_data *dsi = p;
+	struct dsi_data *dsi = s->private;
 
 	if (dsi_runtime_get(dsi))
 		return 0;
@@ -4096,17 +4082,25 @@ static int dsi_display_init_dsi(struct dsi_data *dsi)
 
 	r = dss_pll_enable(&dsi->pll);
 	if (r)
-		goto err0;
+		return r;
 
 	r = dsi_configure_dsi_clocks(dsi);
 	if (r)
-		goto err1;
+		goto err0;
 
 	dss_select_dsi_clk_source(dsi->dss, dsi->module_id,
 				  dsi->module_id == 0 ?
 				  DSS_CLK_SRC_PLL1_2 : DSS_CLK_SRC_PLL2_2);
 
 	DSSDBG("PLL OK\n");
+
+	if (!dsi->vdds_dsi_enabled) {
+		r = regulator_enable(dsi->vdds_dsi_reg);
+		if (r)
+			goto err1;
+
+		dsi->vdds_dsi_enabled = true;
+	}
 
 	r = dsi_cio_init(dsi);
 	if (r)
@@ -4136,10 +4130,13 @@ static int dsi_display_init_dsi(struct dsi_data *dsi)
 err3:
 	dsi_cio_uninit(dsi);
 err2:
-	dss_select_dsi_clk_source(dsi->dss, dsi->module_id, DSS_CLK_SRC_FCK);
+	regulator_disable(dsi->vdds_dsi_reg);
+	dsi->vdds_dsi_enabled = false;
 err1:
-	dss_pll_disable(&dsi->pll);
+	dss_select_dsi_clk_source(dsi->dss, dsi->module_id, DSS_CLK_SRC_FCK);
 err0:
+	dss_pll_disable(&dsi->pll);
+
 	return r;
 }
 
@@ -4158,7 +4155,12 @@ static void dsi_display_uninit_dsi(struct dsi_data *dsi, bool disconnect_lanes,
 
 	dss_select_dsi_clk_source(dsi->dss, dsi->module_id, DSS_CLK_SRC_FCK);
 	dsi_cio_uninit(dsi);
-	dsi_pll_uninit(dsi, disconnect_lanes);
+	dss_pll_disable(&dsi->pll);
+
+	if (disconnect_lanes) {
+		regulator_disable(dsi->vdds_dsi_reg);
+		dsi->vdds_dsi_enabled = false;
+	}
 }
 
 static int dsi_display_enable(struct omap_dss_device *dssdev)
@@ -4751,6 +4753,17 @@ static int dsi_set_config(struct omap_dss_device *dssdev,
 	dsi->vm.flags |= DISPLAY_FLAGS_HSYNC_HIGH;
 	dsi->vm.flags &= ~DISPLAY_FLAGS_VSYNC_LOW;
 	dsi->vm.flags |= DISPLAY_FLAGS_VSYNC_HIGH;
+	/*
+	 * HACK: These flags should be handled through the omap_dss_device bus
+	 * flags, but this will only be possible when the DSI encoder will be
+	 * converted to the omapdrm-managed encoder model.
+	 */
+	dsi->vm.flags &= ~DISPLAY_FLAGS_PIXDATA_NEGEDGE;
+	dsi->vm.flags |= DISPLAY_FLAGS_PIXDATA_POSEDGE;
+	dsi->vm.flags &= ~DISPLAY_FLAGS_DE_LOW;
+	dsi->vm.flags |= DISPLAY_FLAGS_DE_HIGH;
+	dsi->vm.flags &= ~DISPLAY_FLAGS_SYNC_POSEDGE;
+	dsi->vm.flags |= DISPLAY_FLAGS_SYNC_NEGEDGE;
 
 	dss_mgr_set_timings(&dsi->output, &dsi->vm);
 
@@ -5083,15 +5096,15 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 
 	snprintf(name, sizeof(name), "dsi%u_regs", dsi->module_id + 1);
 	dsi->debugfs.regs = dss_debugfs_create_file(dss, name,
-						    dsi_dump_dsi_regs, &dsi);
+						    dsi_dump_dsi_regs, dsi);
 #ifdef CONFIG_OMAP2_DSS_COLLECT_IRQ_STATS
 	snprintf(name, sizeof(name), "dsi%u_irqs", dsi->module_id + 1);
 	dsi->debugfs.irqs = dss_debugfs_create_file(dss, name,
-						    dsi_dump_dsi_irqs, &dsi);
+						    dsi_dump_dsi_irqs, dsi);
 #endif
 	snprintf(name, sizeof(name), "dsi%u_clks", dsi->module_id + 1);
 	dsi->debugfs.clks = dss_debugfs_create_file(dss, name,
-						    dsi_dump_dsi_clocks, &dsi);
+						    dsi_dump_dsi_clocks, dsi);
 
 	return 0;
 }
@@ -5103,8 +5116,6 @@ static void dsi_unbind(struct device *dev, struct device *master, void *data)
 	dss_debugfs_remove_file(dsi->debugfs.clks);
 	dss_debugfs_remove_file(dsi->debugfs.irqs);
 	dss_debugfs_remove_file(dsi->debugfs.regs);
-
-	of_platform_depopulate(dev);
 
 	WARN_ON(dsi->scp_clk_refcount > 0);
 
@@ -5409,25 +5420,30 @@ static int dsi_probe(struct platform_device *pdev)
 
 	/* DSI on OMAP3 doesn't have register DSI_GNQ, set number
 	 * of data to 3 by default */
-	if (dsi->data->quirks & DSI_QUIRK_GNQ)
+	if (dsi->data->quirks & DSI_QUIRK_GNQ) {
+		dsi_runtime_get(dsi);
 		/* NB_DATA_LANES */
 		dsi->num_lanes_supported = 1 + REG_GET(dsi, DSI_GNQ, 11, 9);
-	else
+		dsi_runtime_put(dsi);
+	} else {
 		dsi->num_lanes_supported = 3;
+	}
+
+	r = of_platform_populate(dev->of_node, NULL, NULL, dev);
+	if (r) {
+		DSSERR("Failed to populate DSI child devices: %d\n", r);
+		goto err_pm_disable;
+	}
 
 	r = dsi_init_output(dsi);
 	if (r)
-		goto err_pm_disable;
+		goto err_of_depopulate;
 
 	r = dsi_probe_of(dsi);
 	if (r) {
 		DSSERR("Invalid DSI DT data\n");
 		goto err_uninit_output;
 	}
-
-	r = of_platform_populate(dev->of_node, NULL, NULL, dev);
-	if (r)
-		DSSERR("Failed to populate DSI child devices: %d\n", r);
 
 	r = component_add(&pdev->dev, &dsi_component_ops);
 	if (r)
@@ -5437,6 +5453,8 @@ static int dsi_probe(struct platform_device *pdev)
 
 err_uninit_output:
 	dsi_uninit_output(dsi);
+err_of_depopulate:
+	of_platform_depopulate(dev);
 err_pm_disable:
 	pm_runtime_disable(dev);
 	return r;
@@ -5449,6 +5467,8 @@ static int dsi_remove(struct platform_device *pdev)
 	component_del(&pdev->dev, &dsi_component_ops);
 
 	dsi_uninit_output(dsi);
+
+	of_platform_depopulate(&pdev->dev);
 
 	pm_runtime_disable(&pdev->dev);
 
@@ -5470,19 +5490,12 @@ static int dsi_runtime_suspend(struct device *dev)
 	/* wait for current handler to finish before turning the DSI off */
 	synchronize_irq(dsi->irq);
 
-	dispc_runtime_put(dsi->dss->dispc);
-
 	return 0;
 }
 
 static int dsi_runtime_resume(struct device *dev)
 {
 	struct dsi_data *dsi = dev_get_drvdata(dev);
-	int r;
-
-	r = dispc_runtime_get(dsi->dss->dispc);
-	if (r)
-		return r;
 
 	dsi->is_enabled = true;
 	/* ensure the irq handler sees the is_enabled value */

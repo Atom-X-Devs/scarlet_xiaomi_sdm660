@@ -720,6 +720,8 @@ void intel_engine_cleanup_common(struct intel_engine_cs *engine)
 	__intel_context_unpin(i915->kernel_context, engine);
 
 	i915_timeline_fini(&engine->timeline);
+
+	intel_wa_list_free(&engine->wa_list);
 }
 
 u64 intel_engine_get_active_head(const struct intel_engine_cs *engine)
@@ -1236,7 +1238,7 @@ static void print_request(struct drm_printer *m,
 
 	x = print_sched_attr(rq->i915, &rq->sched.attr, buf, x, sizeof(buf));
 
-	drm_printf(m, "%s%x%s [%llx:%x]%s @ %dms: %s\n",
+	drm_printf(m, "%s%x%s [%llx:%llx]%s @ %dms: %s\n",
 		   prefix,
 		   rq->global_seqno,
 		   i915_request_completed(rq) ? "!" : "",
