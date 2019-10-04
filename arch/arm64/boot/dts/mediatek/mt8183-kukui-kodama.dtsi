@@ -72,6 +72,14 @@
 	status = "okay";
 	clock-frequency = <400000>;
 
+	at24@50 {
+		compatible = "atmel,24c64";
+		reg = <0x50>;
+		pagesize = <64>;
+		power-supply = <&mt6358_vcamio_reg>;
+		i2c-supply = <&mt6358_vcamio_reg>;
+	};
+
 	sensor_main: sensor_main {
 		compatible = "ovti,ov5695";
 		reg = <0x36>;
@@ -117,6 +125,14 @@
 	pinctrl-0 = <&i2c4_pins>;
 	status = "okay";
 	clock-frequency = <400000>;
+
+	at24@50 {
+		compatible = "atmel,24c64";
+		reg = <0x50>;
+		pagesize = <64>;
+		power-supply = <&mt6358_vcn18_reg>;
+		i2c-supply = <&mt6358_vcn18_reg>;
+	};
 
 	sensor_sub: sensor_sub {
 		status = "okay";
