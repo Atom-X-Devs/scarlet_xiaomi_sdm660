@@ -31,9 +31,7 @@ iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TESTMODE) += iwl-tm-gnl.o iwl-dnt-cfg.o iwl-dnt-
 iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TESTMODE) += iwl-dnt-dev-if.o fw/testmode.o
 
 ccflags-y += -I$(src)
-# Re-enable -Wimplicit-fallthrough after clang/gcc disagreements are resolved.
-# https://crbug.com/997991.
-# subdir-ccflags-y += $(call cc-option,-Wimplicit-fallthrough)
+subdir-ccflags-y += $(call cc-option,-Wimplicit-fallthrough)
 
 obj-$(CPTCFG_IWLMVM)	+= mvm/
 obj-$(CPTCFG_IWLXVT)	+= xvt/

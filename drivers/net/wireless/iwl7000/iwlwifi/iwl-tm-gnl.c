@@ -1098,7 +1098,7 @@ static __genl_const struct genl_ops iwl_tm_gnl_ops[] = {
 
 		.doit = iwl_tm_gnl_cmd_subscribe,
 #if CFG80211_VERSION < KERNEL_VERSION(5,2,0)
-		.policy = iwl_tm_gnl_msg_policy,
+		.policy	= iwl_tm_gnl_msg_policy,
 #endif
 	},
 };
