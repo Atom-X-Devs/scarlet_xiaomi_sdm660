@@ -392,7 +392,6 @@ static int cpufreq_passive_unregister(struct devfreq_passive_data **p_data)
 static int devfreq_passive_event_handler(struct devfreq *devfreq,
 				unsigned int event, void *data)
 {
-	struct device *dev = devfreq->dev.parent;
 	struct devfreq_passive_data *p_data
 			= (struct devfreq_passive_data *)devfreq->data;
 	struct devfreq *parent = (struct devfreq *)p_data->parent;
@@ -409,7 +408,7 @@ static int devfreq_passive_event_handler(struct devfreq *devfreq,
 
 		if (p_data->parent_type == DEVFREQ_PARENT_DEV) {
 			nb->notifier_call = devfreq_passive_notifier_call;
-			ret = devm_devfreq_register_notifier(dev, parent, nb,
+			ret = devfreq_register_notifier(parent, nb,
 						DEVFREQ_TRANSITION_NOTIFIER);
 		} else if (p_data->parent_type == CPUFREQ_PARENT_DEV) {
 			ret = cpufreq_passive_register(&p_data);
@@ -419,8 +418,8 @@ static int devfreq_passive_event_handler(struct devfreq *devfreq,
 		break;
 	case DEVFREQ_GOV_STOP:
 		if (p_data->parent_type == DEVFREQ_PARENT_DEV)
-			devm_devfreq_unregister_notifier(dev, parent, nb,
-						DEVFREQ_TRANSITION_NOTIFIER);
+			WARN_ON(devfreq_unregister_notifier(parent, nb,
+						DEVFREQ_TRANSITION_NOTIFIER));
 		else if (p_data->parent_type == CPUFREQ_PARENT_DEV)
 			cpufreq_passive_unregister(&p_data);
 		else
