@@ -91,14 +91,44 @@ struct mtk_h264_pps_param {
 	unsigned char reserved[2];
 };
 
+struct slice_api_h264_scaling_matrix {
+	unsigned char scaling_list_4x4[6][16];
+	unsigned char scaling_list_8x8[6][64];
+};
+
+struct slice_h264_dpb_entry {
+	unsigned long long reference_ts;
+	unsigned short frame_num;
+	unsigned short pic_num;
+	/* Note that field is indicated by v4l2_buffer.field */
+	int top_field_order_cnt;
+	int bottom_field_order_cnt;
+	unsigned int flags; /* V4L2_H264_DPB_ENTRY_FLAG_* */
+};
+
+/**
+ * struct slice_api_h264_decode_param - parameters for decode.
+ */
+struct slice_api_h264_decode_param {
+	struct slice_h264_dpb_entry dpb[16];
+	unsigned short num_slices;
+	unsigned short nal_ref_idc;
+	unsigned char ref_pic_list_p0[32];
+	unsigned char ref_pic_list_b0[32];
+	unsigned char ref_pic_list_b1[32];
+	int top_field_order_cnt;
+	int bottom_field_order_cnt;
+	unsigned int flags; /* V4L2_H264_DECODE_PARAM_FLAG_* */
+};
+
 /**
  * struct mtk_h264_dec_slice_param  - parameters for decode current frame
  */
 struct mtk_h264_dec_slice_param {
 	struct mtk_h264_sps_param			sps;
 	struct mtk_h264_pps_param			pps;
-	struct v4l2_ctrl_h264_scaling_matrix			scaling_matrix;
-	struct v4l2_ctrl_h264_decode_params	decode_params;
+	struct slice_api_h264_scaling_matrix		scaling_matrix;
+	struct slice_api_h264_decode_param		decode_params;
 	struct mtk_h264_dpb_info h264_dpb_info[16];
 };
 
@@ -190,12 +220,9 @@ static void *get_ctrl_ptr(struct mtk_vcodec_ctx *ctx,
 	return ctrl->p_cur.p;
 }
 
-static void get_h264_dpb_list(struct vdec_h264_slice_inst *inst)
+static void get_h264_dpb_list(struct vdec_h264_slice_inst *inst,
+			      struct mtk_h264_dec_slice_param *slice_param)
 {
-	struct v4l2_ctrl_h264_decode_params *decode_params =
-		&inst->h264_slice_param.decode_params;
-	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
-	const struct v4l2_h264_dpb_entry *dpb;
 	struct vb2_queue *vq;
 	struct vb2_buffer *vb;
 	struct vb2_v4l2_buffer *vb2_v4l2;
@@ -205,9 +232,10 @@ static void get_h264_dpb_list(struct vdec_h264_slice_inst *inst)
 		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
 	for (index = 0; index < 16; index++) {
+		const struct slice_h264_dpb_entry * dpb;
 		int vb2_index;
 
-		dpb = &decode_params->dpb[index];
+		dpb = &slice_param->decode_params.dpb[index];
 		if (!(dpb->flags & V4L2_H264_DPB_ENTRY_FLAG_ACTIVE)) {
 			slice_param->h264_dpb_info[index].reference_flag = 0;
 			continue;
@@ -293,24 +321,72 @@ static void get_h264_pps_parameters(struct mtk_h264_pps_param *dst_param,
 		V4L2_H264_PPS_FLAG_PIC_SCALING_MATRIX_PRESENT);
 }
 
+static void
+get_h264_scaling_matrix(struct slice_api_h264_scaling_matrix *dst_matrix,
+			const struct v4l2_ctrl_h264_scaling_matrix *src_matrix)
+{
+	memcpy(dst_matrix->scaling_list_4x4, src_matrix->scaling_list_4x4,
+	       sizeof(dst_matrix->scaling_list_4x4));
+
+	memcpy(dst_matrix->scaling_list_8x8, src_matrix->scaling_list_8x8,
+	       sizeof(dst_matrix->scaling_list_8x8));
+}
+
+static void get_h264_decode_parameters(
+	struct slice_api_h264_decode_param *dst_params,
+	const struct v4l2_ctrl_h264_decode_params *src_params)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(dst_params->dpb); i++) {
+		struct slice_h264_dpb_entry *dst_entry = &dst_params->dpb[i];
+		const struct v4l2_h264_dpb_entry *src_entry =
+			&src_params->dpb[i];
+
+		dst_entry->reference_ts = src_entry->reference_ts;
+		dst_entry->frame_num = src_entry->frame_num;
+		dst_entry->pic_num = src_entry->pic_num;
+		dst_entry->top_field_order_cnt = src_entry->top_field_order_cnt;
+		dst_entry->bottom_field_order_cnt =
+			src_entry->bottom_field_order_cnt;
+		dst_entry->flags = src_entry->flags;
+	}
+
+	dst_params->num_slices = src_params->num_slices;
+	dst_params->nal_ref_idc = src_params->nal_ref_idc;
+	memcpy(dst_params->ref_pic_list_p0, src_params->ref_pic_list_p0,
+	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
+	memcpy(dst_params->ref_pic_list_b0, src_params->ref_pic_list_b0,
+	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
+	memcpy(dst_params->ref_pic_list_b1, src_params->ref_pic_list_b1,
+	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
+	dst_params->top_field_order_cnt = src_params->top_field_order_cnt;
+	dst_params->bottom_field_order_cnt = src_params->bottom_field_order_cnt;
+	dst_params->flags = src_params->flags;
+}
+
 static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 {
 	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
 
 	get_h264_sps_parameters(&slice_param->sps,
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_SPS));
+				get_ctrl_ptr(inst->ctx,
+					     V4L2_CID_MPEG_VIDEO_H264_SPS));
 	get_h264_pps_parameters(&slice_param->pps,
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_PPS));
-	memcpy(&slice_param->scaling_matrix,
-	       get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX),
-		sizeof(struct v4l2_ctrl_h264_scaling_matrix));
-	memcpy(&slice_param->decode_params,
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS),
-		sizeof(struct v4l2_ctrl_h264_decode_params));
+				get_ctrl_ptr(inst->ctx,
+					     V4L2_CID_MPEG_VIDEO_H264_PPS));
+	get_h264_scaling_matrix(
+		&slice_param->scaling_matrix,
+		get_ctrl_ptr(inst->ctx,
+			     V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX));
+	get_h264_decode_parameters(
+		&slice_param->decode_params,
+		get_ctrl_ptr(inst->ctx,
+			     V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS));
+	get_h264_dpb_list(inst, slice_param);
 
-	get_h264_dpb_list(inst);
 	memcpy(&inst->vsi->h264_slice_params, slice_param,
-		sizeof(struct mtk_h264_dec_slice_param));
+	       sizeof(struct mtk_h264_dec_slice_param));
 }
 
 static unsigned int get_mv_buf_size(unsigned int width, unsigned int height)
