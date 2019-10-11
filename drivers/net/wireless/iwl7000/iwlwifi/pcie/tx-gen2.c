@@ -50,7 +50,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
-#include <linux/pm_runtime.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
 #include <net/tso.h>
 #endif
@@ -101,10 +100,7 @@ void iwl_pcie_gen2_update_byte_tbl(struct iwl_trans_pcie *trans_pcie,
 	u16 len = byte_cnt;
 	__le16 bc_ent;
 
-	if (trans_pcie->bc_table_dword)
-		len = DIV_ROUND_UP(len, 4);
-
-	if (WARN_ON(len > 0xFFF || idx >= txq->n_window))
+	if (WARN(idx >= txq->n_window, "%d >= %d\n", idx, txq->n_window))
 		return;
 
 	filled_tfd_size = offsetof(struct iwl_tfh_tfd, tbs) +
@@ -119,11 +115,20 @@ void iwl_pcie_gen2_update_byte_tbl(struct iwl_trans_pcie *trans_pcie,
 	 */
 	num_fetch_chunks = DIV_ROUND_UP(filled_tfd_size, 64) - 1;
 
-	bc_ent = cpu_to_le16(len | (num_fetch_chunks << 12));
-	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) {
+		/* Starting from 22560, the HW expects bytes */
+		WARN_ON(trans_pcie->bc_table_dword);
+		WARN_ON(len > 0x3FFF);
+		bc_ent = cpu_to_le16(len | (num_fetch_chunks << 14));
 		scd_bc_tbl_gen3->tfd_offset[idx] = bc_ent;
-	else
+	} else {
+		/* Until 22560, the HW expects DW */
+		WARN_ON(!trans_pcie->bc_table_dword);
+		len = DIV_ROUND_UP(len, 4);
+		WARN_ON(len > 0xFFF);
+		bc_ent = cpu_to_le16(len | (num_fetch_chunks << 12));
 		scd_bc_tbl->tfd_offset[idx] = bc_ent;
+	}
 }
 
 /*
@@ -656,12 +661,8 @@ int iwl_trans_pcie_gen2_tx(struct iwl_trans *trans, struct sk_buff *skb,
 				      iwl_pcie_gen2_get_num_tbs(trans, tfd));
 
 	/* start timer if queue currently empty */
-	if (txq->read_ptr == txq->write_ptr) {
-		if (txq->wd_timeout)
-			mod_timer(&txq->stuck_timer, jiffies + txq->wd_timeout);
-		IWL_DEBUG_RPM(trans, "Q: %d first tx - take ref\n", txq->id);
-		iwl_trans_ref(trans);
-	}
+	if (txq->read_ptr == txq->write_ptr && txq->wd_timeout)
+		mod_timer(&txq->stuck_timer, jiffies + txq->wd_timeout);
 
 	/* Tell device the write index *just past* this latest filled TFD */
 	txq->write_ptr = iwl_queue_inc_wrap(trans, txq->write_ptr);
@@ -906,12 +907,6 @@ static int iwl_pcie_gen2_enqueue_hcmd(struct iwl_trans *trans,
 		mod_timer(&txq->stuck_timer, jiffies + txq->wd_timeout);
 
 	spin_lock_irqsave(&trans_pcie->reg_lock, flags);
-	if (!(cmd->flags & CMD_SEND_IN_IDLE) &&
-	    !trans_pcie->ref_cmd_in_flight) {
-		trans_pcie->ref_cmd_in_flight = true;
-		IWL_DEBUG_RPM(trans, "set ref_cmd_in_flight - ref\n");
-		iwl_trans_ref(trans);
-	}
 	/* Increment and update queue's write index */
 	txq->write_ptr = iwl_queue_inc_wrap(trans, txq->write_ptr);
 	iwl_pcie_gen2_txq_inc_wr_ptr(trans, txq);
@@ -944,16 +939,6 @@ static int iwl_pcie_gen2_send_hcmd_sync(struct iwl_trans *trans,
 		return -EIO;
 
 	IWL_DEBUG_INFO(trans, "Setting HCMD_ACTIVE for command %s\n", cmd_str);
-
-	if (pm_runtime_suspended(&trans_pcie->pci_dev->dev)) {
-		ret = wait_event_timeout(trans_pcie->d0i3_waitq,
-				 pm_runtime_active(&trans_pcie->pci_dev->dev),
-				 msecs_to_jiffies(IWL_TRANS_IDLE_TIMEOUT));
-		if (!ret) {
-			IWL_ERR(trans, "Timeout exiting D0i3 before hcmd\n");
-			return -ETIMEDOUT;
-		}
-	}
 
 	cmd_idx = iwl_pcie_gen2_enqueue_hcmd(trans, cmd);
 	if (cmd_idx < 0) {
@@ -1079,23 +1064,6 @@ void iwl_pcie_gen2_txq_unmap(struct iwl_trans *trans, int txq_id)
 		}
 		iwl_pcie_gen2_free_tfd(trans, txq);
 		txq->read_ptr = iwl_queue_inc_wrap(trans, txq->read_ptr);
-
-		if (txq->read_ptr == txq->write_ptr) {
-			unsigned long flags;
-
-			spin_lock_irqsave(&trans_pcie->reg_lock, flags);
-			if (txq_id != trans_pcie->cmd_queue) {
-				IWL_DEBUG_RPM(trans, "Q %d - last tx freed\n",
-					      txq->id);
-				iwl_trans_unref(trans);
-			} else if (trans_pcie->ref_cmd_in_flight) {
-				trans_pcie->ref_cmd_in_flight = false;
-				IWL_DEBUG_RPM(trans,
-					      "clear ref_cmd_in_flight\n");
-				iwl_trans_unref(trans);
-			}
-			spin_unlock_irqrestore(&trans_pcie->reg_lock, flags);
-		}
 	}
 
 	while (!skb_queue_empty(&txq->overflow_q)) {
