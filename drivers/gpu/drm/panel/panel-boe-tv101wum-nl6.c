@@ -373,7 +373,7 @@ static const struct panel_init_cmd boe_init_cmd[] = {
 	{},
 };
 
-static const struct panel_init_cmd auo_init_cmd[] = {
+static const struct panel_init_cmd auo_kd101n80_45na_init_cmd[] = {
 	_INIT_DELAY_CMD(24),
 	_INIT_DCS_CMD(0x11),
 	_INIT_DELAY_CMD(120),
@@ -438,7 +438,7 @@ static int boe_panel_init(struct boe_panel *boe)
 {
 	struct mipi_dsi_device *dsi = boe->dsi;
 	struct drm_panel *panel = &boe->base;
-	int err, i;
+	int i, err = 0;
 
 	if (boe->desc->init_cmds) {
 		const struct panel_init_cmd *init_cmds = boe->desc->init_cmds;
@@ -458,6 +458,7 @@ static int boe_panel_init(struct boe_panel *boe)
 							 &cmd->data[1],
 							 cmd->len - 1);
 				break;
+
 			default:
 				err = -EINVAL;
 			}
@@ -561,10 +562,14 @@ static int boe_panel_prepare(struct drm_panel *panel)
 	if (ret < 0)
 		goto poweroffavdd;
 
-	msleep(100);
+	usleep_range(5000, 10000);
 
 	gpiod_set_value(boe->enable_gpio, 1);
-	usleep_range(10000, 12000);
+	usleep_range(1000, 2000);
+	gpiod_set_value(boe->enable_gpio, 0);
+	usleep_range(1000, 2000);
+	gpiod_set_value(boe->enable_gpio, 1);
+	usleep_range(6000, 10000);
 
 	ret = boe_panel_init(boe);
 	if (ret < 0) {
@@ -596,6 +601,8 @@ static int boe_panel_enable(struct drm_panel *panel)
 	if (boe->enabled)
 		return 0;
 
+	msleep(130);
+
 	ret = backlight_enable(boe->backlight);
 	if (ret) {
 		dev_err(panel->dev, "Failed to enable backlight %d\n",
@@ -608,7 +615,7 @@ static int boe_panel_enable(struct drm_panel *panel)
 	return 0;
 }
 
-static const struct drm_display_mode boe_default_mode = {
+static const struct drm_display_mode boe_tv101wum_nl6_default_mode = {
 	.clock = 159425,
 	.hdisplay = 1200,
 	.hsync_start = 1200 + 100,
@@ -622,7 +629,7 @@ static const struct drm_display_mode boe_default_mode = {
 };
 
 static const struct panel_desc boe_tv101wum_nl6_desc = {
-	.modes = &boe_default_mode,
+	.modes = &boe_tv101wum_nl6_default_mode,
 	.bpc = 8,
 	.size = {
 		.width_mm = 135,
@@ -636,7 +643,7 @@ static const struct panel_desc boe_tv101wum_nl6_desc = {
 	.discharge_on_disable = false,
 };
 
-static const struct drm_display_mode auo_default_mode = {
+static const struct drm_display_mode auo_kd101n80_45na_default_mode = {
 	.clock = 157000,
 	.hdisplay = 1200,
 	.hsync_start = 1200 + 80,
@@ -650,7 +657,7 @@ static const struct drm_display_mode auo_default_mode = {
 };
 
 static const struct panel_desc auo_kd101n80_45na_desc = {
-	.modes = &auo_default_mode,
+	.modes = &auo_kd101n80_45na_default_mode,
 	.bpc = 8,
 	.size = {
 		.width_mm = 135,
@@ -660,7 +667,7 @@ static const struct panel_desc auo_kd101n80_45na_desc = {
 	.format = MIPI_DSI_FMT_RGB888,
 	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
 		      MIPI_DSI_MODE_LPM,
-	.init_cmds = auo_init_cmd,
+	.init_cmds = auo_kd101n80_45na_init_cmd,
 	.discharge_on_disable = true,
 };
 
