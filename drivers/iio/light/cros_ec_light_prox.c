@@ -197,10 +197,8 @@ static int cros_ec_light_prox_read(struct iio_dev *indio_dev,
 			ret = IIO_VAL_INT_PLUS_MICRO;
 			break;
 		}
-		/*
-		 * RANGE is used for calibration in 1 channel sensors.
-		 * Pass through.
-		 */
+		/* RANGE is used for calibration in 1 channel sensors. */
+		/* Fall through */
 	case IIO_CHAN_INFO_SCALE:
 		/*
 		 * RANGE is used for calibration
@@ -288,9 +286,10 @@ static int cros_ec_light_prox_write(struct iio_dev *indio_dev,
 			break;
 		}
 		/*
-		 * Passthru for sensors with only one channel: _RANGE is used
+		 * For sensors with only one channel, _RANGE is used
 		 * instead of _SCALE.
 		 */
+		/* Fall through */
 	case IIO_CHAN_INFO_SCALE:
 		st->core.param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
 		st->core.param.sensor_range.data = (val << 16) | (val2 / 100);
