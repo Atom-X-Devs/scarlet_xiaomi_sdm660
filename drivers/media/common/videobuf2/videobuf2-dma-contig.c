@@ -84,6 +84,28 @@ static struct sg_table *vb2_dc_get_base_sgt(struct vb2_dc_buf *buf)
 	return sgt;
 }
 
+static struct sg_table *vb2_dc_get_dma_sgt(struct vb2_dc_buf *buf)
+{
+	struct sg_table *sgt;
+	struct scatterlist *s;
+	unsigned int len = 0, i;
+
+	sgt = vb2_dc_get_base_sgt(buf);
+	if (!sgt)
+		return NULL;
+
+	/*
+	 * TODO(b/140396437): This is a hack around __swiotlb_sync_sg_for_*
+	 * We probably shouldn't call the dma_sync_* before dma_map_*
+	 */
+	for_each_sg(sgt->sgl, s, sgt->orig_nents, i) {
+		sg_dma_address(s) = buf->dma_addr + len;
+		len += sg_dma_len(s);
+	}
+
+	return sgt;
+}
+
 
 /*********************************************/
 /*         callbacks for all buffers         */
@@ -200,7 +222,7 @@ static void *vb2_dc_alloc(struct device *dev, unsigned long attrs,
 
 	if (!(buf->attrs & DMA_ATTR_NO_KERNEL_MAPPING) &&
 	    (buf->attrs & DMA_ATTR_NON_CONSISTENT))
-		buf->dma_sgt = vb2_dc_get_base_sgt(buf);
+		buf->dma_sgt = vb2_dc_get_dma_sgt(buf);
 
 	refcount_set(&buf->refcount, 1);
 
@@ -240,7 +262,7 @@ static int vb2_dc_mmap(void *buf_priv, struct vm_area_struct *vma)
 	if ((buf->attrs & DMA_ATTR_NO_KERNEL_MAPPING) &&
 	    (buf->attrs & DMA_ATTR_NON_CONSISTENT) &&
 	    !buf->dma_sgt)
-		buf->dma_sgt = vb2_dc_get_base_sgt(buf);
+		buf->dma_sgt = vb2_dc_get_dma_sgt(buf);
 
 	pr_debug("%s: mapped dma addr 0x%08lx at 0x%08lx, size %ld\n",
 		__func__, (unsigned long)buf->dma_addr, vma->vm_start,
