@@ -153,6 +153,10 @@
 	};
 };
 
+&it6505dptx {
+	no-laneswap;
+};
+
 &pio {
 	/* 192 lines */
 	gpio-line-names =

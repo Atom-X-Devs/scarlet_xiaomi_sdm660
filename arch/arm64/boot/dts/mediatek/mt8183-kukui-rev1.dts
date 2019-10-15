@@ -225,6 +225,10 @@
 	};
 };
 
+&it6505dptx {
+	ovdd-supply = <&mt6358_vsim1_reg>;
+};
+
 &i2c0 {
 	status = "okay";
 
