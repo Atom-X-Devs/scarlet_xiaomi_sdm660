@@ -73,7 +73,7 @@
 
 		reset-gpios = <&pio 111 1>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&camera_pins_cam0_mclk_on>;
+		pinctrl-0 = <&camera_pins_cam0>;
 
 		avdd-supply = <&mt6358_vcama2_reg>;
 		dvdd-supply = <&mt6358_vcamd_reg>;
@@ -109,7 +109,7 @@
 
 		reset-gpios = <&pio 107 1>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&camera_pins_cam1_mclk_on>;
+		pinctrl-0 = <&camera_pins_cam1>;
 
 		avdd-supply = <&mt6358_vcama1_reg>;
 		dvdd-supply = <&mt6358_vcn18_reg>;

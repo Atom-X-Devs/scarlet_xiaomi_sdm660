@@ -506,13 +506,13 @@
 		};
 	};
 
-	camera_pins_cam0_mclk_on: cam0@2 {
+	camera_pins_cam0: cam0@2 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
 		};
 	};
 
-	camera_pins_cam1_mclk_on: cam1@2 {
+	camera_pins_cam1: cam1@2 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
 		};

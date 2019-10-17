@@ -93,7 +93,7 @@
 
 		reset-gpios = <&pio 111 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&camera_pins_cam0_mclk_on>;
+		pinctrl-0 = <&camera_pins_cam0>;
 
 		avdd-supply = <&mt6358_vcama2_reg>;
 		dvdd-supply = <&mt6358_vcamd_reg>;
@@ -154,7 +154,7 @@
 		powerdown-gpios = <&pio 107 1>;
 		reset-gpios = <&pio 109 0>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&camera_pins_cam1_mclk_on>;
+		pinctrl-0 = <&camera_pins_cam1>;
 
 		avdd-supply = <&mt6358_vcama1_reg>;
 		dvdd-supply = <&mt6358_vcn18_reg>;
@@ -440,5 +440,24 @@
 				remote-endpoint = <&ov02a10_endpoint>;
 			};
 		};
+	};
+};
+
+&camera_pins_cam0 {
+	pins_reset {
+		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+		output-low;
+	};
+};
+
+&camera_pins_cam1 {
+	pins_powerdown {
+		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+		output-high;
+	};
+
+	pins_reset {
+		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+		output-low;
 	};
 };
