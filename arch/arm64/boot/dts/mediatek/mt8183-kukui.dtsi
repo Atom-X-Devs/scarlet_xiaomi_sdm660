@@ -383,13 +383,6 @@
 	clock-frequency = <100000>;
 };
 
-&i2c8 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c8_pins>;
-	status = "okay";
-	clock-frequency = <100000>;
-};
-
 &mipi_tx0 {
 	status = "okay";
 };
@@ -643,14 +636,6 @@
 		pins_bus {
 			pinmux = <PINMUX_GPIO11__FUNC_SCL6>,
 				 <PINMUX_GPIO12__FUNC_SDA6>;
-			bias-disable;
-		};
-	};
-
-	i2c8_pins: i2c8 {
-		pins_bus {
-			pinmux = <PINMUX_GPIO108__FUNC_SCL8>,
-				 <PINMUX_GPIO109__FUNC_SDA8>;
 			bias-disable;
 		};
 	};
