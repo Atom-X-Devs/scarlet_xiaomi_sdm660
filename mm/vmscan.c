@@ -2336,18 +2336,16 @@ static bool inactive_list_is_low(struct lruvec *lruvec, bool file,
 /*
  * Check low watermark used to prevent fscache thrashing during low memory.
  */
-static int file_is_low(struct lruvec *lruvec, struct scan_control *sc)
+static int file_is_low(struct lruvec *lruvec)
 {
 	unsigned long pages_min, active, inactive;
-	enum lru_list inactive_lru = LRU_FILE;
-	enum lru_list active_lru = LRU_FILE + LRU_ACTIVE;
 
 	if (!mem_cgroup_disabled())
 		return false;
 
 	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	inactive = lruvec_lru_size(lruvec, inactive_lru, sc->reclaim_idx);
-	active = lruvec_lru_size(lruvec, active_lru, sc->reclaim_idx);
+	inactive = node_page_state(lruvec_pgdat(lruvec), NR_INACTIVE_FILE);
+	active = node_page_state(lruvec_pgdat(lruvec), NR_ACTIVE_FILE);
 
 	return ((active + inactive) < pages_min);
 }
@@ -2395,18 +2393,18 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	unsigned long ap, fp;
 	enum lru_list lru;
 
+	/* If we have no swap space, do not bother scanning anon pages. */
+	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
+		scan_balance = SCAN_FILE;
+		goto out;
+	}
+
 	/*
 	 * Do not scan file pages when swap is allowed by __GFP_IO and
 	 * file page count is low.
 	 */
-	if ((sc->gfp_mask & __GFP_IO) && file_is_low(lruvec, sc)) {
+	if ((sc->gfp_mask & __GFP_IO) && file_is_low(lruvec)) {
 		scan_balance = SCAN_ANON;
-		goto out;
-	}
-
-	/* If we have no swap space, do not bother scanning anon pages. */
-	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
-		scan_balance = SCAN_FILE;
 		goto out;
 	}
 
