@@ -1458,6 +1458,7 @@ static int svs_resource_setup(struct mtk_svs *svs)
 			svsb->opp_volts[i] = dev_pm_opp_get_voltage(opp);
 			svsb->freqs_pct[i] = percent(svsb->opp_freqs[i],
 						     svsb->freq_base) & 0xff;
+			dev_pm_opp_put(opp);
 		}
 	}
 
@@ -1670,6 +1671,7 @@ static int svs_status_proc_show(struct seq_file *m, void *v)
 			   i, freq, i, dev_pm_opp_get_voltage(opp));
 		seq_printf(m, "svsb_volts[%02u]: 0x%x, freqs_pct[%02u]: %u\n",
 			   i, svsb->volts[i], i, svsb->freqs_pct[i]);
+		dev_pm_opp_put(opp);
 	}
 
 	return 0;
