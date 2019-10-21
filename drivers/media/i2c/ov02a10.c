@@ -378,6 +378,34 @@ static int ov02a10_enum_frame_sizes(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int ov02a10_check_sensor_id(struct ov02a10 *ov02a10)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&ov02a10->subdev);
+	u16 id;
+	u8 pid = 0;
+	u8 ver = 0;
+	int ret;
+
+	/* Check sensor revision */
+	ret = ov02a10_read_smbus(ov02a10, OV02A10_REG_CHIP_ID_H, &pid);
+	if (ret)
+		return ret;
+
+	ret = ov02a10_read_smbus(ov02a10, OV02A10_REG_CHIP_ID_L, &ver);
+	if (ret)
+		return ret;
+
+	id = OV02A10_ID(pid, ver);
+	if (id != CHIP_ID) {
+		dev_err(&client->dev, "Unexpected sensor id(%04x)\n", id);
+		return -EINVAL;
+	}
+
+	dev_dbg(&client->dev, "Detected OV%04X sensor\n", id);
+
+	return 0;
+}
+
 static int __ov02a10_power_on(struct ov02a10 *ov02a10)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&ov02a10->subdev);
@@ -406,8 +434,14 @@ static int __ov02a10_power_on(struct ov02a10 *ov02a10)
 	gpiod_set_value_cansleep(ov02a10->n_rst_gpio, GPIOD_OUT_HIGH);
 	usleep_range(5000, 6000);
 
+	ret = ov02a10_check_sensor_id(ov02a10);
+	if (ret)
+		goto disable_regulator;
+
 	return 0;
 
+disable_regulator:
+	regulator_bulk_disable(OV02A10_NUM_SUPPLIES, ov02a10->supplies);
 disable_clk:
 	clk_disable_unprepare(ov02a10->eclk);
 
@@ -851,34 +885,6 @@ check_hwcfg_error:
 	return ret;
 }
 
-static int ov02a10_check_sensor_id(struct ov02a10 *ov02a10)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&ov02a10->subdev);
-	u16 id;
-	u8 pid = 0;
-	u8 ver = 0;
-	int ret;
-
-	/* Check sensor revision */
-	ret = ov02a10_read_smbus(ov02a10, OV02A10_REG_CHIP_ID_H, &pid);
-	if (ret)
-		return ret;
-
-	ret = ov02a10_read_smbus(ov02a10, OV02A10_REG_CHIP_ID_L, &ver);
-	if (ret)
-		return ret;
-
-	id = OV02A10_ID(pid, ver);
-	if (id != CHIP_ID) {
-		dev_err(&client->dev, "Unexpected sensor id(%04x)\n", id);
-		return ret;
-	}
-
-	dev_info(&client->dev, "Detected OV%04X sensor\n", id);
-
-	return 0;
-}
-
 static int ov02a10_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
@@ -977,14 +983,6 @@ static int ov02a10_probe(struct i2c_client *client)
 		goto err_destroy_mutex;
 	}
 
-	ret = __ov02a10_power_on(ov02a10);
-	if (ret)
-		goto err_free_handler;
-
-	ret = ov02a10_check_sensor_id(ov02a10);
-	if (ret)
-		goto err_power_off;
-
 	ov02a10->subdev.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov02a10->subdev.entity.ops = &ov02a10_subdev_entity_ops;
 	ov02a10->subdev.entity.function = MEDIA_ENT_F_CAM_SENSOR;
@@ -992,7 +990,7 @@ static int ov02a10_probe(struct i2c_client *client)
 	ret = media_entity_pads_init(&ov02a10->subdev.entity, 1, &ov02a10->pad);
 	if (ret < 0) {
 		dev_err(dev, "failed to init entity pads: %d", ret);
-		goto err_power_off;
+		goto err_free_handler;
 	}
 
 	ret = v4l2_async_register_subdev(&ov02a10->subdev);
@@ -1002,17 +1000,13 @@ static int ov02a10_probe(struct i2c_client *client)
 		goto err_clean_entity;
 	}
 
-	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
-	pm_runtime_idle(dev);
 
 	dev_info(dev, "ov02a10 probe --\n");
 	return 0;
 
 err_clean_entity:
 	media_entity_cleanup(&ov02a10->subdev.entity);
-err_power_off:
-	__ov02a10_power_off(ov02a10);
 err_free_handler:
 	v4l2_ctrl_handler_free(ov02a10->subdev.ctrl_handler);
 err_destroy_mutex:
