@@ -822,7 +822,11 @@ static int __maybe_unused at24_resume(struct device *dev)
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(at24_pm_ops, at24_suspend, at24_resume);
+static const struct dev_pm_ops at24_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
+	SET_RUNTIME_PM_OPS(at24_suspend, at24_resume, NULL)
+};
 
 static struct i2c_driver at24_driver = {
 	.driver = {
