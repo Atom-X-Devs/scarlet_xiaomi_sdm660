@@ -164,22 +164,6 @@ static int rk_hdmi_init(struct snd_soc_pcm_runtime *runtime)
 	return hdmi_codec_set_jack_detect(component, &rk_hdmi_jack);
 }
 
-static int rk_max98090_init(struct snd_soc_pcm_runtime *runtime)
-{
-	struct snd_soc_component *comp = runtime->codec_dai->component;
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(comp);
-
-	/*
-	 * Enable max98090 and MICBIAS on it to provide headset jack
-	 * detection. Without this, there will be phantom button when
-	 * OMTP headset is plugged.
-	 */
-	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS");
-	snd_soc_dapm_force_enable_pin(dapm, "SHDN");
-
-	return snd_soc_dapm_sync(dapm);
-}
-
 /* max98090 and HDMI codec dai_link */
 static struct snd_soc_dai_link rk_dailinks[] = {
 	[DAILINK_MAX98090] = {
@@ -189,7 +173,6 @@ static struct snd_soc_dai_link rk_dailinks[] = {
 		/* set max98090 as slave */
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
-		.init = rk_max98090_init,
 		SND_SOC_DAILINK_REG(analog),
 	},
 	[DAILINK_HDMI] = {
