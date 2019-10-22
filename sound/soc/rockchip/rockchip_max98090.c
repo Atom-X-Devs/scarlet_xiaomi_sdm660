@@ -145,25 +145,6 @@ enum {
 	DAILINK_HDMI,
 };
 
-static struct snd_soc_jack rk_hdmi_jack;
-
-static int rk_hdmi_init(struct snd_soc_pcm_runtime *runtime)
-{
-	struct snd_soc_card *card = runtime->card;
-	struct snd_soc_component *component = runtime->codec_dai->component;
-	int ret;
-
-	/* enable jack detection */
-	ret = snd_soc_card_jack_new(card, "HDMI Jack", SND_JACK_LINEOUT,
-				    &rk_hdmi_jack, NULL, 0);
-	if (ret) {
-		dev_err(card->dev, "Can't new HDMI Jack %d\n", ret);
-		return ret;
-	}
-
-	return hdmi_codec_set_jack_detect(component, &rk_hdmi_jack);
-}
-
 /* max98090 and HDMI codec dai_link */
 static struct snd_soc_dai_link rk_dailinks[] = {
 	[DAILINK_MAX98090] = {
@@ -181,7 +162,6 @@ static struct snd_soc_dai_link rk_dailinks[] = {
 		.ops = &rk_aif1_ops,
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
-		.init = rk_hdmi_init,
 		SND_SOC_DAILINK_REG(hdmi),
 	}
 };
