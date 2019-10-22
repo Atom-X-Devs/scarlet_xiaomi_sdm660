@@ -26,6 +26,8 @@
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_edid.h>
 
+#include <sound/hdmi-codec.h>
+
 #define AX 0
 #define BX 1
 #define AUDSEL I2S
@@ -146,6 +148,7 @@ struct it6505 {
 	struct notifier_block event_nb;
 	struct extcon_dev *extcon;
 	struct work_struct extcon_wq;
+	struct delayed_work delayed_audio;
 	enum sys_status status;
 	bool hbr;
 	u8 en_ssc;
@@ -1221,6 +1224,149 @@ static void it6505_set_audio(struct it6505 *it6505)
 	dptxset(it6505, 0xB8, 0x80, 0x80);
 	dptxset(it6505, 0xB8, 0x80, 0x00);
 	dptxset(it6505, 0xD3, 0x20, 0x00);
+}
+
+static void it6505_delayed_audio(struct work_struct *work)
+{
+	struct it6505 *it6505 = container_of(work, struct it6505,
+					     delayed_audio.work);
+
+	it6505_set_audio(it6505);
+	it6505->en_audio = 1;
+}
+
+static int it6505_audio_hw_params(struct device *dev, void *data,
+				  struct hdmi_codec_daifmt *daifmt,
+				  struct hdmi_codec_params *params)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+	unsigned int channel_num = params->cea.channels;
+
+	DRM_DEV_DEBUG_DRIVER(dev, "setting %d Hz, %d bit, %d channels\n",
+			     params->sample_rate, params->sample_width,
+			     channel_num);
+
+	if (!it6505->bridge.encoder)
+		return -ENODEV;
+
+	switch (params->sample_rate) {
+	case 24000:
+		it6505->aud_fs = AUD24K;
+		break;
+	case 32000:
+		it6505->aud_fs = AUD32K;
+		break;
+	case 44100:
+		it6505->aud_fs = AUD44P1K;
+		break;
+	case 48000:
+		it6505->aud_fs = AUD48K;
+		break;
+	case 88200:
+		it6505->aud_fs = AUD88P2K;
+		break;
+	case 96000:
+		it6505->aud_fs = AUD96K;
+		break;
+	case 176400:
+		it6505->aud_fs = AUD176P4K;
+		break;
+	case 192000:
+		it6505->aud_fs = AUD192K;
+		break;
+	default:
+		DRM_DEV_DEBUG_DRIVER(dev, "sample rate: %d Hz not support",
+				     params->sample_rate);
+		return -EINVAL;
+	}
+
+	switch (params->sample_width) {
+	case 16:
+		it6505->audwordlength = AUD16BIT;
+		break;
+	case 18:
+		it6505->audwordlength = AUD18BIT;
+		break;
+	case 20:
+		it6505->audwordlength = AUD20BIT;
+		break;
+	case 24:
+	case 32:
+		it6505->audwordlength = AUD24BIT;
+		break;
+	default:
+		DRM_DEV_DEBUG_DRIVER(dev, "wordlength: %d bit not support",
+				     params->sample_width);
+		return -EINVAL;
+	}
+
+	if (channel_num == 0 || channel_num % 2) {
+		DRM_DEV_DEBUG_DRIVER(dev, "channel number: %d not support",
+				     channel_num);
+		return -EINVAL;
+	}
+	it6505->aud_ch = channel_num;
+
+	return 0;
+}
+
+static int it6505_audio_trigger(struct device *dev, int event)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+
+	DRM_DEV_DEBUG_DRIVER(dev, "event: %d", event);
+	switch (event) {
+	case HDMI_CODEC_TRIGGER_EVENT_START:
+	case HDMI_CODEC_TRIGGER_EVENT_RESUME:
+		queue_delayed_work(system_wq, &it6505->delayed_audio,
+				   msecs_to_jiffies(180));
+		break;
+	case HDMI_CODEC_TRIGGER_EVENT_STOP:
+	case HDMI_CODEC_TRIGGER_EVENT_SUSPEND:
+		cancel_delayed_work(&it6505->delayed_audio);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static void it6505_audio_shutdown(struct device *dev, void *data)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+
+	dptxset(it6505, 0xE8, 0x22, 0x00);
+	dptxset(it6505, 0x05, 0x02, 0x02);
+	it6505->en_audio = 0;
+}
+
+static const struct hdmi_codec_ops it6505_audio_codec_ops = {
+	.hw_params = it6505_audio_hw_params,
+	.trigger = it6505_audio_trigger,
+	.audio_shutdown = it6505_audio_shutdown,
+};
+
+static int it6505_register_audio_driver(struct device *dev)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+	struct hdmi_codec_pdata codec_data = {
+		.ops = &it6505_audio_codec_ops,
+		.max_i2s_channels = 8,
+		.i2s = 1,
+	};
+	struct platform_device *pdev;
+
+	pdev = platform_device_register_data(dev, HDMI_CODEC_DRV_NAME,
+					     PLATFORM_DEVID_AUTO, &codec_data,
+					     sizeof(codec_data));
+	if (IS_ERR(pdev))
+		return PTR_ERR(pdev);
+
+	INIT_DELAYED_WORK(&it6505->delayed_audio, it6505_delayed_audio);
+
+	DRM_DEV_DEBUG_DRIVER(dev, "bound to %s", HDMI_CODEC_DRV_NAME);
+	return 0;
 }
 
 /***************************************************************************
@@ -2457,6 +2603,12 @@ static int it6505_i2c_probe(struct i2c_client *client,
 	if (err) {
 		DRM_DEV_ERROR(dev, "Failed to request INTP threaded IRQ: %d",
 			      err);
+		return err;
+	}
+
+	err = it6505_register_audio_driver(dev);
+	if (err < 0) {
+		DRM_DEV_ERROR(dev, "Failed to register audio driver: %d", err);
 		return err;
 	}
 
