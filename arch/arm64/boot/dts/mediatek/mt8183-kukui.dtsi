@@ -115,6 +115,7 @@
 	sound: mt8183-mt6358-ts3a227e-max98357a {
 		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
+		mediatek,hdmi-codec = <&it6505dptx>;
 		pinctrl-names = "default",
 				"aud_tdm_out_on",
 				"aud_tdm_out_off";
