@@ -180,6 +180,10 @@ struct it6505 {
 	bool powered;
 	/* it6505 driver hold option */
 	unsigned int drv_hold;
+
+	hdmi_codec_plugged_cb plugged_cb;
+	struct device *codec_dev;
+	enum drm_connector_status last_connector_status;
 };
 
 static const struct regmap_range it6505_bridge_volatile_ranges[] = {
@@ -882,15 +886,31 @@ static const struct drm_connector_helper_funcs it6505_connector_helper_funcs = {
 	.get_modes = it6505_get_modes,
 };
 
+static void it6505_update_plugged_status(struct it6505 *it6505,
+					 enum drm_connector_status status)
+{
+	if (it6505->plugged_cb && it6505->codec_dev)
+		it6505->plugged_cb(it6505->codec_dev,
+				   status == connector_status_connected);
+}
+
 static enum drm_connector_status it6505_detect(struct drm_connector *connector,
 					       bool force)
 {
 	struct it6505 *it6505 = connector_to_it6505(connector);
+	enum drm_connector_status status;
 
 	if (gpiod_get_value(it6505->pdata.gpiod_hpd))
-		return connector_status_disconnected;
+		status = connector_status_disconnected;
+	else
+		status = connector_status_connected;
 
-	return connector_status_connected;
+	if (status != it6505->last_connector_status) {
+		it6505->last_connector_status = status;
+		it6505_update_plugged_status(it6505, status);
+	}
+
+	return status;
 }
 
 static const struct drm_connector_funcs it6505_connector_funcs = {
@@ -1341,10 +1361,23 @@ static void it6505_audio_shutdown(struct device *dev, void *data)
 	it6505->en_audio = 0;
 }
 
+static int it6505_audio_hook_plugged_cb(struct device *dev, void *data,
+					hdmi_codec_plugged_cb fn,
+					struct device *codec_dev)
+{
+	struct it6505 *it6505 = data;
+
+	it6505->plugged_cb = fn;
+	it6505->codec_dev = codec_dev;
+	it6505_update_plugged_status(it6505, it6505->last_connector_status);
+	return 0;
+}
+
 static const struct hdmi_codec_ops it6505_audio_codec_ops = {
 	.hw_params = it6505_audio_hw_params,
 	.trigger = it6505_audio_trigger,
 	.audio_shutdown = it6505_audio_shutdown,
+	.hook_plugged_cb = it6505_audio_hook_plugged_cb,
 };
 
 static int it6505_register_audio_driver(struct device *dev)
@@ -1354,6 +1387,7 @@ static int it6505_register_audio_driver(struct device *dev)
 		.ops = &it6505_audio_codec_ops,
 		.max_i2s_channels = 8,
 		.i2s = 1,
+		.data = it6505,
 	};
 	struct platform_device *pdev;
 
@@ -1364,6 +1398,7 @@ static int it6505_register_audio_driver(struct device *dev)
 		return PTR_ERR(pdev);
 
 	INIT_DELAYED_WORK(&it6505->delayed_audio, it6505_delayed_audio);
+	it6505->last_connector_status = connector_status_disconnected;
 
 	DRM_DEV_DEBUG_DRIVER(dev, "bound to %s", HDMI_CODEC_DRV_NAME);
 	return 0;
