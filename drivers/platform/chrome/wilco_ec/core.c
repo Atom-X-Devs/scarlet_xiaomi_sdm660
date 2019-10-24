@@ -38,47 +38,11 @@ static struct resource *wilco_get_resource(struct platform_device *pdev,
 				   dev_name(dev));
 }
 
-/**
- * wilco_ec_keyboard_backlight_exists() - Is the keyboad backlight supported?
- * @ec: EC device to query.
- * @exists: Return value to fill in.
- *
- * Return: 0 on success, negative error code on failure.
- */
-static int wilco_ec_keyboard_backlight_exists(struct wilco_ec_device *ec,
-					      bool *exists)
-{
-	struct wilco_ec_kbbl_msg request;
-	struct wilco_ec_kbbl_msg response;
-	struct wilco_ec_message msg;
-	int ret;
-
-	memset(&request, 0, sizeof(request));
-	request.command = WILCO_EC_COMMAND_KBBL;
-	request.subcmd = WILCO_KBBL_SUBCMD_GET_FEATURES;
-
-	memset(&msg, 0, sizeof(msg));
-	msg.type = WILCO_EC_MSG_LEGACY;
-	msg.request_data = &request;
-	msg.request_size = sizeof(request);
-	msg.response_data = &response;
-	msg.response_size = sizeof(response);
-
-	ret = wilco_ec_mailbox(ec, &msg);
-	if (ret < 0)
-		return ret;
-
-	*exists = response.status != 0xFF;
-
-	return 0;
-}
-
 static int wilco_ec_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct wilco_ec_device *ec;
 	int ret;
-	bool kbbl_exists;
 
 	ec = devm_kzalloc(dev, sizeof(*ec), GFP_KERNEL);
 	if (!ec)
@@ -123,29 +87,10 @@ static int wilco_ec_probe(struct platform_device *pdev)
 		goto unregister_debugfs;
 	}
 
-	/* Register child dev to be found by the keyboard backlight driver. */
-	ret = wilco_ec_keyboard_backlight_exists(ec, &kbbl_exists);
-	if (ret) {
-		dev_err(ec->dev,
-			"Failed checking keyboard backlight support: %d", ret);
-		goto unregister_rtc;
-	}
-	if (kbbl_exists) {
-		ec->kbbl_pdev = platform_device_register_data(dev,
-						"wilco-kbd-backlight",
-						PLATFORM_DEVID_AUTO, NULL, 0);
-		if (IS_ERR(ec->kbbl_pdev)) {
-			dev_err(dev,
-				"Failed to create keyboard backlight pdev\n");
-			ret = PTR_ERR(ec->kbbl_pdev);
-			goto unregister_rtc;
-		}
-	}
-
 	ret = wilco_ec_add_sysfs(ec);
 	if (ret < 0) {
 		dev_err(dev, "Failed to create sysfs entries: %d", ret);
-		goto unregister_kbbl;
+		goto unregister_rtc;
 	}
 
 	/* Register child device to be found by charger config driver. */
@@ -187,8 +132,6 @@ unregister_charge_config:
 	platform_device_unregister(ec->charger_pdev);
 remove_sysfs:
 	wilco_ec_remove_sysfs(ec);
-unregister_kbbl:
-	platform_device_unregister(ec->kbbl_pdev);
 unregister_rtc:
 	platform_device_unregister(ec->rtc_pdev);
 unregister_debugfs:
@@ -205,7 +148,6 @@ static int wilco_ec_remove(struct platform_device *pdev)
 	platform_device_unregister(ec->charge_schedule_pdev);
 	platform_device_unregister(ec->charger_pdev);
 	wilco_ec_remove_sysfs(ec);
-	platform_device_unregister(ec->kbbl_pdev);
 	platform_device_unregister(ec->telem_pdev);
 	platform_device_unregister(ec->rtc_pdev);
 	if (ec->debugfs_pdev)

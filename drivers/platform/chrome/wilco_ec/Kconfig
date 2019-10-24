@@ -28,15 +28,6 @@ config WILCO_EC_EVENTS
 	  over ACPI, and a driver queues up the events to be read by a
 	  userspace daemon from /dev/wilco_event using read() and poll().
 
-config WILCO_EC_KBD_BACKLIGHT
-	tristate "Enable keyboard backlight control"
-	depends on WILCO_EC
-	help
-	  If you say Y here, you get support to set the keyboard backlight
-	  brightness. This happens via a standard LED driver that uses the
-	  Wilco EC mailbox interface. A standard LED class device will
-	  appear under /sys/class/leds/chromeos::kbd_backlight
-
 config WILCO_EC_CHARGE_SCHEDULE
 	tristate "Enable Peak Shift and Advanced Battery Charging support"
 	depends on WILCO_EC

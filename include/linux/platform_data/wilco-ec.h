@@ -29,7 +29,6 @@
  * @data_size: Size of the data buffer used for EC communication.
  * @debugfs_pdev: The child platform_device used by the debugfs sub-driver.
  * @rtc_pdev: The child platform_device used by the RTC sub-driver.
- * @kbbl_pdev: The child pdev used by the keyboard backlight sub-driver.
  * @charger_pdev: Child platform_device used by the charger config sub-driver.
  * @charge_schedule_pdev: Child pdev used by the charge schedule sub-driver.
  * @telem_pdev: The child platform_device used by the telemetry sub-driver.
@@ -44,7 +43,6 @@ struct wilco_ec_device {
 	size_t data_size;
 	struct platform_device *debugfs_pdev;
 	struct platform_device *rtc_pdev;
-	struct platform_device *kbbl_pdev;
 	struct platform_device *charger_pdev;
 	struct platform_device *charge_schedule_pdev;
 	struct platform_device *telem_pdev;
@@ -116,42 +114,6 @@ struct wilco_ec_message {
 	size_t response_size;
 	void *response_data;
 };
-
-/* Constants and structs useful for keyboard backlight (KBBL) control */
-
-#define WILCO_EC_COMMAND_KBBL		0x75
-#define WILCO_KBBL_MODE_FLAG_PWM	BIT(1)	/* Set brightness by percent. */
-
-/**
- * enum kbbl_subcommand - What action does the EC perform?
- * @WILCO_KBBL_SUBCMD_GET_FEATURES: Request available functionality from EC.
- * @WILCO_KBBL_SUBCMD_GET_STATE: Request current mode and brightness from EC.
- * @WILCO_KBBL_SUBCMD_SET_STATE: Write mode and brightness to EC.
- */
-enum kbbl_subcommand {
-	WILCO_KBBL_SUBCMD_GET_FEATURES = 0x00,
-	WILCO_KBBL_SUBCMD_GET_STATE = 0x01,
-	WILCO_KBBL_SUBCMD_SET_STATE = 0x02,
-};
-
-/**
- * struct wilco_ec_kbbl_msg - Message to/from EC for keyboard backlight control.
- * @command: Always WILCO_EC_COMMAND_KBBL.
- * @status: Set by EC to 0 on success, 0xFF on failure.
- * @subcmd: One of enum kbbl_subcommand.
- * @mode: Bit flags for used mode, we want to use WILCO_KBBL_MODE_FLAG_PWM.
- * @percent: Brightness in 0-100. Only meaningful in PWM mode.
- */
-struct wilco_ec_kbbl_msg {
-	u8 command;
-	u8 status;
-	u8 subcmd;
-	u8 reserved3;
-	u8 mode;
-	u8 reserved5to8[4];
-	u8 percent;
-	u8 reserved10to15[6];
-} __packed;
 
 /**
  * wilco_ec_mailbox() - Send request to the EC and receive the response.
