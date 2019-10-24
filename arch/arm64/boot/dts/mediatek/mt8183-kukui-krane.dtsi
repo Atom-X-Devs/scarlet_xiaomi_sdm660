@@ -145,6 +145,8 @@
 		clock-names = "eclk", "freq_mux";
 		clock-frequency = <24000000>;
 		rotation = <180>;
+		ovti,hs-vod-adjust = <21>;
+		ovti,mipi-tx-speed = <3>;
 
 		assigned-clocks = <&topckgen CLK_TOP_MUX_CAMTG2>,
 				  <&topckgen CLK_TOP_UNIVP_192M_D8>;
@@ -163,6 +165,7 @@
 		port {
 			ov02a10_endpoint: endpoint {
 				data-lanes = <1>;
+				clock-noncontinuous;
 				link-frequencies = /bits/ 64 <390000000>;
 				remote-endpoint = <&seninf_port1_endpoint>;
 			};
