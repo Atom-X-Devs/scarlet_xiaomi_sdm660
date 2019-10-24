@@ -3529,9 +3529,6 @@ alloc_flags_nofragment(struct zone *zone, gfp_t gfp_mask)
 		alloc_flags |= ALLOC_KSWAPD;
 
 #ifdef CONFIG_ZONE_DMA32
-	if (!zone)
-		return alloc_flags;
-
 	if (zone_idx(zone) != ZONE_NORMAL)
 		goto out;
 
