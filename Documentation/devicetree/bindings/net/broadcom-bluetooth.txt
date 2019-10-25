@@ -11,6 +11,7 @@ Required properties:
 
  - compatible: should contain one of the following:
    * "brcm,bcm43438-bt"
+   * "brcm,bcm43540-bt"
 
 Optional properties:
 
