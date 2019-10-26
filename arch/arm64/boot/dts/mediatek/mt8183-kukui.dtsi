@@ -401,7 +401,7 @@
 	cap-mmc-hw-reset;
 	no-sdio;
 	no-sd;
-	hs400-ds-delay = <0x13813>;
+	hs400-ds-delay = <0x12814>;
 	vmmc-supply = <&mt6358_vemc_reg>;
 	vqmmc-supply = <&mt6358_vio18_reg>;
 	assigned-clocks = <&topckgen CLK_TOP_MUX_MSDC50_0>;
