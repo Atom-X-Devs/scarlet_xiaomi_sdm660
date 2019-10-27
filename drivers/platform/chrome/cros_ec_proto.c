@@ -436,14 +436,10 @@ int cros_ec_query_all(struct cros_ec_device *ec_dev)
 	ret = cros_ec_get_host_command_version_mask(ec_dev,
 						    EC_CMD_GET_NEXT_EVENT,
 						    &ver_mask);
-	if (ret < 0 || ver_mask == 0) {
+	if (ret < 0 || ver_mask == 0)
 		ec_dev->mkbp_event_supported = 0;
-		dev_info(ec_dev->dev, "MKBP not supported\n");
-	} else {
-		ec_dev->mkbp_event_supported = fls(ver_mask);
-		dev_info(ec_dev->dev, "MKBP support version %u\n",
-			ec_dev->mkbp_event_supported - 1);
-	}
+	else
+		ec_dev->mkbp_event_supported = 1;
 
 	/* Probe if host sleep v1 is supported for S0ix failure detection. */
 	ret = cros_ec_get_host_command_version_mask(ec_dev,
@@ -534,7 +530,6 @@ EXPORT_SYMBOL(cros_ec_cmd_xfer_status);
 
 static int get_next_event_xfer(struct cros_ec_device *ec_dev,
 			       struct cros_ec_command *msg,
-			       struct ec_response_get_next_event_v1 *event,
 			       int version, uint32_t size)
 {
 	int ret;
@@ -547,7 +542,7 @@ static int get_next_event_xfer(struct cros_ec_device *ec_dev,
 	ret = cros_ec_cmd_xfer(ec_dev, msg);
 	if (ret > 0) {
 		ec_dev->event_size = ret - 1;
-		ec_dev->event_data = *event;
+		memcpy(&ec_dev->event_data, msg->data, ret);
 	}
 
 	return ret;
@@ -555,29 +550,30 @@ static int get_next_event_xfer(struct cros_ec_device *ec_dev,
 
 static int get_next_event(struct cros_ec_device *ec_dev)
 {
-	struct {
-		struct cros_ec_command msg;
-		struct ec_response_get_next_event_v1 event;
-	} __packed buf;
-	struct cros_ec_command *msg = &buf.msg;
-	struct ec_response_get_next_event_v1 *event = &buf.event;
-	const int cmd_version = ec_dev->mkbp_event_supported - 1;
-
-	BUILD_BUG_ON(sizeof(union ec_response_get_next_data_v1) != 16);
-
-	memset(&buf, 0, sizeof(buf));
+	u8 buffer[sizeof(struct cros_ec_command) + sizeof(ec_dev->event_data)];
+	struct cros_ec_command *msg = (struct cros_ec_command *)&buffer;
+	static int cmd_version = 1;
+	int ret;
 
 	if (ec_dev->suspended) {
 		dev_dbg(ec_dev->dev, "Device suspended.\n");
 		return -EHOSTDOWN;
 	}
 
-	if (cmd_version == 0)
-		return get_next_event_xfer(ec_dev, msg, event, 0,
+	if (cmd_version == 1) {
+		ret = get_next_event_xfer(ec_dev, msg, cmd_version,
+				sizeof(struct ec_response_get_next_event_v1));
+		if (ret < 0 || msg->result != EC_RES_INVALID_VERSION)
+			return ret;
+
+		/* Fallback to version 0 for future send attempts */
+		cmd_version = 0;
+	}
+
+	ret = get_next_event_xfer(ec_dev, msg, cmd_version,
 				  sizeof(struct ec_response_get_next_event));
 
-	return get_next_event_xfer(ec_dev, msg, event, cmd_version,
-				sizeof(struct ec_response_get_next_event_v1));
+	return ret;
 }
 
 static int get_keyboard_state_event(struct cros_ec_device *ec_dev)
@@ -621,8 +617,7 @@ int cros_ec_get_next_event(struct cros_ec_device *ec_dev, bool *wake_event)
 		return ret;
 
 	if (wake_event) {
-		event_type =
-			ec_dev->event_data.event_type & EC_MKBP_EVENT_TYPE_MASK;
+		event_type = ec_dev->event_data.event_type;
 		host_event = cros_ec_get_host_event(ec_dev);
 
 		/*
@@ -647,12 +642,10 @@ EXPORT_SYMBOL(cros_ec_get_next_event);
 u32 cros_ec_get_host_event(struct cros_ec_device *ec_dev)
 {
 	u32 host_event;
-	const u8 event_type =
-		ec_dev->event_data.event_type & EC_MKBP_EVENT_TYPE_MASK;
 
 	BUG_ON(!ec_dev->mkbp_event_supported);
 
-	if (event_type != EC_MKBP_EVENT_HOST_EVENT)
+	if (ec_dev->event_data.event_type != EC_MKBP_EVENT_HOST_EVENT)
 		return 0;
 
 	if (ec_dev->event_size != sizeof(host_event)) {
