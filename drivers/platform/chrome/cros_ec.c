@@ -39,20 +39,6 @@ static struct cros_ec_platform pd_p = {
 	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_PD_INDEX),
 };
 
-s64 cros_ec_get_time_ns(void)
-{
-	return ktime_get_boot_ns();
-}
-EXPORT_SYMBOL(cros_ec_get_time_ns);
-
-static irqreturn_t ec_irq_handler(int irq, void *data) {
-	struct cros_ec_device *ec_dev = data;
-
-	ec_dev->last_event_time = cros_ec_get_time_ns();
-
-	return IRQ_WAKE_THREAD;
-}
-
 static irqreturn_t ec_irq_thread(int irq, void *data)
 {
 	struct cros_ec_device *ec_dev = data;
@@ -154,9 +140,8 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	}
 
 	if (ec_dev->irq > 0) {
-		err = devm_request_threaded_irq(dev, ec_dev->irq,
-				ec_irq_handler, ec_irq_thread,
-				IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+		err = devm_request_threaded_irq(dev, ec_dev->irq, NULL,
+				ec_irq_thread, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 				"chromeos-ec", ec_dev);
 		if (err) {
 			dev_err(dev, "Failed to request IRQ %d: %d",
