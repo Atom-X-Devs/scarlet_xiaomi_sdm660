@@ -1346,6 +1346,8 @@
 			#clock-cells = <0>;
 			#phy-cells = <0>;
 			clock-output-names = "mipi_tx0_pll";
+			nvmem-cells = <&mipi_tx_calibration>;
+			nvmem-cell-names = "calibration-data";
 		};
 
 		efuse: efuse@11f10000 {
@@ -1354,6 +1356,9 @@
 			reg = <0 0x11f10000 0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			mipi_tx_calibration: calib@190 {
+				reg = <0x190 0xc>;
+			};
 			svs_calibration: calib@580 {
 				reg = <0x580 0x64>;
 			};
