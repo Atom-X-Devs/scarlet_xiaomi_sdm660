@@ -40,7 +40,7 @@ KCOV_INSTRUMENT := n
 # Our embedded code can't handle this flag.
 CFLAGS_REMOVE_rk3288_resume.o = -pg
 CFLAGS_REMOVE_rk3288_ddr_resume.o = -pg
-CFLAGS_REMOVE_rk3288-dmc-sram.o = -pg
+CFLAGS_REMOVE_rk3288-dmc-sram.o = -pg -ftrivial-auto-var-init=pattern
 
 CFLAGS_rk3288_resume.o = $(call cc-disable-warning, inline-asm)
 
