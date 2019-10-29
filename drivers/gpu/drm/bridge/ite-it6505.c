@@ -1356,6 +1356,8 @@ static void it6505_audio_shutdown(struct device *dev, void *data)
 {
 	struct it6505 *it6505 = dev_get_drvdata(dev);
 
+	dptxset(it6505, 0xD3, 0x20, 0x20);
+	dptxset(it6505, 0xB8, 0x0F, 0x00);
 	dptxset(it6505, 0xE8, 0x22, 0x00);
 	dptxset(it6505, 0x05, 0x02, 0x02);
 	it6505->en_audio = 0;
