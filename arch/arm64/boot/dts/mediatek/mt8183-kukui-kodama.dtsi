@@ -446,6 +446,14 @@
 	mediatek,headset-codec = <&ts3a227e>;
 };
 
+&spi2 {
+	cros_ec: ec@0 {
+		i2c_tunnel: i2c-tunnel {
+			google,remote-bus = <2>;
+		};
+	};
+};
+
 &ts3a227e {
 	status = "okay";
 };
