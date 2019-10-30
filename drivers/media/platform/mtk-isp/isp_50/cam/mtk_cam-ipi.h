@@ -149,13 +149,13 @@ struct p1_config_param {
  * struct P1_meta_frame - ISP P1 meta frame information.
  *
  * @enabled_dma: The enabled DMA port information.
- * @vb_index: The VB2 index of meta buffer.
+ * @sequence: The sequence number of meta buffer.
  * @meta_addr: DMA buffer address of meta buffer.
  *
  */
 struct P1_meta_frame {
 	u32 enabled_dma;
-	u32 vb_index;
+	u32 seq_no;
 	struct dma_buffer meta_addr;
 } __packed;
 
