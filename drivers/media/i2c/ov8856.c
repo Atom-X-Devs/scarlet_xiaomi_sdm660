@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2019 Intel Corporation.
 
-#include <linux/clk.h>
 #include <asm/unaligned.h>
 #include <linux/acpi.h>
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
@@ -21,8 +21,8 @@
 #define OV8856_LINK_FREQ_360MHZ		360000000ULL
 #define OV8856_LINK_FREQ_180MHZ		180000000ULL
 #define OV8856_SCLK			144000000ULL
-#define OV8856_XVCLK			19200000
-#define OV8856_XVCLK_TYP		24000000
+#define OV8856_XVCLK_19_2		19200000
+#define OV8856_XVCLK_24			24000000
 #define OV8856_DATA_LANES		4
 #define OV8856_RGB_DEPTH		10
 
@@ -444,7 +444,7 @@ static const struct ov8856_reg mode_3264x2448_regs[] = {
 	{0x3816, 0x00},
 	{0x3817, 0x00},
 	{0x3818, 0x00},
-	{0x3819, 0x00},
+	{0x3819, 0x10},
 	{0x3820, 0x80},
 	{0x3821, 0x46},
 	{0x382a, 0x01},
@@ -837,7 +837,7 @@ static const struct ov8856_reg mode_1632x1224_regs[] = {
 	{0x3816, 0x00},
 	{0x3817, 0x00},
 	{0x3818, 0x00},
-	{0x3819, 0x00},
+	{0x3819, 0x10},
 	{0x3820, 0x80},
 	{0x3821, 0x47},
 	{0x382a, 0x03},
@@ -1326,7 +1326,7 @@ static int ov8856_start_streaming(struct ov8856 *ov8856)
 	struct i2c_client *client = v4l2_get_subdevdata(&ov8856->sd);
 	const struct ov8856_reg_list *reg_list;
 	int link_freq_index, ret;
-	u32 h_size;
+	u32 cur_h_size;
 
 	link_freq_index = ov8856->cur_mode->link_freq_index;
 	reg_list = &link_freq_configs[link_freq_index].reg_list;
@@ -1354,16 +1354,15 @@ static int ov8856_start_streaming(struct ov8856 *ov8856)
 		}
 	}
 
-	pr_err("start to read REG_X_ADDR_START 0x3808\n");
-
 	ret = ov8856_read_reg(ov8856, REG_X_ADDR_START,
-			      OV8856_REG_VALUE_16BIT, &h_size);
+			      OV8856_REG_VALUE_16BIT, &cur_h_size);
 	if (ret) {
 		dev_err(&client->dev, "failed to read out R3614");
 		return ret;
 	}
 
-	if (h_size == X_OUTPUT_FULL_SIZE || h_size == X_OUTPUT_BINNING_SIZE)
+	if (cur_h_size == X_OUTPUT_FULL_SIZE ||
+	    cur_h_size == X_OUTPUT_BINNING_SIZE)
 		ov8856->fmt.code = MEDIA_BUS_FMT_SBGGR10_1X10;
 
 	ret = __v4l2_ctrl_handler_setup(ov8856->sd.ctrl_handler);
@@ -1445,7 +1444,7 @@ static int __ov8856_power_on(struct ov8856 *ov8856)
 
 	gpiod_set_value_cansleep(ov8856->n_shutdn_gpio, GPIOD_OUT_HIGH);
 
-	usleep_range(1400, 1500);
+	usleep_range(1500, 1800);
 
 	return 0;
 
@@ -1457,7 +1456,7 @@ disable_clk:
 
 static void __ov8856_power_off(struct ov8856 *ov8856)
 {
-	gpiod_set_value_cansleep(ov8856->n_shutdn_gpio, 1);
+	gpiod_set_value_cansleep(ov8856->n_shutdn_gpio, GPIOD_OUT_LOW);
 	regulator_bulk_disable(OV8856_NUM_SUPPLIES, ov8856->supplies);
 	clk_disable_unprepare(ov8856->xvclk);
 }
@@ -1663,7 +1662,7 @@ static int ov8856_identify_module(struct ov8856 *ov8856)
 	if (ret)
 		return ret;
 
-	ov8856->is_1B_revision = (val == OV8856_1B_MODULE) ? 1 : 0;
+	ov8856->is_1B_revision = val == OV8856_1B_MODULE;
 
 	return 0;
 }
@@ -1682,8 +1681,11 @@ static int ov8856_check_hwcfg(struct device *dev)
 	if (!fwnode)
 		return -ENXIO;
 
-	fwnode_property_read_u32(fwnode, "clock-frequency", &mclk);
-	if (mclk != OV8856_XVCLK) {
+	ret = fwnode_property_read_u32(fwnode, "clock-frequency", &mclk);
+	if (ret)
+		return ret;
+
+	if (mclk != OV8856_XVCLK_19_2) {
 		dev_err(dev, "external clock %d is not supported", mclk);
 		return -EINVAL;
 	}
@@ -1774,12 +1776,12 @@ static int ov8856_probe(struct i2c_client *client)
 		return -EINVAL;
 	}
 
-	ret = clk_set_rate(ov8856->xvclk, OV8856_XVCLK_TYP);
+	ret = clk_set_rate(ov8856->xvclk, OV8856_XVCLK_24);
 	if (ret < 0) {
 		dev_err(&client->dev, "failed to set xvclk rate (24MHz)\n");
 		return ret;
 	}
-	if (clk_get_rate(ov8856->xvclk) != OV8856_XVCLK_TYP)
+	if (clk_get_rate(ov8856->xvclk) != OV8856_XVCLK_24)
 		dev_warn(&client->dev,
 			 "xvclk mismatched, modes are based on 24MHz\n");
 
@@ -1890,7 +1892,7 @@ MODULE_DEVICE_TABLE(acpi, ov8856_acpi_ids);
 
 static const struct of_device_id ov8856_of_match[] = {
 	{ .compatible = "ovti,ov8856" },
-	{},
+	{}
 };
 MODULE_DEVICE_TABLE(of, ov8856_of_match);
 
