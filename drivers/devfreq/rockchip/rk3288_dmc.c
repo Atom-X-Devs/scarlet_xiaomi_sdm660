@@ -88,6 +88,7 @@ struct rk3288_dmcfreq {
 	unsigned int dmc_disable_rate;
 
 	struct mutex cpufreq_mutex;
+	struct thermal_cooling_device *cdev;
 };
 
 /*
@@ -335,6 +336,20 @@ out:
 	dmcfreq.err = err;
 }
 
+static void rk3288_dmc_register_cooling_dev(void)
+{
+	if (of_find_property(dmcfreq.clk_dev->of_node, "#cooling-cells",
+			     NULL)) {
+		dmcfreq.cdev = of_devfreq_cooling_register(dmcfreq.clk_dev->of_node,
+							   dmcfreq.devfreq);
+		if (IS_ERR(dmcfreq.cdev)) {
+			pr_err("dmc w/out cooling device: %ld\n",
+			       PTR_ERR(dmcfreq.cdev));
+			dmcfreq.cdev = NULL;
+		}
+	}
+}
+
 /*
  * This puts the frequency at max and suspends devfreq when there are too many
  * things to sync with (DMC_DISABLE). It resumes devfreq when there are few
@@ -349,9 +364,17 @@ static int rk3288_dmc_enable_notify(struct notifier_block *nb,
 		dev_info(dmcfreq.clk_dev, "resuming DVFS\n");
 		rk3288_dmc_start_hardware_counter();
 		devfreq_resume_device(dmcfreq.devfreq);
+		rk3288_dmc_register_cooling_dev();
+
 		return NOTIFY_OK;
 	} else if (action == DMC_DISABLE) {
 		dev_info(dmcfreq.clk_dev, "suspending DVFS and going to max freq\n");
+
+		if (dmcfreq.cdev) {
+			devfreq_cooling_unregister(dmcfreq.cdev);
+			dmcfreq.cdev = NULL;
+		}
+
 		devfreq_suspend_device(dmcfreq.devfreq);
 		rk3288_dmc_stop_hardware_counter();
 		if (dmcfreq.dmc_disable_rate)
@@ -471,16 +494,7 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	of_property_read_u32(dmcfreq.clk_dev->of_node,
 		"rockchip,dmc-disable-freq", &dmcfreq.dmc_disable_rate);
 
-	if (of_find_property(dmcfreq.clk_dev->of_node, "#cooling-cells",
-			     NULL)) {
-		struct thermal_cooling_device *cdev;
-
-		cdev = of_devfreq_cooling_register(dmcfreq.clk_dev->of_node,
-						   dmcfreq.devfreq);
-		if (IS_ERR(cdev))
-			pr_err("dmc w/out cooling device: %ld\n",
-			       PTR_ERR(cdev));
-	}
+	rk3288_dmc_register_cooling_dev();
 
 	cpufreq_register_notifier(&rk3288_dmcfreq_cpufreq_notifier_block,
 				  CPUFREQ_POLICY_NOTIFIER);
