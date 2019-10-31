@@ -335,6 +335,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu1: cpu@1 {
@@ -349,6 +350,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu2: cpu@2 {
@@ -363,6 +365,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu3: cpu@3 {
@@ -377,6 +380,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu4: cpu@100 {
@@ -391,6 +395,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu5: cpu@101 {
@@ -405,6 +410,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu6: cpu@102 {
@@ -419,6 +425,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
 		};
 
 		cpu7: cpu@103 {
@@ -433,6 +440,29 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+		};
+
+		idle-states {
+			entry-method = "arm,psci";
+
+			MCDI_CPU: mcdi-cpu {
+				compatible = "arm,idle-state";
+				local-timer-stop;
+				arm,psci-suspend-param = <0x00010001>;
+				entry-latency-us = <200>;
+				exit-latency-us = <200>;
+				min-residency-us = <800>;
+			};
+
+			MCDI_CLUSTER: mcdi-cluster {
+				compatible = "arm,idle-state";
+				local-timer-stop;
+				arm,psci-suspend-param = <0x01010001>;
+				entry-latency-us = <250>;
+				exit-latency-us = <400>;
+				min-residency-us = <1300>;
+			};
 		};
 	};
 
