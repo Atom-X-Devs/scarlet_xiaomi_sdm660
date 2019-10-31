@@ -3260,6 +3260,8 @@ static int patch_nvhdmi(struct hda_codec *codec)
 		nvhdmi_chmap_cea_alloc_validate_get_type;
 	spec->chmap.ops.chmap_validate = nvhdmi_chmap_validate;
 
+	codec->link_down_at_suspend = 1;
+
 	return 0;
 }
 
