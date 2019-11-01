@@ -332,6 +332,7 @@ static void mtk_dip_vb2_buf_queue(struct vb2_buffer *vb)
 		mtk_dip_vbq_to_node(vb->vb2_queue);
 	struct mtk_dip_dev *dip_dev = dip_dev;
 	int buf_count;
+	unsigned long flags;
 
 	dev_buf->fmt = node->vdev_fmt;
 	dev_buf->dev_fmt = node->dev_q.dev_fmt;
@@ -340,9 +341,9 @@ static void mtk_dip_vb2_buf_queue(struct vb2_buffer *vb)
 	dev_buf->crop.c = node->crop;
 	dev_buf->compose = node->compose;
 
-	spin_lock(&node->buf_list_lock);
+	spin_lock_irqsave(&node->buf_list_lock, flags);
 	list_add_tail(&dev_buf->list, &node->buf_list);
-	spin_unlock(&node->buf_list_lock);
+	spin_unlock_irqrestore(&node->buf_list_lock, flags);
 
 	buf_count = atomic_dec_return(&req->buf_count);
 	if (!buf_count) {
@@ -411,13 +412,14 @@ static void mtk_dip_return_all_buffers(struct mtk_dip_pipe *pipe,
 				       enum vb2_buffer_state state)
 {
 	struct mtk_dip_dev_buffer *b, *b0;
+	unsigned long flags;
 
-	spin_lock(&node->buf_list_lock);
+	spin_lock_irqsave(&node->buf_list_lock, flags);
 	list_for_each_entry_safe(b, b0, &node->buf_list, list) {
 		list_del(&b->list);
 		vb2_buffer_done(&b->vbb.vb2_buf, state);
 	}
-	spin_unlock(&node->buf_list_lock);
+	spin_unlock_irqrestore(&node->buf_list_lock, flags);
 }
 
 static int mtk_dip_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
@@ -797,11 +799,12 @@ static void mtk_dip_vb2_request_queue(struct media_request *req)
 {
 	struct mtk_dip_request *dip_req = mtk_dip_media_req_to_dip_req(req);
 	struct mtk_dip_pipe *pipe = dip_req->dip_pipe;
+	unsigned long flags;
 
-	spin_lock(&pipe->job_lock);
+	spin_lock_irqsave(&pipe->job_lock, flags);
 	list_add_tail(&dip_req->list, &pipe->pipe_job_pending_list);
 	pipe->num_pending_jobs++;
-	spin_unlock(&pipe->job_lock);
+	spin_unlock_irqrestore(&pipe->job_lock, flags);
 
 	vb2_request_queue(req);
 }

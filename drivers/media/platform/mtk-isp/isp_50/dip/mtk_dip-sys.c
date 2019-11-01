@@ -135,24 +135,28 @@ void mtk_dip_hw_working_buf_pool_release(struct mtk_dip_dev *dip_dev)
 static void mtk_dip_hw_working_buf_free(struct mtk_dip_dev *dip_dev,
 					struct mtk_dip_hw_subframe *working_buf)
 {
+	unsigned long flags;
+
 	if (!working_buf)
 		return;
 
-	spin_lock(&dip_dev->dip_freebufferlist.lock);
+	spin_lock_irqsave(&dip_dev->dip_freebufferlist.lock, flags);
 	list_add_tail(&working_buf->list_entry,
 		      &dip_dev->dip_freebufferlist.list);
 	dip_dev->dip_freebufferlist.cnt++;
-	spin_unlock(&dip_dev->dip_freebufferlist.lock);
+	spin_unlock_irqrestore(&dip_dev->dip_freebufferlist.lock, flags);
 }
 
 static struct mtk_dip_hw_subframe*
 mtk_dip_hw_working_buf_alloc(struct mtk_dip_dev *dip_dev)
 {
 	struct mtk_dip_hw_subframe *working_buf;
+	unsigned long flags;
 
-	spin_lock(&dip_dev->dip_freebufferlist.lock);
+	spin_lock_irqsave(&dip_dev->dip_freebufferlist.lock, flags);
 	if (list_empty(&dip_dev->dip_freebufferlist.list)) {
-		spin_unlock(&dip_dev->dip_freebufferlist.lock);
+		spin_unlock_irqrestore(&dip_dev->dip_freebufferlist.lock,
+				       flags);
 		return NULL;
 	}
 
@@ -160,7 +164,7 @@ mtk_dip_hw_working_buf_alloc(struct mtk_dip_dev *dip_dev)
 				       struct mtk_dip_hw_subframe, list_entry);
 	list_del(&working_buf->list_entry);
 	dip_dev->dip_freebufferlist.cnt--;
-	spin_unlock(&dip_dev->dip_freebufferlist.lock);
+	spin_unlock_irqrestore(&dip_dev->dip_freebufferlist.lock, flags);
 
 	return working_buf;
 }
@@ -389,11 +393,12 @@ static int mtk_dip_hw_flush_pipe_jobs(struct mtk_dip_pipe *pipe)
 	struct list_head job_list = LIST_HEAD_INIT(job_list);
 	int num;
 	int ret;
+	unsigned long flags;
 
-	spin_lock(&pipe->job_lock);
+	spin_lock_irqsave(&pipe->job_lock, flags);
 	list_splice_init(&pipe->pipe_job_running_list, &job_list);
 	pipe->num_jobs = 0;
-	spin_unlock(&pipe->job_lock);
+	spin_unlock_irqrestore(&pipe->job_lock, flags);
 
 	ret = wait_event_freezable_timeout
 		(pipe->dip_dev->flushing_waitq,

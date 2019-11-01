@@ -90,26 +90,29 @@ struct mtk_dip_request *mtk_dip_pipe_get_running_job(struct mtk_dip_pipe *pipe,
 						     int id)
 {
 	struct mtk_dip_request *req;
+	unsigned long flags;
 
-	spin_lock(&pipe->job_lock);
+	spin_lock_irqsave(&pipe->job_lock, flags);
 	list_for_each_entry(req,
 			    &pipe->pipe_job_running_list, list) {
 		if (req->id == id) {
-			spin_unlock(&pipe->job_lock);
+			spin_unlock_irqrestore(&pipe->job_lock, flags);
 			return req;
 		}
 	}
-	spin_unlock(&pipe->job_lock);
+	spin_unlock_irqrestore(&pipe->job_lock, flags);
 
 	return NULL;
 }
 
 void mtk_dip_pipe_remove_job(struct mtk_dip_request *req)
 {
-	spin_lock(&req->dip_pipe->job_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&req->dip_pipe->job_lock, flags);
 	list_del(&req->list);
 	req->dip_pipe->num_jobs = req->dip_pipe->num_jobs - 1;
-	spin_unlock(&req->dip_pipe->job_lock);
+	spin_unlock_irqrestore(&req->dip_pipe->job_lock, flags);
 }
 
 void mtk_dip_pipe_job_finish(struct mtk_dip_request *req,
@@ -118,6 +121,7 @@ void mtk_dip_pipe_job_finish(struct mtk_dip_request *req,
 	struct mtk_dip_pipe *pipe = req->dip_pipe;
 	struct mtk_dip_dev_buffer *in_buf;
 	int i;
+	unsigned long flags;
 
 	in_buf = req->buf_map[MTK_DIP_VIDEO_NODE_ID_RAW_OUT];
 
@@ -135,9 +139,9 @@ void mtk_dip_pipe_job_finish(struct mtk_dip_request *req,
 		vb2_buffer_done(&dev_buf->vbb.vb2_buf, vbf_state);
 
 		node = mtk_dip_vbq_to_node(dev_buf->vbb.vb2_buf.vb2_queue);
-		spin_lock(&node->buf_list_lock);
+		spin_lock_irqsave(&node->buf_list_lock, flags);
 		list_del(&dev_buf->list);
-		spin_unlock(&node->buf_list_lock);
+		spin_unlock_irqrestore(&node->buf_list_lock, flags);
 	}
 }
 
@@ -632,11 +636,12 @@ void mtk_dip_pipe_ipi_params_config(struct mtk_dip_request *req)
 void mtk_dip_pipe_try_enqueue(struct mtk_dip_pipe *pipe)
 {
 	struct mtk_dip_request *req, *tmp_req;
+	unsigned long flags;
 
 	if (!pipe->streaming)
 		return;
 
-	spin_lock(&pipe->job_lock);
+	spin_lock_irqsave(&pipe->job_lock, flags);
 	list_for_each_entry_safe(req, tmp_req,
 				 &pipe->pipe_job_pending_list, list) {
 		list_del(&req->list);
@@ -646,5 +651,5 @@ void mtk_dip_pipe_try_enqueue(struct mtk_dip_pipe *pipe)
 		pipe->num_jobs++;
 		mtk_dip_hw_enqueue(pipe->dip_dev, req);
 	}
-	spin_unlock(&pipe->job_lock);
+	spin_unlock_irqrestore(&pipe->job_lock, flags);
 }
