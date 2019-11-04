@@ -2,8 +2,8 @@
 // Copyright (c) 2019 MediaTek Inc.
 
 #include <linux/clk.h>
-#include <linux/device.h>
 #include <linux/delay.h>
+#include <linux/device.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
@@ -26,6 +26,20 @@
 
 /* Orientation */
 #define REG_MIRROR_FLIP_ENABLE				0x03
+
+/* Bit[7] clock HS mode enable
+ * 0: Clock continue
+ * 1: Clock HS
+ * Bit[6:2] HS VOD adjust
+ * Bit[1:0] P VHI adjust
+ */
+#define REG_HS_MODE_BLC					0x9d
+
+#define CLOCK_HS_MODE_ENABLE				BIT(7)
+#define CLOCK_HS_VOD_ADJUST	(BIT(6) | BIT(5) | BIT(4) | BIT(3) | BIT(2))
+
+/* Bit[2:0] MIPI transmission speed select */
+#define TX_SPEED_AREA_SEL				0xa1
 
 #define REG_PAGE_SWITCH					0xfd
 #define REG_GLOBAL_EFFECTIVE				0x01
@@ -93,15 +107,18 @@ struct ov02a10_mode {
 };
 
 struct ov02a10 {
-	struct clk		*eclk;
-	u32 eclk_freq;
+	u32			eclk_freq;
+	u32                     mipi_clock_tx_speed;
+	u32                     mipi_clock_hs_vod_adjust_cnt;
 
+	struct clk		*eclk;
 	struct gpio_desc	*pd_gpio;
 	struct gpio_desc	*n_rst_gpio;
 	struct regulator_bulk_data supplies[OV02A10_NUM_SUPPLIES];
 
 	bool			streaming;
 	bool			upside_down;
+	bool			mipi_clock_hs_mode_enable;
 
 	/*
 	 * Serialize control access, get/set format, get selection
@@ -114,8 +131,6 @@ struct ov02a10 {
 	struct v4l2_ctrl	*exposure;
 	struct v4l2_ctrl	*hblank;
 	struct v4l2_ctrl	*vblank;
-	struct v4l2_ctrl	*hflip;
-	struct v4l2_ctrl	*vflip;
 	struct v4l2_ctrl	*test_pattern;
 	struct v4l2_mbus_framefmt	fmt;
 	struct v4l2_ctrl_handler ctrl_handler;
@@ -299,6 +314,23 @@ static int ov02a10_read_smbus(struct ov02a10 *ov02a10, unsigned char reg,
 	return ret;
 }
 
+static int ov02a10_mod_reg(struct ov02a10 *ov02a10, u8 reg, u8 mask, u8 val)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&ov02a10->subdev);
+	u8 readval;
+	int ret;
+
+	ret = ov02a10_read_smbus(ov02a10, reg, &readval);
+	if (ret)
+		return ret;
+
+	readval &= ~mask;
+	val &= mask;
+	val |= readval;
+
+	return i2c_smbus_write_byte_data(client, reg, val);
+}
+
 static void ov02a10_fill_fmt(const struct ov02a10_mode *mode,
 			     struct v4l2_mbus_framefmt *fmt)
 {
@@ -406,10 +438,11 @@ static int ov02a10_check_sensor_id(struct ov02a10 *ov02a10)
 	return 0;
 }
 
-static int __ov02a10_power_on(struct ov02a10 *ov02a10)
+static int __maybe_unused ov02a10_power_on(struct device *dev)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(&ov02a10->subdev);
-	struct device *dev = &client->dev;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct ov02a10 *ov02a10 = to_ov02a10(sd);
 	int ret;
 
 	gpiod_set_value_cansleep(ov02a10->n_rst_gpio, GPIOD_OUT_LOW);
@@ -448,12 +481,18 @@ disable_clk:
 	return ret;
 }
 
-static void __ov02a10_power_off(struct ov02a10 *ov02a10)
+static int __maybe_unused ov02a10_power_off(struct device *dev)
 {
-	gpiod_set_value_cansleep(ov02a10->n_rst_gpio, 1);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct ov02a10 *ov02a10 = to_ov02a10(sd);
+
+	gpiod_set_value_cansleep(ov02a10->n_rst_gpio, GPIOD_OUT_LOW);
 	clk_disable_unprepare(ov02a10->eclk);
-	gpiod_set_value_cansleep(ov02a10->pd_gpio, 1);
+	gpiod_set_value_cansleep(ov02a10->pd_gpio, GPIOD_OUT_HIGH);
 	regulator_bulk_disable(OV02A10_NUM_SUPPLIES, ov02a10->supplies);
+
+	return 0;
 }
 
 static int __ov02a10_start_stream(struct ov02a10 *ov02a10)
@@ -487,9 +526,29 @@ static int __ov02a10_start_stream(struct ov02a10 *ov02a10)
 			return ret;
 	}
 
+	/* Set clock lane transmission mode according to DT property */
+	ret = ov02a10_mod_reg(ov02a10, REG_HS_MODE_BLC, CLOCK_HS_MODE_ENABLE,
+			      ov02a10->mipi_clock_hs_mode_enable ?
+			      CLOCK_HS_MODE_ENABLE : 0);
+	if (ret < 0)
+		return ret;
+
+	/* Set clock lane HS VOD adjust to DT property */
+	ret = ov02a10_mod_reg(ov02a10, REG_HS_MODE_BLC, CLOCK_HS_VOD_ADJUST,
+			      ov02a10->mipi_clock_hs_vod_adjust_cnt << 2);
+	if (ret < 0)
+		return ret;
+
+	/* Set mipi TX speed according to DT property */
+	ret = i2c_smbus_write_byte_data(client, TX_SPEED_AREA_SEL,
+					ov02a10->mipi_clock_tx_speed);
+	if (ret < 0)
+		return ret;
+
 	/* Set stream on register */
 	return i2c_smbus_write_byte_data(client,
-				 REG_SC_CTRL_MODE, SC_CTRL_MODE_STREAMING);
+					 REG_SC_CTRL_MODE,
+					 SC_CTRL_MODE_STREAMING);
 }
 
 static int __ov02a10_stop_stream(struct ov02a10 *ov02a10)
@@ -558,31 +617,10 @@ unlock_and_return:
 	return ret;
 }
 
-static int __maybe_unused ov02a10_runtime_resume(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov02a10 *ov02a10 = to_ov02a10(sd);
-
-	return __ov02a10_power_on(ov02a10);
-}
-
-static int __maybe_unused ov02a10_runtime_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov02a10 *ov02a10 = to_ov02a10(sd);
-
-	__ov02a10_power_off(ov02a10);
-
-	return 0;
-}
-
 static const struct dev_pm_ops ov02a10_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
 				pm_runtime_force_resume)
-	SET_RUNTIME_PM_OPS(ov02a10_runtime_suspend,
-			   ov02a10_runtime_resume, NULL)
+	SET_RUNTIME_PM_OPS(ov02a10_power_off, ov02a10_power_on, NULL)
 };
 
 /*
@@ -836,7 +874,7 @@ err_free_handler:
 	return ret;
 }
 
-static int ov02a10_check_hwcfg(struct device *dev)
+static int ov02a10_check_hwcfg(struct device *dev, struct ov02a10 *ov02a10)
 {
 	struct fwnode_handle *ep;
 	struct fwnode_handle *fwnode = dev_fwnode(dev);
@@ -857,6 +895,10 @@ static int ov02a10_check_hwcfg(struct device *dev)
 	fwnode_handle_put(ep);
 	if (ret)
 		return ret;
+
+	/* Optional indication of mipi clock lane mode */
+	if (bus_cfg.bus.mipi_csi2.flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK)
+		ov02a10->mipi_clock_hs_mode_enable = true;
 
 	if (!bus_cfg.nr_of_link_frequencies) {
 		dev_err(dev, "no link frequencies defined");
@@ -890,21 +932,20 @@ static int ov02a10_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct ov02a10 *ov02a10;
 	unsigned int rotation;
+	unsigned int clock_lane_tx_speed;
+	unsigned int hs_vod_adjust_cnt;
 	unsigned int i;
 	int ret;
-
-	dev_info(dev, "ov02a10 probe aaaa++\n");
-
-	ret = ov02a10_check_hwcfg(dev);
-	if (ret) {
-		dev_err(dev, "failed to check HW configuration: %d",
-			ret);
-		return ret;
-	}
 
 	ov02a10 = devm_kzalloc(dev, sizeof(*ov02a10), GFP_KERNEL);
 	if (!ov02a10)
 		return -ENOMEM;
+
+	ret = ov02a10_check_hwcfg(dev, ov02a10);
+	if (ret) {
+		dev_err(dev, "failed to check HW configuration: %d", ret);
+		return ret;
+	}
 
 	v4l2_i2c_subdev_init(&ov02a10->subdev, client, &ov02a10_subdev_ops);
 	ov02a10->fmt.code = MEDIA_BUS_FMT_SBGGR10_1X10;
@@ -925,6 +966,25 @@ static int ov02a10_probe(struct i2c_client *client)
 				 rotation);
 		}
 	}
+
+	/* Optional indication of HS VOD adjust */
+	ret = fwnode_property_read_u32(dev_fwnode(dev),
+				       "ovti,hs-vod-adjust",
+				       &hs_vod_adjust_cnt);
+	if (!ret)
+		ov02a10->mipi_clock_hs_vod_adjust_cnt = hs_vod_adjust_cnt;
+	else
+		dev_warn(dev, "failed to get hs vod adjust, using default\n");
+
+	/* Optional indication of mipi TX speed */
+	ret = fwnode_property_read_u32(dev_fwnode(dev),
+				       "ovti,mipi-tx-speed",
+				       &clock_lane_tx_speed);
+
+	if (!ret)
+		ov02a10->mipi_clock_tx_speed = clock_lane_tx_speed;
+	else
+		dev_warn(dev, "failed to get mipi tx speed, using default\n");
 
 	/* Get system clock (eclk) */
 	ov02a10->eclk = devm_clk_get(dev, "eclk");
@@ -967,8 +1027,7 @@ static int ov02a10_probe(struct i2c_client *client)
 	for (i = 0; i < OV02A10_NUM_SUPPLIES; i++)
 		ov02a10->supplies[i].supply = ov02a10_supply_names[i];
 
-	ret = devm_regulator_bulk_get(dev,
-				      OV02A10_NUM_SUPPLIES,
+	ret = devm_regulator_bulk_get(dev, OV02A10_NUM_SUPPLIES,
 				      ov02a10->supplies);
 	if (ret) {
 		dev_err(dev, "failed to get regulators\n");
@@ -995,14 +1054,12 @@ static int ov02a10_probe(struct i2c_client *client)
 
 	ret = v4l2_async_register_subdev(&ov02a10->subdev);
 	if (ret) {
-		dev_err(dev, "failed to register V4L2 subdev: %d",
-			ret);
+		dev_err(dev, "failed to register V4L2 subdev: %d", ret);
 		goto err_clean_entity;
 	}
 
 	pm_runtime_enable(dev);
 
-	dev_info(dev, "ov02a10 probe --\n");
 	return 0;
 
 err_clean_entity:
@@ -1025,7 +1082,7 @@ static int ov02a10_remove(struct i2c_client *client)
 	v4l2_ctrl_handler_free(sd->ctrl_handler);
 	pm_runtime_disable(&client->dev);
 	if (!pm_runtime_status_suspended(&client->dev))
-		__ov02a10_power_off(ov02a10);
+		ov02a10_power_off(&client->dev);
 	pm_runtime_set_suspended(&client->dev);
 	mutex_destroy(&ov02a10->mutex);
 
@@ -1034,7 +1091,7 @@ static int ov02a10_remove(struct i2c_client *client)
 
 static const struct of_device_id ov02a10_of_match[] = {
 	{ .compatible = "ovti,ov02a10" },
-	{},
+	{}
 };
 MODULE_DEVICE_TABLE(of, ov02a10_of_match);
 
