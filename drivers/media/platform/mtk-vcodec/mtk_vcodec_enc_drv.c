@@ -287,8 +287,8 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	}
 	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, rproc_phandle,
 					       VPU_RST_ENC);
-	if (dev->fw_handler == NULL)
-		return -EINVAL;
+	if (IS_ERR(dev->fw_handler))
+		return PTR_ERR(dev->fw_handler);
 
 	dev->venc_pdata = of_device_get_match_data(&pdev->dev);
 	ret = mtk_vcodec_init_enc_pm(dev);
