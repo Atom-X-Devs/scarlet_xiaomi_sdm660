@@ -91,6 +91,9 @@ struct mtk_ddp_comp_funcs {
 			 struct cmdq_pkt *cmdq_pkt);
 	void (*layer_off)(struct mtk_ddp_comp *comp, unsigned int idx,
 			  struct cmdq_pkt *cmdq_pkt);
+	int (*layer_check)(struct mtk_ddp_comp *comp,
+			   unsigned int idx,
+			   struct mtk_plane_state *state);
 	void (*layer_config)(struct mtk_ddp_comp *comp, unsigned int idx,
 			     struct mtk_plane_state *state,
 			     struct cmdq_pkt *cmdq_pkt);
@@ -168,6 +171,15 @@ static inline void mtk_ddp_comp_layer_off(struct mtk_ddp_comp *comp,
 {
 	if (comp->funcs && comp->funcs->layer_off)
 		comp->funcs->layer_off(comp, idx, cmdq_pkt);
+}
+
+static inline int mtk_ddp_comp_layer_check(struct mtk_ddp_comp *comp,
+					   unsigned int idx,
+					   struct mtk_plane_state *state)
+{
+	if (comp->funcs && comp->funcs->layer_check)
+		return comp->funcs->layer_check(comp, idx, state);
+	return 0;
 }
 
 static inline void mtk_ddp_comp_layer_config(struct mtk_ddp_comp *comp,
