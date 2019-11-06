@@ -466,6 +466,7 @@ struct drm_dp_payload {
 struct drm_dp_vcpi_allocation {
 	struct drm_dp_mst_port *port;
 	int vcpi;
+	int pbn;
 	struct list_head next;
 };
 
