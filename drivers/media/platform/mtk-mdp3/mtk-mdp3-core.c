@@ -139,6 +139,7 @@ static int mdp_probe(struct platform_device *pdev)
 
 	if (!mdp->rproc_handle) {
 		dev_err(&pdev->dev, "Could not get MDP's rproc_handle\n");
+		ret = -ENODEV;
 		goto err_destroy_clock_wq;
 	}
 
@@ -146,8 +147,10 @@ static int mdp_probe(struct platform_device *pdev)
 	mutex_init(&mdp->m2m_lock);
 
 	mdp->cmdq_clt = cmdq_mbox_create(dev, 0, 1200);
-	if (IS_ERR(mdp->cmdq_clt))
+	if (IS_ERR(mdp->cmdq_clt)) {
+		ret = PTR_ERR(mdp->cmdq_clt);
 		goto err_destroy_clock_wq;
+	}
 
 	init_waitqueue_head(&mdp->callback_wq);
 	ida_init(&mdp->mdp_ida);
