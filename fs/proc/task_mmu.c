@@ -2108,7 +2108,6 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			walk_page_range(vma->vm_start, vma->vm_end,
 					&reclaim_walk);
 		}
-		flush_tlb_mm(mm);
 		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}
