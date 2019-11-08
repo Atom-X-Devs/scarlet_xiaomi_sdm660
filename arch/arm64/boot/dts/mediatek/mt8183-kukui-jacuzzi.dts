@@ -451,3 +451,11 @@
 		};
 	};
 };
+
+&sound {
+	mediatek,headset-codec = <&ts3a227e>;
+};
+
+&ts3a227e {
+	status = "okay";
+};
