@@ -1635,7 +1635,9 @@ static int anx7625_bridge_attach(struct drm_bridge *bridge)
 
 	err = drm_connector_init(bridge->dev, &ctx->connector,
 				 &anx7625_connector_funcs,
-				 DRM_MODE_CONNECTOR_DisplayPort);
+				 ctx->pdata.internal_panel ?
+					 DRM_MODE_CONNECTOR_eDP :
+					 DRM_MODE_CONNECTOR_DisplayPort);
 	if (err) {
 		DRM_ERROR("Failed to initialize connector: %d\n", err);
 		return err;
