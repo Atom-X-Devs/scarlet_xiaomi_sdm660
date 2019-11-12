@@ -117,7 +117,7 @@ struct mtk_fd_dev {
 	struct v4l2_m2m_dev *m2m_dev;
 	struct media_device mdev;
 	struct video_device vfd;
-	struct platform_device *scp_pdev;
+	struct mtk_scp *scp;
 	struct clk *fd_clk;
 	struct rproc *rproc_handle;
 

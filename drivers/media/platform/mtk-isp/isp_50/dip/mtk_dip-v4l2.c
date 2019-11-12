@@ -962,7 +962,7 @@ static int mtk_dip_video_device_v4l2_register(struct mtk_dip_pipe *pipe,
 		VFL_DIR_TX : VFL_DIR_RX;
 
 	if (node->desc->smem_alloc)
-		vdev->queue->dev = &pipe->dip_dev->scp_pdev->dev;
+		vdev->queue->dev = scp_get_device(pipe->dip_dev->scp);
 	else
 		vdev->queue->dev = pipe->dip_dev->dev;
 
@@ -2053,7 +2053,6 @@ static void mtk_dip_res_release(struct mtk_dip_dev *dip_dev)
 static int mtk_dip_probe(struct platform_device *pdev)
 {
 	struct mtk_dip_dev *dip_dev;
-	phandle rproc_phandle;
 	int ret;
 
 	dip_dev = devm_kzalloc(&pdev->dev, sizeof(*dip_dev), GFP_KERNEL);
@@ -2073,29 +2072,14 @@ static int mtk_dip_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	dip_dev->scp_pdev = scp_get_pdev(pdev);
-	if (!dip_dev->scp_pdev) {
-		dev_err(dip_dev->dev,
-			"%s: failed to get scp device\n",
+	dip_dev->scp = scp_get(pdev);
+	if (!dip_dev->scp) {
+		dev_err(dip_dev->dev, "%s: failed to get scp device\n",
 			__func__);
 		return -EINVAL;
 	}
 
-	if (of_property_read_u32(dip_dev->dev->of_node, "mediatek,scp",
-				 &rproc_phandle)) {
-		dev_err(dip_dev->dev,
-			"%s: could not get scp device\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	dip_dev->rproc_handle = rproc_get_by_phandle(rproc_phandle);
-	if (!dip_dev->rproc_handle) {
-		dev_err(dip_dev->dev,
-			"%s: could not get DIP's rproc_handle\n",
-			__func__);
-		return -EINVAL;
-	}
+	dip_dev->rproc_handle = scp_get_rproc(dip_dev->scp);
 
 	atomic_set(&dip_dev->dip_enqueue_cnt, 0);
 	atomic_set(&dip_dev->num_composing, 0);
@@ -2106,12 +2090,12 @@ static int mtk_dip_probe(struct platform_device *pdev)
 	ret = mtk_dip_hw_working_buf_pool_init(dip_dev);
 	if (ret) {
 		dev_err(&pdev->dev, "working buffer init failed(%d)\n", ret);
-		return ret;
+
+		goto err_destroy_mutex;
 	}
 
 	ret = mtk_dip_dev_v4l2_init(dip_dev);
 	if (ret) {
-		mtk_dip_hw_working_buf_pool_release(dip_dev);
 		dev_err(&pdev->dev, "v4l2 init failed(%d)\n", ret);
 
 		goto err_release_working_buf_pool;
@@ -2138,6 +2122,9 @@ err_release_deinit_v4l2:
 	mtk_dip_dev_v4l2_release(dip_dev);
 err_release_working_buf_pool:
 	mtk_dip_hw_working_buf_pool_release(dip_dev);
+err_destroy_mutex:
+	mutex_destroy(&dip_dev->hw_op_lock);
+	scp_put(dip_dev->scp);
 
 	return ret;
 }
@@ -2151,6 +2138,7 @@ static int mtk_dip_remove(struct platform_device *pdev)
 	mtk_dip_dev_v4l2_release(dip_dev);
 	mtk_dip_hw_working_buf_pool_release(dip_dev);
 	mutex_destroy(&dip_dev->hw_op_lock);
+	scp_put(dip_dev->scp);
 
 	return 0;
 }

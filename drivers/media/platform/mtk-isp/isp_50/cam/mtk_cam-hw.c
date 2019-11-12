@@ -49,7 +49,7 @@ static void isp_tx_frame_worker(struct work_struct *work)
 		container_of(req->req.mdev, struct mtk_cam_dev, media_dev);
 	struct mtk_isp_p1_device *p1_dev = dev_get_drvdata(cam->dev);
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_FRAME, &req->frame_params,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_FRAME, &req->frame_params,
 		     sizeof(req->frame_params), MTK_ISP_IPI_SEND_TIMEOUT);
 }
 
@@ -79,13 +79,13 @@ static int isp_composer_init(struct mtk_isp_p1_device *p1_dev)
 	struct device *dev = p1_dev->dev;
 	int ret;
 
-	ret = scp_ipi_register(p1_dev->scp_pdev, SCP_IPI_ISP_CMD,
+	ret = scp_ipi_register(p1_dev->scp, SCP_IPI_ISP_CMD,
 			       isp_composer_handler, p1_dev);
 	if (ret) {
 		dev_err(dev, "failed to register IPI cmd\n");
 		return ret;
 	}
-	ret = scp_ipi_register(p1_dev->scp_pdev, SCP_IPI_ISP_FRAME,
+	ret = scp_ipi_register(p1_dev->scp, SCP_IPI_ISP_FRAME,
 			       isp_composer_handler, p1_dev);
 	if (ret) {
 		dev_err(dev, "failed to register IPI frame\n");
@@ -104,9 +104,9 @@ static int isp_composer_init(struct mtk_isp_p1_device *p1_dev)
 	return 0;
 
 unreg_ipi_frame:
-	scp_ipi_unregister(p1_dev->scp_pdev, SCP_IPI_ISP_FRAME);
+	scp_ipi_unregister(p1_dev->scp, SCP_IPI_ISP_FRAME);
 unreg_ipi_cmd:
-	scp_ipi_unregister(p1_dev->scp_pdev, SCP_IPI_ISP_CMD);
+	scp_ipi_unregister(p1_dev->scp, SCP_IPI_ISP_CMD);
 
 	return ret;
 }
@@ -114,8 +114,8 @@ unreg_ipi_cmd:
 static void isp_composer_uninit(struct mtk_isp_p1_device *p1_dev)
 {
 	destroy_workqueue(p1_dev->composer_wq);
-	scp_ipi_unregister(p1_dev->scp_pdev, SCP_IPI_ISP_CMD);
-	scp_ipi_unregister(p1_dev->scp_pdev, SCP_IPI_ISP_FRAME);
+	scp_ipi_unregister(p1_dev->scp, SCP_IPI_ISP_CMD);
+	scp_ipi_unregister(p1_dev->scp, SCP_IPI_ISP_FRAME);
 }
 
 static void isp_composer_meta_config(struct mtk_isp_p1_device *p1_dev,
@@ -127,7 +127,7 @@ static void isp_composer_meta_config(struct mtk_isp_p1_device *p1_dev,
 	composer_tx_cmd.cmd_id = ISP_CMD_CONFIG_META;
 	composer_tx_cmd.enabled_dmas = dma;
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_CMD, &composer_tx_cmd,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_CMD, &composer_tx_cmd,
 		     sizeof(composer_tx_cmd), MTK_ISP_IPI_SEND_TIMEOUT);
 }
 
@@ -147,7 +147,7 @@ static void isp_composer_hw_init(struct mtk_isp_p1_device *p1_dev)
 	composer_tx_cmd.init_param.cq_addr.iova = p1_dev->composer_iova;
 	composer_tx_cmd.init_param.cq_addr.scp_addr = p1_dev->composer_scp_addr;
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_CMD, &composer_tx_cmd,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_CMD, &composer_tx_cmd,
 		     sizeof(composer_tx_cmd), MTK_ISP_IPI_SEND_TIMEOUT);
 }
 
@@ -158,7 +158,7 @@ static void isp_composer_hw_deinit(struct mtk_isp_p1_device *p1_dev)
 	memset(&composer_tx_cmd, 0, sizeof(composer_tx_cmd));
 	composer_tx_cmd.cmd_id = ISP_CMD_DEINIT;
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_CMD, &composer_tx_cmd,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_CMD, &composer_tx_cmd,
 		     sizeof(composer_tx_cmd), MTK_ISP_IPI_SEND_TIMEOUT);
 
 	isp_composer_uninit(p1_dev);
@@ -175,7 +175,7 @@ void mtk_isp_hw_config(struct mtk_cam_dev *cam,
 	memcpy(&composer_tx_cmd.config_param, config_param,
 	       sizeof(*config_param));
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_CMD, &composer_tx_cmd,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_CMD, &composer_tx_cmd,
 		     sizeof(composer_tx_cmd), MTK_ISP_IPI_SEND_TIMEOUT);
 }
 
@@ -188,7 +188,7 @@ void mtk_isp_stream(struct mtk_cam_dev *cam, int on)
 	composer_tx_cmd.cmd_id = ISP_CMD_STREAM;
 	composer_tx_cmd.is_stream_on = on;
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_CMD, &composer_tx_cmd,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_CMD, &composer_tx_cmd,
 		     sizeof(composer_tx_cmd), MTK_ISP_IPI_SEND_TIMEOUT);
 }
 
@@ -259,7 +259,7 @@ void mtk_isp_enqueue(struct mtk_cam_dev *cam, unsigned int dma_port,
 	cmd_params.meta_frame.meta_addr.iova = buffer->daddr;
 	cmd_params.meta_frame.meta_addr.scp_addr = buffer->scp_addr;
 
-	scp_ipi_send(p1_dev->scp_pdev, SCP_IPI_ISP_CMD,
+	scp_ipi_send(p1_dev->scp, SCP_IPI_ISP_CMD,
 		     &cmd_params, sizeof(cmd_params), MTK_ISP_IPI_SEND_TIMEOUT);
 }
 
@@ -430,32 +430,20 @@ static irqreturn_t isp_irq_cam(int irq, void *data)
 static int isp_setup_scp_rproc(struct mtk_isp_p1_device *p1_dev,
 			       struct platform_device *pdev)
 {
-	phandle rproc_phandle;
 	struct device *dev = p1_dev->dev;
 	dma_addr_t addr;
 	void *ptr;
 	int ret;
 
-	p1_dev->scp_pdev = scp_get_pdev(pdev);
-	if (!p1_dev->scp_pdev) {
+	p1_dev->scp = scp_get(pdev);
+	if (!p1_dev->scp) {
 		dev_err(dev, "failed to get scp device\n");
 		return -ENODEV;
 	}
 
-	ret = of_property_read_u32(dev->of_node, "mediatek,scp",
-				   &rproc_phandle);
-	if (ret) {
-		dev_err(dev, "failed to get rproc_phandle:%d\n", ret);
-		return -EINVAL;
-	}
-
-	p1_dev->rproc_handle = rproc_get_by_phandle(rproc_phandle);
+	p1_dev->rproc_handle = scp_get_rproc(p1_dev->scp);
 	dev_dbg(dev, "p1 rproc_phandle: 0x%pK\n", p1_dev->rproc_handle);
-	if (!p1_dev->rproc_handle) {
-		dev_err(dev, "failed to get rproc_handle\n");
-		return -EINVAL;
-	}
-	p1_dev->cam_dev.smem_dev = &p1_dev->scp_pdev->dev;
+	p1_dev->cam_dev.smem_dev = scp_get_device(p1_dev->scp);
 
 	/*
 	 * Allocate coherent reserved memory for SCP firmware usage.
@@ -464,8 +452,10 @@ static int isp_setup_scp_rproc(struct mtk_isp_p1_device *p1_dev,
 	 */
 	ptr = dma_alloc_coherent(p1_dev->cam_dev.smem_dev,
 				 MTK_ISP_COMPOSER_MEM_SIZE, &addr, GFP_KERNEL);
-	if (!ptr)
-		return -ENOMEM;
+	if (!ptr) {
+		ret = -ENOMEM;
+		goto fail_put_scp;
+	}
 
 	p1_dev->composer_scp_addr = addr;
 	p1_dev->composer_virt_addr = ptr;
@@ -489,10 +479,22 @@ static int isp_setup_scp_rproc(struct mtk_isp_p1_device *p1_dev,
 
 fail_free_mem:
 	dma_free_coherent(p1_dev->cam_dev.smem_dev, MTK_ISP_COMPOSER_MEM_SIZE,
-			  ptr, p1_dev->composer_scp_addr);
+			  p1_dev->composer_virt_addr,
+			  p1_dev->composer_scp_addr);
 	p1_dev->composer_scp_addr = 0;
+fail_put_scp:
+	scp_put(p1_dev->scp);
 
 	return ret;
+}
+
+static void isp_teardown_scp_rproc(struct mtk_isp_p1_device *p1_dev)
+{
+	dma_free_coherent(p1_dev->cam_dev.smem_dev, MTK_ISP_COMPOSER_MEM_SIZE,
+			  p1_dev->composer_virt_addr,
+			  p1_dev->composer_scp_addr);
+	p1_dev->composer_scp_addr = 0;
+	scp_put(p1_dev->scp);
 }
 
 static int mtk_isp_pm_suspend(struct device *dev)
@@ -663,8 +665,10 @@ static int mtk_isp_probe(struct platform_device *pdev)
 
 	/* Initialize the v4l2 common part */
 	ret = mtk_cam_dev_init(pdev, &p1_dev->cam_dev);
-	if (ret)
+	if (ret) {
+		isp_teardown_scp_rproc(p1_dev);
 		return ret;
+	}
 
 	return 0;
 }
@@ -680,10 +684,7 @@ static int mtk_isp_remove(struct platform_device *pdev)
 	dma_unmap_page_attrs(dev, p1_dev->composer_iova,
 			     MTK_ISP_COMPOSER_MEM_SIZE, DMA_BIDIRECTIONAL,
 			     DMA_ATTR_SKIP_CPU_SYNC);
-	dma_free_coherent(&p1_dev->scp_pdev->dev, MTK_ISP_COMPOSER_MEM_SIZE,
-			  p1_dev->composer_virt_addr,
-			  p1_dev->composer_scp_addr);
-	rproc_put(p1_dev->rproc_handle);
+	isp_teardown_scp_rproc(p1_dev);
 
 	return 0;
 }

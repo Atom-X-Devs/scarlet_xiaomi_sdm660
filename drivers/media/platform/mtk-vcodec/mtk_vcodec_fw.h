@@ -22,7 +22,6 @@ typedef void (*mtk_vcodec_ipi_handler) (void *data,
 
 struct mtk_vcodec_fw *mtk_vcodec_fw_select(struct mtk_vcodec_dev *dev,
 					   enum mtk_vcodec_fw_type type,
-					   phandle rproc_phandle,
 					   enum rst_id rst_id);
 
 int mtk_vcodec_fw_load_firmware(struct mtk_vcodec_fw *fw);

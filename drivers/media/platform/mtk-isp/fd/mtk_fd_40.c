@@ -96,7 +96,7 @@ static int mtk_fd_send_ipi_init(struct mtk_fd_dev *fd)
 
 	fd_init_msg.fd_init_param.rs_dma_addr = fd->rs_dma_handle;
 
-	return scp_ipi_send(fd->scp_pdev, SCP_IPI_FD_CMD, &fd_init_msg,
+	return scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_init_msg,
 			    sizeof(fd_init_msg), MTK_FD_IPI_SEND_TIMEOUT);
 }
 
@@ -178,7 +178,7 @@ static int mtk_fd_hw_connect(struct mtk_fd_dev *fd)
 		return ret;
 	}
 
-	ret = scp_ipi_register(fd->scp_pdev, SCP_IPI_FD_CMD,
+	ret = scp_ipi_register(fd->scp, SCP_IPI_FD_CMD,
 			       mtk_fd_ipi_handler, fd);
 	if (ret) {
 		dev_err(fd->dev, "Failed to register IPI cmd handler\n");
@@ -222,7 +222,7 @@ static int mtk_fd_hw_job_exec(struct mtk_fd_dev *fd,
 	reinit_completion(&fd->fd_irq_done);
 	fd_ipi_msg.cmd_id = MTK_FD_IPI_CMD_ENQUEUE;
 	memcpy(&fd_ipi_msg.fd_enq_param, fd_param, sizeof(struct fd_enq_param));
-	ret = scp_ipi_send(fd->scp_pdev, SCP_IPI_FD_CMD, &fd_ipi_msg,
+	ret = scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_ipi_msg,
 			   sizeof(fd_ipi_msg), MTK_FD_IPI_SEND_TIMEOUT);
 	if (ret) {
 		pm_runtime_put((fd->dev));
@@ -354,7 +354,7 @@ static int mtk_fd_job_abort(struct mtk_fd_dev *fd)
 		struct ipi_message fd_ipi_msg;
 
 		fd_ipi_msg.cmd_id = MTK_FD_IPI_CMD_RESET;
-		if (scp_ipi_send(fd->scp_pdev, SCP_IPI_FD_CMD, &fd_ipi_msg,
+		if (scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_ipi_msg,
 				 sizeof(fd_ipi_msg), MTK_FD_IPI_SEND_TIMEOUT))
 			dev_err(fd->dev, "FD Reset HW error\n");
 		return -ETIMEDOUT;
@@ -983,6 +983,7 @@ static irqreturn_t mtk_fd_irq(int irq, void *data)
 static int mtk_fd_hw_get_scp_mem(struct mtk_fd_dev *fd)
 {
 	struct device *dev = fd->dev;
+	struct device *scp_dev = scp_get_device(fd->scp);
 	dma_addr_t addr;
 	void *ptr;
 	u32 ret;
@@ -992,8 +993,8 @@ static int mtk_fd_hw_get_scp_mem(struct mtk_fd_dev *fd)
 	 * The size of SCP composer's memory is fixed to 0x100000
 	 * for the requirement of firmware.
 	 */
-	ptr = dma_alloc_coherent(&fd->scp_pdev->dev,
-				 MTK_FD_HW_WORK_BUF_SIZE, &addr, GFP_KERNEL);
+	ptr = dma_alloc_coherent(scp_dev, MTK_FD_HW_WORK_BUF_SIZE, &addr,
+				 GFP_KERNEL);
 	if (!ptr)
 		return -ENOMEM;
 
@@ -1018,8 +1019,8 @@ static int mtk_fd_hw_get_scp_mem(struct mtk_fd_dev *fd)
 	return 0;
 
 fail_free_mem:
-	dma_free_coherent(&fd->scp_pdev->dev, MTK_FD_HW_WORK_BUF_SIZE,
-			  ptr, fd->scp_mem.scp_addr);
+	dma_free_coherent(scp_dev, MTK_FD_HW_WORK_BUF_SIZE, ptr,
+			  fd->scp_mem.scp_addr);
 	fd->scp_mem.scp_addr = 0;
 
 	return ret;
@@ -1031,7 +1032,6 @@ static int mtk_fd_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 	struct resource *res;
-	phandle rproc_phandle;
 	int irq;
 	int ret;
 
@@ -1069,28 +1069,18 @@ static int mtk_fd_probe(struct platform_device *pdev)
 	}
 
 	/* init scp */
-	fd->scp_pdev = scp_get_pdev(pdev);
-	if (!fd->scp_pdev) {
+	fd->scp = scp_get(pdev);
+	if (!fd->scp) {
 		dev_err(dev, "Failed to get scp device\n");
 		return -ENODEV;
 	}
 
-	if (of_property_read_u32(fd->dev->of_node, "mediatek,scp",
-				 &rproc_phandle)) {
-		dev_err(dev, "Failed to get scp device\n");
-		return -EINVAL;
-	}
-
-	fd->rproc_handle = rproc_get_by_phandle(rproc_phandle);
-	if (!fd->rproc_handle) {
-		dev_err(dev, "Failed to get FD's rproc_handle\n");
-		return -EINVAL;
-	}
+	fd->rproc_handle = scp_get_rproc(fd->scp);
 
 	ret = mtk_fd_hw_get_scp_mem(fd);
 	if (ret) {
 		dev_err(dev, "Failed to init scp memory: %d\n", ret);
-		return ret;
+		goto err_put_scp;
 	}
 
 	mutex_init(&fd->vfd_lock);
@@ -1108,6 +1098,8 @@ static int mtk_fd_probe(struct platform_device *pdev)
 err_destroy_mutex:
 	mutex_destroy(&fd->vfd_lock);
 	pm_runtime_disable(fd->dev);
+err_put_scp:
+	scp_put(fd->scp);
 	return ret;
 }
 
@@ -1122,12 +1114,12 @@ static int mtk_fd_remove(struct platform_device *pdev)
 			     MTK_FD_HW_WORK_BUF_SIZE,
 			     DMA_TO_DEVICE,
 			     DMA_ATTR_SKIP_CPU_SYNC);
-	dma_free_coherent(&fd->scp_pdev->dev,
+	dma_free_coherent(scp_get_device(fd->scp),
 			  MTK_FD_HW_WORK_BUF_SIZE,
 			  fd->scp_mem_virt_addr,
 			  fd->scp_mem.scp_addr);
 	mutex_destroy(&fd->vfd_lock);
-	rproc_put(fd->rproc_handle);
+	scp_put(fd->scp);
 
 	return 0;
 }

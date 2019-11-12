@@ -37,7 +37,7 @@
  */
 struct mtk_isp_p1_device {
 	struct device *dev;
-	struct platform_device *scp_pdev;
+	struct mtk_scp *scp;
 	struct rproc *rproc_handle;
 	struct mtk_cam_dev cam_dev;
 	void __iomem *regs;

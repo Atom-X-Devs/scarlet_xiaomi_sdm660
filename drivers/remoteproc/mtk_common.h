@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/remoteproc.h>
+#include <linux/remoteproc/mtk_scp.h>
 
 #define MT8183_SW_RSTN			0x0
 #define MT8183_SW_RSTN_BIT		BIT(0)
@@ -57,8 +58,8 @@ struct mtk_scp {
 	void __iomem *sram_base;
 	size_t sram_size;
 
-	struct share_obj __iomem *recv_buf;
-	struct share_obj __iomem *send_buf;
+	struct mtk_share_obj __iomem *recv_buf;
+	struct mtk_share_obj __iomem *send_buf;
 	struct scp_run run;
 	/* To prevent multiple ipi_send run concurrently. */
 	struct mutex send_lock;
@@ -74,14 +75,13 @@ struct mtk_scp {
 };
 
 /**
- * struct share_obj - SRAM buffer shared with
- *		      AP and SCP
+ * struct mtk_share_obj - SRAM buffer shared with AP and SCP
  *
  * @id:		IPI id
  * @len:	share buffer length
  * @share_buf:	share buffer data
  */
-struct share_obj {
+struct mtk_share_obj {
 	u32 id;
 	u32 len;
 	u8 share_buf[SCP_SHARE_BUFFER_SIZE];

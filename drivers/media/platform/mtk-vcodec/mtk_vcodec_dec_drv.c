@@ -234,8 +234,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		mtk_v4l2_err("Could not get vdec IPI device");
 		return -ENODEV;
 	}
-	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, rproc_phandle,
-					       VPU_RST_DEC);
+	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, VPU_RST_DEC);
 	if (IS_ERR(dev->fw_handler))
 		return PTR_ERR(dev->fw_handler);
 
