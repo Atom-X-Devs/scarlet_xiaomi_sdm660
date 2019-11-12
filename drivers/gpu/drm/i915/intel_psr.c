@@ -1271,8 +1271,11 @@ void intel_psr_short_pulse(struct intel_dp *intel_dp)
 			  val & ~errors);
 	if (val & errors) {
 		intel_psr_disable_locked(intel_dp);
-		psr->sink_not_reliable = true;
+		if ((val & DP_PSR_RFB_STORAGE_ERROR) ||
+			(val & DP_PSR_VSC_SDP_UNCORRECTABLE_ERROR))
+			psr->sink_not_reliable = true;
 	}
+
 	/* clear status register */
 	drm_dp_dpcd_writeb(&intel_dp->aux, DP_PSR_ERROR_STATUS, val);
 exit:
