@@ -177,6 +177,10 @@
 	};
 };
 
+&i2c_tunnel {
+	google,remote-bus = <2>;
+};
+
 &pio {
 	/* 192 lines */
 	gpio-line-names =
