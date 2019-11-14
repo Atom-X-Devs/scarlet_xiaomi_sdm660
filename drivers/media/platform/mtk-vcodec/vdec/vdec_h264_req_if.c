@@ -210,6 +210,8 @@ struct vdec_h264_slice_inst {
 	struct vdec_vpu_inst vpu;
 	struct vdec_h264_vsi *vsi;
 	struct mtk_h264_dec_slice_param h264_slice_param;
+
+	struct v4l2_h264_dpb_entry dpb[16];
 };
 
 static void *get_ctrl_ptr(struct mtk_vcodec_ctx *ctx,
@@ -365,9 +367,122 @@ static void get_h264_decode_parameters(
 	dst_params->flags = src_params->flags;
 }
 
+static bool dpb_entry_match(const struct v4l2_h264_dpb_entry *a,
+			    const struct v4l2_h264_dpb_entry *b)
+{
+	return a->top_field_order_cnt == b->top_field_order_cnt &&
+	       a->bottom_field_order_cnt == b->bottom_field_order_cnt;
+}
+
+/*
+ * Move DPB entries of dec_param that refer to a frame already existing in dpb
+ * into the already existing slot in dpb, and move other entries into new slots.
+ *
+ * At the same time, create a translation table so we can easily update the
+ * reference lists.
+ *
+ * This function is an adaptation of the similarly-named function in
+ * hantro_h264.c.
+ */
+static void update_dpb(const struct v4l2_ctrl_h264_decode_params *dec_param,
+		       struct v4l2_h264_dpb_entry *dpb,
+		       u8 *translation_table)
+{
+	DECLARE_BITMAP(new, ARRAY_SIZE(dec_param->dpb)) = { 0, };
+	DECLARE_BITMAP(in_use, ARRAY_SIZE(dec_param->dpb)) = { 0, };
+	DECLARE_BITMAP(used, ARRAY_SIZE(dec_param->dpb)) = { 0, };
+	unsigned int i, j;
+
+	/* Disable all entries by default, and mark the ones in use. */
+	for (i = 0; i < ARRAY_SIZE(dec_param->dpb); i++) {
+		if (dpb[i].flags & V4L2_H264_DPB_ENTRY_FLAG_ACTIVE)
+			set_bit(i, in_use);
+		dpb[i].flags &= ~V4L2_H264_DPB_ENTRY_FLAG_ACTIVE;
+	}
+
+	/* Try to match new DPB entries with existing ones by their POCs. */
+	for (i = 0; i < ARRAY_SIZE(dec_param->dpb); i++) {
+		const struct v4l2_h264_dpb_entry *ndpb = &dec_param->dpb[i];
+
+		if (!(ndpb->flags & V4L2_H264_DPB_ENTRY_FLAG_ACTIVE))
+			continue;
+
+		/*
+		 * To cut off some comparisons, iterate only on target DPB
+		 * entries were already used.
+		 */
+		for_each_set_bit(j, in_use, ARRAY_SIZE(dec_param->dpb)) {
+			struct v4l2_h264_dpb_entry *cdpb;
+
+			cdpb = &dpb[j];
+			if (!dpb_entry_match(cdpb, ndpb))
+				continue;
+
+			*cdpb = *ndpb;
+			set_bit(j, used);
+			translation_table[i] = j;
+			/* Don't reiterate on this one. */
+			clear_bit(j, in_use);
+			break;
+		}
+
+		if (j == ARRAY_SIZE(dec_param->dpb))
+			set_bit(i, new);
+	}
+
+	/* For entries that could not be matched, use remaining free slots. */
+	for_each_set_bit(i, new, ARRAY_SIZE(dec_param->dpb)) {
+		const struct v4l2_h264_dpb_entry *ndpb = &dec_param->dpb[i];
+		struct v4l2_h264_dpb_entry *cdpb;
+
+		/*
+		 * Both arrays are of the same sizes, so there is no way
+		 * we can end up with no space in target array, unless
+		 * something is buggy.
+		 */
+		j = find_first_zero_bit(used, ARRAY_SIZE(dec_param->dpb));
+		if (WARN_ON(j >= ARRAY_SIZE(dec_param->dpb)))
+			return;
+
+		cdpb = &dpb[j];
+		*cdpb = *ndpb;
+		set_bit(j, used);
+		translation_table[i] = j;
+	}
+}
+
+/*
+ * Update reference list entries to point to the updated position in the DPB.
+ */
+static void
+update_ref_list(u8 *ref_list, const u8 *translation_table)
+{
+	int i;
+
+	for (i = 0; i < 32; i++) {
+		const u8 dpb_index = ref_list[i];
+
+		if (dpb_index == 32)
+			continue;
+
+		ref_list[i] = translation_table[dpb_index];
+	}
+}
+
 static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 {
 	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
+	const struct v4l2_ctrl_h264_decode_params *dec_params =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
+	struct v4l2_ctrl_h264_decode_params fixed_params = *dec_params;
+	u8 translation_table[ARRAY_SIZE(dec_params->dpb)] = { 32, };
+
+	update_dpb(dec_params, inst->dpb, translation_table);
+	memcpy(fixed_params.dpb, inst->dpb, sizeof(inst->dpb));
+
+	update_ref_list(fixed_params.ref_pic_list_p0, translation_table);
+	update_ref_list(fixed_params.ref_pic_list_b0, translation_table);
+	update_ref_list(fixed_params.ref_pic_list_b1, translation_table);
 
 	get_h264_sps_parameters(&slice_param->sps,
 				get_ctrl_ptr(inst->ctx,
@@ -379,10 +494,7 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 		&slice_param->scaling_matrix,
 		get_ctrl_ptr(inst->ctx,
 			     V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX));
-	get_h264_decode_parameters(
-		&slice_param->decode_params,
-		get_ctrl_ptr(inst->ctx,
-			     V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS));
+	get_h264_decode_parameters(&slice_param->decode_params, &fixed_params);
 	get_h264_dpb_list(inst, slice_param);
 
 	memcpy(&inst->vsi->h264_slice_params, slice_param,
