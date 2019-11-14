@@ -380,23 +380,17 @@ static int mtk_dip_vb2_video_queue_setup(struct vb2_queue *vq,
 					 unsigned int sizes[],
 					 struct device *alloc_devs[])
 {
-	struct mtk_dip_pipe *pipe = vb2_get_drv_priv(vq);
 	struct mtk_dip_video_device *node = mtk_dip_vbq_to_node(vq);
 	const struct v4l2_format *fmt = &node->vdev_fmt;
 	int i;
 
+	/* set num_planes for reqbufs cases */
 	if (!*num_planes)
-		*num_planes = 1;
+		*num_planes = fmt->fmt.pix_mp.num_planes;
 
 	for (i = 0; i < *num_planes; i++) {
-		if (sizes[i] <= 0) {
-			dev_dbg(pipe->dip_dev->dev,
-				"%s:%s:%s: invalid buf: %u < %u\n",
-				__func__, pipe->desc->name,
-				node->desc->name, sizes[i],
-				fmt->fmt.pix_mp.plane_fmt[i].sizeimage);
+		if (sizes[i] <= 0)
 			sizes[i] = fmt->fmt.pix_mp.plane_fmt[i].sizeimage;
-		}
 
 		*num_buffers = clamp_val(*num_buffers, 1, VB2_MAX_FRAME);
 	}
