@@ -1117,6 +1117,7 @@
 			reg = <0 0x1401b000 0 0x1000>;
 			interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_LOW>;
 			power-domains = <&scpsys MT8173_POWER_DOMAIN_MM>;
+			mediatek,syscon-dsi = <&mmsys 0x140>;
 			clocks = <&mmsys CLK_MM_DSI0_ENGINE>,
 				 <&mmsys CLK_MM_DSI0_DIGITAL>,
 				 <&mipi_tx0>;
