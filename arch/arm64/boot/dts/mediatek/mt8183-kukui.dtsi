@@ -1099,8 +1099,16 @@
 };
 
 &usb_host {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	vusb33-supply = <&mt6358_vusb_reg>;
 	status = "okay";
+
+	hub@1 {
+		compatible = "usb5e3,610";
+		reg = <1>;
+		hub,interval = <7>;
+	};
 };
 
 &u3phy {
