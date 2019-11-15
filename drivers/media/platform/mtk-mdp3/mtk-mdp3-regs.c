@@ -611,10 +611,19 @@ static void mdp_prepare_buffer(struct img_image_buffer *b,
 			pix_mp->plane_fmt[i].bytesperline, i);
 
 		b->format.plane_fmt[i].stride = stride;
+		/*
+		 * TODO(crbug.com/901264): The way to pass an offset within a
+		 * DMA-buf is not defined in V4L2 specification, so we abuse
+		 * data_offset for now. Fix it when we have the right interface,
+		 * including any necessary validation and potential alignment
+		 * issues.
+		 */
 		b->format.plane_fmt[i].size =
 			mdp_fmt_get_plane_size(frame->mdp_fmt, stride,
-					       pix_mp->height, i);
-		b->iova[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+					       pix_mp->height, i) -
+					       vb->planes[i].data_offset;
+		b->iova[i] = vb2_dma_contig_plane_dma_addr(vb, i) +
+			     vb->planes[i].data_offset;
 	}
 	for (; i < MDP_COLOR_GET_PLANE_COUNT(b->format.colorformat); ++i) {
 		u32 stride = mdp_fmt_get_stride_contig(frame->mdp_fmt,
