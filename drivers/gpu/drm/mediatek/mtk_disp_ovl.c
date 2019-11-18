@@ -20,7 +20,6 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
-#include <linux/soc/mediatek/mtk-cmdq.h>
 
 #include "mtk_drm_crtc.h"
 #include "mtk_drm_ddp_comp.h"
@@ -134,15 +133,14 @@ static void mtk_ovl_stop(struct mtk_ddp_comp *comp)
 
 static void mtk_ovl_config(struct mtk_ddp_comp *comp, unsigned int w,
 			   unsigned int h, unsigned int vrefresh,
-			   unsigned int bpc, struct cmdq_pkt *cmdq_pkt)
+			   unsigned int bpc)
 {
 	if (w != 0 && h != 0)
-		mtk_ddp_write_relaxed(cmdq_pkt, h << 16 | w, comp,
-		DISP_REG_OVL_ROI_SIZE);
-	mtk_ddp_write_relaxed(cmdq_pkt, 0x0, comp, DISP_REG_OVL_ROI_BGCLR);
+		writel_relaxed(h << 16 | w, comp->regs + DISP_REG_OVL_ROI_SIZE);
+	writel_relaxed(0x0, comp->regs + DISP_REG_OVL_ROI_BGCLR);
 
-	mtk_ddp_write(cmdq_pkt, 0x1, comp, DISP_REG_OVL_RST);
-	mtk_ddp_write(cmdq_pkt, 0x0, comp, DISP_REG_OVL_RST);
+	writel(0x1, comp->regs + DISP_REG_OVL_RST);
+	writel(0x0, comp->regs + DISP_REG_OVL_RST);
 }
 
 static unsigned int mtk_ovl_layer_nr(struct mtk_ddp_comp *comp)
@@ -186,8 +184,7 @@ static int mtk_ovl_layer_check(struct mtk_ddp_comp *comp, unsigned int idx,
 	return 0;
 }
 
-static void mtk_ovl_layer_on(struct mtk_ddp_comp *comp, unsigned int idx,
-			     struct cmdq_pkt *cmdq_pkt)
+static void mtk_ovl_layer_on(struct mtk_ddp_comp *comp, unsigned int idx)
 {
 	unsigned int reg;
 	unsigned int gmc_thrshd_l;
@@ -195,8 +192,8 @@ static void mtk_ovl_layer_on(struct mtk_ddp_comp *comp, unsigned int idx,
 	unsigned int gmc_value;
 	struct mtk_disp_ovl *ovl = comp_to_ovl(comp);
 
-	mtk_ddp_write(cmdq_pkt, 0x1, comp,
-		      DISP_REG_OVL_RDMA_CTRL(idx));
+	writel(0x1, comp->regs + DISP_REG_OVL_RDMA_CTRL(idx));
+
 	gmc_thrshd_l = GMC_THRESHOLD_LOW >>
 		      (GMC_THRESHOLD_BITS - ovl->data->gmc_bits);
 	gmc_thrshd_h = GMC_THRESHOLD_HIGH >>
@@ -206,19 +203,22 @@ static void mtk_ovl_layer_on(struct mtk_ddp_comp *comp, unsigned int idx,
 	else
 		gmc_value = gmc_thrshd_l | gmc_thrshd_l << 8 |
 			    gmc_thrshd_h << 16 | gmc_thrshd_h << 24;
-	mtk_ddp_write(cmdq_pkt, gmc_value,
-		      comp, DISP_REG_OVL_RDMA_GMC(idx));
-	mtk_ddp_write_mask(cmdq_pkt, BIT(idx), comp,
-			    DISP_REG_OVL_SRC_CON, BIT(idx));
+	writel(gmc_value, comp->regs + DISP_REG_OVL_RDMA_GMC(idx));
+
+	reg = readl(comp->regs + DISP_REG_OVL_SRC_CON);
+	reg = reg | BIT(idx);
+	writel(reg, comp->regs + DISP_REG_OVL_SRC_CON);
 }
 
-static void mtk_ovl_layer_off(struct mtk_ddp_comp *comp, unsigned int idx,
-			      struct cmdq_pkt *cmdq_pkt)
+static void mtk_ovl_layer_off(struct mtk_ddp_comp *comp, unsigned int idx)
 {
-	mtk_ddp_write_mask(cmdq_pkt, 0, comp,
-			    DISP_REG_OVL_SRC_CON, BIT(idx));
-	mtk_ddp_write(cmdq_pkt, 0, comp,
-		       DISP_REG_OVL_RDMA_CTRL(idx));
+	unsigned int reg;
+
+	reg = readl(comp->regs + DISP_REG_OVL_SRC_CON);
+	reg = reg & ~BIT(idx);
+	writel(reg, comp->regs + DISP_REG_OVL_SRC_CON);
+
+	writel(0x0, comp->regs + DISP_REG_OVL_RDMA_CTRL(idx));
 }
 
 static unsigned int ovl_fmt_convert(struct mtk_disp_ovl *ovl, unsigned int fmt)
@@ -258,8 +258,7 @@ static unsigned int ovl_fmt_convert(struct mtk_disp_ovl *ovl, unsigned int fmt)
 }
 
 static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
-				 struct mtk_plane_state *state,
-				 struct cmdq_pkt *cmdq_pkt)
+				 struct mtk_plane_state *state)
 {
 	struct mtk_disp_ovl *ovl = comp_to_ovl(comp);
 	struct mtk_plane_pending_state *pending = &state->pending;
@@ -289,30 +288,31 @@ static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
 		addr += pending->pitch - 1;
 	}
 
-	mtk_ddp_write_relaxed(cmdq_pkt, con, comp,
-			      DISP_REG_OVL_CON(idx));
-	mtk_ddp_write_relaxed(cmdq_pkt, pitch, comp,
-			      DISP_REG_OVL_PITCH(idx));
-	mtk_ddp_write_relaxed(cmdq_pkt, src_size, comp,
-			      DISP_REG_OVL_SRC_SIZE(idx));
-	mtk_ddp_write_relaxed(cmdq_pkt, offset, comp,
-			      DISP_REG_OVL_OFFSET(idx));
-	mtk_ddp_write_relaxed(cmdq_pkt, addr, comp,
-			      DISP_REG_OVL_ADDR(ovl, idx));
+	writel_relaxed(con, comp->regs + DISP_REG_OVL_CON(idx));
+	writel_relaxed(pitch, comp->regs + DISP_REG_OVL_PITCH(idx));
+	writel_relaxed(src_size, comp->regs + DISP_REG_OVL_SRC_SIZE(idx));
+	writel_relaxed(offset, comp->regs + DISP_REG_OVL_OFFSET(idx));
+	writel_relaxed(addr, comp->regs + DISP_REG_OVL_ADDR(ovl, idx));
 
 	mtk_ovl_layer_on(comp, idx, cmdq_pkt);
 }
 
 static void mtk_ovl_bgclr_in_on(struct mtk_ddp_comp *comp)
 {
-	mtk_ddp_write_mask(NULL, OVL_BGCLR_SEL_IN, comp,
-			   DISP_REG_OVL_DATAPATH_CON, OVL_BGCLR_SEL_IN);
+	unsigned int reg;
+
+	reg = readl(comp->regs + DISP_REG_OVL_DATAPATH_CON);
+	reg = reg | OVL_BGCLR_SEL_IN;
+	writel(reg, comp->regs + DISP_REG_OVL_DATAPATH_CON);
 }
 
 static void mtk_ovl_bgclr_in_off(struct mtk_ddp_comp *comp)
 {
-	mtk_ddp_write_mask(NULL, 0, comp,
-			   DISP_REG_OVL_DATAPATH_CON, OVL_BGCLR_SEL_IN);
+	unsigned int reg;
+
+	reg = readl(comp->regs + DISP_REG_OVL_DATAPATH_CON);
+	reg = reg & ~OVL_BGCLR_SEL_IN;
+	writel(reg, comp->regs + DISP_REG_OVL_DATAPATH_CON);
 }
 
 static const struct mtk_ddp_comp_funcs mtk_disp_ovl_funcs = {
