@@ -189,6 +189,7 @@ static int mtk_ovl_layer_check(struct mtk_ddp_comp *comp, unsigned int idx,
 static void mtk_ovl_layer_on(struct mtk_ddp_comp *comp, unsigned int idx,
 			     struct cmdq_pkt *cmdq_pkt)
 {
+	unsigned int reg;
 	unsigned int gmc_thrshd_l;
 	unsigned int gmc_thrshd_h;
 	unsigned int gmc_value;
