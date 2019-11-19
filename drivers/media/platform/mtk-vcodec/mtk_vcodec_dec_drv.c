@@ -241,7 +241,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	ret = mtk_vcodec_init_dec_pm(dev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to get mt vcodec clock source");
-		return ret;
+		goto err_dec_pm;
 	}
 
 	for (i = 0; i < NUM_MAX_VDEC_REG_BASE; i++) {
@@ -381,6 +381,8 @@ err_dec_alloc:
 	v4l2_device_unregister(&dev->v4l2_dev);
 err_res:
 	mtk_vcodec_release_dec_pm(dev);
+err_dec_pm:
+	mtk_vcodec_fw_release(dev->fw_handler);
 	return ret;
 }
 
@@ -422,6 +424,7 @@ static int mtk_vcodec_dec_remove(struct platform_device *pdev)
 
 	v4l2_device_unregister(&dev->v4l2_dev);
 	mtk_vcodec_release_dec_pm(dev);
+	mtk_vcodec_fw_release(dev->fw_handler);
 	return 0;
 }
 

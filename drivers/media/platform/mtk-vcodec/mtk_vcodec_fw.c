@@ -16,6 +16,7 @@ struct mtk_vcodec_fw_ops {
 };
 
 struct mtk_vcodec_fw {
+	enum mtk_vcodec_fw_type type;
 	const struct mtk_vcodec_fw_ops *ops;
 	struct platform_device *pdev;
 	struct mtk_scp *scp;
@@ -158,6 +159,7 @@ struct mtk_vcodec_fw *mtk_vcodec_fw_select(struct mtk_vcodec_dev *dev,
 	if (!fw)
 		return ERR_PTR(-EINVAL);
 
+	fw->type = type;
 	fw->ops = ops;
 	fw->pdev = fw_pdev;
 	fw->scp = scp;
@@ -165,6 +167,19 @@ struct mtk_vcodec_fw *mtk_vcodec_fw_select(struct mtk_vcodec_dev *dev,
 	return fw;
 }
 EXPORT_SYMBOL_GPL(mtk_vcodec_fw_select);
+
+void mtk_vcodec_fw_release(struct mtk_vcodec_fw *fw)
+{
+	switch (fw->type) {
+	case VPU:
+		put_device(&fw->pdev->dev);
+		break;
+	case SCP:
+		scp_put(fw->scp);
+		break;
+	}
+}
+EXPORT_SYMBOL_GPL(mtk_vcodec_fw_release);
 
 int mtk_vcodec_fw_load_firmware(struct mtk_vcodec_fw *fw)
 {
