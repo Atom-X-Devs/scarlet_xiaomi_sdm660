@@ -45,6 +45,8 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_edid.h>
 
+#include "drm_crtc_helper_internal.h"
+
 /**
  * DOC: overview
  *
