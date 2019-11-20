@@ -308,7 +308,15 @@ static int mtk_dip_vb2_video_buf_init(struct vb2_buffer *vb)
 
 	for (i = 0; i < vb->num_planes; i++) {
 		dev_buf->scp_daddr[i] = 0;
-		dev_buf->isp_daddr[i] =	vb2_dma_contig_plane_dma_addr(vb, i);
+		/*
+		 * TODO(crbug.com/901264): The way to pass an offset within a
+		 * DMA-buf is not defined in V4L2 specification, so we abuse
+		 * data_offset for now. Fix it when we have the right interface,
+		 * including any necessary validation and potential alignment
+		 * issues.
+		 */
+		dev_buf->isp_daddr[i] = vb2_dma_contig_plane_dma_addr(vb, i) +
+			vb->planes[i].data_offset;
 	}
 
 	return 0;
@@ -1686,6 +1694,22 @@ static const struct mtk_dip_dev_format img3_fmts[] = {
 		.row_depth = { 8 },
 		.num_planes = 1,
 		.num_cplanes = 2,
+	},
+	{
+		.format	= V4L2_PIX_FMT_YVU420M,
+		.mdp_color	= DIP_MCOLOR_YV12,
+		.depth		= { 8, 2, 2 },
+		.row_depth	= { 8, 4, 4 },
+		.num_planes	= 3,
+		.num_cplanes = 1,
+	},
+	{
+		.format	= V4L2_PIX_FMT_NV12M,
+		.mdp_color	= DIP_MCOLOR_NV12,
+		.depth		= { 8, 4 },
+		.row_depth	= { 8, 8 },
+		.num_planes	= 2,
+		.num_cplanes = 1,
 	}
 };
 
