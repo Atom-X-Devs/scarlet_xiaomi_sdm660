@@ -396,6 +396,9 @@ static const struct usb_device_id blacklist_table[] = {
 	{ USB_DEVICE(0x13d3, 0x3526), .driver_info = BTUSB_REALTEK },
 	{ USB_DEVICE(0x0b05, 0x185c), .driver_info = BTUSB_REALTEK },
 
+	/* Additional Realtek 8822CE Bluetooth devices */
+	{ USB_DEVICE(0x04ca, 0x4005), .driver_info = BTUSB_REALTEK },
+
 	/* Silicon Wave based devices */
 	{ USB_DEVICE(0x0c10, 0x0000), .driver_info = BTUSB_SWAVE },
 
@@ -2224,8 +2227,11 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 	 * loaded.
 	 */
 	err = btintel_read_version(hdev, &ver);
-	if (err)
+	if (err) {
+		bt_dev_err(hdev, "Intel Read version failed (%d)", err);
+		btintel_reset_to_bootloader(hdev);
 		return err;
+	}
 
 	/* The hardware platform number has a fixed value of 0x37 and
 	 * for now only accept this single value.
@@ -2372,10 +2378,9 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 		/* When FW download fails, send Intel Reset to retry
 		 * FW download.
 		 */
-		btintel_retry_fw_download(hdev);
+		btintel_reset_to_bootloader(hdev);
 		goto done;
 	}
-
 	set_bit(BTUSB_FIRMWARE_LOADED, &data->flags);
 
 	bt_dev_info(hdev, "Waiting for firmware download to complete");
@@ -2402,6 +2407,7 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 	if (err) {
 		bt_dev_err(hdev, "Firmware loading timeout");
 		err = -ETIMEDOUT;
+		btintel_reset_to_bootloader(hdev);
 		goto done;
 	}
 
@@ -2428,8 +2434,11 @@ done:
 	set_bit(BTUSB_BOOTING, &data->flags);
 
 	err = btintel_send_intel_reset(hdev, boot_param);
-	if (err)
+	if (err) {
+		bt_dev_err(hdev, "Intel Soft Reset failed (%d)", err);
+		btintel_reset_to_bootloader(hdev);
 		return err;
+	}
 
 	/* The bootloader will not indicate when the device is ready. This
 	 * is done by the operational firmware sending bootup notification.
@@ -2451,6 +2460,7 @@ done:
 
 	if (err) {
 		bt_dev_err(hdev, "Device boot timeout");
+		btintel_reset_to_bootloader(hdev);
 		return -ETIMEDOUT;
 	}
 
@@ -3286,6 +3296,7 @@ static int btusb_probe(struct usb_interface *intf,
 #ifdef CONFIG_BT_HCIBTUSB_RTL
 	if (id->driver_info & BTUSB_REALTEK) {
 		hdev->setup = btrtl_setup_realtek;
+		hdev->shutdown = btrtl_shutdown_realtek;
 
 		/* Realtek devices lose their updated firmware over suspend,
 		 * but the USB hub doesn't notice any status change.

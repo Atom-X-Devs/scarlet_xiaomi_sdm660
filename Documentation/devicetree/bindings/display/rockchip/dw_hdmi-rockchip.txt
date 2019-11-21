@@ -34,6 +34,10 @@ Optional properties
 - clock-names: May contain "cec" as defined in dw_hdmi.txt.
 - clock-names: May contain "grf", power for grf io.
 - clock-names: May contain "vpll", external clock for some hdmi phy.
+- nvmem-cells: May have the phandle for the nvmem cell containing the CPU ID.
+  This is used in HDCP.
+- nvmem-cell-names: If nvmem-cells has the phandle CPU ID, this should be the
+  string "cpu-id".
 
 Optional pinctrl entry:
 - If you have both a "unwedge" and "default" pinctrl entry, dw_hdmi

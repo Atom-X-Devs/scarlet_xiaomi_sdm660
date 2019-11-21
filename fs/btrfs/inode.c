@@ -72,6 +72,7 @@ static struct kmem_cache *btrfs_inode_cachep;
 struct kmem_cache *btrfs_trans_handle_cachep;
 struct kmem_cache *btrfs_path_cachep;
 struct kmem_cache *btrfs_free_space_cachep;
+struct kmem_cache *btrfs_free_space_bitmap_cachep;
 
 #define S_SHIFT 12
 static const unsigned char btrfs_type_by_mode[S_IFMT >> S_SHIFT] = {
@@ -110,17 +111,17 @@ static void __endio_write_update_ordered(struct inode *inode,
  * extent_clear_unlock_delalloc() to clear both the bits EXTENT_DO_ACCOUNTING
  * and EXTENT_DELALLOC simultaneously, because that causes the reserved metadata
  * to be released, which we want to happen only when finishing the ordered
- * extent (btrfs_finish_ordered_io()). Also note that the caller of the
- * fill_delalloc() callback already does proper cleanup for the first page of
- * the range, that is, it invokes the callback writepage_end_io_hook() for the
- * range of the first page.
+ * extent (btrfs_finish_ordered_io()).
  */
 static inline void btrfs_cleanup_ordered_extents(struct inode *inode,
-						 const u64 offset,
-						 const u64 bytes)
+						 struct page *locked_page,
+						 u64 offset, u64 bytes)
 {
 	unsigned long index = offset >> PAGE_SHIFT;
 	unsigned long end_index = (offset + bytes - 1) >> PAGE_SHIFT;
+	u64 page_start = page_offset(locked_page);
+	u64 page_end = page_start + PAGE_SIZE - 1;
+
 	struct page *page;
 
 	while (index <= end_index) {
@@ -131,8 +132,18 @@ static inline void btrfs_cleanup_ordered_extents(struct inode *inode,
 		ClearPagePrivate2(page);
 		put_page(page);
 	}
-	return __endio_write_update_ordered(inode, offset + PAGE_SIZE,
-					    bytes - PAGE_SIZE, false);
+
+	/*
+	 * In case this page belongs to the delalloc range being instantiated
+	 * then skip it, since the first page of a range is going to be
+	 * properly cleaned up by the caller of run_delalloc_range
+	 */
+	if (page_start >= offset && page_end <= (offset + bytes - 1)) {
+		offset += PAGE_SIZE;
+		bytes -= PAGE_SIZE;
+	}
+
+	return __endio_write_update_ordered(inode, offset, bytes, false);
 }
 
 static int btrfs_dirty_inode(struct inode *inode);
@@ -1599,12 +1610,12 @@ static inline int need_force_cow(struct inode *inode, u64 start, u64 end)
 }
 
 /*
- * extent_io.c call back to do delayed allocation processing
+ * Function to process delayed allocation (create CoW) for ranges which are
+ * being touched for the first time.
  */
-static int run_delalloc_range(void *private_data, struct page *locked_page,
-			      u64 start, u64 end, int *page_started,
-			      unsigned long *nr_written,
-			      struct writeback_control *wbc)
+int btrfs_run_delalloc_range(void *private_data, struct page *locked_page,
+		u64 start, u64 end, int *page_started, unsigned long *nr_written,
+		struct writeback_control *wbc)
 {
 	struct inode *inode = private_data;
 	int ret;
@@ -1629,7 +1640,8 @@ static int run_delalloc_range(void *private_data, struct page *locked_page,
 					   write_flags);
 	}
 	if (ret)
-		btrfs_cleanup_ordered_extents(inode, start, end - start + 1);
+		btrfs_cleanup_ordered_extents(inode, locked_page, start,
+					      end - start + 1);
 	return ret;
 }
 
@@ -2154,7 +2166,7 @@ again:
 
 	ClearPageChecked(page);
 	set_page_dirty(page);
-	btrfs_delalloc_release_extents(BTRFS_I(inode), PAGE_SIZE, false);
+	btrfs_delalloc_release_extents(BTRFS_I(inode), PAGE_SIZE);
 out:
 	unlock_extent_cached(&BTRFS_I(inode)->io_tree, page_start, page_end,
 			     &cached_state);
@@ -3595,10 +3607,11 @@ static noinline int acls_after_inode_item(struct extent_buffer *leaf,
 /*
  * read an inode from the btree into the in-memory inode
  */
-static int btrfs_read_locked_inode(struct inode *inode)
+static int btrfs_read_locked_inode(struct inode *inode,
+				   struct btrfs_path *in_path)
 {
 	struct btrfs_fs_info *fs_info = btrfs_sb(inode->i_sb);
-	struct btrfs_path *path;
+	struct btrfs_path *path = in_path;
 	struct extent_buffer *leaf;
 	struct btrfs_inode_item *inode_item;
 	struct btrfs_root *root = BTRFS_I(inode)->root;
@@ -3614,15 +3627,18 @@ static int btrfs_read_locked_inode(struct inode *inode)
 	if (!ret)
 		filled = true;
 
-	path = btrfs_alloc_path();
-	if (!path)
-		return -ENOMEM;
+	if (!path) {
+		path = btrfs_alloc_path();
+		if (!path)
+			return -ENOMEM;
+	}
 
 	memcpy(&location, &BTRFS_I(inode)->location, sizeof(location));
 
 	ret = btrfs_lookup_inode(NULL, root, path, &location, 0);
 	if (ret) {
-		btrfs_free_path(path);
+		if (path != in_path)
+			btrfs_free_path(path);
 		return ret;
 	}
 
@@ -3762,7 +3778,8 @@ cache_acl:
 				  btrfs_ino(BTRFS_I(inode)),
 				  root->root_key.objectid, ret);
 	}
-	btrfs_free_path(path);
+	if (path != in_path)
+		btrfs_free_path(path);
 
 	if (!maybe_acls)
 		cache_no_acl(inode);
@@ -4906,7 +4923,7 @@ again:
 	if (!page) {
 		btrfs_delalloc_release_space(inode, data_reserved,
 					     block_start, blocksize, true);
-		btrfs_delalloc_release_extents(BTRFS_I(inode), blocksize, true);
+		btrfs_delalloc_release_extents(BTRFS_I(inode), blocksize);
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -4974,7 +4991,7 @@ out_unlock:
 	if (ret)
 		btrfs_delalloc_release_space(inode, data_reserved, block_start,
 					     blocksize, true);
-	btrfs_delalloc_release_extents(BTRFS_I(inode), blocksize, (ret != 0));
+	btrfs_delalloc_release_extents(BTRFS_I(inode), blocksize);
 	unlock_page(page);
 	put_page(page);
 out:
@@ -5704,8 +5721,9 @@ static struct inode *btrfs_iget_locked(struct super_block *s,
 /* Get an inode object given its location and corresponding root.
  * Returns in *is_new if the inode was read from disk
  */
-struct inode *btrfs_iget(struct super_block *s, struct btrfs_key *location,
-			 struct btrfs_root *root, int *new)
+struct inode *btrfs_iget_path(struct super_block *s, struct btrfs_key *location,
+			      struct btrfs_root *root, int *new,
+			      struct btrfs_path *path)
 {
 	struct inode *inode;
 
@@ -5716,7 +5734,7 @@ struct inode *btrfs_iget(struct super_block *s, struct btrfs_key *location,
 	if (inode->i_state & I_NEW) {
 		int ret;
 
-		ret = btrfs_read_locked_inode(inode);
+		ret = btrfs_read_locked_inode(inode, path);
 		if (!ret) {
 			inode_tree_add(inode);
 			unlock_new_inode(inode);
@@ -5736,6 +5754,12 @@ struct inode *btrfs_iget(struct super_block *s, struct btrfs_key *location,
 	}
 
 	return inode;
+}
+
+struct inode *btrfs_iget(struct super_block *s, struct btrfs_key *location,
+			 struct btrfs_root *root, int *new)
+{
+	return btrfs_iget_path(s, location, root, new, NULL);
 }
 
 static struct inode *new_simple_dir(struct super_block *s,
@@ -8648,7 +8672,7 @@ static ssize_t btrfs_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 		} else if (ret >= 0 && (size_t)ret < count)
 			btrfs_delalloc_release_space(inode, data_reserved,
 					offset, count - (size_t)ret, true);
-		btrfs_delalloc_release_extents(BTRFS_I(inode), count, false);
+		btrfs_delalloc_release_extents(BTRFS_I(inode), count);
 	}
 out:
 	if (wakeup)
@@ -9001,7 +9025,7 @@ again:
 	unlock_extent_cached(io_tree, page_start, page_end, &cached_state);
 
 	if (!ret2) {
-		btrfs_delalloc_release_extents(BTRFS_I(inode), PAGE_SIZE, true);
+		btrfs_delalloc_release_extents(BTRFS_I(inode), PAGE_SIZE);
 		sb_end_pagefault(inode->i_sb);
 		extent_changeset_free(data_reserved);
 		return VM_FAULT_LOCKED;
@@ -9010,7 +9034,7 @@ again:
 out_unlock:
 	unlock_page(page);
 out:
-	btrfs_delalloc_release_extents(BTRFS_I(inode), PAGE_SIZE, (ret != 0));
+	btrfs_delalloc_release_extents(BTRFS_I(inode), PAGE_SIZE);
 	btrfs_delalloc_release_space(inode, data_reserved, page_start,
 				     reserved_space, (ret != 0));
 out_noreserve:
@@ -9350,6 +9374,7 @@ void __cold btrfs_destroy_cachep(void)
 	kmem_cache_destroy(btrfs_trans_handle_cachep);
 	kmem_cache_destroy(btrfs_path_cachep);
 	kmem_cache_destroy(btrfs_free_space_cachep);
+	kmem_cache_destroy(btrfs_free_space_bitmap_cachep);
 }
 
 int __init btrfs_init_cachep(void)
@@ -9377,6 +9402,12 @@ int __init btrfs_init_cachep(void)
 			sizeof(struct btrfs_free_space), 0,
 			SLAB_MEM_SPREAD, NULL);
 	if (!btrfs_free_space_cachep)
+		goto fail;
+
+	btrfs_free_space_bitmap_cachep = kmem_cache_create("btrfs_free_space_bitmap",
+							PAGE_SIZE, PAGE_SIZE,
+							SLAB_RED_ZONE, NULL);
+	if (!btrfs_free_space_bitmap_cachep)
 		goto fail;
 
 	return 0;
@@ -10598,7 +10629,6 @@ static const struct extent_io_ops btrfs_extent_io_ops = {
 	.readpage_io_failed_hook = btrfs_readpage_io_failed_hook,
 
 	/* optional callbacks */
-	.fill_delalloc = run_delalloc_range,
 	.writepage_end_io_hook = btrfs_writepage_end_io_hook,
 	.writepage_start_hook = btrfs_writepage_start_hook,
 	.set_bit_hook = btrfs_set_bit_hook,

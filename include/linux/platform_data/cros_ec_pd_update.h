@@ -16,7 +16,8 @@
 #ifndef __LINUX_PLATFORM_DATA_CROS_EC_SENSORHUB_H
 #define __LINUX_PLATFORM_DATA_CROS_EC_SENSORHUB_H
 
-#include <linux/mfd/cros_ec_commands.h>
+#include <linux/platform_data/cros_ec_commands.h>
+#include <linux/platform_data/cros_ec_proto.h>
 
 enum cros_ec_pd_device_type {
 	PD_DEVICE_TYPE_NONE = 0,

@@ -23,21 +23,21 @@ struct boot_on_ac_request {
 	u8 reserved7;
 } __packed;
 
-#define CMD_USB_POWER_SHARE 0x39
+#define CMD_USB_CHARGE 0x39
 
-enum usb_power_share_op {
-	POWER_SHARE_GET = 0,
-	POWER_SHARE_SET = 1,
+enum usb_charge_op {
+	USB_CHARGE_GET = 0,
+	USB_CHARGE_SET = 1,
 };
 
-struct usb_power_share_request {
-	u8 cmd;		/* Always CMD_USB_POWER_SHARE */
+struct usb_charge_request {
+	u8 cmd;		/* Always CMD_USB_CHARGE */
 	u8 reserved;
-	u8 op;		/* One of enum usb_power_share_op */
+	u8 op;		/* One of enum usb_charge_op */
 	u8 val;		/* When setting, either 0 or 1 */
 } __packed;
 
-struct usb_power_share_response {
+struct usb_charge_response {
 	u8 reserved;
 	u8 status;	/* Set by EC to 0 on success, other value on failure */
 	u8 val;		/* When getting, set by EC to either 0 or 1 */
@@ -151,9 +151,9 @@ static ssize_t model_number_show(struct device *dev,
 
 static DEVICE_ATTR_RO(model_number);
 
-static int send_usb_power_share(struct wilco_ec_device *ec,
-				struct usb_power_share_request *rq,
-				struct usb_power_share_response *rs)
+static int send_usb_charge(struct wilco_ec_device *ec,
+				struct usb_charge_request *rq,
+				struct usb_charge_response *rs)
 {
 	struct wilco_ec_message msg;
 	int ret;
@@ -173,32 +173,32 @@ static int send_usb_power_share(struct wilco_ec_device *ec,
 	return 0;
 }
 
-static ssize_t usb_power_share_show(struct device *dev,
+static ssize_t usb_charge_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
 	struct wilco_ec_device *ec = dev_get_drvdata(dev);
-	struct usb_power_share_request rq;
-	struct usb_power_share_response rs;
+	struct usb_charge_request rq;
+	struct usb_charge_response rs;
 	int ret;
 
 	memset(&rq, 0, sizeof(rq));
-	rq.cmd = CMD_USB_POWER_SHARE;
-	rq.op = POWER_SHARE_GET;
+	rq.cmd = CMD_USB_CHARGE;
+	rq.op = USB_CHARGE_GET;
 
-	ret = send_usb_power_share(ec, &rq, &rs);
+	ret = send_usb_charge(ec, &rq, &rs);
 	if (ret < 0)
 		return ret;
 
 	return sprintf(buf, "%d\n", rs.val);
 }
 
-static ssize_t usb_power_share_store(struct device *dev,
+static ssize_t usb_charge_store(struct device *dev,
 				     struct device_attribute *attr,
 				     const char *buf, size_t count)
 {
 	struct wilco_ec_device *ec = dev_get_drvdata(dev);
-	struct usb_power_share_request rq;
-	struct usb_power_share_response rs;
+	struct usb_charge_request rq;
+	struct usb_charge_response rs;
 	int ret;
 	u8 val;
 
@@ -209,25 +209,25 @@ static ssize_t usb_power_share_store(struct device *dev,
 		return -EINVAL;
 
 	memset(&rq, 0, sizeof(rq));
-	rq.cmd = CMD_USB_POWER_SHARE;
-	rq.op = POWER_SHARE_SET;
+	rq.cmd = CMD_USB_CHARGE;
+	rq.op = USB_CHARGE_SET;
 	rq.val = val;
 
-	ret = send_usb_power_share(ec, &rq, &rs);
+	ret = send_usb_charge(ec, &rq, &rs);
 	if (ret < 0)
 		return ret;
 
 	return count;
 }
 
-static DEVICE_ATTR_RW(usb_power_share);
+static DEVICE_ATTR_RW(usb_charge);
 
 static struct attribute *wilco_dev_attrs[] = {
 	&dev_attr_boot_on_ac.attr,
 	&dev_attr_build_date.attr,
 	&dev_attr_build_revision.attr,
 	&dev_attr_model_number.attr,
-	&dev_attr_usb_power_share.attr,
+	&dev_attr_usb_charge.attr,
 	&dev_attr_version.attr,
 	NULL,
 };

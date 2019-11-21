@@ -220,6 +220,7 @@ extern void irq_wake_thread(unsigned int irq, void *dev_id);
 /* The following three functions are for the core kernel use only. */
 extern void suspend_device_irqs(void);
 extern void resume_device_irqs(void);
+extern void rearm_wake_irq(unsigned int irq);
 
 /**
  * struct irq_affinity_notify - context for notification of IRQ affinity changes

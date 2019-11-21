@@ -255,7 +255,7 @@ static int mtk_fd_vb2_buf_prepare(struct vb2_buffer *vb)
 	switch (vq->type) {
 	case V4L2_BUF_TYPE_META_CAPTURE:
 		if (vb2_plane_size(vb, 0) < ctx->dst_fmt.buffersize) {
-			dev_dbg(dev, "meta size %d is too small\n",
+			dev_dbg(dev, "meta size %lu is too small\n",
 				vb2_plane_size(vb, 0));
 			return -EINVAL;
 		}
@@ -272,7 +272,7 @@ static int mtk_fd_vb2_buf_prepare(struct vb2_buffer *vb)
 			return -EINVAL;
 		}
 		if (vb2_plane_size(vb, 0) < pixfmt->plane_fmt[0].sizeimage) {
-			dev_dbg(dev, "plane %d is too small\n",
+			dev_dbg(dev, "plane %lu is too small\n",
 				vb2_plane_size(vb, 0));
 			return -EINVAL;
 		}
@@ -594,7 +594,7 @@ mtk_fd_queue_init(void *priv, struct vb2_queue *src_vq,
 	return vb2_queue_init(dst_vq);
 }
 
-struct v4l2_ctrl_config mtk_fd_controls[] = {
+static struct v4l2_ctrl_config mtk_fd_controls[] = {
 	{
 		.id = V4L2_CID_MTK_FD_SCALE_DOWN_IMG_WIDTH,
 		.name = "FD scale image widths",
@@ -657,7 +657,6 @@ struct v4l2_ctrl_config mtk_fd_controls[] = {
 static int mtk_fd_ctrls_setup(struct mtk_fd_ctx *ctx)
 {
 	struct v4l2_ctrl_handler *hdl = &ctx->hdl;
-	struct v4l2_ctrl *ctl;
 	int i;
 
 	v4l2_ctrl_handler_init(hdl, V4L2_CID_MTK_FD_MAX);
@@ -665,7 +664,7 @@ static int mtk_fd_ctrls_setup(struct mtk_fd_ctx *ctx)
 		return hdl->error;
 
 	for (i = 0; i < ARRAY_SIZE(mtk_fd_controls); i++) {
-		ctl = v4l2_ctrl_new_custom(hdl, &mtk_fd_controls[i], ctx);
+		v4l2_ctrl_new_custom(hdl, &mtk_fd_controls[i], ctx);
 		if (hdl->error) {
 			v4l2_ctrl_handler_free(hdl);
 			dev_err(ctx->dev, "Failed to register controls:%d", i);
@@ -828,6 +827,7 @@ static void mtk_fd_device_run(void *priv)
 	struct mtk_fd_dev *fd = ctx->fd_dev;
 	struct vb2_v4l2_buffer *src_buf, *dst_buf;
 	struct fd_enq_param fd_param;
+	void *plane_vaddr;
 
 	src_buf = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
 	dst_buf = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
@@ -836,7 +836,8 @@ static void mtk_fd_device_run(void *priv)
 		vb2_dma_contig_plane_dma_addr(&src_buf->vb2_buf, 0);
 	fd_param.user_result.dma_addr =
 		vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
-	fd_param.output_vaddr = (u64)vb2_plane_vaddr(&dst_buf->vb2_buf, 0);
+	plane_vaddr = vb2_plane_vaddr(&dst_buf->vb2_buf, 0);
+	fd_param.output_vaddr = (u64)(unsigned long)plane_vaddr;
 	fd_param.user_param.src_img_fmt =
 		get_fd_img_fmt(ctx->src_fmt.pixelformat);
 	if (ctx->src_fmt.num_planes == 2)
@@ -847,7 +848,7 @@ static void mtk_fd_device_run(void *priv)
 	/* Complete request controls if any */
 	v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req, &ctx->hdl);
 
-	fd->output = (struct fd_user_output *)fd_param.output_vaddr;
+	fd->output = plane_vaddr;
 	mtk_fd_hw_job_exec(fd, &fd_param);
 }
 

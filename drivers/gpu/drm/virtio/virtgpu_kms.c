@@ -23,6 +23,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <linux/pci.h>
 #include <linux/virtio.h>
 #include <linux/virtio_config.h>
 #include <drm/drmP.h>
@@ -132,8 +133,10 @@ int virtio_gpu_init(struct drm_device *dev)
 	vgdev->dev = dev->dev;
 
 	spin_lock_init(&vgdev->display_info_lock);
+	spin_lock_init(&vgdev->request_idr_lock);
 	ida_init(&vgdev->ctx_id_ida);
 	ida_init(&vgdev->resource_ida);
+	idr_init(&vgdev->request_idr);
 	init_waitqueue_head(&vgdev->resp_wq);
 	virtio_gpu_init_vq(&vgdev->ctrlq, virtio_gpu_dequeue_ctrl_func);
 	virtio_gpu_init_vq(&vgdev->cursorq, virtio_gpu_dequeue_cursor_func);
@@ -156,6 +159,29 @@ int virtio_gpu_init(struct drm_device *dev)
 	if (virtio_has_feature(vgdev->vdev, VIRTIO_GPU_F_EDID)) {
 		vgdev->has_edid = true;
 		DRM_INFO("EDID support available.\n");
+	}
+
+	if (virtio_has_feature(vgdev->vdev, VIRTIO_GPU_F_RESOURCE_V2)) {
+		if (virtio_has_feature(vgdev->vdev, VIRTIO_GPU_F_HOST_COHERENT)) {
+			vgdev->cbar = 4;
+			vgdev->caddr = pci_resource_start(dev->pdev, vgdev->cbar);
+			vgdev->csize = pci_resource_len(dev->pdev, vgdev->cbar);
+			ret = pci_request_region(dev->pdev, vgdev->cbar, "virtio-gpu-coherent");
+			if (ret != 0) {
+				DRM_WARN("Cannot request coherent memory bar\n");
+			} else {
+				DRM_INFO("coherent host resources enabled, using %s bar %d,"
+					 "at 0x%lx, size %ld MB", dev_name(&dev->pdev->dev),
+					vgdev->cbar, vgdev->caddr, vgdev->csize >> 20);
+
+				vgdev->has_host_coherent = true;
+			}
+		}
+
+		if (virtio_has_feature(vgdev->vdev, VIRTIO_GPU_F_SHARED_GUEST))
+			vgdev->has_shared_guest = true;
+
+		vgdev->has_resource_v2 = true;
 	}
 
 	ret = virtio_find_vqs(vgdev->vdev, 2, vqs, callbacks, names, NULL);

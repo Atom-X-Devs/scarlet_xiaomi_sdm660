@@ -127,7 +127,6 @@ static const struct watchdog_ops rza_wdt_ops = {
 static int rza_wdt_probe(struct platform_device *pdev)
 {
 	struct rza_wdt *priv;
-	struct resource *res;
 	unsigned long rate;
 	int ret;
 
@@ -135,8 +134,7 @@ static int rza_wdt_probe(struct platform_device *pdev)
 	if (!priv)
 		return -ENOMEM;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	priv->base = devm_ioremap_resource(&pdev->dev, res);
+	priv->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->base))
 		return PTR_ERR(priv->base);
 

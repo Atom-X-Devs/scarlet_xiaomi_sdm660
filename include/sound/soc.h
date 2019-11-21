@@ -1288,7 +1288,7 @@ struct snd_soc_card {
 	     (i)++)
 
 #define for_each_card_links(card, link)				\
-	list_for_each_entry(dai_link, &(card)->dai_link_list, list)
+	list_for_each_entry(link, &(card)->dai_link_list, list)
 #define for_each_card_links_safe(card, link, _link)			\
 	list_for_each_entry_safe(link, _link, &(card)->dai_link_list, list)
 
@@ -1313,7 +1313,6 @@ struct snd_soc_pcm_runtime {
 
 	/* Dynamic PCM BE runtime data */
 	struct snd_soc_dpcm_runtime dpcm[2];
-	int fe_compr;
 
 	long pmdown_time;
 
@@ -1338,6 +1337,7 @@ struct snd_soc_pcm_runtime {
 	/* bit field */
 	unsigned int dev_registered:1;
 	unsigned int pop_wait:1;
+	unsigned int fe_compr:1; /* for Dynamic PCM */
 };
 #define for_each_rtd_codec_dai(rtd, i, dai)\
 	for ((i) = 0;						       \

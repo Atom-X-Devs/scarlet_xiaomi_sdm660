@@ -791,7 +791,7 @@ void virtio_transport_release(struct vsock_sock *vsk)
 	struct sock *sk = &vsk->sk;
 	bool remove_sock = true;
 
-	lock_sock(sk);
+	lock_sock_nested(sk, SINGLE_DEPTH_NESTING);
 	if (sk->sk_type == SOCK_STREAM)
 		remove_sock = virtio_transport_close(vsk);
 
@@ -871,9 +871,11 @@ virtio_transport_recv_connected(struct sock *sk,
 		if (le32_to_cpu(pkt->hdr.flags) & VIRTIO_VSOCK_SHUTDOWN_SEND)
 			vsk->peer_shutdown |= SEND_SHUTDOWN;
 		if (vsk->peer_shutdown == SHUTDOWN_MASK &&
-		    vsock_stream_has_data(vsk) <= 0) {
-			sock_set_flag(sk, SOCK_DONE);
-			sk->sk_state = TCP_CLOSING;
+		    vsock_stream_has_data(vsk) <= 0 &&
+		    !sock_flag(sk, SOCK_DONE)) {
+			(void)virtio_transport_reset(vsk, NULL);
+
+			virtio_transport_do_close(vsk, true);
 		}
 		if (le32_to_cpu(pkt->hdr.flags))
 			sk->sk_state_change(sk);

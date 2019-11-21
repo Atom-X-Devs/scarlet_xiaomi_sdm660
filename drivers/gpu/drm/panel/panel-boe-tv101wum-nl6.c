@@ -50,6 +50,7 @@ struct boe_panel {
 	struct regulator *avdd;
 	struct gpio_desc *enable_gpio;
 
+	bool prepared_power;
 	bool prepared;
 	bool enabled;
 
@@ -373,12 +374,59 @@ static const struct panel_init_cmd boe_init_cmd[] = {
 	{},
 };
 
-static const struct panel_init_cmd auo_init_cmd[] = {
+static const struct panel_init_cmd auo_kd101n80_45na_init_cmd[] = {
 	_INIT_DELAY_CMD(24),
 	_INIT_DCS_CMD(0x11),
 	_INIT_DELAY_CMD(120),
 	_INIT_DCS_CMD(0x29),
 	_INIT_DELAY_CMD(120),
+	{},
+};
+
+static const struct panel_init_cmd auo_b101uan08_3_init_cmd[] = {
+	_INIT_DELAY_CMD(24),
+	_INIT_DCS_CMD(0xB0, 0x01),
+	_INIT_DCS_CMD(0xC0, 0x48),
+	_INIT_DCS_CMD(0xC1, 0x48),
+	_INIT_DCS_CMD(0xC2, 0x47),
+	_INIT_DCS_CMD(0xC3, 0x47),
+	_INIT_DCS_CMD(0xC4, 0x46),
+	_INIT_DCS_CMD(0xC5, 0x46),
+	_INIT_DCS_CMD(0xC6, 0x45),
+	_INIT_DCS_CMD(0xC7, 0x45),
+	_INIT_DCS_CMD(0xC8, 0x64),
+	_INIT_DCS_CMD(0xC9, 0x64),
+	_INIT_DCS_CMD(0xCA, 0x4F),
+	_INIT_DCS_CMD(0xCB, 0x4F),
+	_INIT_DCS_CMD(0xCC, 0x40),
+	_INIT_DCS_CMD(0xCD, 0x40),
+	_INIT_DCS_CMD(0xCE, 0x66),
+	_INIT_DCS_CMD(0xCF, 0x66),
+	_INIT_DCS_CMD(0xD0, 0x4F),
+	_INIT_DCS_CMD(0xD1, 0x4F),
+	_INIT_DCS_CMD(0xD2, 0x41),
+	_INIT_DCS_CMD(0xD3, 0x41),
+	_INIT_DCS_CMD(0xD4, 0x48),
+	_INIT_DCS_CMD(0xD5, 0x48),
+	_INIT_DCS_CMD(0xD6, 0x47),
+	_INIT_DCS_CMD(0xD7, 0x47),
+	_INIT_DCS_CMD(0xD8, 0x46),
+	_INIT_DCS_CMD(0xD9, 0x46),
+	_INIT_DCS_CMD(0xDA, 0x45),
+	_INIT_DCS_CMD(0xDB, 0x45),
+	_INIT_DCS_CMD(0xDC, 0x64),
+	_INIT_DCS_CMD(0xDD, 0x64),
+	_INIT_DCS_CMD(0xDE, 0x4F),
+	_INIT_DCS_CMD(0xDF, 0x4F),
+	_INIT_DCS_CMD(0xE0, 0x40),
+	_INIT_DCS_CMD(0xE1, 0x40),
+	_INIT_DCS_CMD(0xE2, 0x66),
+	_INIT_DCS_CMD(0xE3, 0x66),
+	_INIT_DCS_CMD(0xE4, 0x4F),
+	_INIT_DCS_CMD(0xE5, 0x4F),
+	_INIT_DCS_CMD(0xE6, 0x41),
+	_INIT_DCS_CMD(0xE7, 0x41),
+	_INIT_DELAY_CMD(150),
 	{},
 };
 
@@ -391,7 +439,7 @@ static int boe_panel_init(struct boe_panel *boe)
 {
 	struct mipi_dsi_device *dsi = boe->dsi;
 	struct drm_panel *panel = &boe->base;
-	int err, i;
+	int i, err = 0;
 
 	if (boe->desc->init_cmds) {
 		const struct panel_init_cmd *init_cmds = boe->desc->init_cmds;
@@ -411,6 +459,9 @@ static int boe_panel_init(struct boe_panel *boe)
 							 &cmd->data[1],
 							 cmd->len - 1);
 				break;
+
+			default:
+				err = -EINVAL;
 			}
 
 			if (err < 0) {
@@ -451,12 +502,11 @@ static int boe_panel_disable(struct drm_panel *panel)
 	return 0;
 }
 
-static int boe_panel_unprepare(struct drm_panel *panel)
+static int boe_panel_unprepare_power(struct drm_panel *panel)
 {
 	struct boe_panel *boe = to_boe_panel(panel);
-	int ret;
 
-	if (!boe->prepared)
+	if (!boe->prepared_power)
 		return 0;
 
 	if (boe->desc->discharge_on_disable) {
@@ -468,12 +518,6 @@ static int boe_panel_unprepare(struct drm_panel *panel)
 		usleep_range(5000, 7000);
 		regulator_disable(boe->pp1800);
 	} else {
-		ret = boe_panel_off(boe);
-		if (ret < 0) {
-			dev_err(panel->dev, "failed to set panel off: %d\n",
-				ret);
-			return ret;
-		}
 		msleep(150);
 		gpiod_set_value(boe->enable_gpio, 0);
 		usleep_range(500, 1000);
@@ -483,17 +527,39 @@ static int boe_panel_unprepare(struct drm_panel *panel)
 		regulator_disable(boe->pp1800);
 	}
 
+	boe->prepared_power = false;
+
+	return 0;
+}
+
+static int boe_panel_unprepare(struct drm_panel *panel)
+{
+	struct boe_panel *boe = to_boe_panel(panel);
+	int ret;
+
+	if (!boe->prepared)
+		return 0;
+
+	if (!boe->desc->discharge_on_disable) {
+		ret = boe_panel_off(boe);
+		if (ret < 0) {
+			dev_err(panel->dev, "failed to set panel off: %d\n",
+				ret);
+			return ret;
+		}
+	}
+
 	boe->prepared = false;
 
 	return 0;
 }
 
-static int boe_panel_prepare(struct drm_panel *panel)
+static int boe_panel_prepare_power(struct drm_panel *panel)
 {
 	struct boe_panel *boe = to_boe_panel(panel);
 	int ret;
 
-	if (boe->prepared)
+	if (boe->prepared_power)
 		return 0;
 
 	gpiod_set_value(boe->enable_gpio, 0);
@@ -512,23 +578,19 @@ static int boe_panel_prepare(struct drm_panel *panel)
 	if (ret < 0)
 		goto poweroffavdd;
 
-	msleep(100);
+	usleep_range(5000, 10000);
 
 	gpiod_set_value(boe->enable_gpio, 1);
-	usleep_range(10000, 12000);
+	usleep_range(1000, 2000);
+	gpiod_set_value(boe->enable_gpio, 0);
+	usleep_range(1000, 2000);
+	gpiod_set_value(boe->enable_gpio, 1);
+	usleep_range(6000, 10000);
 
-	ret = boe_panel_init(boe);
-	if (ret < 0) {
-		dev_err(panel->dev, "failed to init panel: %d\n", ret);
-		goto poweroff;
-	}
-
-	boe->prepared = true;
+	boe->prepared_power = true;
 
 	return 0;
 
-poweroff:
-	regulator_disable(boe->avee);
 poweroffavdd:
 	regulator_disable(boe->avdd);
 poweroff1v8:
@@ -539,6 +601,25 @@ poweroff1v8:
 	return ret;
 }
 
+static int boe_panel_prepare(struct drm_panel *panel)
+{
+	struct boe_panel *boe = to_boe_panel(panel);
+	int ret;
+
+	if (boe->prepared)
+		return 0;
+
+	ret = boe_panel_init(boe);
+	if (ret < 0) {
+		dev_err(panel->dev, "failed to init panel: %d\n", ret);
+		return ret;
+	}
+
+	boe->prepared = true;
+
+	return 0;
+}
+
 static int boe_panel_enable(struct drm_panel *panel)
 {
 	struct boe_panel *boe = to_boe_panel(panel);
@@ -546,6 +627,8 @@ static int boe_panel_enable(struct drm_panel *panel)
 
 	if (boe->enabled)
 		return 0;
+
+	msleep(130);
 
 	ret = backlight_enable(boe->backlight);
 	if (ret) {
@@ -559,7 +642,7 @@ static int boe_panel_enable(struct drm_panel *panel)
 	return 0;
 }
 
-static const struct drm_display_mode boe_default_mode = {
+static const struct drm_display_mode boe_tv101wum_nl6_default_mode = {
 	.clock = 159425,
 	.hdisplay = 1200,
 	.hsync_start = 1200 + 100,
@@ -573,7 +656,7 @@ static const struct drm_display_mode boe_default_mode = {
 };
 
 static const struct panel_desc boe_tv101wum_nl6_desc = {
-	.modes = &boe_default_mode,
+	.modes = &boe_tv101wum_nl6_default_mode,
 	.bpc = 8,
 	.size = {
 		.width_mm = 135,
@@ -587,7 +670,7 @@ static const struct panel_desc boe_tv101wum_nl6_desc = {
 	.discharge_on_disable = false,
 };
 
-static const struct drm_display_mode auo_default_mode = {
+static const struct drm_display_mode auo_kd101n80_45na_default_mode = {
 	.clock = 157000,
 	.hdisplay = 1200,
 	.hsync_start = 1200 + 80,
@@ -601,7 +684,7 @@ static const struct drm_display_mode auo_default_mode = {
 };
 
 static const struct panel_desc auo_kd101n80_45na_desc = {
-	.modes = &auo_default_mode,
+	.modes = &auo_kd101n80_45na_default_mode,
 	.bpc = 8,
 	.size = {
 		.width_mm = 135,
@@ -611,8 +694,64 @@ static const struct panel_desc auo_kd101n80_45na_desc = {
 	.format = MIPI_DSI_FMT_RGB888,
 	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
 		      MIPI_DSI_MODE_LPM,
-	.init_cmds = auo_init_cmd,
+	.init_cmds = auo_kd101n80_45na_init_cmd,
 	.discharge_on_disable = true,
+};
+
+static const struct drm_display_mode boe_tv101wum_n53_default_mode = {
+	.clock = 159833,
+	.hdisplay = 1200,
+	.hsync_start = 1200 + 114,
+	.hsync_end = 1200 + 114 + 10,
+	.htotal = 1200 + 114 + 10 + 40,
+	.vdisplay = 1920,
+	.vsync_start = 1920 + 19,
+	.vsync_end = 1920 + 19 + 4,
+	.vtotal = 1920 + 19 + 4 + 10,
+	.vrefresh = 60,
+	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
+};
+
+static const struct panel_desc boe_tv101wum_n53_desc = {
+	.modes = &boe_tv101wum_n53_default_mode,
+	.bpc = 8,
+	.size = {
+		.width_mm = 135,
+		.height_mm = 216,
+	},
+	.lanes = 4,
+	.format = MIPI_DSI_FMT_RGB888,
+	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
+		      MIPI_DSI_MODE_LPM,
+	.init_cmds = boe_init_cmd,
+};
+
+static const struct drm_display_mode auo_b101uan08_3_default_mode = {
+	.clock = 159667,
+	.hdisplay = 1200,
+	.hsync_start = 1200 + 60,
+	.hsync_end = 1200 + 60 + 4,
+	.htotal = 1200 + 60 + 4 + 80,
+	.vdisplay = 1920,
+	.vsync_start = 1920 + 34,
+	.vsync_end = 1920 + 34 + 2,
+	.vtotal = 1920 + 34 + 2 + 24,
+	.vrefresh = 60,
+	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
+};
+
+static const struct panel_desc auo_b101uan08_3_desc = {
+	.modes = &auo_b101uan08_3_default_mode,
+	.bpc = 8,
+	.size = {
+		.width_mm = 135,
+		.height_mm = 216,
+	},
+	.lanes = 4,
+	.format = MIPI_DSI_FMT_RGB888,
+	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
+		      MIPI_DSI_MODE_LPM,
+	.init_cmds = auo_b101uan08_3_init_cmd,
 };
 
 static int boe_panel_get_modes(struct drm_panel *panel)
@@ -642,7 +781,9 @@ static int boe_panel_get_modes(struct drm_panel *panel)
 static const struct drm_panel_funcs boe_panel_funcs = {
 	.disable = boe_panel_disable,
 	.unprepare = boe_panel_unprepare,
+	.unprepare_power = boe_panel_unprepare_power,
 	.prepare = boe_panel_prepare,
+	.prepare_power = boe_panel_prepare_power,
 	.enable = boe_panel_enable,
 	.get_modes = boe_panel_get_modes,
 };
@@ -746,6 +887,12 @@ static const struct of_device_id boe_of_match[] = {
 	},
 	{ .compatible = "auo,kd101n80-45na",
 	  .data = &auo_kd101n80_45na_desc
+	},
+	{ .compatible = "boe,tv101wum-n53",
+	  .data = &boe_tv101wum_n53_desc
+	},
+	{ .compatible = "auo,b101uan08.3",
+	  .data = &auo_b101uan08_3_desc
 	},
 	{ /* sentinel */ }
 };

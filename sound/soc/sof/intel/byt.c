@@ -265,17 +265,20 @@ static void byt_get_registers(struct snd_sof_dev *sdev,
 			      struct sof_ipc_panic_info *panic_info,
 			      u32 *stack, size_t stack_words)
 {
+	u32 offset = sdev->dsp_oops_offset;
+
 	/* first read regsisters */
-	sof_mailbox_read(sdev, sdev->dsp_oops_offset, xoops, sizeof(*xoops));
+	sof_mailbox_read(sdev, offset, xoops, sizeof(*xoops));
+
+	/* note: variable AR register array is not read */
 
 	/* then get panic info */
-	sof_mailbox_read(sdev, sdev->dsp_oops_offset + sizeof(*xoops),
-			 panic_info, sizeof(*panic_info));
+	offset += xoops->arch_hdr.totalsize;
+	sof_mailbox_read(sdev, offset, panic_info, sizeof(*panic_info));
 
 	/* then get the stack */
-	sof_mailbox_read(sdev, sdev->dsp_oops_offset + sizeof(*xoops) +
-			   sizeof(*panic_info), stack,
-			   stack_words * sizeof(u32));
+	offset += sizeof(*panic_info);
+	sof_mailbox_read(sdev, offset, stack, stack_words * sizeof(u32));
 }
 
 static void byt_dump(struct snd_sof_dev *sdev, u32 flags)
@@ -373,13 +376,10 @@ static irqreturn_t byt_irq_thread(int irq, void *context)
 
 static int byt_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 {
-	u64 cmd = msg->header;
-
 	/* send the message */
 	sof_mailbox_write(sdev, sdev->host_box.offset, msg->msg_data,
 			  msg->msg_size);
-	snd_sof_dsp_write64(sdev, BYT_DSP_BAR, SHIM_IPCX,
-			    cmd | SHIM_BYT_IPCX_BUSY);
+	snd_sof_dsp_write64(sdev, BYT_DSP_BAR, SHIM_IPCX, SHIM_BYT_IPCX_BUSY);
 
 	return 0;
 }

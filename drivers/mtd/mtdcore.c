@@ -408,25 +408,27 @@ static void mtd_debugfs_populate(struct mtd_info *mtd)
 	if (IS_ERR_OR_NULL(dfs_dir_mtd))
 		return;
 
-	root = mtd->dbg.dfs_dir = debugfs_create_dir(dev_name(dev),
-						     dfs_dir_mtd);
+	root = debugfs_create_dir(dev_name(dev), dfs_dir_mtd);
 	if (IS_ERR_OR_NULL(root)) {
-		pr_debug("mtd device %s won't show data in debugfs\n",
-			 dev_name(dev));
+		dev_dbg(dev, "won't show data in debugfs\n");
 		return;
 	}
 
+	mtd->dbg.dfs_dir = root;
+
 	if (mtd->dbg.partid) {
-		dent = debugfs_create_file("partid", S_IRUSR, root, mtd,
+		dent = debugfs_create_file("partid", 0400, root, mtd,
 					   &mtd_partid_debug_fops);
 		if (IS_ERR_OR_NULL(dent))
-			pr_err("cannot create debugfs entry for partid\n");
+			dev_err(dev, "can't create debugfs entry for partid\n");
 	}
+
 	if (mtd->dbg.partname) {
-		dent = debugfs_create_file("partname", S_IRUSR, root, mtd,
+		dent = debugfs_create_file("partname", 0400, root, mtd,
 					   &mtd_partname_debug_fops);
 		if (IS_ERR_OR_NULL(dent))
-			pr_err("cannot create debugfs entry for partname\n");
+			dev_err(dev,
+				"can't create debugfs entry for partname\n");
 	}
 }
 
@@ -561,7 +563,6 @@ int mtd_pairing_groups(struct mtd_info *mtd)
 	return mtd->pairing->ngroups;
 }
 EXPORT_SYMBOL_GPL(mtd_pairing_groups);
-
 
 /**
  *	add_mtd_device - register an MTD device

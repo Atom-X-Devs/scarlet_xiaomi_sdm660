@@ -58,6 +58,13 @@ struct hdmi_codec_params {
 typedef void (*hdmi_codec_plugged_cb)(struct device *dev,
 				      bool plugged);
 
+enum {
+	HDMI_CODEC_TRIGGER_EVENT_STOP,
+	HDMI_CODEC_TRIGGER_EVENT_START,
+	HDMI_CODEC_TRIGGER_EVENT_SUSPEND,
+	HDMI_CODEC_TRIGGER_EVENT_RESUME,
+};
+
 struct hdmi_codec_pdata;
 struct hdmi_codec_ops {
 	/*
@@ -73,6 +80,12 @@ struct hdmi_codec_ops {
 	int (*hw_params)(struct device *dev, void *data,
 			 struct hdmi_codec_daifmt *fmt,
 			 struct hdmi_codec_params *hparms);
+
+	/*
+	 * PCM trigger callback.
+	 * Optional
+	 */
+	int (*trigger)(struct device *dev, int event);
 
 	/*
 	 * Shuts down the audio stream.

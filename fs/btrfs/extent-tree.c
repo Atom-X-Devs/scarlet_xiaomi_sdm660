@@ -5980,8 +5980,7 @@ void btrfs_delalloc_release_metadata(struct btrfs_inode *inode, u64 num_bytes,
  * temporarily tracked outstanding_extents.  This _must_ be used in conjunction
  * with btrfs_delalloc_reserve_metadata.
  */
-void btrfs_delalloc_release_extents(struct btrfs_inode *inode, u64 num_bytes,
-				    bool qgroup_free)
+void btrfs_delalloc_release_extents(struct btrfs_inode *inode, u64 num_bytes)
 {
 	struct btrfs_fs_info *fs_info = inode->root->fs_info;
 	unsigned num_extents;
@@ -5995,7 +5994,7 @@ void btrfs_delalloc_release_extents(struct btrfs_inode *inode, u64 num_bytes,
 	if (btrfs_is_testing(fs_info))
 		return;
 
-	btrfs_inode_rsv_release(inode, qgroup_free);
+	btrfs_inode_rsv_release(inode, true);
 }
 
 /**
@@ -7367,6 +7366,14 @@ search:
 			 */
 			if ((flags & extra) && !(block_group->flags & extra))
 				goto loop;
+
+			/*
+			 * This block group has different flags than we want.
+			 * It's possible that we have MIXED_GROUP flag but no
+			 * block group is mixed.  Just skip such block group.
+			 */
+			btrfs_release_block_group(block_group, delalloc);
+			continue;
 		}
 
 have_block_group:
@@ -9992,6 +9999,7 @@ int btrfs_read_block_groups(struct btrfs_fs_info *info)
 			btrfs_err(info,
 "bg %llu is a mixed block group but filesystem hasn't enabled mixed block groups",
 				  cache->key.objectid);
+			btrfs_put_block_group(cache);
 			ret = -EINVAL;
 			goto error;
 		}
@@ -10478,22 +10486,6 @@ int btrfs_remove_block_group(struct btrfs_trans_handle *trans,
 	}
 	spin_unlock(&block_group->lock);
 
-	if (remove_em) {
-		struct extent_map_tree *em_tree;
-
-		em_tree = &fs_info->mapping_tree.map_tree;
-		write_lock(&em_tree->lock);
-		/*
-		 * The em might be in the pending_chunks list, so make sure the
-		 * chunk mutex is locked, since remove_extent_mapping() will
-		 * delete us from that list.
-		 */
-		remove_extent_mapping(em_tree, em);
-		write_unlock(&em_tree->lock);
-		/* once for the tree */
-		free_extent_map(em);
-	}
-
 	mutex_unlock(&fs_info->chunk_mutex);
 
 	ret = remove_block_group_free_space(trans, block_group);
@@ -10510,6 +10502,24 @@ int btrfs_remove_block_group(struct btrfs_trans_handle *trans,
 		goto out;
 
 	ret = btrfs_del_item(trans, root, path);
+	if (ret)
+		goto out;
+
+	if (remove_em) {
+		struct extent_map_tree *em_tree;
+
+		em_tree = &fs_info->mapping_tree.map_tree;
+		write_lock(&em_tree->lock);
+		/*
+		 * The em might be in the pending_chunks list, so make sure the
+		 * chunk mutex is locked, since remove_extent_mapping() will
+		 * delete us from that list.
+		 */
+		remove_extent_mapping(em_tree, em);
+		write_unlock(&em_tree->lock);
+		/* once for the tree */
+		free_extent_map(em);
+	}
 out:
 	btrfs_free_path(path);
 	return ret;

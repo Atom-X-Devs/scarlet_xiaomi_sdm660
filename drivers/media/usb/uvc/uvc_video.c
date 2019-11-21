@@ -1544,7 +1544,7 @@ static void uvc_video_complete(struct urb *urb)
 	 * Process the URB headers, and optionally queue expensive memcpy tasks
 	 * to be deferred to a work queue.
 	 */
-	dma_sync_single_for_cpu(&urb->dev->dev, urb->transfer_dma,
+	dma_sync_single_for_cpu(urb->dev->bus->controller, urb->transfer_dma,
 				urb->transfer_buffer_length, DMA_FROM_DEVICE);
 	stream->decode(uvc_urb, buf, buf_meta);
 
@@ -1572,9 +1572,10 @@ static void uvc_free_urb_buffers(struct uvc_streaming *stream)
 		if (!uvc_urb->buffer)
 			continue;
 
-		dma_unmap_single(&stream->dev->udev->dev, uvc_urb->dma,
-				 stream->urb_size, DMA_FROM_DEVICE);
-		kfree(uvc_urb->buffer);
+		dma_unmap_single(stream->dev->udev->bus->controller,
+				 uvc_urb->dma, stream->urb_size,
+				 DMA_FROM_DEVICE);
+		free_pages_exact(uvc_urb->buffer, stream->urb_size);
 	}
 
 	stream->urb_size = 0;
@@ -1603,14 +1604,16 @@ static gfp_t uvc_alloc_gfp_flags(struct device *dev)
 static char *uvc_alloc_urb_buffer(struct device *dev, size_t size,
 				  gfp_t gfp_flags, dma_addr_t *dma_handle)
 {
-	void *buffer = kzalloc(size, gfp_flags | uvc_alloc_gfp_flags(dev));
+	void *buffer =
+		alloc_pages_exact(size, gfp_flags | uvc_alloc_gfp_flags(dev) |
+						__GFP_NOWARN | __GFP_ZERO);
 
 	if (!buffer)
 		return NULL;
 
 	*dma_handle = dma_map_single(dev, buffer, size, DMA_FROM_DEVICE);
 	if (dma_mapping_error(dev, *dma_handle)) {
-		kfree(buffer);
+		free_pages_exact(buffer, size);
 		return NULL;
 	}
 
@@ -1653,8 +1656,8 @@ static int uvc_alloc_urb_buffers(struct uvc_streaming *stream,
 			struct uvc_urb *uvc_urb = &stream->uvc_urb[i];
 
 			uvc_urb->buffer = uvc_alloc_urb_buffer(
-				&stream->dev->udev->dev, stream->urb_size,
-				gfp_flags | __GFP_NOWARN, &uvc_urb->dma);
+				stream->dev->udev->bus->controller,
+				stream->urb_size, gfp_flags, &uvc_urb->dma);
 			if (!uvc_urb->buffer) {
 				uvc_free_urb_buffers(stream);
 				break;

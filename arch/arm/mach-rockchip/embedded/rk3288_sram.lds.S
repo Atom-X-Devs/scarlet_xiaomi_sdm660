@@ -1,6 +1,6 @@
 MEMORY
 {
-	pmu_sram_code : ORIGIN = 0, LENGTH = 0x3000
+	pmu_sram_code (rwx) : ORIGIN = 0, LENGTH = 0x3000
 }
 
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
@@ -23,6 +23,9 @@ SECTIONS
 
 	.rodata : { *(SORT_BY_ALIGNMENT(.rodata*)) } > pmu_sram_code
 	. = ALIGN(4);
+
+	.got : { *(.got) } > pmu_sram_code
+	.got.plt : { *(.got.plt) } > pmu_sram_code
 
 	.data : {
 		*(SORT_BY_ALIGNMENT(.data*))

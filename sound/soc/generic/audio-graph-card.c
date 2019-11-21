@@ -20,6 +20,8 @@
 #include <linux/string.h>
 #include <sound/simple_card_utils.h>
 
+#define DPCM_SELECTABLE 1
+
 struct graph_priv {
 	struct snd_soc_card snd_card;
 	struct graph_dai_props {
@@ -176,9 +178,9 @@ static int graph_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
-static void graph_get_conversion(struct device *dev,
-				 struct device_node *ep,
-				 struct asoc_simple_card_data *adata)
+static void graph_parse_convert(struct device *dev,
+				struct device_node *ep,
+				struct asoc_simple_card_data *adata)
 {
 	struct device_node *top = dev->of_node;
 	struct device_node *port = of_get_parent(ep);
@@ -190,6 +192,28 @@ static void graph_get_conversion(struct device *dev,
 	asoc_simple_card_parse_convert(dev, ports, NULL,   adata);
 	asoc_simple_card_parse_convert(dev, port,  NULL,   adata);
 	asoc_simple_card_parse_convert(dev, ep,    NULL,   adata);
+
+	of_node_put(port);
+	of_node_put(ports);
+	of_node_put(node);
+}
+
+static void graph_parse_mclk_fs(struct device_node *top,
+				struct device_node *ep,
+				struct graph_dai_props *props)
+{
+	struct device_node *port	= of_get_parent(ep);
+	struct device_node *ports	= of_get_parent(port);
+	struct device_node *node	= of_graph_get_port_parent(ep);
+
+	of_property_read_u32(top,	"mclk-fs", &props->mclk_fs);
+	of_property_read_u32(ports,	"mclk-fs", &props->mclk_fs);
+	of_property_read_u32(port,	"mclk-fs", &props->mclk_fs);
+	of_property_read_u32(ep,	"mclk-fs", &props->mclk_fs);
+
+	of_node_put(port);
+	of_node_put(ports);
+	of_node_put(node);
 }
 
 static int graph_dai_link_of_dpcm(struct graph_priv *priv,
@@ -222,17 +246,6 @@ static int graph_dai_link_of_dpcm(struct graph_priv *priv,
 
 	dev_dbg(dev, "link_of DPCM (%pOF)\n", ep);
 
-	of_property_read_u32(top,   "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(ports, "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(port,  "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(ep,    "mclk-fs", &dai_props->mclk_fs);
-
-	graph_get_conversion(dev, ep, &dai_props->adata);
-
-	of_node_put(ports);
-	of_node_put(port);
-	of_node_put(node);
-
 	if (li->cpu) {
 
 		/* BE is dummy */
@@ -249,17 +262,17 @@ static int graph_dai_link_of_dpcm(struct graph_priv *priv,
 
 		ret = asoc_simple_card_parse_graph_cpu(ep, dai_link);
 		if (ret)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_parse_clk_cpu(dev, ep, dai_link, dai);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 							"fe.%s",
 							dai_link->cpu_dai_name);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		/* card->num_links includes Codec */
 		asoc_simple_card_canonicalize_cpu(dai_link,
@@ -284,17 +297,17 @@ static int graph_dai_link_of_dpcm(struct graph_priv *priv,
 
 		ret = asoc_simple_card_parse_graph_codec(ep, dai_link);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_parse_clk_codec(dev, ep, dai_link, dai);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 							"be.%s",
 							codecs->dai_name);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		/* check "prefix" from top node */
 		snd_soc_of_parse_node_prefix(top, cconf, codecs->of_node,
@@ -307,25 +320,30 @@ static int graph_dai_link_of_dpcm(struct graph_priv *priv,
 					     "prefix");
 	}
 
+	graph_parse_convert(dev, ep, &dai_props->adata);
+	graph_parse_mclk_fs(top, ep, dai_props);
+
+	asoc_simple_card_canonicalize_platform(dai_link);
+
 	ret = asoc_simple_card_of_parse_tdm(ep, dai);
 	if (ret)
-		return ret;
-
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
-		return ret;
+		goto out_put_node;
 
 	ret = asoc_simple_card_parse_daifmt(dev, cpu_ep, codec_ep,
 					    NULL, &dai_link->dai_fmt);
 	if (ret < 0)
-		return ret;
+		goto out_put_node;
 
 	dai_link->dpcm_playback		= 1;
 	dai_link->dpcm_capture		= 1;
 	dai_link->ops			= &graph_ops;
 	dai_link->init			= graph_dai_init;
 
-	return 0;
+out_put_node:
+	of_node_put(ports);
+	of_node_put(port);
+	of_node_put(node);
+	return ret;
 }
 
 static int graph_dai_link_of(struct graph_priv *priv,
@@ -337,10 +355,6 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	struct snd_soc_dai_link *dai_link = graph_priv_to_link(priv, li->link);
 	struct graph_dai_props *dai_props = graph_priv_to_props(priv, li->link);
 	struct device_node *top = dev->of_node;
-	struct device_node *cpu_port;
-	struct device_node *cpu_ports;
-	struct device_node *codec_port;
-	struct device_node *codec_ports;
 	struct asoc_simple_dai *cpu_dai;
 	struct asoc_simple_dai *codec_dai;
 	int ret;
@@ -348,11 +362,6 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	/* Do it only CPU turn */
 	if (!li->cpu)
 		return 0;
-
-	cpu_port	= of_get_parent(cpu_ep);
-	cpu_ports	= of_get_parent(cpu_port);
-	codec_port	= of_get_parent(codec_ep);
-	codec_ports	= of_get_parent(codec_port);
 
 	dev_dbg(dev, "link_of (%pOF)\n", cpu_ep);
 
@@ -364,17 +373,8 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	dai_props->codec_dai	= &priv->dais[li->dais++];
 
 	/* Factor to mclk, used in hw_params() */
-	of_property_read_u32(top,         "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(cpu_ports,   "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(codec_ports, "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(cpu_port,    "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(codec_port,  "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(cpu_ep,      "mclk-fs", &dai_props->mclk_fs);
-	of_property_read_u32(codec_ep,    "mclk-fs", &dai_props->mclk_fs);
-	of_node_put(cpu_port);
-	of_node_put(cpu_ports);
-	of_node_put(codec_port);
-	of_node_put(codec_ports);
+	graph_parse_mclk_fs(top, cpu_ep,   dai_props);
+	graph_parse_mclk_fs(top, codec_ep, dai_props);
 
 	ret = asoc_simple_card_parse_daifmt(dev, cpu_ep, codec_ep,
 					    NULL, &dai_link->dai_fmt);
@@ -405,10 +405,6 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	if (ret < 0)
 		return ret;
 
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
-		return ret;
-
 	ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 						"%s-%s",
 						dai_link->cpu_dai_name,
@@ -419,6 +415,7 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	dai_link->ops = &graph_ops;
 	dai_link->init = graph_dai_init;
 
+	asoc_simple_card_canonicalize_platform(dai_link);
 	asoc_simple_card_canonicalize_cpu(dai_link,
 		of_graph_get_endpoint_count(dai_link->cpu_of_node) == 1);
 
@@ -445,6 +442,7 @@ static int graph_for_each_link(struct graph_priv *priv,
 	struct device_node *codec_port;
 	struct device_node *codec_port_old = NULL;
 	struct asoc_simple_card_data adata;
+	uintptr_t dpcm_selectable = (uintptr_t)of_device_get_match_data(dev);
 	int rc, ret;
 
 	/* loop for all listed CPU port */
@@ -462,26 +460,27 @@ static int graph_for_each_link(struct graph_priv *priv,
 			codec_ep = of_graph_get_remote_endpoint(cpu_ep);
 			codec_port = of_get_parent(codec_ep);
 
-			of_node_put(codec_ep);
-			of_node_put(codec_port);
-
 			/* get convert-xxx property */
 			memset(&adata, 0, sizeof(adata));
-			graph_get_conversion(dev, codec_ep, &adata);
-			graph_get_conversion(dev, cpu_ep,   &adata);
+			graph_parse_convert(dev, codec_ep, &adata);
+			graph_parse_convert(dev, cpu_ep,   &adata);
 
 			/*
 			 * It is DPCM
 			 * if Codec port has many endpoints,
 			 * or has convert-xxx property
 			 */
-			if ((of_get_child_count(codec_port) > 1) ||
-			    adata.convert_rate || adata.convert_channels)
+			if (dpcm_selectable &&
+			    ((of_get_child_count(codec_port) > 1) ||
+			     adata.convert_rate || adata.convert_channels))
 				ret = func_dpcm(priv, cpu_ep, codec_ep, li,
 						(codec_port_old == codec_port));
 			/* else normal sound */
 			else
 				ret = func_noml(priv, cpu_ep, codec_ep, li);
+
+			of_node_put(codec_ep);
+			of_node_put(codec_port);
 
 			if (ret < 0)
 				return ret;
@@ -737,7 +736,8 @@ static int graph_remove(struct platform_device *pdev)
 
 static const struct of_device_id graph_of_match[] = {
 	{ .compatible = "audio-graph-card", },
-	{ .compatible = "audio-graph-scu-card", },
+	{ .compatible = "audio-graph-scu-card",
+	  .data = (void *)DPCM_SELECTABLE },
 	{},
 };
 MODULE_DEVICE_TABLE(of, graph_of_match);

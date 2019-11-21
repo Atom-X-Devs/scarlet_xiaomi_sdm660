@@ -9,11 +9,14 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/string.h>
 #include <sound/simple_card.h>
 #include <sound/soc-dai.h>
 #include <sound/soc.h>
+
+#define DPCM_SELECTABLE 1
 
 struct simple_priv {
 	struct snd_soc_card snd_card;
@@ -217,8 +220,6 @@ static int simple_dai_link_of_dpcm(struct simple_priv *priv,
 
 	li->link++;
 
-	of_node_put(node);
-
 	/* For single DAI link & old style of DT node */
 	if (is_top)
 		prefix = PREFIX;
@@ -241,17 +242,17 @@ static int simple_dai_link_of_dpcm(struct simple_priv *priv,
 		ret = asoc_simple_card_parse_cpu(np, dai_link, DAI, CELL,
 						 &is_single_links);
 		if (ret)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_parse_clk_cpu(dev, np, dai_link, dai);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 							"fe.%s",
 							dai_link->cpu_dai_name);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		asoc_simple_card_canonicalize_cpu(dai_link, is_single_links);
 	} else {
@@ -274,17 +275,17 @@ static int simple_dai_link_of_dpcm(struct simple_priv *priv,
 
 		ret = asoc_simple_card_parse_codec(np, dai_link, DAI, CELL);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_parse_clk_codec(dev, np, dai_link, dai);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 							"be.%s",
 							codecs->dai_name);
 		if (ret < 0)
-			return ret;
+			goto out_put_node;
 
 		/* check "prefix" from top node */
 		snd_soc_of_parse_node_prefix(top, cconf, codecs->of_node,
@@ -297,13 +298,11 @@ static int simple_dai_link_of_dpcm(struct simple_priv *priv,
 
 	simple_get_conversion(dev, np, &dai_props->adata);
 
+	asoc_simple_card_canonicalize_platform(dai_link);
+
 	ret = asoc_simple_card_of_parse_tdm(np, dai);
 	if (ret)
-		return ret;
-
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
-		return ret;
+		goto out_put_node;
 
 	snprintf(prop, sizeof(prop), "%smclk-fs", prefix);
 	of_property_read_u32(top,  PREFIX "mclk-fs", &dai_props->mclk_fs);
@@ -313,14 +312,16 @@ static int simple_dai_link_of_dpcm(struct simple_priv *priv,
 	ret = asoc_simple_card_parse_daifmt(dev, node, codec,
 					    prefix, &dai_link->dai_fmt);
 	if (ret < 0)
-		return ret;
+		goto out_put_node;
 
 	dai_link->dpcm_playback		= 1;
 	dai_link->dpcm_capture		= 1;
 	dai_link->ops			= &simple_ops;
 	dai_link->init			= simple_dai_init;
 
-	return 0;
+out_put_node:
+	of_node_put(node);
+	return ret;
 }
 
 static int simple_dai_link_of(struct simple_priv *priv,
@@ -409,10 +410,6 @@ static int simple_dai_link_of(struct simple_priv *priv,
 	if (ret < 0)
 		goto dai_link_of_err;
 
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
-		goto dai_link_of_err;
-
 	ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 						"%s-%s",
 						dai_link->cpu_dai_name,
@@ -424,8 +421,10 @@ static int simple_dai_link_of(struct simple_priv *priv,
 	dai_link->init = simple_dai_init;
 
 	asoc_simple_card_canonicalize_cpu(dai_link, single_cpu);
+	asoc_simple_card_canonicalize_platform(dai_link);
 
 dai_link_of_err:
+	of_node_put(plat);
 	of_node_put(node);
 
 	return ret;
@@ -445,7 +444,9 @@ static int simple_for_each_link(struct simple_priv *priv,
 	struct device *dev = simple_priv_to_dev(priv);
 	struct device_node *top = dev->of_node;
 	struct device_node *node;
+	uintptr_t dpcm_selectable = (uintptr_t)of_device_get_match_data(dev);
 	bool is_top = 0;
+	int ret = 0;
 
 	/* Check if it has dai-link */
 	node = of_get_child_by_name(top, PREFIX "dai-link");
@@ -460,15 +461,14 @@ static int simple_for_each_link(struct simple_priv *priv,
 		struct device_node *codec;
 		struct device_node *np;
 		int num = of_get_child_count(node);
-		int ret;
 
 		/* get codec */
 		codec = of_get_child_by_name(node, is_top ?
 					     PREFIX "codec" : "codec");
-		if (!codec)
-			return -ENODEV;
-
-		of_node_put(codec);
+		if (!codec) {
+			ret = -ENODEV;
+			goto error;
+		}
 
 		/* get convert-xxx property */
 		memset(&adata, 0, sizeof(adata));
@@ -482,21 +482,28 @@ static int simple_for_each_link(struct simple_priv *priv,
 			 * if it has many CPUs,
 			 * or has convert-xxx property
 			 */
-			if (num > 2 ||
-			    adata.convert_rate || adata.convert_channels)
+			if (dpcm_selectable &&
+			    (num > 2 ||
+			     adata.convert_rate || adata.convert_channels))
 				ret = func_dpcm(priv, np, codec, li, is_top);
 			/* else normal sound */
 			else
 				ret = func_noml(priv, np, codec, li, is_top);
 
-			if (ret < 0)
-				return ret;
+			if (ret < 0) {
+				of_node_put(codec);
+				of_node_put(np);
+				goto error;
+			}
 		}
 
+		of_node_put(codec);
 		node = of_get_next_child(top, node);
 	} while (!is_top && node);
 
-	return 0;
+ error:
+	of_node_put(node);
+	return ret;
 }
 
 static int simple_parse_aux_devs(struct device_node *node,
@@ -820,7 +827,8 @@ static int simple_remove(struct platform_device *pdev)
 
 static const struct of_device_id simple_of_match[] = {
 	{ .compatible = "simple-audio-card", },
-	{ .compatible = "simple-scu-audio-card", },
+	{ .compatible = "simple-scu-audio-card",
+	  .data = (void *)DPCM_SELECTABLE },
 	{},
 };
 MODULE_DEVICE_TABLE(of, simple_of_match);

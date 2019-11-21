@@ -43,6 +43,8 @@ static int mtk_gpu_corex_probe(struct platform_device *pdev)
 	else
 		probe_gpu_core2_dev = pdev;
 
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
+	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
 	return 0;
@@ -65,22 +67,12 @@ static struct platform_driver mtk_gpu_corex_driver = {
 
 static int pm_callback_power_on(struct kbase_device *kbdev)
 {
-	int error, i;
+	int error;
 	struct mfg_base *mfg = kbdev->platform_context;
 
 	if (mfg->is_powered) {
 		dev_dbg(kbdev->dev, "mali_device is already powered\n");
 		return 0;
-	}
-
-	for (i = 0; i < kbdev->regulator_num; i++) {
-		error = regulator_enable(kbdev->regulator[i]);
-		if (error < 0) {
-			dev_err(kbdev->dev,
-				"Power on reg %d failed error = %d\n",
-				i, error);
-			return error;
-		}
 	}
 
 	error = pm_runtime_get_sync(kbdev->dev);
@@ -104,7 +96,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 		return error;
 	}
 
-	error = clk_prepare_enable(mfg->clk_main_parent);
+	error = clk_enable(mfg->clk_main_parent);
 	if (error < 0) {
 		dev_err(kbdev->dev,
 			"clk_main_parent clock enable failed (err: %d)\n",
@@ -112,14 +104,14 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 		return error;
 	}
 
-	error = clk_prepare_enable(mfg->clk_mux);
+	error = clk_enable(mfg->clk_mux);
 	if (error < 0) {
 		dev_err(kbdev->dev,
 			"clk_mux clock enable failed (err: %d)\n", error);
 		return error;
 	}
 
-	error = clk_prepare_enable(mfg->subsys_mfg_cg);
+	error = clk_enable(mfg->subsys_mfg_cg);
 	if (error < 0) {
 		dev_err(kbdev->dev,
 			"subsys_mfg_cg clock enable failed (err: %d)\n", error);
@@ -134,7 +126,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 static void pm_callback_power_off(struct kbase_device *kbdev)
 {
 	struct mfg_base *mfg = kbdev->platform_context;
-	int error, i;
+	int error;
 
 	if (!mfg->is_powered) {
 		dev_dbg(kbdev->dev, "mali_device is already powered off\n");
@@ -143,35 +135,29 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 
 	mfg->is_powered = false;
 
-	clk_disable_unprepare(mfg->subsys_mfg_cg);
+	clk_disable(mfg->subsys_mfg_cg);
 
-	clk_disable_unprepare(mfg->clk_mux);
+	clk_disable(mfg->clk_mux);
 
-	clk_disable_unprepare(mfg->clk_main_parent);
+	clk_disable(mfg->clk_main_parent);
 
-	error = pm_runtime_put_sync(&mfg->gpu_core2_dev->dev);
+	pm_runtime_mark_last_busy(&mfg->gpu_core2_dev->dev);
+	error = pm_runtime_put_autosuspend(&mfg->gpu_core2_dev->dev);
 	if (error < 0)
 		dev_err(kbdev->dev,
 		"Power off core 2 failed (err: %d)\n", error);
 
-	error = pm_runtime_put_sync(&mfg->gpu_core1_dev->dev);
+	pm_runtime_mark_last_busy(&mfg->gpu_core1_dev->dev);
+	error = pm_runtime_put_autosuspend(&mfg->gpu_core1_dev->dev);
 	if (error < 0)
 		dev_err(kbdev->dev,
 		"Power off core 1 failed (err: %d)\n", error);
 
-	error = pm_runtime_put_sync(kbdev->dev);
+	pm_runtime_mark_last_busy(kbdev->dev);
+	error = pm_runtime_put_autosuspend(kbdev->dev);
 	if (error < 0)
 		dev_err(kbdev->dev,
 		"Power off core 0 failed (err: %d)\n", error);
-
-	for (i = 0; i < kbdev->regulator_num; i++) {
-		error = regulator_disable(kbdev->regulator[i]);
-		if (error < 0) {
-			dev_err(kbdev->dev,
-				"Power off reg %d failed error = %d\n",
-				i, error);
-		}
-	}
 }
 
 static int kbase_device_runtime_init(struct kbase_device *kbdev)
@@ -188,14 +174,64 @@ static void kbase_device_runtime_disable(struct kbase_device *kbdev)
 
 static int pm_callback_runtime_on(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	struct mfg_base *mfg = kbdev->platform_context;
+	int error, i;
+
+	for (i = 0; i < kbdev->regulator_num; i++) {
+		error = regulator_enable(kbdev->regulator[i]);
+		if (error < 0) {
+			dev_err(kbdev->dev,
+				"Power on reg %d failed error = %d\n",
+				i, error);
+			return error;
+		}
+	}
+
+	error = clk_prepare(mfg->clk_main_parent);
+	if (error < 0) {
+		dev_err(kbdev->dev,
+			"clk_main_parent clock prepare failed (err: %d)\n",
+			error);
+		return error;
+	}
+
+	error = clk_prepare(mfg->clk_mux);
+	if (error < 0) {
+		dev_err(kbdev->dev,
+			"clk_mux clock prepare failed (err: %d)\n", error);
+		return error;
+	}
+
+	error = clk_prepare(mfg->subsys_mfg_cg);
+	if (error < 0) {
+		dev_err(kbdev->dev,
+			"subsys_mfg_cg clock prepare failed (err: %d)\n",
+			error);
+		return error;
+	}
 
 	return 0;
 }
 
 static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	struct mfg_base *mfg = kbdev->platform_context;
+	int error, i;
+
+	clk_unprepare(mfg->subsys_mfg_cg);
+
+	clk_unprepare(mfg->clk_mux);
+
+	clk_unprepare(mfg->clk_main_parent);
+
+	for (i = 0; i < kbdev->regulator_num; i++) {
+		error = regulator_disable(kbdev->regulator[i]);
+		if (error < 0) {
+			dev_err(kbdev->dev,
+				"Power off reg %d failed error = %d\n",
+				i, error);
+		}
+	}
 }
 
 static void pm_callback_resume(struct kbase_device *kbdev)
@@ -425,6 +461,8 @@ static int platform_init(struct kbase_device *kbdev)
 		goto platform_init_err;
 
 	kbdev->platform_context = mfg;
+	pm_runtime_set_autosuspend_delay(kbdev->dev, 50);
+	pm_runtime_use_autosuspend(kbdev->dev);
 	pm_runtime_enable(kbdev->dev);
 
 	err = clk_set_parent(mfg->clk_mux, mfg->clk_sub_parent);

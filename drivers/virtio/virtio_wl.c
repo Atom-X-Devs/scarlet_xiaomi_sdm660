@@ -612,9 +612,9 @@ static int do_vfd_close(struct virtwl_vfd *vfd)
 	ctrl_close->hdr.type = VIRTIO_WL_CMD_VFD_CLOSE;
 	ctrl_close->vfd_id = vfd->id;
 
-	sg_init_one(&in_sg, &ctrl_close->hdr,
-		    sizeof(struct virtio_wl_ctrl_vfd));
 	sg_init_one(&out_sg, &ctrl_close->hdr,
+		    sizeof(struct virtio_wl_ctrl_vfd));
+	sg_init_one(&in_sg, &ctrl_close->hdr,
 		    sizeof(struct virtio_wl_ctrl_hdr));
 
 	init_completion(&finish_completion);
@@ -888,9 +888,9 @@ static int virtwl_vfd_dmabuf_sync(struct file *filp, u32 flags)
 	ctrl_dmabuf_sync->vfd_id = vfd->id;
 	ctrl_dmabuf_sync->flags = flags;
 
-	sg_init_one(&in_sg, &ctrl_dmabuf_sync->hdr,
-		    sizeof(struct virtio_wl_ctrl_vfd_dmabuf_sync));
 	sg_init_one(&out_sg, &ctrl_dmabuf_sync->hdr,
+		    sizeof(struct virtio_wl_ctrl_vfd_dmabuf_sync));
+	sg_init_one(&in_sg, &ctrl_dmabuf_sync->hdr,
 		    sizeof(struct virtio_wl_ctrl_hdr));
 
 	init_completion(&finish_completion);

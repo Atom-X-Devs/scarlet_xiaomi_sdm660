@@ -80,14 +80,42 @@ static void virtio_gpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
 static void virtio_gpu_init_ttm_placement(struct virtio_gpu_object *vgbo)
 {
 	u32 c = 1;
+	u32 ttm_caching_flags = 0;
 
 	vgbo->placement.placement = &vgbo->placement_code;
 	vgbo->placement.busy_placement = &vgbo->placement_code;
 	vgbo->placement_code.fpfn = 0;
 	vgbo->placement_code.lpfn = 0;
-	vgbo->placement_code.flags =
-		TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT |
-		TTM_PL_FLAG_NO_EVICT;
+
+	switch (vgbo->caching_type) {
+	case VIRTIO_GPU_CACHED:
+		ttm_caching_flags = TTM_PL_FLAG_CACHED;
+		break;
+	case VIRTIO_GPU_WRITE_COMBINE:
+		ttm_caching_flags = TTM_PL_FLAG_WC;
+		break;
+	case VIRTIO_GPU_UNCACHED:
+		ttm_caching_flags = TTM_PL_FLAG_UNCACHED;
+		break;
+	default:
+		ttm_caching_flags = TTM_PL_MASK_CACHING;
+	}
+
+
+	switch (vgbo->guest_memory_type) {
+	case VIRTIO_GPU_MEMORY_UNDEFINED:
+	case VIRTIO_GPU_MEMORY_TRANSFER:
+	case VIRTIO_GPU_MEMORY_SHARED_GUEST:
+		vgbo->placement_code.flags =
+			TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT |
+			TTM_PL_FLAG_NO_EVICT;
+		break;
+	case VIRTIO_GPU_MEMORY_HOST_COHERENT:
+		vgbo->placement_code.flags =
+			ttm_caching_flags | TTM_PL_FLAG_VRAM |
+			TTM_PL_FLAG_NO_EVICT;
+		break;
+	}
 	vgbo->placement.num_placement = c;
 	vgbo->placement.num_busy_placement = c;
 
@@ -123,10 +151,13 @@ int virtio_gpu_object_create(struct virtio_gpu_device *vgdev,
 		return ret;
 	}
 	bo->dumb = params->dumb;
+	bo->resource_v2 = params->resource_v2;
+	bo->guest_memory_type = params->guest_memory_type;
+	bo->caching_type = params->caching_type;
 
 	if (params->virgl) {
 		virtio_gpu_cmd_resource_create_3d(vgdev, bo, params, fence);
-	} else {
+	} else if (params->dumb) {
 		virtio_gpu_cmd_create_resource(vgdev, bo, params, fence);
 	}
 

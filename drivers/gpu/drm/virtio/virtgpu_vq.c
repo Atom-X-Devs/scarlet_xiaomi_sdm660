@@ -154,7 +154,7 @@ static void free_vbuf(struct virtio_gpu_device *vgdev,
 {
 	if (vbuf->resp_size > MAX_INLINE_RESP_SIZE)
 		kfree(vbuf->resp_buf);
-	kfree(vbuf->data_buf);
+	kvfree(vbuf->data_buf);
 	kmem_cache_free(vgdev->vbufs, vbuf);
 }
 
@@ -251,13 +251,54 @@ void virtio_gpu_dequeue_cursor_func(struct work_struct *work)
 	wake_up(&vgdev->cursorq.ack_queue);
 }
 
+/* Create sg_table from a vmalloc'd buffer. */
+static struct sg_table *vmalloc_to_sgt(char *data, uint32_t size, int *sg_ents)
+{
+	int ret, s, i;
+	struct sg_table *sgt;
+	struct scatterlist *sg;
+	struct page *pg;
+
+	if (WARN_ON(!PAGE_ALIGNED(data)))
+		return NULL;
+
+	sgt = kmalloc(sizeof(*sgt), GFP_KERNEL);
+	if (!sgt)
+		return NULL;
+
+	*sg_ents = DIV_ROUND_UP(size, PAGE_SIZE);
+	ret = sg_alloc_table(sgt, *sg_ents, GFP_KERNEL);
+	if (ret) {
+		kfree(sgt);
+		return NULL;
+	}
+
+	for_each_sg(sgt->sgl, sg, *sg_ents, i) {
+		pg = vmalloc_to_page(data);
+		if (!pg) {
+			sg_free_table(sgt);
+			kfree(sgt);
+			return NULL;
+		}
+
+		s = min_t(int, PAGE_SIZE, size);
+		sg_set_page(sg, pg, s, 0);
+
+		size -= s;
+		data += s;
+	}
+
+	return sgt;
+}
+
 static int virtio_gpu_queue_ctrl_buffer_locked(struct virtio_gpu_device *vgdev,
-					       struct virtio_gpu_vbuffer *vbuf)
+					       struct virtio_gpu_vbuffer *vbuf,
+					       struct scatterlist *vout)
 		__releases(&vgdev->ctrlq.qlock)
 		__acquires(&vgdev->ctrlq.qlock)
 {
 	struct virtqueue *vq = vgdev->ctrlq.vq;
-	struct scatterlist *sgs[3], vcmd, vout, vresp;
+	struct scatterlist *sgs[3], vcmd, vresp;
 	int outcnt = 0, incnt = 0;
 	int ret;
 
@@ -268,9 +309,8 @@ static int virtio_gpu_queue_ctrl_buffer_locked(struct virtio_gpu_device *vgdev,
 	sgs[outcnt + incnt] = &vcmd;
 	outcnt++;
 
-	if (vbuf->data_size) {
-		sg_init_one(&vout, vbuf->data_buf, vbuf->data_size);
-		sgs[outcnt + incnt] = &vout;
+	if (vout) {
+		sgs[outcnt + incnt] = vout;
 		outcnt++;
 	}
 
@@ -299,24 +339,30 @@ retry:
 	return ret;
 }
 
-static int virtio_gpu_queue_ctrl_buffer(struct virtio_gpu_device *vgdev,
-					struct virtio_gpu_vbuffer *vbuf)
-{
-	int rc;
-
-	spin_lock(&vgdev->ctrlq.qlock);
-	rc = virtio_gpu_queue_ctrl_buffer_locked(vgdev, vbuf);
-	spin_unlock(&vgdev->ctrlq.qlock);
-	return rc;
-}
-
 static int virtio_gpu_queue_fenced_ctrl_buffer(struct virtio_gpu_device *vgdev,
 					       struct virtio_gpu_vbuffer *vbuf,
 					       struct virtio_gpu_ctrl_hdr *hdr,
 					       struct virtio_gpu_fence *fence)
 {
 	struct virtqueue *vq = vgdev->ctrlq.vq;
+	struct scatterlist *vout = NULL, sg;
+	struct sg_table *sgt = NULL;
 	int rc;
+	int outcnt = 0;
+
+	if (vbuf->data_size) {
+		if (is_vmalloc_addr(vbuf->data_buf)) {
+			sgt = vmalloc_to_sgt(vbuf->data_buf, vbuf->data_size,
+					     &outcnt);
+			if (!sgt)
+				return -ENOMEM;
+			vout = sgt->sgl;
+		} else {
+			sg_init_one(&sg, vbuf->data_buf, vbuf->data_size);
+			vout = &sg;
+			outcnt = 1;
+		}
+	}
 
 again:
 	spin_lock(&vgdev->ctrlq.qlock);
@@ -329,17 +375,29 @@ again:
 	 * to wait for free space, which can result in fence ids being
 	 * submitted out-of-order.
 	 */
-	if (vq->num_free < 3) {
+	if (vq->num_free < 2 + outcnt) {
 		spin_unlock(&vgdev->ctrlq.qlock);
 		wait_event(vgdev->ctrlq.ack_queue, vq->num_free >= 3);
 		goto again;
 	}
 
-	if (fence)
+	if (hdr && fence)
 		virtio_gpu_fence_emit(vgdev, hdr, fence);
-	rc = virtio_gpu_queue_ctrl_buffer_locked(vgdev, vbuf);
+	rc = virtio_gpu_queue_ctrl_buffer_locked(vgdev, vbuf, vout);
 	spin_unlock(&vgdev->ctrlq.qlock);
+
+	if (sgt) {
+		sg_free_table(sgt);
+		kfree(sgt);
+	}
+
 	return rc;
+}
+
+static int virtio_gpu_queue_ctrl_buffer(struct virtio_gpu_device *vgdev,
+					struct virtio_gpu_vbuffer *vbuf)
+{
+	return virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, NULL, NULL);
 }
 
 static int virtio_gpu_queue_cursor(struct virtio_gpu_device *vgdev,
@@ -528,6 +586,54 @@ virtio_gpu_cmd_resource_attach_backing(struct virtio_gpu_device *vgdev,
 
 	vbuf->data_buf = ents;
 	vbuf->data_size = sizeof(*ents) * nents;
+
+	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
+}
+
+void
+virtio_gpu_cmd_resource_create_v2(struct virtio_gpu_device *vgdev,
+				  uint32_t resource_id,
+				  uint32_t guest_memory_type,
+				  uint32_t caching_type, uint64_t size,
+				  uint64_t pci_addr, uint32_t nents,
+				  uint32_t args_size, void *data,
+				  uint32_t data_size,
+				  struct virtio_gpu_fence *fence)
+{
+	struct virtio_gpu_resource_create_v2 *cmd_p;
+	struct virtio_gpu_vbuffer *vbuf;
+
+	cmd_p = virtio_gpu_alloc_cmd(vgdev, &vbuf, sizeof(*cmd_p));
+	memset(cmd_p, 0, sizeof(*cmd_p));
+
+	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_RESOURCE_CREATE_V2);
+	cmd_p->resource_id = cpu_to_le32(resource_id);
+	cmd_p->guest_memory_type = cpu_to_le32(guest_memory_type);
+	cmd_p->caching_type = cpu_to_le32(caching_type);
+	cmd_p->size = cpu_to_le64(size);
+	cmd_p->pci_addr = cpu_to_le64(pci_addr);
+	cmd_p->args_size = cpu_to_le32(args_size);
+	cmd_p->nr_entries = cpu_to_le32(nents);
+
+	vbuf->data_buf = data;
+	vbuf->data_size = data_size;
+
+	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
+}
+
+void
+virtio_gpu_cmd_resource_v2_unref(struct virtio_gpu_device *vgdev,
+			         uint32_t resource_id,
+			         struct virtio_gpu_fence *fence)
+{
+	struct virtio_gpu_resource_v2_unref *cmd_p;
+	struct virtio_gpu_vbuffer *vbuf;
+
+	cmd_p = virtio_gpu_alloc_cmd(vgdev, &vbuf, sizeof(*cmd_p));
+	memset(cmd_p, 0, sizeof(*cmd_p));
+
+	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_RESOURCE_CREATE_V2_UNREF);
+	cmd_p->resource_id = cpu_to_le32(resource_id);
 
 	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
 }
@@ -889,6 +995,31 @@ finish_pending:
 	wake_up_all(&vgdev->resp_wq);
 }
 
+static void virtio_gpu_cmd_allocation_metadata_cb(struct virtio_gpu_device *vgdev,
+						  struct virtio_gpu_vbuffer *vbuf)
+{
+	struct virtio_gpu_allocation_metadata_response *response;
+	struct virtio_gpu_resp_allocation_metadata *resp =
+		(struct virtio_gpu_resp_allocation_metadata *)vbuf->resp_buf;
+	uint32_t resp_type = le32_to_cpu(resp->hdr.type);
+	uint32_t handle = le32_to_cpu(resp->request_id);
+	size_t total_size = sizeof(struct virtio_gpu_resp_allocation_metadata) +
+			    le32_to_cpu(resp->response_size);
+
+	spin_lock(&vgdev->request_idr_lock);
+	response = idr_find(&vgdev->request_idr, handle);
+	spin_unlock(&vgdev->request_idr_lock);
+
+	if (!response)
+		return;
+
+	if (resp_type == VIRTIO_GPU_RESP_OK_ALLOCATION_METADATA)
+		memcpy(&response->info, resp, total_size);
+
+	response->callback_done = true;
+	wake_up_all(&vgdev->resp_wq);
+}
+
 int
 virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
 				  struct virtio_gpu_object *bo,
@@ -928,6 +1059,47 @@ virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
 	drm_gem_object_get(&bo->gem_base);
 	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
 	bo->created = true;
+	return 0;
+}
+
+int
+virtio_gpu_cmd_allocation_metadata(struct virtio_gpu_device *vgdev,
+				   uint32_t request_id,
+				   uint32_t request_size,
+				   uint32_t response_size,
+				   void *request,
+				   struct virtio_gpu_fence *fence)
+{
+	struct virtio_gpu_vbuffer *vbuf;
+	struct virtio_gpu_allocation_metadata *cmd_p;
+
+	if (response_size) {
+		struct virtio_gpu_resp_allocation_metadata *resp_buf;
+		size_t resp_size = sizeof(struct virtio_gpu_resp_allocation_metadata) +
+				   response_size;
+		resp_buf = kzalloc(resp_size, GFP_KERNEL);
+		if (!resp_buf)
+			return -ENOMEM;
+
+		cmd_p = virtio_gpu_alloc_cmd_resp(vgdev,
+				&virtio_gpu_cmd_allocation_metadata_cb, &vbuf,
+				sizeof(*cmd_p), resp_size,
+				resp_buf);
+		resp_buf->request_id = cpu_to_le32(request_id);
+	} else {
+		cmd_p = virtio_gpu_alloc_cmd(vgdev, &vbuf, sizeof(*cmd_p));
+	}
+
+	memset(cmd_p, 0, sizeof(*cmd_p));
+	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_ALLOCATION_METADATA);
+	cmd_p->request_id = cpu_to_le32(request_id);
+	cmd_p->request_size = cpu_to_le32(request_size);
+	cmd_p->response_size = cpu_to_le32(response_size);
+
+	vbuf->data_buf = request;
+	vbuf->data_size = request_size;
+
+	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
 	return 0;
 }
 
