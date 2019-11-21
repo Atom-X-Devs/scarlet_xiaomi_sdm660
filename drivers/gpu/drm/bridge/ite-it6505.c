@@ -26,6 +26,8 @@
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_edid.h>
 
+#include <sound/hdmi-codec.h>
+
 #define AX 0
 #define BX 1
 #define AUDSEL I2S
@@ -146,6 +148,7 @@ struct it6505 {
 	struct notifier_block event_nb;
 	struct extcon_dev *extcon;
 	struct work_struct extcon_wq;
+	struct delayed_work delayed_audio;
 	enum sys_status status;
 	bool hbr;
 	u8 en_ssc;
@@ -177,6 +180,10 @@ struct it6505 {
 	bool powered;
 	/* it6505 driver hold option */
 	unsigned int drv_hold;
+
+	hdmi_codec_plugged_cb plugged_cb;
+	struct device *codec_dev;
+	enum drm_connector_status last_connector_status;
 };
 
 static const struct regmap_range it6505_bridge_volatile_ranges[] = {
@@ -563,6 +570,7 @@ static void show_aud_mcnt(struct it6505 *it6505)
 		aclk = 1764;
 		break;
 	default:
+		aclk = 0;
 		break;
 	}
 	audmcal = audn * aclk / vclk * 512;
@@ -878,15 +886,31 @@ static const struct drm_connector_helper_funcs it6505_connector_helper_funcs = {
 	.get_modes = it6505_get_modes,
 };
 
+static void it6505_update_plugged_status(struct it6505 *it6505,
+					 enum drm_connector_status status)
+{
+	if (it6505->plugged_cb && it6505->codec_dev)
+		it6505->plugged_cb(it6505->codec_dev,
+				   status == connector_status_connected);
+}
+
 static enum drm_connector_status it6505_detect(struct drm_connector *connector,
 					       bool force)
 {
 	struct it6505 *it6505 = connector_to_it6505(connector);
+	enum drm_connector_status status;
 
 	if (gpiod_get_value(it6505->pdata.gpiod_hpd))
-		return connector_status_disconnected;
+		status = connector_status_disconnected;
+	else
+		status = connector_status_connected;
 
-	return connector_status_connected;
+	if (status != it6505->last_connector_status) {
+		it6505->last_connector_status = status;
+		it6505_update_plugged_status(it6505, status);
+	}
+
+	return status;
 }
 
 static const struct drm_connector_funcs it6505_connector_funcs = {
@@ -1222,6 +1246,166 @@ static void it6505_set_audio(struct it6505 *it6505)
 	dptxset(it6505, 0xD3, 0x20, 0x00);
 }
 
+static void it6505_delayed_audio(struct work_struct *work)
+{
+	struct it6505 *it6505 = container_of(work, struct it6505,
+					     delayed_audio.work);
+
+	it6505_set_audio(it6505);
+	it6505->en_audio = 1;
+}
+
+static int it6505_audio_hw_params(struct device *dev, void *data,
+				  struct hdmi_codec_daifmt *daifmt,
+				  struct hdmi_codec_params *params)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+	unsigned int channel_num = params->cea.channels;
+
+	DRM_DEV_DEBUG_DRIVER(dev, "setting %d Hz, %d bit, %d channels\n",
+			     params->sample_rate, params->sample_width,
+			     channel_num);
+
+	if (!it6505->bridge.encoder)
+		return -ENODEV;
+
+	switch (params->sample_rate) {
+	case 24000:
+		it6505->aud_fs = AUD24K;
+		break;
+	case 32000:
+		it6505->aud_fs = AUD32K;
+		break;
+	case 44100:
+		it6505->aud_fs = AUD44P1K;
+		break;
+	case 48000:
+		it6505->aud_fs = AUD48K;
+		break;
+	case 88200:
+		it6505->aud_fs = AUD88P2K;
+		break;
+	case 96000:
+		it6505->aud_fs = AUD96K;
+		break;
+	case 176400:
+		it6505->aud_fs = AUD176P4K;
+		break;
+	case 192000:
+		it6505->aud_fs = AUD192K;
+		break;
+	default:
+		DRM_DEV_DEBUG_DRIVER(dev, "sample rate: %d Hz not support",
+				     params->sample_rate);
+		return -EINVAL;
+	}
+
+	switch (params->sample_width) {
+	case 16:
+		it6505->audwordlength = AUD16BIT;
+		break;
+	case 18:
+		it6505->audwordlength = AUD18BIT;
+		break;
+	case 20:
+		it6505->audwordlength = AUD20BIT;
+		break;
+	case 24:
+	case 32:
+		it6505->audwordlength = AUD24BIT;
+		break;
+	default:
+		DRM_DEV_DEBUG_DRIVER(dev, "wordlength: %d bit not support",
+				     params->sample_width);
+		return -EINVAL;
+	}
+
+	if (channel_num == 0 || channel_num % 2) {
+		DRM_DEV_DEBUG_DRIVER(dev, "channel number: %d not support",
+				     channel_num);
+		return -EINVAL;
+	}
+	it6505->aud_ch = channel_num;
+
+	return 0;
+}
+
+static int it6505_audio_trigger(struct device *dev, int event)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+
+	DRM_DEV_DEBUG_DRIVER(dev, "event: %d", event);
+	switch (event) {
+	case HDMI_CODEC_TRIGGER_EVENT_START:
+	case HDMI_CODEC_TRIGGER_EVENT_RESUME:
+		queue_delayed_work(system_wq, &it6505->delayed_audio,
+				   msecs_to_jiffies(180));
+		break;
+	case HDMI_CODEC_TRIGGER_EVENT_STOP:
+	case HDMI_CODEC_TRIGGER_EVENT_SUSPEND:
+		cancel_delayed_work(&it6505->delayed_audio);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static void it6505_audio_shutdown(struct device *dev, void *data)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+
+	dptxset(it6505, 0xD3, 0x20, 0x20);
+	dptxset(it6505, 0xB8, 0x0F, 0x00);
+	dptxset(it6505, 0xE8, 0x22, 0x00);
+	dptxset(it6505, 0x05, 0x02, 0x02);
+	it6505->en_audio = 0;
+}
+
+static int it6505_audio_hook_plugged_cb(struct device *dev, void *data,
+					hdmi_codec_plugged_cb fn,
+					struct device *codec_dev)
+{
+	struct it6505 *it6505 = data;
+
+	it6505->plugged_cb = fn;
+	it6505->codec_dev = codec_dev;
+	it6505_update_plugged_status(it6505, it6505->last_connector_status);
+	return 0;
+}
+
+static const struct hdmi_codec_ops it6505_audio_codec_ops = {
+	.hw_params = it6505_audio_hw_params,
+	.trigger = it6505_audio_trigger,
+	.audio_shutdown = it6505_audio_shutdown,
+	.hook_plugged_cb = it6505_audio_hook_plugged_cb,
+};
+
+static int it6505_register_audio_driver(struct device *dev)
+{
+	struct it6505 *it6505 = dev_get_drvdata(dev);
+	struct hdmi_codec_pdata codec_data = {
+		.ops = &it6505_audio_codec_ops,
+		.max_i2s_channels = 8,
+		.i2s = 1,
+		.data = it6505,
+	};
+	struct platform_device *pdev;
+
+	pdev = platform_device_register_data(dev, HDMI_CODEC_DRV_NAME,
+					     PLATFORM_DEVID_AUTO, &codec_data,
+					     sizeof(codec_data));
+	if (IS_ERR(pdev))
+		return PTR_ERR(pdev);
+
+	INIT_DELAYED_WORK(&it6505->delayed_audio, it6505_delayed_audio);
+	it6505->last_connector_status = connector_status_disconnected;
+
+	DRM_DEV_DEBUG_DRIVER(dev, "bound to %s", HDMI_CODEC_DRV_NAME);
+	return 0;
+}
+
 /***************************************************************************
  * DPCD Read and EDID
  ***************************************************************************/
@@ -1249,7 +1433,7 @@ static int dptx_dpcdwr(struct it6505 *it6505, unsigned long offset,
 
 	ret = drm_dp_dpcd_writeb(&it6505->aux, offset, datain);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "DPCD write failed [0x%x] ret: %d", offset,
+		DRM_DEV_ERROR(dev, "DPCD write failed [0x%lx] ret: %d", offset,
 			      ret);
 		return ret;
 	}
@@ -1871,7 +2055,7 @@ static void hpd_irq(struct it6505 *it6505)
 
 	DRM_DEV_DEBUG_DRIVER(dev, "dpcd_sink_count = 0x%x", dpcd_sink_count);
 	DRM_DEV_DEBUG_DRIVER(dev, "dpcd_irq_vector = 0x%x", dpcd_irq_vector);
-	DRM_DEV_DEBUG_DRIVER(dev, "link_status = %*ph", ARRAY_SIZE(link_status),
+	DRM_DEV_DEBUG_DRIVER(dev, "link_status = %*ph", (int)ARRAY_SIZE(link_status),
 			     link_status);
 
 	if (dpcd_irq_vector & DP_CP_IRQ) {
@@ -2459,6 +2643,12 @@ static int it6505_i2c_probe(struct i2c_client *client,
 		return err;
 	}
 
+	err = it6505_register_audio_driver(dev);
+	if (err < 0) {
+		DRM_DEV_ERROR(dev, "Failed to register audio driver: %d", err);
+		return err;
+	}
+
 	/* Register aux channel */
 	it6505->aux.name = "DP-AUX";
 	it6505->aux.dev = dev;
@@ -2516,7 +2706,6 @@ static const struct of_device_id it6505_of_match[] = {
 static struct i2c_driver it6505_i2c_driver = {
 	.driver = {
 		.name = "it6505_dptx",
-		.owner = THIS_MODULE,
 		.of_match_table = it6505_of_match,
 	},
 	.probe = it6505_i2c_probe,

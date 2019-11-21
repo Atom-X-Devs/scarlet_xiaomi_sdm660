@@ -732,24 +732,42 @@ done:
 }
 EXPORT_SYMBOL_GPL(btintel_download_firmware);
 
-void btintel_retry_fw_download(struct hci_dev *hdev)
+void btintel_reset_to_bootloader(struct hci_dev *hdev)
 {
-	/* Send Intel Reset command. This will result in
-	 * re-enumeration of BT controller.
-	 */
-	static const u8 reset_param[] = { 0x00, 0x01, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00 };
+	struct intel_reset params;
 	struct sk_buff *skb;
 
-	skb = __hci_cmd_sync(hdev, 0xfc01, sizeof(reset_param),
-				reset_param, HCI_INIT_TIMEOUT);
+	/* Send Intel Reset command. This will result in
+	 * re-enumeration of BT controller.
+	 *
+	 * Intel Reset parameter description:
+	 * reset_type :   0x00 (Soft reset),
+	 *		  0x01 (Hard reset)
+	 * patch_enable : 0x00 (Do not enable),
+	 *		  0x01 (Enable)
+	 * ddc_reload :   0x00 (Do not reload),
+	 *		  0x01 (Reload)
+	 * boot_option:   0x00 (Current image),
+	 *                0x01 (Specified boot address)
+	 * boot_param:    Boot address
+	 *
+	 */
+	params.reset_type = 0x01;
+	params.patch_enable = 0x01;
+	params.ddc_reload = 0x01;
+	params.boot_option = 0x00;
+	params.boot_param = cpu_to_le32(0x00000000);
+
+	skb = __hci_cmd_sync(hdev, 0xfc01, sizeof(params),
+			     &params, HCI_INIT_TIMEOUT);
 	if (IS_ERR(skb)) {
-		bt_dev_err(hdev, "Sending Intel Reset failed (%ld)",
-				PTR_ERR(skb));
+		bt_dev_err(hdev, "FW download error recovery failed (%ld)",
+			   PTR_ERR(skb));
 		return;
 	}
 	bt_dev_info(hdev, "Intel reset sent to retry FW download");
 	kfree_skb(skb);
+
 	/* Current Intel BT controllers(ThP/JfP) hold the USB reset
 	 * lines for 2ms when it receives Intel Reset in bootloader mode.
 	 * Whereas, the upcoming Intel BT controllers will hold USB reset
@@ -757,7 +775,7 @@ void btintel_retry_fw_download(struct hci_dev *hdev)
 	 */
 	msleep(150);
 }
-EXPORT_SYMBOL_GPL(btintel_retry_fw_download);
+EXPORT_SYMBOL_GPL(btintel_reset_to_bootloader);
 
 MODULE_AUTHOR("Marcel Holtmann <marcel@holtmann.org>");
 MODULE_DESCRIPTION("Bluetooth support for Intel devices ver " VERSION);

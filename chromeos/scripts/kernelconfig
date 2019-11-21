@@ -20,6 +20,7 @@ usage() {
 
 	Options:
 	  -f filter   Only attempt to edit configs which match filter.
+	  -F          Enable running outside chroot.
 	  -h          This screen.
 	  -y          Edit all configs which match unconditionally.
 	EOF
@@ -35,10 +36,10 @@ usage() {
 build_one() {
 	local arch=$1
 	local kernarch
-	local binutils_patch
 	local prefix
 	local compiler
-	local mid
+	local ccompiler
+	local cross
 
 	# Map debian archs to kernel archs.
 	case "${arch}" in
@@ -50,23 +51,38 @@ build_one() {
 	echo "***************************************"
 	echo "* Processing ${arch} (${kernarch}) ... "
 
-	if [[ "${arch}" == "arm64" ]]; then
-		prefix=aarch64
-		compiler=clang
-		cross="${prefix}-cros-linux-gnu"
-	elif [[ "${arch}" == "x86_64" ]]; then
-		prefix=x86_64
-		compiler=clang
-		cross="${prefix}-cros-linux-gnu"
-	elif [[ "${arch}" == "armel" ]]; then
-		prefix=armv7a
+	if [[ -e /etc/cros_chroot_version ]]; then
+		if [[ "${arch}" == "arm64" ]]; then
+			prefix=aarch64
+			compiler=clang
+			cross="${prefix}-cros-linux-gnu"
+		elif [[ "${arch}" == "x86_64" ]]; then
+			prefix=x86_64
+			compiler=clang
+			cross="${prefix}-cros-linux-gnu"
+		elif [[ "${arch}" == "armel" ]]; then
+			prefix=armv7a
+			compiler=gcc
+			cross="${prefix}-cros-linux-gnueabihf"
+		fi
+	else
+		prefix="x86_64"
 		compiler=gcc
-		cross="${prefix}-cros-linux-gnueabihf"
+		cross="${prefix}-linux-gnu"
+	fi
+
+	ccompiler="${cross}-${compiler}"
+	if ! which "${ccompiler}" >/dev/null; then
+		if [[ -e /etc/cros_chroot_version ]]; then
+			die "${ccompiler} not found."
+		else
+			die "${ccompiler} not found. Try running inside chroot."
+		fi
 	fi
 
 	set -- \
 		LD="${cross}-ld" \
-		CC="${cross}-${compiler}" \
+		CC="${ccompiler}" \
 		CXX="${cross}-g++"
 
 	local O="$(pwd)/build/${arch}"
@@ -166,9 +182,11 @@ main() {
 	# Process use flags first (so -h works nicely).
 	local opt
 	local filter
+	local force=0
 	local prompt="true"
-	while getopts "f:hy" opt; do
+	while getopts "Ff:hy" opt; do
 		case ${opt} in
+		F) force=1;;
 		f) filter=${OPTARG} ;;
 		h) usage ;;
 		y) prompt="false" ;;
@@ -177,7 +195,7 @@ main() {
 	done
 	shift $(( OPTIND - 1 ))
 
-	if [[ ! -e /etc/cros_chroot_version ]]; then
+	if [[ ! -e /etc/cros_chroot_version && ${force} -ne 1 ]]; then
 		die "You must run this command inside the chroot"
 	fi
 

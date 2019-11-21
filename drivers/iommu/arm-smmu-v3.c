@@ -1397,17 +1397,6 @@ static irqreturn_t arm_smmu_combined_irq_handler(int irq, void *dev)
 }
 
 /* IO_PGTABLE API */
-static void __arm_smmu_tlb_sync(struct arm_smmu_device *smmu)
-{
-	arm_smmu_cmdq_issue_sync(smmu);
-}
-
-static void arm_smmu_tlb_sync(void *cookie)
-{
-	struct arm_smmu_domain *smmu_domain = cookie;
-	__arm_smmu_tlb_sync(smmu_domain->smmu);
-}
-
 static void arm_smmu_tlb_inv_context(void *cookie)
 {
 	struct arm_smmu_domain *smmu_domain = cookie;
@@ -1430,7 +1419,7 @@ static void arm_smmu_tlb_inv_context(void *cookie)
 	 * to guarantee those are observed before the TLBI. Do be careful, 007.
 	 */
 	arm_smmu_cmdq_issue_cmd(smmu, &cmd);
-	__arm_smmu_tlb_sync(smmu);
+	arm_smmu_cmdq_issue_sync(smmu);
 }
 
 static void arm_smmu_tlb_inv_range_nosync(unsigned long iova, size_t size,
@@ -1459,10 +1448,38 @@ static void arm_smmu_tlb_inv_range_nosync(unsigned long iova, size_t size,
 	} while (size -= granule);
 }
 
-static const struct iommu_gather_ops arm_smmu_gather_ops = {
+static void arm_smmu_tlb_inv_page_nosync(struct iommu_iotlb_gather *gather,
+					 unsigned long iova, size_t granule,
+					 void *cookie)
+{
+	arm_smmu_tlb_inv_range_nosync(iova, granule, granule, true, cookie);
+}
+
+static void arm_smmu_tlb_inv_walk(unsigned long iova, size_t size,
+				  size_t granule, void *cookie)
+{
+	struct arm_smmu_domain *smmu_domain = cookie;
+	struct arm_smmu_device *smmu = smmu_domain->smmu;
+
+	arm_smmu_tlb_inv_range_nosync(iova, size, granule, false, cookie);
+	arm_smmu_cmdq_issue_sync(smmu);
+}
+
+static void arm_smmu_tlb_inv_leaf(unsigned long iova, size_t size,
+				  size_t granule, void *cookie)
+{
+	struct arm_smmu_domain *smmu_domain = cookie;
+	struct arm_smmu_device *smmu = smmu_domain->smmu;
+
+	arm_smmu_tlb_inv_range_nosync(iova, size, granule, true, cookie);
+	arm_smmu_cmdq_issue_sync(smmu);
+}
+
+static const struct iommu_flush_ops arm_smmu_flush_ops = {
 	.tlb_flush_all	= arm_smmu_tlb_inv_context,
-	.tlb_add_flush	= arm_smmu_tlb_inv_range_nosync,
-	.tlb_sync	= arm_smmu_tlb_sync,
+	.tlb_flush_walk = arm_smmu_tlb_inv_walk,
+	.tlb_flush_leaf = arm_smmu_tlb_inv_leaf,
+	.tlb_add_page	= arm_smmu_tlb_inv_page_nosync,
 };
 
 /* IOMMU API */
@@ -1648,7 +1665,7 @@ static int arm_smmu_domain_finalise(struct iommu_domain *domain)
 		.pgsize_bitmap	= smmu->pgsize_bitmap,
 		.ias		= ias,
 		.oas		= oas,
-		.tlb		= &arm_smmu_gather_ops,
+		.tlb		= &arm_smmu_flush_ops,
 		.iommu_dev	= smmu->dev,
 	};
 
@@ -1795,15 +1812,15 @@ static int arm_smmu_map(struct iommu_domain *domain, unsigned long iova,
 	return ops->map(ops, iova, paddr, size, prot);
 }
 
-static size_t
-arm_smmu_unmap(struct iommu_domain *domain, unsigned long iova, size_t size)
+static size_t arm_smmu_unmap(struct iommu_domain *domain, unsigned long iova,
+			     size_t size, struct iommu_iotlb_gather *gather)
 {
 	struct io_pgtable_ops *ops = to_smmu_domain(domain)->pgtbl_ops;
 
 	if (!ops)
 		return 0;
 
-	return ops->unmap(ops, iova, size);
+	return ops->unmap(ops, iova, size, gather);
 }
 
 static void arm_smmu_flush_iotlb_all(struct iommu_domain *domain)
@@ -1814,12 +1831,13 @@ static void arm_smmu_flush_iotlb_all(struct iommu_domain *domain)
 		arm_smmu_tlb_inv_context(smmu_domain);
 }
 
-static void arm_smmu_iotlb_sync(struct iommu_domain *domain)
+static void arm_smmu_iotlb_sync(struct iommu_domain *domain,
+				struct iommu_iotlb_gather *gather)
 {
 	struct arm_smmu_device *smmu = to_smmu_domain(domain)->smmu;
 
 	if (smmu)
-		__arm_smmu_tlb_sync(smmu);
+		arm_smmu_cmdq_issue_sync(smmu);
 }
 
 static phys_addr_t

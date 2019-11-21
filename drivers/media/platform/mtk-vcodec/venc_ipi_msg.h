@@ -9,6 +9,8 @@
 #ifndef _VENC_IPI_MSG_H_
 #define _VENC_IPI_MSG_H_
 
+#include "linux/types.h"
+
 #define AP_IPIMSG_VENC_BASE 0xC000
 #define VPU_IPIMSG_VENC_BASE 0xD000
 
@@ -51,15 +53,20 @@ struct venc_ap_ipi_msg_init {
  * @vpu_inst_addr:	VPU encoder instance addr
  *			(struct venc_vp8_vsi/venc_h264_vsi *)
  * @param_id:	parameter id (venc_set_param_type)
- * @data_item:	number of items in the data array
+ * @num_data:	number of items in the data array
  * @data[8]:	data array to store the set parameters
  */
 struct venc_ap_ipi_msg_set_param {
 	uint32_t msg_id;
 	uint32_t vpu_inst_addr;
 	uint32_t param_id;
-	uint32_t data_item;
+	uint32_t num_data;
 	uint32_t data[8];
+};
+
+struct venc_ap_ipi_msg_set_param_ext {
+	struct venc_ap_ipi_msg_set_param base;
+	uint32_t data_ext[24];
 };
 
 /**
@@ -80,6 +87,12 @@ struct venc_ap_ipi_msg_enc {
 	uint32_t input_addr[3];
 	uint32_t bs_addr;
 	uint32_t bs_size;
+};
+
+struct venc_ap_ipi_msg_enc_ext {
+	struct venc_ap_ipi_msg_enc base;
+	uint32_t data_item;
+	uint32_t data[32];
 };
 
 /**
@@ -120,16 +133,17 @@ struct venc_vpu_ipi_msg_common {
  * @venc_inst:	AP encoder instance (struct venc_vp8_inst/venc_h264_inst *)
  * @vpu_inst_addr:	VPU encoder instance addr
  *			(struct venc_vp8_vsi/venc_h264_vsi *)
- * @reserved:	reserved for future use. vpu is running in 32bit. Without
- *		this reserved field, if kernel run in 64bit. this struct size
- *		will be different between kernel and vpu
+ * @venc_abi_version:	ABI version of the firmware. Kernel can use it to
+ *			ensure that it is compatible with the firmware.
+ *			For MT8173 the value of this field is undefined and
+ *			should not be used.
  */
 struct venc_vpu_ipi_msg_init {
 	uint32_t msg_id;
 	uint32_t status;
 	uint64_t venc_inst;
 	uint32_t vpu_inst_addr;
-	uint32_t reserved;
+	uint32_t venc_abi_version;
 };
 
 /**

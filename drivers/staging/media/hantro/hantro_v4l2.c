@@ -46,7 +46,7 @@ hantro_get_formats(const struct hantro_ctx *ctx, unsigned int *num_fmts)
 	return formats;
 }
 
-static const struct hantro_fmt *
+const struct hantro_fmt *
 hantro_find_format(const struct hantro_fmt *formats, unsigned int num_fmts,
 		   u32 fourcc)
 {

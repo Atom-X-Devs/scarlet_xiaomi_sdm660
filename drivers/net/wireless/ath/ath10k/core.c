@@ -11,6 +11,7 @@
 #include <linux/property.h>
 #include <linux/dmi.h>
 #include <linux/ctype.h>
+#include <linux/pm_qos.h>
 #include <asm/byteorder.h>
 
 #include "core.h"
@@ -604,7 +605,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.hw_ops = &wcn3990_ops,
 		.decap_align_bytes = 1,
 		.num_peers = TARGET_HL_10_TLV_NUM_PEERS,
-		.n_cipher_suites = 8,
+		.n_cipher_suites = 11,
 		.ast_skid_limit = TARGET_HL_10_TLV_AST_SKID_LIMIT,
 		.num_wds_entries = TARGET_HL_10_TLV_NUM_WDS_ENTRIES,
 		.target_64bit = true,
@@ -685,37 +686,52 @@ static void ath10k_send_suspend_complete(struct ath10k *ar)
 	complete(&ar->target_suspend);
 }
 
-static void ath10k_init_sdio(struct ath10k *ar, enum ath10k_firmware_mode mode)
+static int ath10k_init_sdio(struct ath10k *ar, enum ath10k_firmware_mode mode)
 {
+	int ret;
 	u32 param = 0;
 
-	ath10k_bmi_write32(ar, hi_mbox_io_block_sz, 256);
-	ath10k_bmi_write32(ar, hi_mbox_isr_yield_limit, 99);
-	ath10k_bmi_read32(ar, hi_acs_flags, &param);
+	ret = ath10k_bmi_write32(ar, hi_mbox_io_block_sz, 256);
+	if (ret)
+		return ret;
 
-	/* Data transfer is not initiated, when reduced Tx completion
-	 * is used for SDIO. disable it until fixed
-	 */
-	param &= ~HI_ACS_FLAGS_SDIO_REDUCE_TX_COMPL_SET;
+	ret = ath10k_bmi_write32(ar, hi_mbox_isr_yield_limit, 99);
+	if (ret)
+		return ret;
 
-	/* Alternate credit size of 1544 as used by SDIO firmware is
-	 * not big enough for mac80211 / native wifi frames. disable it
-	 */
-	param &= ~HI_ACS_FLAGS_ALT_DATA_CREDIT_SIZE;
+	ret = ath10k_bmi_read32(ar, hi_acs_flags, &param);
+	if (ret)
+		return ret;
+
+	param |= HI_ACS_FLAGS_SDIO_REDUCE_TX_COMPL_SET;
+
+	if (mode == ATH10K_FIRMWARE_MODE_NORMAL)
+		param |= HI_ACS_FLAGS_ALT_DATA_CREDIT_SIZE;
+	else
+		param &= ~HI_ACS_FLAGS_ALT_DATA_CREDIT_SIZE;
 
 	if (mode == ATH10K_FIRMWARE_MODE_UTF)
 		param &= ~HI_ACS_FLAGS_SDIO_SWAP_MAILBOX_SET;
 	else
 		param |= HI_ACS_FLAGS_SDIO_SWAP_MAILBOX_SET;
 
-	ath10k_bmi_write32(ar, hi_acs_flags, param);
+	ret = ath10k_bmi_write32(ar, hi_acs_flags, param);
+	if (ret)
+		return ret;
 
 	/* Explicitly set fwlog prints to zero as target may turn it on
 	 * based on scratch registers.
 	 */
-	ath10k_bmi_read32(ar, hi_option_flag, &param);
+	ret = ath10k_bmi_read32(ar, hi_option_flag, &param);
+	if (ret)
+		return ret;
+
 	param |= HI_OPTION_DISABLE_DBGLOG;
-	ath10k_bmi_write32(ar, hi_option_flag, param);
+	ret = ath10k_bmi_write32(ar, hi_option_flag, param);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static int ath10k_init_configure_target(struct ath10k *ar)
@@ -1214,6 +1230,7 @@ static int ath10k_download_fw(struct ath10k *ar)
 	u32 address, data_len;
 	const void *data;
 	int ret;
+	struct pm_qos_request latency_qos;
 
 	address = ar->hw_params.patch_load_addr;
 
@@ -1247,8 +1264,14 @@ static int ath10k_download_fw(struct ath10k *ar)
 			    ret);
 	}
 
-	return ath10k_bmi_fast_download(ar, address,
-					data, data_len);
+	memset(&latency_qos, 0, sizeof(latency_qos));
+	pm_qos_add_request(&latency_qos, PM_QOS_CPU_DMA_LATENCY, 0);
+
+	ret = ath10k_bmi_fast_download(ar, address, data, data_len);
+
+	pm_qos_remove_request(&latency_qos);
+
+	return ret;
 }
 
 void ath10k_core_free_board_files(struct ath10k *ar)
@@ -2406,8 +2429,13 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 		if (status)
 			goto err;
 
-		if (ar->hif.bus == ATH10K_BUS_SDIO)
-			ath10k_init_sdio(ar, mode);
+		if (ar->hif.bus == ATH10K_BUS_SDIO) {
+			status = ath10k_init_sdio(ar, mode);
+			if (status) {
+				ath10k_err(ar, "failed to init SDIO: %d\n", status);
+				goto err;
+			}
+		}
 	}
 
 	ar->htc.htc_ops.target_send_suspend_complete =
@@ -3018,6 +3046,11 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 	if (!ar->workqueue_aux)
 		goto err_free_wq;
 
+	ar->workqueue_tx_complete =
+		create_singlethread_workqueue("ath10k_tx_complete_wq");
+	if (!ar->workqueue_tx_complete)
+		goto err_free_aux_wq;
+
 	mutex_init(&ar->conf_mutex);
 	mutex_init(&ar->dump_mutex);
 	spin_lock_init(&ar->data_lock);
@@ -3028,6 +3061,8 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 	init_waitqueue_head(&ar->peer_mapping_wq);
 	init_waitqueue_head(&ar->htt.empty_tx_wq);
 	init_waitqueue_head(&ar->wmi.tx_credits_wq);
+
+	skb_queue_head_init(&ar->htt.rx_indication_head);
 
 	init_completion(&ar->offchan_tx_completed);
 	INIT_WORK(&ar->offchan_tx_work, ath10k_offchan_tx_work);
@@ -3045,7 +3080,7 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 
 	ret = ath10k_coredump_create(ar);
 	if (ret)
-		goto err_free_aux_wq;
+		goto err_free_tx_complete;
 
 	ret = ath10k_debug_create(ar);
 	if (ret)
@@ -3055,12 +3090,12 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 
 err_free_coredump:
 	ath10k_coredump_destroy(ar);
-
+err_free_tx_complete:
+	destroy_workqueue(ar->workqueue_tx_complete);
 err_free_aux_wq:
 	destroy_workqueue(ar->workqueue_aux);
 err_free_wq:
 	destroy_workqueue(ar->workqueue);
-
 err_free_mac:
 	ath10k_mac_destroy(ar);
 
@@ -3075,6 +3110,9 @@ void ath10k_core_destroy(struct ath10k *ar)
 
 	flush_workqueue(ar->workqueue_aux);
 	destroy_workqueue(ar->workqueue_aux);
+
+	flush_workqueue(ar->workqueue_tx_complete);
+	destroy_workqueue(ar->workqueue_tx_complete);
 
 	ath10k_debug_destroy(ar);
 	ath10k_coredump_destroy(ar);

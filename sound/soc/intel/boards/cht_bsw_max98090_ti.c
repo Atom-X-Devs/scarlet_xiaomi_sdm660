@@ -43,6 +43,7 @@ struct cht_mc_private {
 	struct clk *mclk;
 	struct snd_soc_jack jack;
 	bool ts3a227e_present;
+	int quirks;
 };
 
 static int platform_clock_control(struct snd_soc_dapm_widget *w,
@@ -53,6 +54,10 @@ static int platform_clock_control(struct snd_soc_dapm_widget *w,
 	struct snd_soc_dai *codec_dai;
 	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(card);
 	int ret;
+
+	/* See the comment in snd_cht_mc_probe() */
+	if (ctx->quirks & QUIRK_PMC_PLT_CLK_0)
+		return 0;
 
 	codec_dai = snd_soc_card_get_codec_dai(card, CHT_CODEC_DAI);
 	if (!codec_dai) {
@@ -223,6 +228,10 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 			"jack detection gpios not added, error %d\n", ret);
 	}
 
+	/* See the comment in snd_cht_mc_probe() */
+	if (ctx->quirks & QUIRK_PMC_PLT_CLK_0)
+		return 0;
+
 	/*
 	 * The firmware might enable the clock at
 	 * boot (this information may or may not
@@ -328,41 +337,48 @@ static struct snd_soc_aux_dev cht_max98090_headset_dev = {
 	.codec_name = "i2c-104C227E:00",
 };
 
+SND_SOC_DAILINK_DEF(dummy,
+	DAILINK_COMP_ARRAY(COMP_DUMMY()));
+
+SND_SOC_DAILINK_DEF(media,
+	DAILINK_COMP_ARRAY(COMP_CPU("media-cpu-dai")));
+
+SND_SOC_DAILINK_DEF(deepbuffer,
+	DAILINK_COMP_ARRAY(COMP_CPU("deepbuffer-cpu-dai")));
+
+SND_SOC_DAILINK_DEF(ssp2_port,
+	DAILINK_COMP_ARRAY(COMP_CPU("ssp2-port")));
+SND_SOC_DAILINK_DEF(ssp2_codec,
+	DAILINK_COMP_ARRAY(COMP_CODEC("i2c-193C9890:00", "HiFi")));
+
+SND_SOC_DAILINK_DEF(platform,
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("sst-mfld-platform")));
+
 static struct snd_soc_dai_link cht_dailink[] = {
 	[MERR_DPCM_AUDIO] = {
 		.name = "Audio Port",
 		.stream_name = "Audio",
-		.cpu_dai_name = "media-cpu-dai",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.platform_name = "sst-mfld-platform",
 		.nonatomic = true,
 		.dynamic = 1,
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.ops = &cht_aif1_ops,
+		SND_SOC_DAILINK_REG(media, dummy, platform),
 	},
 	[MERR_DPCM_DEEP_BUFFER] = {
 		.name = "Deep-Buffer Audio Port",
 		.stream_name = "Deep-Buffer Audio",
-		.cpu_dai_name = "deepbuffer-cpu-dai",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.platform_name = "sst-mfld-platform",
 		.nonatomic = true,
 		.dynamic = 1,
 		.dpcm_playback = 1,
 		.ops = &cht_aif1_ops,
+		SND_SOC_DAILINK_REG(deepbuffer, dummy, platform),
 	},
 	/* back ends */
 	{
 		.name = "SSP2-Codec",
 		.id = 0,
-		.cpu_dai_name = "ssp2-port",
-		.platform_name = "sst-mfld-platform",
 		.no_pcm = 1,
-		.codec_dai_name = "HiFi",
-		.codec_name = "i2c-193C9890:00",
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
 					| SND_SOC_DAIFMT_CBS_CFS,
 		.init = cht_codec_init,
@@ -370,6 +386,7 @@ static struct snd_soc_dai_link cht_dailink[] = {
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.ops = &cht_be_ssp2_ops,
+		SND_SOC_DAILINK_REG(ssp2_port, ssp2_codec, platform),
 	},
 };
 
@@ -391,9 +408,44 @@ static struct snd_soc_card snd_soc_card_cht = {
 
 static const struct dmi_system_id cht_max98090_quirk_table[] = {
 	{
+		/* Banjo model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Banjo"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Candy model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Candy"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
 		/* Clapper model Chromebook */
 		.matches = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Clapper"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Cyan model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Cyan"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Enguarde model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Enguarde"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Glimmer model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Glimmer"),
 		},
 		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
 	},
@@ -405,9 +457,72 @@ static const struct dmi_system_id cht_max98090_quirk_table[] = {
 		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
 	},
 	{
+		/* Heli model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Heli"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Kip model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Kip"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Ninja model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Ninja"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Orco model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Orco"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Quawks model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Quawks"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Rambi model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Rambi"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Squawks model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Squawks"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Sumo model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Sumo"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
 		/* Swanky model Chromebook (Toshiba Chromebook 2) */
 		.matches = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Swanky"),
+		},
+		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
+	},
+	{
+		/* Winky model Chromebook */
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Winky"),
 		},
 		.driver_data = (void *)QUIRK_PMC_PLT_CLK_0,
 	},
@@ -423,15 +538,14 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 	const char *mclk_name;
 	struct snd_soc_acpi_mach *mach;
 	const char *platform_name;
-	int quirks = 0;
-
-	dmi_id = dmi_first_match(cht_max98090_quirk_table);
-	if (dmi_id)
-		quirks = (unsigned long)dmi_id->driver_data;
 
 	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
 		return -ENOMEM;
+
+	dmi_id = dmi_first_match(cht_max98090_quirk_table);
+	if (dmi_id)
+		drv->quirks = (unsigned long)dmi_id->driver_data;
 
 	drv->ts3a227e_present = acpi_dev_found("104C227E");
 	if (!drv->ts3a227e_present) {
@@ -458,7 +572,7 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 	/* register the soc card */
 	snd_soc_card_set_drvdata(&snd_soc_card_cht, drv);
 
-	if (quirks & QUIRK_PMC_PLT_CLK_0)
+	if (drv->quirks & QUIRK_PMC_PLT_CLK_0)
 		mclk_name = "pmc_plt_clk_0";
 	else
 		mclk_name = "pmc_plt_clk_3";
@@ -471,6 +585,21 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 		return PTR_ERR(drv->mclk);
 	}
 
+	/*
+	 * Boards which have the MAX98090's clk connected to clk_0 do not seem
+	 * to like it if we muck with the clock. If we disable the clock when
+	 * it is unused we get "max98090 i2c-193C9890:00: PLL unlocked" errors
+	 * and the PLL never seems to lock again.
+	 * So for these boards we enable it here once and leave it at that.
+	 */
+	if (drv->quirks & QUIRK_PMC_PLT_CLK_0) {
+		ret_val = clk_prepare_enable(drv->mclk);
+		if (ret_val < 0) {
+			dev_err(&pdev->dev, "MCLK enable error: %d\n", ret_val);
+			return ret_val;
+		}
+	}
+
 	ret_val = devm_snd_soc_register_card(&pdev->dev, &snd_soc_card_cht);
 	if (ret_val) {
 		dev_err(&pdev->dev,
@@ -481,11 +610,23 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 	return ret_val;
 }
 
+static int snd_cht_mc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(card);
+
+	if (ctx->quirks & QUIRK_PMC_PLT_CLK_0)
+		clk_disable_unprepare(ctx->mclk);
+
+	return 0;
+}
+
 static struct platform_driver snd_cht_mc_driver = {
 	.driver = {
 		.name = "cht-bsw-max98090",
 	},
 	.probe = snd_cht_mc_probe,
+	.remove = snd_cht_mc_remove,
 };
 
 module_platform_driver(snd_cht_mc_driver)

@@ -59,6 +59,23 @@ static const struct of_device_id btmrvl_sdio_of_match_table[] = {
 	{ }
 };
 
+static void btmrvl_sdio_card_reset_work(struct work_struct *work)
+{
+	struct btmrvl_sdio_card *card =
+		container_of(work, struct btmrvl_sdio_card, reset_work);
+	struct sdio_func *func = card->func;
+
+	sdio_claim_host(func);
+	sdio_trigger_replug(func);
+	sdio_release_host(func);
+}
+
+static void btmrvl_sdio_card_reset(struct btmrvl_sdio_card *card)
+{
+	BT_ERR("resetting SDIO card!");
+	schedule_work(&card->reset_work);
+}
+
 static irqreturn_t btmrvl_wake_irq_bt(int irq, void *priv)
 {
 	struct btmrvl_sdio_card *card = priv;
@@ -703,6 +720,7 @@ static int btmrvl_sdio_card_to_host(struct btmrvl_private *priv)
 	ret = btmrvl_sdio_read_rx_len(card, &buf_len);
 	if (ret < 0) {
 		BT_ERR("read rx_len failed");
+		btmrvl_sdio_card_reset(card);
 		ret = -EIO;
 		goto exit;
 	}
@@ -738,6 +756,7 @@ static int btmrvl_sdio_card_to_host(struct btmrvl_private *priv)
 			  num_blocks * blksz);
 	if (ret < 0) {
 		BT_ERR("readsb failed: %d", ret);
+		btmrvl_sdio_card_reset(card);
 		ret = -EIO;
 		goto exit;
 	}
@@ -842,6 +861,7 @@ static int btmrvl_sdio_read_to_clear(struct btmrvl_sdio_card *card, u8 *ireg)
 	ret = sdio_readsb(card->func, adapter->hw_regs, 0, SDIO_BLOCK_SIZE);
 	if (ret) {
 		BT_ERR("sdio_readsb: read int hw_regs failed: %d", ret);
+		btmrvl_sdio_card_reset(card);
 		return ret;
 	}
 
@@ -1519,6 +1539,8 @@ static int btmrvl_sdio_probe(struct sdio_func *func,
 		card->support_pscan_win_report = data->support_pscan_win_report;
 		card->supports_fw_dump = data->supports_fw_dump;
 	}
+
+	INIT_WORK(&card->reset_work, btmrvl_sdio_card_reset_work);
 
 	if (btmrvl_sdio_register_dev(card) < 0) {
 		BT_ERR("Failed to register BT device!");

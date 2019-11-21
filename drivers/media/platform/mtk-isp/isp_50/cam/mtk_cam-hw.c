@@ -37,6 +37,7 @@
  *
  */
 #define MTK_ISP_CAM_ID_B			3
+#define MTK_ISP_AUTOSUSPEND_DELAY_MS		66
 #define MTK_ISP_IPI_SEND_TIMEOUT		50
 #define MTK_ISP_STOP_HW_TIMEOUT			(33 * USEC_PER_MSEC)
 
@@ -656,7 +657,7 @@ static int mtk_isp_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	pm_runtime_set_autosuspend_delay(dev, 2 * MTK_ISP_STOP_HW_TIMEOUT);
+	pm_runtime_set_autosuspend_delay(dev, MTK_ISP_AUTOSUSPEND_DELAY_MS);
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_enable(dev);
 

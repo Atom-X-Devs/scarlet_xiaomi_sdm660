@@ -631,7 +631,7 @@ static int mtk_thermal_bank_temperature(struct mtk_thermal_bank *bank)
 		 * not immediately shut down.
 		 */
 		if (temp > 200000)
-			temp = -EACCES;
+			temp = -EAGAIN;
 
 		if (temp > max)
 			max = temp;
@@ -684,7 +684,7 @@ static int mtk_read_sensor_temp(void *data, int *temperature)
 	 */
 
 	if (temp > 200000)
-		return  -EACCES;
+		return  -EAGAIN;
 
 	*temperature = temp;
 	return 0;

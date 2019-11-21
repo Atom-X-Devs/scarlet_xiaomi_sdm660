@@ -448,6 +448,8 @@ static bool synth_field_signed(char *type)
 {
 	if (strncmp(type, "u", 1) == 0)
 		return false;
+	if (strcmp(type, "gfp_t") == 0)
+		return false;
 
 	return true;
 }
@@ -2525,6 +2527,8 @@ static struct hist_field *create_alias(struct hist_trigger_data *hist_data,
 		destroy_hist_field(alias, 0);
 		return NULL;
 	}
+
+	alias->var_ref_idx = var_ref->var_ref_idx;
 
 	return alias;
 }

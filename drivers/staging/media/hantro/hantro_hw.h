@@ -228,4 +228,7 @@ void hantro_vp8_dec_exit(struct hantro_ctx *ctx);
 void hantro_vp8_prob_update(struct hantro_ctx *ctx,
 			    const struct v4l2_ctrl_vp8_frame_header *hdr);
 
+int hantro_dummy_enc_init(struct hantro_dev *dev);
+void hantro_dummy_enc_release(struct hantro_dev *vpu);
+
 #endif /* HANTRO_HW_H_ */

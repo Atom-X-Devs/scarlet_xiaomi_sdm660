@@ -225,6 +225,11 @@
 	};
 };
 
+&it6505dptx {
+	ovdd-supply = <&mt6358_vsim1_reg>;
+	/delete-property/ no-laneswap;
+};
+
 &i2c0 {
 	status = "okay";
 

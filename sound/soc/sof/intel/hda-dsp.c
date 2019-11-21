@@ -282,7 +282,8 @@ void hda_dsp_ipc_int_disable(struct snd_sof_dev *sdev)
 			HDA_DSP_REG_HIPCCTL_BUSY | HDA_DSP_REG_HIPCCTL_DONE, 0);
 }
 
-static int hda_suspend(struct snd_sof_dev *sdev, int state)
+static int hda_suspend(struct snd_sof_dev *sdev, int state,
+		       bool runtime_suspend)
 {
 	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	const struct sof_intel_dsp_desc *chip = hda->desc;
@@ -295,6 +296,12 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state)
 	hda_dsp_ipc_int_disable(sdev);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+	if (IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC) && runtime_suspend)
+		/* enable controller wake up event */
+		snd_hdac_chip_writew(bus, WAKEEN,
+				     snd_hdac_chip_readw(bus, WAKEEN) |
+				     hda->hda_codec_mask);
+
 	/* power down all hda link */
 	snd_hdac_ext_bus_link_power_down_all(bus);
 #endif
@@ -307,23 +314,12 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state)
 		return ret;
 	}
 
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	/* disable ppcap interrupt */
-	snd_hdac_ext_bus_ppcap_int_enable(bus, false);
-	snd_hdac_ext_bus_ppcap_enable(bus, false);
-
-	/* disable hda bus irq and i/o */
-	snd_hdac_bus_stop_chip(bus);
-#else
 	/* disable ppcap interrupt */
 	hda_dsp_ctrl_ppcap_enable(sdev, false);
 	hda_dsp_ctrl_ppcap_int_enable(sdev, false);
 
-	/* disable hda bus irq */
-	snd_sof_dsp_update_bits(sdev, HDA_DSP_HDA_BAR, SOF_HDA_INTCTL,
-				SOF_HDA_INT_CTRL_EN | SOF_HDA_INT_GLOBAL_EN,
-				0);
-#endif
+	/* disable hda bus irq and streams */
+	hda_dsp_ctrl_stop_chip(sdev);
 
 	/* disable LP retention mode */
 	snd_sof_pci_update_bits(sdev, PCI_PGCTL,
@@ -340,11 +336,12 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state)
 	return 0;
 }
 
-static int hda_resume(struct snd_sof_dev *sdev)
+static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 {
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
 	struct hdac_bus *bus = sof_to_bus(sdev);
 	struct hdac_ext_link *hlink = NULL;
+	int status;
 #endif
 	int ret;
 
@@ -355,6 +352,11 @@ static int hda_resume(struct snd_sof_dev *sdev)
 	snd_sof_pci_update_bits(sdev, PCI_TCSEL, 0x07, 0);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+	if (runtime_resume) {
+		/* read STATESTS before controller reset */
+		status = snd_hdac_chip_readw(bus, STATESTS);
+	}
+
 	/* reset and start hda controller */
 	ret = hda_dsp_ctrl_init_chip(sdev, true);
 	if (ret < 0) {
@@ -371,9 +373,19 @@ static int hda_resume(struct snd_sof_dev *sdev)
 
 	hda_dsp_ctrl_misc_clock_gating(sdev, true);
 
-	/* enable ppcap interrupt */
-	snd_hdac_ext_bus_ppcap_enable(bus, true);
-	snd_hdac_ext_bus_ppcap_int_enable(bus, true);
+	/* check jack status based on controller status */
+	if (runtime_resume)
+		hda_codec_jack_check(sdev, status);
+
+	/* turn off the links that were off before suspend */
+	list_for_each_entry(hlink, &bus->hlink_list, list) {
+		if (!hlink->ref_count)
+			snd_hdac_ext_bus_link_power_down(hlink);
+	}
+
+	/* check dma status and clean up CORB/RIRB buffers */
+	if (!bus->cmd_dma_state)
+		snd_hdac_bus_stop_cmd_io(bus);
 #else
 
 	hda_dsp_ctrl_misc_clock_gating(sdev, false);
@@ -400,23 +412,11 @@ static int hda_resume(struct snd_sof_dev *sdev)
 				SOF_HDA_INT_CTRL_EN | SOF_HDA_INT_GLOBAL_EN);
 
 	hda_dsp_ctrl_misc_clock_gating(sdev, true);
+#endif
 
 	/* enable ppcap interrupt */
 	hda_dsp_ctrl_ppcap_enable(sdev, true);
 	hda_dsp_ctrl_ppcap_int_enable(sdev, true);
-#endif
-
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	/* turn off the links that were off before suspend */
-	list_for_each_entry(hlink, &bus->hlink_list, list) {
-		if (!hlink->ref_count)
-			snd_hdac_ext_bus_link_power_down(hlink);
-	}
-
-	/* check dma status and clean up CORB/RIRB buffers */
-	if (!bus->cmd_dma_state)
-		snd_hdac_bus_stop_cmd_io(bus);
-#endif
 
 	return 0;
 }
@@ -424,19 +424,32 @@ static int hda_resume(struct snd_sof_dev *sdev)
 int hda_dsp_resume(struct snd_sof_dev *sdev)
 {
 	/* init hda controller. DSP cores will be powered up during fw boot */
-	return hda_resume(sdev);
+	return hda_resume(sdev, false);
 }
 
 int hda_dsp_runtime_resume(struct snd_sof_dev *sdev)
 {
 	/* init hda controller. DSP cores will be powered up during fw boot */
-	return hda_resume(sdev);
+	return hda_resume(sdev, true);
+}
+
+int hda_dsp_runtime_idle(struct snd_sof_dev *sdev)
+{
+	struct hdac_bus *hbus = sof_to_bus(sdev);
+
+	if (hbus->codec_powered) {
+		dev_dbg(sdev->dev, "some codecs still powered (%08X), not idle\n",
+			(unsigned int)hbus->codec_powered);
+		return -EBUSY;
+	}
+
+	return 0;
 }
 
 int hda_dsp_runtime_suspend(struct snd_sof_dev *sdev, int state)
 {
 	/* stop hda controller and power dsp off */
-	return hda_suspend(sdev, state);
+	return hda_suspend(sdev, state, true);
 }
 
 int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
@@ -445,7 +458,7 @@ int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
 	int ret;
 
 	/* stop hda controller and power dsp off */
-	ret = hda_suspend(sdev, state);
+	ret = hda_suspend(sdev, state, false);
 	if (ret < 0) {
 		dev_err(bus->dev, "error: suspending dsp\n");
 		return ret;
@@ -454,12 +467,19 @@ int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
 	return 0;
 }
 
-void hda_dsp_set_hw_params_upon_resume(struct snd_sof_dev *sdev)
+int hda_dsp_set_hw_params_upon_resume(struct snd_sof_dev *sdev)
 {
 	struct hdac_bus *bus = sof_to_bus(sdev);
 	struct sof_intel_hda_stream *hda_stream;
 	struct hdac_ext_stream *stream;
 	struct hdac_stream *s;
+
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+	struct snd_soc_pcm_runtime *rtd;
+	struct hdac_ext_link *link;
+	const char *name;
+	int stream_tag;
+#endif
 
 	/* set internal flag for BE */
 	list_for_each_entry(s, &bus->stream_list, list) {
@@ -467,5 +487,25 @@ void hda_dsp_set_hw_params_upon_resume(struct snd_sof_dev *sdev)
 		hda_stream = container_of(stream, struct sof_intel_hda_stream,
 					  hda_stream);
 		hda_stream->hw_params_upon_resume = 1;
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+		/*
+		 * clear and release stream. This should already be taken care
+		 * for running streams when the SUSPEND trigger is called.
+		 * But paused streams do not get suspended, so this needs to be
+		 * done explicitly during suspend.
+		 */
+		if (stream->link_substream) {
+			rtd = snd_pcm_substream_chip(stream->link_substream);
+			name = rtd->codec_dai->component->name;
+			link = snd_hdac_ext_bus_get_link(bus, name);
+			if (!link)
+				return -EINVAL;
+			stream_tag = hdac_stream(stream)->stream_tag;
+			snd_hdac_ext_link_clear_stream_id(link, stream_tag);
+			snd_hdac_ext_stream_release(stream,
+						    HDAC_EXT_STREAM_TYPE_LINK);
+		}
+#endif
 	}
+	return 0;
 }

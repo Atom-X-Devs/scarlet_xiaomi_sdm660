@@ -1523,9 +1523,12 @@ static void start_sw_tscdeadline(struct kvm_lapic *apic)
 
 	now = ktime_get();
 	guest_tsc = kvm_read_l1_tsc(vcpu, rdtsc());
-	if (likely(tscdeadline > guest_tsc)) {
-		ns = (tscdeadline - guest_tsc) * 1000000ULL;
-		do_div(ns, this_tsc_khz);
+
+	ns = (tscdeadline - guest_tsc) * 1000000ULL;
+	do_div(ns, this_tsc_khz);
+
+	if (likely(tscdeadline > guest_tsc) &&
+	    likely(ns > lapic_timer_advance_ns)) {
 		expire = ktime_add_ns(now, ns);
 		expire = ktime_sub_ns(expire, lapic_timer_advance_ns);
 		hrtimer_start(&apic->lapic_timer.timer,
@@ -1660,9 +1663,6 @@ static bool start_hv_timer(struct kvm_lapic *apic)
 	if (!kvm_x86_ops->set_hv_timer)
 		return false;
 
-	if (!apic_lvtt_period(apic) && atomic_read(&ktimer->pending))
-		return false;
-
 	if (!ktimer->tscdeadline)
 		return false;
 
@@ -1674,17 +1674,25 @@ static bool start_hv_timer(struct kvm_lapic *apic)
 	hrtimer_cancel(&ktimer->timer);
 
 	/*
-	 * Also recheck ktimer->pending, in case the sw timer triggered in
-	 * the window.  For periodic timer, leave the hv timer running for
-	 * simplicity, and the deadline will be recomputed on the next vmexit.
+	 * To simplify handling the periodic timer, leave the hv timer running
+	 * even if the deadline timer has expired, i.e. rely on the resulting
+	 * VM-Exit to recompute the periodic timer's target expiration.
 	 */
-	if (!apic_lvtt_period(apic) && (r || atomic_read(&ktimer->pending))) {
-		if (r)
+	if (!apic_lvtt_period(apic)) {
+		/*
+		 * Cancel the hv timer if the sw timer fired while the hv timer
+		 * was being programmed, or if the hv timer itself expired.
+		 */
+		if (atomic_read(&ktimer->pending)) {
+			cancel_hv_timer(apic);
+		} else if (r) {
 			apic_timer_expired(apic);
-		return false;
+			cancel_hv_timer(apic);
+		}
 	}
 
-	trace_kvm_hv_timer_state(apic->vcpu->vcpu_id, true);
+	trace_kvm_hv_timer_state(apic->vcpu->vcpu_id, ktimer->hv_timer_in_use);
+
 	return true;
 }
 
@@ -1708,8 +1716,13 @@ static void start_sw_timer(struct kvm_lapic *apic)
 static void restart_apic_timer(struct kvm_lapic *apic)
 {
 	preempt_disable();
+
+	if (!apic_lvtt_period(apic) && atomic_read(&apic->lapic_timer.pending))
+		goto out;
+
 	if (!start_hv_timer(apic))
 		start_sw_timer(apic);
+out:
 	preempt_enable();
 }
 
@@ -2633,17 +2646,25 @@ int kvm_hv_vapic_msr_read(struct kvm_vcpu *vcpu, u32 reg, u64 *data)
 	return 0;
 }
 
-int kvm_lapic_enable_pv_eoi(struct kvm_vcpu *vcpu, u64 data)
+int kvm_lapic_enable_pv_eoi(struct kvm_vcpu *vcpu, u64 data, unsigned long len)
 {
 	u64 addr = data & ~KVM_MSR_ENABLED;
+	struct gfn_to_hva_cache *ghc = &vcpu->arch.pv_eoi.data;
+	unsigned long new_len;
+
 	if (!IS_ALIGNED(addr, 4))
 		return 1;
 
 	vcpu->arch.pv_eoi.msr_val = data;
 	if (!pv_eoi_enabled(vcpu))
 		return 0;
-	return kvm_gfn_to_hva_cache_init(vcpu->kvm, &vcpu->arch.pv_eoi.data,
-					 addr, sizeof(u8));
+
+	if (addr == ghc->gpa && len <= ghc->len)
+		new_len = ghc->len;
+	else
+		new_len = len;
+
+	return kvm_gfn_to_hva_cache_init(vcpu->kvm, ghc, addr, new_len);
 }
 
 void kvm_apic_accept_events(struct kvm_vcpu *vcpu)

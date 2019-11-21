@@ -272,6 +272,7 @@ static int asoc_simple_card_get_dai_id(struct device_node *ep)
 	struct device_node *node;
 	struct device_node *endpoint;
 	struct of_endpoint info;
+	const u32 *reg;
 	int i, id;
 	int ret;
 
@@ -293,8 +294,9 @@ static int asoc_simple_card_get_dai_id(struct device_node *ep)
 			return info.id;
 
 		node = of_get_parent(ep);
+		reg = of_get_property(node, "reg", NULL);
 		of_node_put(node);
-		if (of_get_property(node, "reg", NULL))
+		if (reg)
 			return info.port;
 	}
 	node = of_graph_get_port_parent(ep);
@@ -394,16 +396,13 @@ int asoc_simple_card_init_dai(struct snd_soc_dai *dai,
 }
 EXPORT_SYMBOL_GPL(asoc_simple_card_init_dai);
 
-int asoc_simple_card_canonicalize_dailink(struct snd_soc_dai_link *dai_link)
+void asoc_simple_card_canonicalize_platform(struct snd_soc_dai_link *dai_link)
 {
 	/* Assumes platform == cpu */
 	if (!dai_link->platforms->of_node)
 		dai_link->platforms->of_node = dai_link->cpu_of_node;
-
-	return 0;
-
 }
-EXPORT_SYMBOL_GPL(asoc_simple_card_canonicalize_dailink);
+EXPORT_SYMBOL_GPL(asoc_simple_card_canonicalize_platform);
 
 void asoc_simple_card_canonicalize_cpu(struct snd_soc_dai_link *dai_link,
 				       int is_single_links)

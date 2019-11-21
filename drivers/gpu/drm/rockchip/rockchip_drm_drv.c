@@ -230,8 +230,24 @@ static const struct file_operations rockchip_drm_driver_fops = {
 };
 
 static struct drm_driver rockchip_drm_driver = {
+/*
+ * Chrome OS hack: people aren't confident that ATOMIC works well on
+ * rk3288 and don't want to track down any weird fallout.  It seems to
+ * work fine, but we'll disable it to alleviate any concerns.
+ *
+ * We'll use the quick n' dirty way to detect of just knowing that
+ * anything new is arm64 (and can support atomic) and veyron is arm32.
+ * Ick, but it's a hack.
+ *
+ * See: https://crbug.com/1020259
+ */
+#if IS_ENABLED(CONFIG_ARM64)
 	.driver_features	= DRIVER_MODESET | DRIVER_GEM |
 				  DRIVER_PRIME | DRIVER_ATOMIC | DRIVER_RENDER,
+#else
+	.driver_features	= DRIVER_MODESET | DRIVER_GEM |
+				  DRIVER_PRIME | DRIVER_RENDER,
+#endif
 	.lastclose		= drm_fb_helper_lastclose,
 	.gem_vm_ops		= &drm_gem_cma_vm_ops,
 	.gem_free_object_unlocked = rockchip_gem_free_object,

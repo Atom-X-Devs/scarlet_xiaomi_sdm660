@@ -8,8 +8,10 @@
  */
 
 #include <linux/clk.h>
+#include <linux/crc16.h>
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
@@ -367,6 +369,75 @@ dw_hdmi_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
 						   &crtc_state->adjusted_mode);
 }
 
+static ssize_t hdcp_key_store(struct device *dev, struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	struct rockchip_hdmi *hdmi = dev_get_drvdata(dev);
+	struct dw_hdmi_hdcp_key_1x *key;
+	struct nvmem_cell *cell;
+	u16 encrypt_seed;
+	u8 *cpu_id;
+	size_t len;
+	int ret;
+
+	/*
+	 * The HDCP Key format should look like this: "12345678...",
+	 * every two characters stand for a byte, so the total key size
+	 * would be (308 * 2) byte.
+	 *
+	 * Allow key size to be bigger as a simple way to allow "\r" or "\n"
+	 * after the key.
+	 */
+	if (count < (DW_HDMI_HDCP_KEY_LEN * 2))
+		return -EINVAL;
+
+	cell = nvmem_cell_get(dev, "cpu-id");
+	if (IS_ERR(cell)) {
+		DRM_DEV_ERROR(dev, "err getting CPU ID %ld\n", PTR_ERR(cell));
+		return PTR_ERR(cell);
+	}
+	cpu_id = (u8 *)nvmem_cell_read(cell, &len);
+	if (IS_ERR(cpu_id)) {
+		nvmem_cell_put(cell);
+		DRM_DEV_ERROR(dev, "err reading CPU ID %ld\n", PTR_ERR(cpu_id));
+		return PTR_ERR(cpu_id);
+	}
+	encrypt_seed = crc16(0xffff, cpu_id, len);
+	nvmem_cell_put(cell);
+
+	key = kzalloc(sizeof(*key), GFP_KERNEL);
+	if (IS_ERR(key))
+		return -ENOMEM;
+
+	/*
+	 * The format of input HDCP Key should be "12345678...".
+	 * there is no standard format for HDCP keys, so it is
+	 * just made up for this driver.
+	 *
+	 * The "ksv & device_key & sha" should parsed from input data
+	 * buffer, and the "seed" would take the crc16 of cpu uid.
+	 */
+	ret = hex2bin(key->user_provided_key, buf, DW_HDMI_HDCP_KEY_LEN);
+	if (ret) {
+		dev_err(dev, "Failed to decode the input HDCP key: %d\n", ret);
+		goto exit;
+	}
+
+	key->seed[0] = encrypt_seed & 0xFF;
+	key->seed[1] = (encrypt_seed >> 8) & 0xFF;
+
+	ret = dw_hdmi_config_hdcp_key(hdmi->hdmi, key);
+	if (ret)
+		goto exit;
+
+	ret = count;
+exit:
+	kfree(key);
+
+	return ret;
+}
+static DEVICE_ATTR_WO(hdcp_key);
+
 static const struct drm_encoder_helper_funcs dw_hdmi_rockchip_encoder_helper_funcs = {
 	.mode_set   = dw_hdmi_rockchip_encoder_mode_set,
 	.enable     = dw_hdmi_rockchip_encoder_enable,
@@ -459,6 +530,8 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 			      ret);
 		return ret;
 	}
+
+	device_create_file(dev, &dev_attr_hdcp_key);
 
 	drm_encoder_helper_add(encoder, &dw_hdmi_rockchip_encoder_helper_funcs);
 	drm_encoder_init(drm, encoder, &dw_hdmi_rockchip_encoder_funcs,

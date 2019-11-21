@@ -190,6 +190,24 @@ err:
 	return NULL;
 }
 
+static bool __dma_is_address_from_dev_coherent(struct dma_coherent_mem *mem,
+					       dma_addr_t dma_handle)
+{
+	return mem && dma_handle >= mem->device_base &&
+	       dma_handle < (mem->device_base + (mem->size << PAGE_SHIFT));
+}
+
+void *dma_to_virt_dev_coherent(struct device *dev, dma_addr_t dma_handle)
+{
+	struct dma_coherent_mem *mem = dev_get_coherent_memory(dev);
+
+	if (!__dma_is_address_from_dev_coherent(mem, dma_handle))
+		return NULL;
+
+	return mem->virt_base + (dma_handle - mem->device_base);
+}
+EXPORT_SYMBOL(dma_to_virt_dev_coherent);
+
 /**
  * dma_alloc_from_dev_coherent() - allocate memory from device coherent pool
  * @dev:	device from which we allocate memory

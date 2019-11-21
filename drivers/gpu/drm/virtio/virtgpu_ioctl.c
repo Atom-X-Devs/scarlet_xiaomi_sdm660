@@ -195,7 +195,7 @@ static int virtio_gpu_execbuffer_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		goto out_free;
 
-	buf = memdup_user(u64_to_user_ptr(exbuf->command), exbuf->size);
+	buf = vmemdup_user(u64_to_user_ptr(exbuf->command), exbuf->size);
 	if (IS_ERR(buf)) {
 		ret = PTR_ERR(buf);
 		goto out_unresv;
@@ -230,7 +230,7 @@ static int virtio_gpu_execbuffer_ioctl(struct drm_device *dev, void *data,
 	return 0;
 
 out_memdup:
-	kfree(buf);
+	kvfree(buf);
 out_unresv:
 	ttm_eu_backoff_reservation(&ticket, &validate_list);
 out_free:
@@ -258,6 +258,15 @@ static int virtio_gpu_getparam_ioctl(struct drm_device *dev, void *data,
 		break;
 	case VIRTGPU_PARAM_CAPSET_QUERY_FIX:
 		value = 1;
+		break;
+	case VIRTGPU_PARAM_RESOURCE_V2:
+		value = vgdev->has_resource_v2 == true ? 1 : 0;
+		break;
+	case VIRTGPU_PARAM_SHARED_GUEST:
+		value = vgdev->has_shared_guest == true ? 1 : 0;
+		break;
+	case VIRTGPU_PARAM_HOST_COHERENT:
+		value = vgdev->has_host_coherent == true ? 1 : 0;
 		break;
 	default:
 		return -EINVAL;
@@ -572,6 +581,209 @@ copy_exit:
 	return 0;
 }
 
+static int virtio_gpu_resource_create_v2_ioctl(struct drm_device *dev,
+				void *data, struct drm_file *file)
+{
+	void *buf;
+	int ret, si, nents;
+	uint32_t handle = 0;
+	uint64_t pci_addr = 0;
+	struct scatterlist *sg;
+	size_t total_size, offset;
+	struct virtio_gpu_object *obj;
+	struct virtio_gpu_fence *fence;
+	struct virtio_gpu_mem_entry *ents;
+	struct drm_virtgpu_resource_create_v2 *rc_v2 = data;
+	struct virtio_gpu_object_params params = { 0 };
+	struct virtio_gpu_device *vgdev = dev->dev_private;
+	bool use_dma_api = !virtio_has_iommu_quirk(vgdev->vdev);
+	void __user *args = u64_to_user_ptr(rc_v2->args);
+
+	ret = total_size = offset = 0;
+	params.size = rc_v2->size;
+	params.guest_memory_type = rc_v2->guest_memory_type;
+	params.resource_v2 = true;
+	params.caching_type = rc_v2->caching_type;
+
+	obj = virtio_gpu_alloc_object(dev, &params, NULL);
+	if (IS_ERR(obj))
+		return PTR_ERR(obj);
+
+	if (!obj->pages) {
+                ret = virtio_gpu_object_get_sg_table(vgdev, obj);
+                if (ret)
+			goto err_free_obj;
+        }
+
+	if (rc_v2->guest_memory_type == VIRTGPU_MEMORY_HOST_COHERENT) {
+		nents = 0;
+	} else if (use_dma_api) {
+                obj->mapped = dma_map_sg(vgdev->vdev->dev.parent,
+                                         obj->pages->sgl, obj->pages->nents,
+                                         DMA_TO_DEVICE);
+                nents = obj->mapped;
+        } else {
+                nents = obj->pages->nents;
+        }
+
+	total_size = nents * sizeof(struct virtio_gpu_mem_entry) +
+		     rc_v2->args_size;
+
+	buf = kzalloc(total_size, GFP_KERNEL);
+	if (!buf) {
+		ret = -ENOMEM;
+		goto err_free_obj;
+	}
+
+	ents = buf;
+	if (rc_v2->guest_memory_type == VIRTGPU_MEMORY_HOST_COHERENT) {
+		pci_addr = vgdev->caddr + obj->tbo.offset;
+	} else {
+		for_each_sg(obj->pages->sgl, sg, nents, si) {
+			ents[si].addr = cpu_to_le64(use_dma_api
+						    ? sg_dma_address(sg)
+						    : sg_phys(sg));
+			ents[si].length = cpu_to_le32(sg->length);
+			ents[si].padding = 0;
+			offset += sizeof(struct virtio_gpu_mem_entry);
+		}
+	}
+
+	if (rc_v2->args_size) {
+		if (copy_from_user(buf + offset, args,
+				   rc_v2->args_size)) {
+			ret = -EFAULT;
+			goto err_free_buf;
+		}
+	}
+
+	fence = virtio_gpu_fence_alloc(vgdev);
+	if (!fence) {
+		ret = -ENOMEM;
+		goto err_free_buf;
+	}
+
+	ret = drm_gem_handle_create(file, &obj->gem_base, &handle);
+	if (ret)
+		goto err_fence_put;
+
+	virtio_gpu_cmd_resource_create_v2(vgdev, obj->hw_res_handle,
+				          rc_v2->guest_memory_type,
+				          rc_v2->caching_type, rc_v2->size,
+					  pci_addr, nents, rc_v2->args_size,
+					  buf, total_size, fence);
+
+	/*
+	 * No need to call virtio_gpu_object_reserve since the buffer is not
+	 * being used for ttm validation and no other processes can access
+	 * the reservation object at this point.
+	 */
+	reservation_object_add_excl_fence(obj->tbo.resv, &fence->f);
+
+	dma_fence_put(&fence->f);
+	drm_gem_object_put_unlocked(&obj->gem_base);
+
+	rc_v2->resource_id = obj->hw_res_handle;
+	rc_v2->gem_handle = handle;
+	return 0;
+
+err_fence_put:
+	dma_fence_put(&fence->f);
+err_free_buf:
+	kfree(buf);
+err_free_obj:
+	drm_gem_object_release(&obj->gem_base);
+	return ret;
+}
+
+static int virtio_gpu_allocation_metadata_request_ioctl(struct drm_device *dev,
+				void *data, struct drm_file *file)
+{
+	void *request;
+	uint32_t request_id = 0;
+	struct drm_virtgpu_allocation_metadata_request *amr = data;
+	struct virtio_gpu_device *vgdev = dev->dev_private;
+	struct virtio_gpu_allocation_metadata_response *response;
+	void __user *params = u64_to_user_ptr(amr->request);
+
+	if (!amr->request_size)
+		return -EINVAL;
+
+	request = kzalloc(amr->request_size, GFP_KERNEL);
+	if (!request) {
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(request, params,
+			   amr->request_size)) {
+		kfree(request);
+		return -EFAULT;
+	}
+
+	if (amr->response_size) {
+		response = kzalloc(sizeof(struct virtio_gpu_allocation_metadata_response) +
+			           amr->response_size, GFP_KERNEL);
+		if (!response) {
+			kfree(request);
+			return -ENOMEM;
+		}
+
+		response->callback_done = false;
+		idr_preload(GFP_KERNEL);
+		spin_lock(&vgdev->request_idr_lock);
+		request_id = idr_alloc(&vgdev->request_idr, response, 1, 0,
+				       GFP_NOWAIT);
+		spin_unlock(&vgdev->request_idr_lock);
+		idr_preload_end();
+		amr->request_id = request_id;
+	}
+
+	virtio_gpu_cmd_allocation_metadata(vgdev, request_id,
+					   amr->request_size,
+					   amr->response_size,
+					   request,
+					   NULL);
+	return 0;
+}
+
+static int virtio_gpu_allocation_metadata_response_ioctl(struct drm_device *dev,
+					void *data, struct drm_file *file)
+{
+	int ret = -EINVAL;
+	struct virtio_gpu_allocation_metadata_response *response;
+	struct virtio_gpu_device *vgdev = dev->dev_private;
+	struct drm_virtgpu_allocation_metadata_response *rcr = data;
+	void __user *user_data = u64_to_user_ptr(rcr->response);
+
+	spin_lock(&vgdev->request_idr_lock);
+	response = idr_find(&vgdev->request_idr, rcr->request_id);
+	spin_unlock(&vgdev->request_idr_lock);
+
+	if (!response)
+		goto out;
+
+	ret = wait_event_interruptible(vgdev->resp_wq,
+				       response->callback_done);
+	if (ret)
+		goto out_remove;
+
+	if (copy_to_user(user_data, &response->response_data,
+			 rcr->response_size)) {
+		ret = -EFAULT;
+		goto out_remove;
+	}
+
+	ret = 0;
+
+out_remove:
+	spin_lock(&vgdev->request_idr_lock);
+	response = idr_remove(&vgdev->request_idr, rcr->request_id);
+	spin_unlock(&vgdev->request_idr_lock);
+	kfree(response);
+out:
+	return ret;
+}
+
 struct drm_ioctl_desc virtio_gpu_ioctls[DRM_VIRTIO_NUM_IOCTLS] = {
 	DRM_IOCTL_DEF_DRV(VIRTGPU_MAP, virtio_gpu_map_ioctl,
 			  DRM_AUTH | DRM_RENDER_ALLOW),
@@ -604,4 +816,17 @@ struct drm_ioctl_desc virtio_gpu_ioctls[DRM_VIRTIO_NUM_IOCTLS] = {
 
 	DRM_IOCTL_DEF_DRV(VIRTGPU_GET_CAPS, virtio_gpu_get_caps_ioctl,
 			  DRM_AUTH | DRM_RENDER_ALLOW),
+
+	DRM_IOCTL_DEF_DRV(VIRTGPU_RESOURCE_CREATE_V2,
+			  virtio_gpu_resource_create_v2_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+
+	DRM_IOCTL_DEF_DRV(VIRTGPU_ALLOCATION_METADATA_REQUEST,
+			  virtio_gpu_allocation_metadata_request_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+
+	DRM_IOCTL_DEF_DRV(VIRTGPU_ALLOCATION_METADATA_RESPONSE,
+			  virtio_gpu_allocation_metadata_response_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+
 };

@@ -9,7 +9,7 @@
  * the OS sends a command to the EC via a write() to a char device,
  * and can read the response with a read(). The write() request is
  * verified by the driver to ensure that it is performing only one
- * of the whitelisted commands, and that no extraneous data is
+ * of the allowlisted commands, and that no extraneous data is
  * being transmitted to the EC. The response is passed directly
  * back to the reader with no modification.
  *
@@ -148,7 +148,7 @@ struct wilco_ec_telem_request {
  * We do not want to allow userspace to send arbitrary telemetry commands to
  * the EC. Therefore we check to ensure that
  * 1. The request follows the format of struct wilco_ec_telem_request.
- * 2. The supplied command code is one of the whitelisted commands.
+ * 2. The supplied command code is one of the allowlisted commands.
  * 3. The request only contains the necessary data for the header and arguments.
  */
 static int check_telem_request(struct wilco_ec_telem_request *rq,

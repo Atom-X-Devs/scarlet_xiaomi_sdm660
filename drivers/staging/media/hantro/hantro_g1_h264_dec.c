@@ -34,9 +34,9 @@ static void set_params(struct hantro_ctx *ctx)
 	reg = G1_REG_DEC_CTRL0_DEC_AXI_WR_ID(0x0);
 	if (sps->flags & V4L2_H264_SPS_FLAG_MB_ADAPTIVE_FRAME_FIELD)
 		reg |= G1_REG_DEC_CTRL0_SEQ_MBAFF_E;
-	reg |= G1_REG_DEC_CTRL0_PICORD_COUNT_E;
-	if (dec_param->nal_ref_idc)
-		reg |= G1_REG_DEC_CTRL0_WRITE_MVS_E;
+	if (sps->profile_idc > 66)
+		reg |= G1_REG_DEC_CTRL0_PICORD_COUNT_E |
+		       G1_REG_DEC_CTRL0_WRITE_MVS_E;
 
 	if (!(sps->flags & V4L2_H264_SPS_FLAG_FRAME_MBS_ONLY) &&
 	    (sps->flags & V4L2_H264_SPS_FLAG_MB_ADAPTIVE_FRAME_FIELD ||
@@ -79,7 +79,7 @@ static void set_params(struct hantro_ctx *ctx)
 		reg |= G1_REG_DEC_CTRL4_CABAC_E;
 	if (sps->flags & V4L2_H264_SPS_FLAG_DIRECT_8X8_INFERENCE)
 		reg |= G1_REG_DEC_CTRL4_DIR_8X8_INFER_E;
-	if (sps->profile_idc >= 0 && sps->chroma_format_idc == 0)
+	if (sps->chroma_format_idc == 0)
 		reg |= G1_REG_DEC_CTRL4_BLACKWHITE_E;
 	if (pps->flags & V4L2_H264_PPS_FLAG_WEIGHTED_PRED)
 		reg |= G1_REG_DEC_CTRL4_WEIGHT_PRED_E;
@@ -127,7 +127,6 @@ static void set_params(struct hantro_ctx *ctx)
 
 static void set_ref(struct hantro_ctx *ctx)
 {
-	struct vb2_v4l2_buffer *dst_buf = hantro_get_dst_buf(ctx);
 	struct v4l2_h264_dpb_entry *dpb = ctx->h264_dec.dpb;
 	const u8 *b0_reflist, *b1_reflist, *p_reflist;
 	struct hantro_dev *vpu = ctx->dev;
@@ -136,8 +135,6 @@ static void set_ref(struct hantro_ctx *ctx)
 	int reg_num;
 	u32 reg;
 	int i;
-
-	dst_buf = hantro_get_dst_buf(ctx);
 
 	/*
 	 * Set up bit maps of valid and long term DPBs.
@@ -250,8 +247,8 @@ static void set_buffers(struct hantro_ctx *ctx)
 
 	/* Higher profiles require DMV buffer appended to reference frames. */
 	if (ctrls->sps->profile_idc > 66) {
-		size_t sizeimage = ctx->dst_fmt.plane_fmt[0].sizeimage;
-		size_t mv_offset = round_up(sizeimage, 8);
+		size_t pic_size = ctx->h264_dec.pic_size;
+		size_t mv_offset = round_up(pic_size, 8);
 
 		if (ctrls->slices[0].flags & V4L2_H264_SLICE_FLAG_BOTTOM_FIELD)
 			mv_offset += 32 * H264_MB_WIDTH(ctx->dst_fmt.width);

@@ -14,13 +14,7 @@
 
 / {
 	model = "MediaTek krane sku176 board";
-	/*
-	 * rev3 (and possible rev4) BOE panels have an incorrect strapping,
-	 * so match sku16, as well.
-	 */
-	compatible = "google,krane-sku176",
-		"google,krane-rev3-sku16", "google,krane-rev4-sku16",
-		"google,krane", "mediatek,mt8183";
+	compatible = "google,krane-sku176", "google,krane", "mediatek,mt8183";
 };
 
 &panel {
