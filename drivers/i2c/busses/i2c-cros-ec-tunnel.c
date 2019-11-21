@@ -370,6 +370,7 @@ static int ec_i2c_probe(struct platform_device *pdev)
 	bus->adap.dev.parent = &pdev->dev;
 	bus->adap.dev.of_node = pdev->dev.of_node;
 	bus->adap.retries = I2C_MAX_RETRIES;
+	ACPI_COMPANION_SET(&bus->adap.dev, ACPI_COMPANION(&pdev->dev));
 
 	if (of_find_property(pdev->dev.of_node, "google,limited-passthrough",
 			     NULL))
