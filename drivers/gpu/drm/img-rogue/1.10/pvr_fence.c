@@ -516,7 +516,7 @@ void pvr_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
 
 	if (pvr_fence) {
 		snprintf(str, size,
-			 "%u: (%s%s) refs=%u fwaddr=%#08x enqueue=%u status=%-9s %s%s",
+			 "%llu: (%s%s) refs=%u fwaddr=%#08x enqueue=%u status=%-9s %s%s",
 			 pvr_fence->fence->seqno,
 			 test_bit(DMA_FENCE_FLAG_ENABLE_SIGNAL_BIT,
 				  &pvr_fence->fence->flags) ? "+" : "-",
@@ -715,7 +715,7 @@ void pvr_fence_foreign_fence_value_str(struct dma_fence *fence, char *str, int s
 	 * shadow copy. This is done as the shadow fence flag bits aren't used.
 	 */
 	snprintf(str, size,
-		 "%u: (%s%s) refs=%u fwaddr=%#08x cur=%#08x nxt=%#08x %s",
+		 "%llu: (%s%s) refs=%u fwaddr=%#08x cur=%#08x nxt=%#08x %s",
 		 fence->seqno,
 		 test_bit(DMA_FENCE_FLAG_ENABLE_SIGNAL_BIT,
 			  &pvr_fence->fence->flags) ? "+" : "-",

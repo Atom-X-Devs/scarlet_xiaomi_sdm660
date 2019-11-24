@@ -101,7 +101,7 @@ static const char *pvr_sw_fence_get_timeline_name(struct dma_fence *fence)
 
 static void pvr_sw_fence_value_str(struct dma_fence *fence, char *str, int size)
 {
-	snprintf(str, size, "%d", fence->seqno);
+	snprintf(str, size, "%llu", fence->seqno);
 }
 
 static void pvr_sw_fence_timeline_value_str(struct dma_fence *fence,
