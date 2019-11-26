@@ -279,13 +279,6 @@ static void mtk_vdec_worker(struct work_struct *work)
 			ctx->id, src_buf->vb2_queue->type,
 			src_buf->index, src_buf, src_buf_info);
 
-	if (src_buf_info->lastframe) {
-		mtk_v4l2_debug(1, "Got empty flush input buffer.");
-
-		vdec_if_decode(ctx, NULL, NULL, &res_chg);
-		v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
-		return;
-	}
 	buf = &src_buf_info->bs_buffer;
 	buf->va = vb2_plane_vaddr(src_buf, 0);
 	buf->dma_addr = vb2_dma_contig_plane_dma_addr(src_buf, 0);
@@ -373,9 +366,8 @@ static void vb2ops_vdec_stateless_buf_queue(struct vb2_buffer *vb)
 	}
 	mutex_unlock(&ctx->lock);
 
-	mtk_v4l2_debug(3, "(%d) id=%d, bs=%p used = %d last_frame = %d",
-		vb->vb2_queue->type,
-		vb->index, src_buf, src_buf->used, src_buf->lastframe);
+	mtk_v4l2_debug(3, "(%d) id=%d, bs=%p used = %d",
+		vb->vb2_queue->type, vb->index, src_buf, src_buf->used);
 
 	if (ctx->state == MTK_STATE_INIT) {
 		ctx->state = MTK_STATE_HEADER;
