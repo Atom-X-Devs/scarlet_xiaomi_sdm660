@@ -46,6 +46,13 @@ static struct mtk_q_data *mtk_vdec_get_q_data(struct mtk_vcodec_ctx *ctx,
 static int vidioc_try_decoder_cmd(struct file *file, void *priv,
 				struct v4l2_decoder_cmd *cmd)
 {
+	struct mtk_vcodec_ctx *ctx = fh_to_ctx(priv);
+
+	/* Use M2M stateless helper if relevant */
+	if (ctx->dev->vdec_pdata->uses_stateless_api)
+		return v4l2_m2m_ioctl_stateless_try_decoder_cmd(file, priv,
+								cmd);
+
 	switch (cmd->cmd) {
 	case V4L2_DEC_CMD_STOP:
 	case V4L2_DEC_CMD_START:
@@ -71,6 +78,10 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 	ret = vidioc_try_decoder_cmd(file, priv, cmd);
 	if (ret)
 		return ret;
+
+	/* Use M2M stateless helper if relevant */
+	if (ctx->dev->vdec_pdata->uses_stateless_api)
+		return v4l2_m2m_ioctl_stateless_decoder_cmd(file, priv, cmd);
 
 	mtk_v4l2_debug(1, "decoder cmd=%u", cmd->cmd);
 	dst_vq = v4l2_m2m_get_vq(ctx->m2m_ctx,
