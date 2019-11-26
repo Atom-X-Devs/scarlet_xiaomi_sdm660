@@ -1544,8 +1544,6 @@ struct max98090_priv {
 	unsigned int sidetone;
 	bool master;
 	bool shdn_pending;
-	struct work_struct dmic_mux_work;
-	bool dmic_used;
 };
 
 int max98090_mic_detect(struct snd_soc_component *component,
