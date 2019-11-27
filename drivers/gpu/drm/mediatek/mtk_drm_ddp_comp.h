@@ -86,6 +86,8 @@ struct mtk_ddp_comp_funcs {
 	void (*stop)(struct mtk_ddp_comp *comp);
 	void (*enable_vblank)(struct mtk_ddp_comp *comp, struct drm_crtc *crtc);
 	void (*disable_vblank)(struct mtk_ddp_comp *comp);
+	void (*prepare)(struct mtk_ddp_comp *comp);
+	void (*unprepare)(struct mtk_ddp_comp *comp);
 	unsigned int (*supported_rotations)(struct mtk_ddp_comp *comp);
 	unsigned int (*layer_nr)(struct mtk_ddp_comp *comp);
 	void (*layer_on)(struct mtk_ddp_comp *comp, unsigned int idx,
@@ -123,6 +125,18 @@ static inline void mtk_ddp_comp_config(struct mtk_ddp_comp *comp,
 {
 	if (comp->funcs && comp->funcs->config)
 		comp->funcs->config(comp, w, h, vrefresh, bpc, cmdq_pkt);
+}
+
+static inline void mtk_ddp_comp_prepare(struct mtk_ddp_comp *comp)
+{
+	if (comp->funcs && comp->funcs->prepare)
+		comp->funcs->prepare(comp);
+}
+
+static inline void mtk_ddp_comp_unprepare(struct mtk_ddp_comp *comp)
+{
+	if (comp->funcs && comp->funcs->unprepare)
+		comp->funcs->unprepare(comp);
 }
 
 static inline void mtk_ddp_comp_start(struct mtk_ddp_comp *comp)
