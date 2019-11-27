@@ -8,6 +8,7 @@
 /dts-v1/;
 #include "rk3288-veyron.dtsi"
 #include "rk3288-veyron-lpddr.dtsi"
+#include "rk3288-veyron-broadcom-bluetooth.dtsi"
 
 / {
 	model = "Google Brain";
@@ -41,6 +42,14 @@
 };
 
 &pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		/* Common for sleep and wake, but no owners */
+		&ddr0_retention
+		&ddrio_pwroff
+		&global_pwroff
+	>;
+
 	hdmi {
 		vcc50_hdmi_en: vcc50-hdmi-en {
 			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
