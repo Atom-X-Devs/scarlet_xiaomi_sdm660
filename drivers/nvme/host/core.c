@@ -2126,6 +2126,11 @@ static const struct nvme_core_quirk_entry core_quirks[] = {
 		.vid = 0x14a4,
 		.fr = "22301111",
 		.quirks = NVME_QUIRK_SIMPLE_SUSPEND,
+	},
+	{
+		.vid = 0x144d,
+		.mn = "SAMSUNG MZALQ128HBHQ-000L2",
+		.quirks = NVME_QUIRK_SIMPLE_SUSPEND,
 	}
 };
 
