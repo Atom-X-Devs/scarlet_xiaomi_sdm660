@@ -21,7 +21,6 @@
 #include <linux/kernel.h>
 #include <linux/kobject.h>
 #include <linux/slab.h>
-#include <linux/mfd/cros_ec.h>
 #include <linux/module.h>
 #include <linux/platform_data/cros_ec_commands.h>
 #include <linux/platform_data/cros_ec_pd_update.h>
