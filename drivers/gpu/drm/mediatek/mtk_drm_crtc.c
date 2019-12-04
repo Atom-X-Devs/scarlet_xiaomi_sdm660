@@ -357,20 +357,6 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 	mtk_disp_mutex_add_comp(mtk_crtc->mutex, mtk_crtc->ddp_comp[i]->id);
 	mtk_disp_mutex_enable(mtk_crtc->mutex);
 
-	/* Initially configure all planes */
-	for (i = 0; i < mtk_crtc->layer_nr; i++) {
-		struct drm_plane *plane = &mtk_crtc->planes[i];
-		struct mtk_plane_state *plane_state;
-		struct mtk_ddp_comp *comp;
-		unsigned int local_layer;
-
-		plane_state = to_mtk_plane_state(plane->state);
-		comp = mtk_drm_ddp_comp_for_plane(crtc, plane, &local_layer);
-		if (comp)
-			mtk_ddp_comp_layer_config(comp, local_layer,
-						  plane_state, NULL);
-	}
-
 	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
 		struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[i];
 		enum mtk_ddp_comp_id prev;
@@ -386,6 +372,21 @@ static int mtk_crtc_ddp_hw_init(struct mtk_drm_crtc *mtk_crtc)
 		mtk_ddp_comp_config(comp, width, height,
 				    vrefresh, bpc, NULL);
 		mtk_ddp_comp_start(comp);
+	}
+
+	/* Initially configure all planes */
+	for (i = 0; i < mtk_crtc->layer_nr; i++) {
+		struct drm_plane *plane = &mtk_crtc->planes[i];
+		struct mtk_plane_state *plane_state;
+		struct mtk_ddp_comp *comp;
+		unsigned int local_layer;
+
+		plane_state = to_mtk_plane_state(plane->state);
+		comp = mtk_drm_ddp_comp_for_plane(crtc, plane, &local_layer);
+
+		if (comp)
+			mtk_ddp_comp_layer_config(comp, local_layer,
+						  plane_state, NULL);
 	}
 
 	return 0;
@@ -604,21 +605,10 @@ static void mtk_drm_crtc_atomic_disable(struct drm_crtc *crtc,
 	for (i = 0; i < mtk_crtc->layer_nr; i++) {
 		struct drm_plane *plane = &mtk_crtc->planes[i];
 		struct mtk_plane_state *plane_state;
-		struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
-		unsigned int comp_layer_nr = mtk_ddp_comp_layer_nr(comp);
-		unsigned int local_layer;
 
 		plane_state = to_mtk_plane_state(plane->state);
 		plane_state->pending.enable = false;
 		plane_state->pending.config = true;
-
-		if (i >= comp_layer_nr) {
-			comp = mtk_crtc->ddp_comp[1];
-			local_layer = i - comp_layer_nr;
-		} else
-			local_layer = i;
-		mtk_ddp_comp_layer_config(comp, local_layer,
-					  plane_state, NULL);
 	}
 	mtk_crtc->pending_planes = true;
 
