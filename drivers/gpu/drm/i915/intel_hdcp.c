@@ -1209,23 +1209,6 @@ enum mei_fw_tc intel_get_mei_fw_tc(enum transcoder cpu_transcoder)
 	}
 }
 
-void intel_hdcp_transcoder_config(struct intel_connector *connector,
-				  enum transcoder cpu_transcoder)
-{
-	struct drm_i915_private *dev_priv = to_i915(connector->base.dev);
-	struct intel_hdcp *hdcp = &connector->hdcp;
-
-	if (!hdcp->shim)
-		return;
-
-	if (INTEL_GEN(dev_priv) >= 12) {
-		mutex_lock(&hdcp->mutex);
-		hdcp->cpu_transcoder = cpu_transcoder;
-		hdcp->port_data.fw_tc = intel_get_mei_fw_tc(cpu_transcoder);
-		mutex_unlock(&hdcp->mutex);
-	}
-}
-
 static inline int initialize_hdcp_port_data(struct intel_connector *connector)
 {
 	struct drm_i915_private *dev_priv = to_i915(connector->base.dev);
@@ -1339,8 +1322,10 @@ int intel_hdcp_init(struct intel_connector *connector,
 	return 0;
 }
 
-int intel_hdcp_enable(struct intel_connector *connector)
+int intel_hdcp_enable(struct intel_connector *connector,
+		      enum transcoder cpu_transcoder)
 {
+	struct drm_i915_private *dev_priv = to_i915(connector->base.dev);
 	struct intel_hdcp *hdcp = &connector->hdcp;
 	int ret;
 
@@ -1348,6 +1333,11 @@ int intel_hdcp_enable(struct intel_connector *connector)
 		return -ENOENT;
 
 	mutex_lock(&hdcp->mutex);
+
+	if (INTEL_GEN(dev_priv) >= 12) {
+		hdcp->cpu_transcoder = cpu_transcoder;
+		hdcp->port_data.fw_tc = intel_get_mei_fw_tc(cpu_transcoder);
+	}
 
 	ret = _intel_hdcp_enable(connector);
 	if (ret)
