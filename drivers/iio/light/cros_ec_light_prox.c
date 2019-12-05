@@ -78,49 +78,33 @@ static int cros_ec_light_prox_read_data(
 		int *val)
 {
 	struct cros_ec_light_prox_state *st = iio_priv(indio_dev);
-	u16 data = 0;
 	int i, ret;
 	int idx = chan->scan_index;
 
-	if (chan->type == IIO_PROXIMITY) {
-		ret = cros_ec_sensors_read_cmd(indio_dev, 1 << idx,
-				(s16 *)&data);
-		if (ret < 0)
-			return ret;
-	} else if (chan->type == IIO_LIGHT) {
-		ret = cros_ec_sensors_read_cmd(indio_dev, 1 << idx,
-				(s16 *)&data);
-		if (ret)
-			return ret;
+	st->core.param.cmd = MOTIONSENSE_CMD_DATA;
 
-		if ((idx == 0) &&
-		    (indio_dev->num_channels >
-				CROS_EC_LIGHT_PROX_MIN_CHANNELS)) {
-			/*
-			 * Read extra sensors as well,
-			 * using same parameters.
-			 */
-			ret = cros_ec_light_extra_send_host_cmd(
-					&st->core, 1,
-					sizeof(st->core.resp->data));
-			if (ret)
-				return ret;
-			for (i = 0; i < CROS_EC_SENSOR_MAX_AXIS; i++)
-				st->rgb_space[i] =
-					st->core.resp->data.data[i];
-		}
-	} else {
-		return -EINVAL;
-	}
 	/*
 	 * The data coming from the light sensor is
 	 * pre-processed and represents the ambient light
 	 * illuminance reading expressed in lux.
 	 */
-	if (idx == 0)
-		*val = data;
-	else
+	if (idx == 0) {
+		ret = cros_ec_motion_send_host_cmd(
+				&st->core, sizeof(st->core.resp->data));
+		if (ret)
+			return ret;
+		*val = st->core.resp->data.data[0];
+	} else {
+		ret = cros_ec_light_extra_send_host_cmd(
+				&st->core, 1, sizeof(st->core.resp->data));
+		if (ret)
+			return ret;
+
+		for (i = 0; i < CROS_EC_SENSOR_MAX_AXIS; i++)
+			st->rgb_space[i] =
+				st->core.resp->data.data[i];
 		*val = st->rgb_space[idx - 1];
+	}
 
 	return IIO_VAL_INT;
 }
