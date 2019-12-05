@@ -5,6 +5,7 @@
 
 /dts-v1/;
 #include "mt8183-kukui.dtsi"
+#include "mt8183-kukui-audio-ts3a227e.dtsi"
 
 / {
 	ppvarn_lcd: ppvarn-lcd {
@@ -464,18 +465,10 @@
 	};
 };
 
-&sound {
-	mediatek,headset-codec = <&ts3a227e>;
-};
-
 &spi2 {
 	cros_ec: ec@0 {
 		i2c_tunnel: i2c-tunnel {
 			google,remote-bus = <2>;
 		};
 	};
-};
-
-&ts3a227e {
-	status = "okay";
 };

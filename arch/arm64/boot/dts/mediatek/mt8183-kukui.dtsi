@@ -113,7 +113,7 @@
 		compatible = "linux,bt-sco";
 	};
 
-	sound: mt8183-mt6358-ts3a227e-max98357a {
+	sound: mt8183-sound {
 		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
 		mediatek,hdmi-codec = <&it6505dptx>;
@@ -382,21 +382,6 @@
 	clock-frequency = <100000>;
 	#address-cells = <1>;
 	#size-cells = <0>;
-
-	ts3a227e: ts3a227e@3b {
-		pinctrl-names = "default";
-		pinctrl-0 = <&ts3a227e_pins>;
-		compatible = "ti,ts3a227e";
-		reg = <0x3b>;
-		interrupt-parent = <&pio>;
-		interrupts = <157 IRQ_TYPE_LEVEL_LOW>;
-
-		/*
-		 * Only kukui variants with a headphone jack
-		 * will enable this node.
-		 */
-		status = "disabled";
-	};
 };
 
 &i2c6 {
@@ -888,15 +873,6 @@
 				 <PINMUX_GPIO15__FUNC_SPI5_MO>,
 				 <PINMUX_GPIO16__FUNC_SPI5_CLK>;
 			bias-disable;
-		};
-	};
-
-	ts3a227e_pins: ts3a227e_pins {
-		pins1 {
-			pinmux = <PINMUX_GPIO157__FUNC_GPIO157>;
-			input-enable;
-			bias-enable;
-			bias-pull-up;
 		};
 	};
 
