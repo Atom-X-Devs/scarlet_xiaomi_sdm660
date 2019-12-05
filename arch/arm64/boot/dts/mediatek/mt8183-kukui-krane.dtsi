@@ -145,7 +145,6 @@
 		clock-names = "eclk", "freq_mux";
 		clock-frequency = <24000000>;
 		rotation = <180>;
-		ovti,hs-vod-adjust = <21>;
 		ovti,mipi-tx-speed = <3>;
 
 		assigned-clocks = <&topckgen CLK_TOP_MUX_CAMTG2>,
