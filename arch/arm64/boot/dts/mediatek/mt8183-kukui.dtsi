@@ -83,6 +83,24 @@
 		regulator-max-microvolt = <1800000>;
 	};
 
+	pp1800_alw: pp1800_alw {
+		compatible = "regulator-fixed";
+		regulator-name = "pp1800_alw";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	pp3300_alw: pp3300_alw {
+		compatible = "regulator-fixed";
+		regulator-name = "pp3300_alw";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
 	reserved_memory: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
