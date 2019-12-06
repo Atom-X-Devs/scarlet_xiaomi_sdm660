@@ -50,6 +50,8 @@ struct ath10k_hif_ops {
 
 	int (*swap_mailbox)(struct ath10k *ar);
 
+	int (*set_mbox_sleep)(struct ath10k *ar, bool enable_sleep);
+
 	int (*get_htt_tx_complete)(struct ath10k *ar);
 
 	int (*map_service_to_pipe)(struct ath10k *ar, u16 service_id,
@@ -136,6 +138,13 @@ static inline int ath10k_hif_swap_mailbox(struct ath10k *ar)
 {
 	if (ar->hif.ops->swap_mailbox)
 		return ar->hif.ops->swap_mailbox(ar);
+	return 0;
+}
+
+static inline int ath10k_hif_set_mbox_sleep(struct ath10k *ar, bool enable_sleep)
+{
+	if (ar->hif.ops->set_mbox_sleep)
+		return ar->hif.ops->set_mbox_sleep(ar, enable_sleep);
 	return 0;
 }
 
