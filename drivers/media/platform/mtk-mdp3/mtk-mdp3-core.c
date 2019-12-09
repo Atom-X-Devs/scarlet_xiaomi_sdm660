@@ -126,6 +126,7 @@ static int mdp_probe(struct platform_device *pdev)
 	mdp->scp = scp_get(pdev);
 	if (!mdp->scp) {
 		dev_err(&pdev->dev, "Could not get scp device\n");
+		ret = -ENODEV;
 		goto err_destroy_clock_wq;
 	}
 
