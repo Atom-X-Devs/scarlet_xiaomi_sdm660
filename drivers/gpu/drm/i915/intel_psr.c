@@ -308,6 +308,12 @@ void intel_psr_init_dpcd(struct intel_dp *intel_dp)
 	dev_priv->psr.sink_sync_latency =
 		intel_dp_get_sink_sync_latency(intel_dp);
 
+	if (drm_dp_has_quirk(&intel_dp->desc, DP_DPCD_QUIRK_SYNCHRONIZATION_LATENCY)) {
+		DRM_DEBUG_KMS("AUO PSR2 panel need more synchronization latency\n");
+		if (dev_priv->psr.sink_sync_latency == 0)
+			dev_priv->psr.sink_sync_latency = 8;
+	}
+
 	WARN_ON(dev_priv->psr.dp);
 	dev_priv->psr.dp = intel_dp;
 
