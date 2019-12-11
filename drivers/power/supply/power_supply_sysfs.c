@@ -56,7 +56,8 @@ static const char * const power_supply_status_text[] = {
 };
 
 static const char * const power_supply_charge_type_text[] = {
-	"Unknown", "N/A", "Trickle", "Fast", "Standard", "Adaptive", "Custom"
+	"Unknown", "N/A", "Trickle", "Fast", "Standard", "Adaptive", "Custom",
+	"Permanent Long Life"
 };
 
 static const char * const power_supply_health_text[] = {
