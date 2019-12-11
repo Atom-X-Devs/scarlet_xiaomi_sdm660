@@ -37,6 +37,7 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_CMD_VFD_NEW_DMABUF, /* virtio_wl_ctrl_vfd_new */
 	VIRTIO_WL_CMD_VFD_DMABUF_SYNC, /* virtio_wl_ctrl_vfd_dmabuf_sync */
 	VIRTIO_WL_CMD_VFD_SEND_FOREIGN_ID, /* virtio_wl_ctrl_vfd_send + data */
+	VIRTIO_WL_CMD_VFD_NEW_CTX_NAMED, /* virtio_wl_ctrl_vfd_new */
 
 	VIRTIO_WL_RESP_OK = 0x1000,
 	VIRTIO_WL_RESP_VFD_NEW = 0x1001, /* virtio_wl_ctrl_vfd_new */
@@ -78,18 +79,22 @@ struct virtio_wl_ctrl_vfd_new {
 	__le32 flags; /* virtio_wl_vfd_flags */
 	__le64 pfn; /* first guest physical page frame number if VFD_MAP */
 	__le32 size; /* size in bytes if VIRTIO_WL_CMD_VFD_NEW* */
-	/* buffer description if VIRTIO_WL_CMD_VFD_NEW_DMABUF */
-	struct {
-		__le32 width; /* width in pixels */
-		__le32 height; /* height in pixels */
-		__le32 format; /* fourcc format */
-		__le32 stride0; /* return stride0 */
-		__le32 stride1; /* return stride1 */
-		__le32 stride2; /* return stride2 */
-		__le32 offset0; /* return offset0 */
-		__le32 offset1; /* return offset1 */
-		__le32 offset2; /* return offset2 */
-	} dmabuf;
+	union {
+		/* buffer description if VIRTIO_WL_CMD_VFD_NEW_DMABUF */
+		struct {
+			__le32 width; /* width in pixels */
+			__le32 height; /* height in pixels */
+			__le32 format; /* fourcc format */
+			__le32 stride0; /* return stride0 */
+			__le32 stride1; /* return stride1 */
+			__le32 stride2; /* return stride2 */
+			__le32 offset0; /* return offset0 */
+			__le32 offset1; /* return offset1 */
+			__le32 offset2; /* return offset2 */
+		} dmabuf;
+		/* name of socket if VIRTIO_WL_CMD_VFD_NEW_CTX_NAMED */
+		char name[32];
+	};
 };
 
 
