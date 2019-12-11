@@ -165,9 +165,6 @@ void bt_err_ratelimited(const char *fmt, ...);
 #define BT_ERR(fmt, ...)	\
 	bt_err(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
 
-#define BT_ERR_RATELIMITED(fmt, ...) \
-	bt_err_ratelimited(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
-
 #define bt_dev_info(hdev, fmt, ...)				\
 	BT_INFO("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 #define bt_dev_warn(hdev, fmt, ...)				\
@@ -181,7 +178,7 @@ void bt_err_ratelimited(const char *fmt, ...);
 	bt_warn_ratelimited("%s: " BT_PREFIX fmt, (hdev)->name	\
 			    BT_PREFIX_PARAM, ##__VA_ARGS__)
 #define bt_dev_err_ratelimited(hdev, fmt, ...)			\
-	BT_ERR_RATELIMITED("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
+	bt_err_ratelimited("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 
 /* Connection and socket states */
 enum {
