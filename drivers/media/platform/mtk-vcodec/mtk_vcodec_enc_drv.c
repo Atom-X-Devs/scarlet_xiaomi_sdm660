@@ -49,12 +49,15 @@ static const struct mtk_video_fmt mtk_video_formats_output_mt8173[] = {
 	},
 };
 
-static const struct mtk_video_fmt mtk_video_formats_capture_mt8173[] =  {
+static const struct mtk_video_fmt mtk_video_formats_capture_mt8173_h264[] =  {
 	{
 		.fourcc = V4L2_PIX_FMT_H264,
 		.type = MTK_FMT_ENC,
 		.num_planes = 1,
 	},
+};
+
+static const struct mtk_video_fmt mtk_video_formats_capture_mt8173_vp8[] =  {
 	{
 		.fourcc = V4L2_PIX_FMT_VP8,
 		.type = MTK_FMT_ENC,
@@ -110,34 +113,11 @@ static irqreturn_t mtk_vcodec_enc_irq_handler(int irq, void *priv)
 	ctx = dev->curr_ctx;
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
-	mtk_v4l2_debug(1, "id=%d", ctx->id);
-	addr = dev->reg_base[VENC_SYS] + MTK_VENC_IRQ_ACK_OFFSET;
+	mtk_v4l2_debug(1, "id=%d coreid:%d", ctx->id, dev->venc_pdata->core_id);
+	addr = dev->reg_base[dev->venc_pdata->core_id] + MTK_VENC_IRQ_ACK_OFFSET;
 
-	ctx->irq_status = readl(dev->reg_base[VENC_SYS] +
+	ctx->irq_status = readl(dev->reg_base[dev->venc_pdata->core_id] +
 				(MTK_VENC_IRQ_STATUS_OFFSET));
-
-	clean_irq_status(ctx->irq_status, addr);
-
-	wake_up_ctx(ctx, MTK_INST_IRQ_RECEIVED);
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t mtk_vcodec_enc_lt_irq_handler(int irq, void *priv)
-{
-	struct mtk_vcodec_dev *dev = priv;
-	struct mtk_vcodec_ctx *ctx;
-	unsigned long flags;
-	void __iomem *addr;
-
-	spin_lock_irqsave(&dev->irqlock, flags);
-	ctx = dev->curr_ctx;
-	spin_unlock_irqrestore(&dev->irqlock, flags);
-
-	mtk_v4l2_debug(1, "id=%d", ctx->id);
-	ctx->irq_status = readl(dev->reg_base[VENC_LT_SYS] +
-				(MTK_VENC_IRQ_STATUS_OFFSET));
-
-	addr = dev->reg_base[VENC_LT_SYS] + MTK_VENC_IRQ_ACK_OFFSET;
 
 	clean_irq_status(ctx->irq_status, addr);
 
@@ -269,7 +249,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	struct resource *res;
 	phandle rproc_phandle;
 	enum mtk_vcodec_fw_type fw_type;
-	int i, j, ret;
+	int ret;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -296,24 +276,20 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	dev->venc_pdata = of_device_get_match_data(&pdev->dev);
 	ret = mtk_vcodec_init_enc_pm(dev);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "Failed to get mt vcodec clock source!");
+		dev_err(&pdev->dev, "Failed to get mtk vcodec clock source!");
 		goto err_enc_pm;
 	}
 
-	for (i = VENC_SYS, j = 0; i < NUM_MAX_VCODEC_REG_BASE; i++, j++) {
-		res = platform_get_resource(pdev, IORESOURCE_MEM, j);
-		dev->reg_base[i] = devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR((__force void *)dev->reg_base[i])) {
-			ret = PTR_ERR((__force void *)dev->reg_base[i]);
-			goto err_res;
-		}
-		mtk_v4l2_debug(2, "reg[%d] base=0x%p", i, dev->reg_base[i]);
-	}
+	pm_runtime_enable(&pdev->dev);
 
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (res == NULL) {
-		dev_err(&pdev->dev, "failed to get irq resource");
-		ret = -ENOENT;
+	snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name), "%s",
+			dev->venc_pdata->name);
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	dev->reg_base[dev->venc_pdata->core_id] =
+		devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR((__force void *)dev->reg_base[dev->venc_pdata->core_id])) {
+		ret = PTR_ERR((__force void *)dev->reg_base[dev->venc_pdata->core_id]);
 		goto err_res;
 	}
 
@@ -322,37 +298,17 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 			       mtk_vcodec_enc_irq_handler,
 			       0, pdev->name, dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to install dev->enc_irq %d (%d)",
-			dev->enc_irq,
-			ret);
+		dev_err(&pdev->dev,
+			"Failed to install dev->enc_irq %d (%d) core_id:%d",
+			dev->enc_irq, ret, dev->venc_pdata->core_id);
 		ret = -EINVAL;
 		goto err_res;
 	}
 	disable_irq(dev->enc_irq);
 
-	if (dev->venc_pdata->has_lt_irq) {
-		dev->enc_lt_irq = platform_get_irq(pdev, 1);
-		ret = devm_request_irq(&pdev->dev,
-				       dev->enc_lt_irq,
-				       mtk_vcodec_enc_lt_irq_handler,
-				       0, pdev->name, dev);
-		if (ret) {
-			dev_err(&pdev->dev,
-				"Failed to install dev->enc_lt_irq %d (%d)",
-				dev->enc_lt_irq, ret);
-			ret = -EINVAL;
-			goto err_res;
-		}
-		disable_irq(dev->enc_lt_irq); /* VENC_LT */
-	}
-
 	mutex_init(&dev->enc_mutex);
 	mutex_init(&dev->dev_mutex);
 	spin_lock_init(&dev->irqlock);
-
-	snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name), "%s",
-		 "[MTK_V4L2_VENC]");
-
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
 	if (ret) {
 		mtk_v4l2_err("v4l2_device_register err=%d", ret);
@@ -378,7 +334,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 					V4L2_CAP_STREAMING;
 
 	snprintf(vfd_enc->name, sizeof(vfd_enc->name), "%s",
-		 MTK_VCODEC_ENC_NAME);
+			dev->venc_pdata->name);
 	video_set_drvdata(vfd_enc, dev);
 	dev->vfd_enc = vfd_enc;
 	platform_set_drvdata(pdev, dev);
@@ -406,7 +362,8 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		goto err_enc_reg;
 	}
 
-	mtk_v4l2_debug(0, "encoder registered as /dev/video%d",
+	mtk_v4l2_debug(0, "encoder %d registered as /dev/video%d",
+			dev->venc_pdata->core_id,
 			vfd_enc->num);
 
 	return 0;
@@ -420,26 +377,39 @@ err_enc_mem_init:
 err_enc_alloc:
 	v4l2_device_unregister(&dev->v4l2_dev);
 err_res:
-	mtk_vcodec_release_enc_pm(dev);
+	pm_runtime_disable(&pdev->dev);
 err_enc_pm:
 	mtk_vcodec_fw_release(dev->fw_handler);
 	return ret;
 }
 
-static const struct mtk_vcodec_enc_pdata mt8173_pdata = {
+static const struct mtk_vcodec_enc_pdata mt8173_avc_pdata = {
 	.chip = MTK_MT8173,
-	.has_lt_irq = true,
-	.capture_formats = mtk_video_formats_capture_mt8173,
-	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173),
+	.name = MTK_VCODEC_ENC_NAME,
+	.capture_formats = mtk_video_formats_capture_mt8173_h264,
+	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173_h264),
 	.output_formats = mtk_video_formats_output_mt8173,
 	.num_output_formats = ARRAY_SIZE(mtk_video_formats_output_mt8173),
 	.min_bitrate = 1,
 	.max_bitrate = 4000000,
+	.core_id = VENC_SYS,
+};
+
+static const struct mtk_vcodec_enc_pdata mt8173_vp8_pdata = {
+	.chip = MTK_MT8173,
+	.name = MTK_VENC_VP8_NAME,
+	.capture_formats = mtk_video_formats_capture_mt8173_vp8,
+	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173_vp8),
+	.output_formats = mtk_video_formats_output_mt8173,
+	.num_output_formats = ARRAY_SIZE(mtk_video_formats_output_mt8173),
+	.min_bitrate = 1,
+	.max_bitrate = 4000000,
+	.core_id = VENC_LT_SYS,
 };
 
 static const struct mtk_vcodec_enc_pdata mt8183_pdata = {
 	.chip = MTK_MT8183,
-	.has_lt_irq = false,
+	.name = MTK_VCODEC_ENC_NAME,
 	.uses_ext = true,
 	.capture_formats = mtk_video_formats_capture_mt8183,
 	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8183),
@@ -448,10 +418,14 @@ static const struct mtk_vcodec_enc_pdata mt8183_pdata = {
 	.num_output_formats = ARRAY_SIZE(mtk_video_formats_output_mt8173),
 	.min_bitrate = 64,
 	.max_bitrate = 40000000,
+	.core_id = VENC_SYS,
 };
 
 static const struct of_device_id mtk_vcodec_enc_match[] = {
-	{.compatible = "mediatek,mt8173-vcodec-enc", .data = &mt8173_pdata},
+	{.compatible = "mediatek,mt8173-vcodec-avc-enc",
+			.data = &mt8173_avc_pdata},
+	{.compatible = "mediatek,mt8173-vcodec-vp8-enc",
+			.data = &mt8173_vp8_pdata},
 	{.compatible = "mediatek,mt8183-vcodec-enc", .data = &mt8183_pdata},
 	{},
 };
@@ -471,7 +445,7 @@ static int mtk_vcodec_enc_remove(struct platform_device *pdev)
 		video_unregister_device(dev->vfd_enc);
 
 	v4l2_device_unregister(&dev->v4l2_dev);
-	mtk_vcodec_release_enc_pm(dev);
+	pm_runtime_disable(&pdev->dev);
 	mtk_vcodec_fw_release(dev->fw_handler);
 	return 0;
 }
