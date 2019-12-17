@@ -248,7 +248,7 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	timing->lpx = (60 * data_rate_mhz / (8 * 1000)) + 1;
 	timing->da_hs_prepare = (80 * data_rate_mhz + 4 * 1000) / 8000;
 	timing->da_hs_zero = (170 * data_rate_mhz + 10 * 1000) / 8000 + 1 -
-				 timing->da_hs_prepare;
+			     timing->da_hs_prepare;
 	timing->da_hs_trail = timing->da_hs_prepare + 1;
 
 	timing->ta_go = 4 * timing->lpx - 2;
@@ -501,7 +501,7 @@ static void mtk_dsi_config_vdo_timing(struct mtk_dsi *dsi)
 			dsi_tmp_buf_bpp - 10);
 
 	data_phy_cycles = timing->lpx + timing->da_hs_prepare +
-				  timing->da_hs_zero + timing->da_hs_exit + 3;
+			  timing->da_hs_zero + timing->da_hs_exit + 3;
 
 	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
 		if ((vm->hfront_porch + vm->hback_porch) * dsi_tmp_buf_bpp >
