@@ -279,6 +279,7 @@ long i915_request_wait(struct i915_request *rq,
 #define I915_WAIT_LOCKED	BIT(1) /* struct_mutex held, handle GPU reset */
 #define I915_WAIT_ALL		BIT(2) /* used by i915_gem_object_wait() */
 #define I915_WAIT_FOR_IDLE_BOOST BIT(3)
+#define I915_WAIT_BOOST		BIT(4)
 
 static inline bool intel_engine_has_started(struct intel_engine_cs *engine,
 					    u32 seqno);
