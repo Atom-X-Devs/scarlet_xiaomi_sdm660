@@ -750,7 +750,7 @@ struct mgmt_rp_get_phy_confguration {
 #define MGMT_PHY_LE_RX_MASK (MGMT_PHY_LE_1M_RX | MGMT_PHY_LE_2M_RX | \
 			     MGMT_PHY_LE_CODED_RX)
 
-#define MGMT_OP_SET_PHY_CONFIGURATION	0x0050
+#define MGMT_OP_SET_PHY_CONFIGURATION	0x004A
 struct mgmt_cp_set_phy_confguration {
 	__le32	selected_phys;
 } __packed;
