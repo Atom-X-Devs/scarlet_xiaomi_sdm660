@@ -38,7 +38,7 @@
  */
 #define MTK_ISP_CAM_ID_B			3
 #define MTK_ISP_AUTOSUSPEND_DELAY_MS		66
-#define MTK_ISP_IPI_SEND_TIMEOUT		50
+#define MTK_ISP_IPI_SEND_TIMEOUT		1000
 #define MTK_ISP_STOP_HW_TIMEOUT			(33 * USEC_PER_MSEC)
 
 /* Meta index with non-request */
