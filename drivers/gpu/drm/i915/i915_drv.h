@@ -3497,12 +3497,16 @@ bool intel_bios_is_lspcon_present(struct drm_i915_private *dev_priv,
 				enum port port);
 
 /* intel_acpi.c */
+struct drm_i915_private;
 #ifdef CONFIG_ACPI
 extern void intel_register_dsm_handler(void);
 extern void intel_unregister_dsm_handler(void);
+void intel_acpi_device_id_update(struct drm_i915_private *i915);
 #else
 static inline void intel_register_dsm_handler(void) { return; }
 static inline void intel_unregister_dsm_handler(void) { return; }
+static inline
+void intel_acpi_device_id_update(struct drm_i915_private *i915) { return; }
 #endif /* CONFIG_ACPI */
 
 /* intel_device_info.c */
