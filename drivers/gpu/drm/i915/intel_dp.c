@@ -43,6 +43,7 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "intel_psr.h"
+#include "intel_privacy_screen.h"
 
 #define DP_DPRX_ESI_LEN 14
 
@@ -5780,6 +5781,7 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 {
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	enum port port = dp_to_dig_port(intel_dp)->base.port;
+	struct intel_connector *intel_connector = to_intel_connector(connector);
 
 	if (!IS_G4X(dev_priv) && port != PORT_A)
 		intel_attach_force_audio_property(connector);
@@ -5799,6 +5801,10 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 
 		/* Lookup the ACPI node corresponding to the connector */
 		intel_acpi_device_id_update(dev_priv);
+
+		/* Check for integrated Privacy screen support */
+		if (intel_privacy_screen_present(intel_connector))
+			intel_attach_privacy_screen_property(connector);
 	}
 }
 
