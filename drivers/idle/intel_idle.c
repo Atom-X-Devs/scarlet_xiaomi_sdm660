@@ -1068,6 +1068,11 @@ static const struct idle_cpu idle_cpu_dnv = {
 	.disable_promotion_to_c1e = true,
 };
 
+static const struct idle_cpu idle_cpu_cml = {
+	.state_table = skl_cstates,
+	.disable_promotion_to_c1e = true,
+};
+
 #define ICPU(model, cpu) \
 	{ X86_VENDOR_INTEL, 6, model, X86_FEATURE_ANY, (unsigned long)&cpu }
 
@@ -1108,6 +1113,8 @@ static const struct x86_cpu_id intel_idle_ids[] __initconst = {
 	ICPU(INTEL_FAM6_ATOM_GOLDMONT,		idle_cpu_bxt),
 	ICPU(INTEL_FAM6_ATOM_GOLDMONT_PLUS,	idle_cpu_bxt),
 	ICPU(INTEL_FAM6_ATOM_GOLDMONT_X,	idle_cpu_dnv),
+	ICPU(INTEL_FAM6_COMETLAKE_L,		idle_cpu_cml),
+	ICPU(INTEL_FAM6_COMETLAKE,		idle_cpu_cml),
 	{}
 };
 
