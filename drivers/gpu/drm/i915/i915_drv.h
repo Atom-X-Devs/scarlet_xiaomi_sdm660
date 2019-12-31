@@ -2649,8 +2649,10 @@ intel_info(const struct drm_i915_private *dev_priv)
 	(IS_BROADWELL(dev_priv) || INTEL_GEN(dev_priv) == 9)
 
 /* WaRsDisableCoarsePowerGating:skl,cnl */
-#define NEEDS_WaRsDisableCoarsePowerGating(dev_priv) \
-	(IS_CANNONLAKE(dev_priv) || INTEL_GEN(dev_priv) == 9)
+#define NEEDS_WaRsDisableCoarsePowerGating(dev_priv)			\
+	(IS_CANNONLAKE(dev_priv) ||					\
+	 IS_SKL_GT3(dev_priv) ||					\
+	 IS_SKL_GT4(dev_priv))
 
 #define HAS_GMBUS_IRQ(dev_priv) (INTEL_GEN(dev_priv) >= 4)
 #define HAS_GMBUS_BURST_READ(dev_priv) (INTEL_GEN(dev_priv) >= 10 || \
