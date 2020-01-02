@@ -4289,7 +4289,6 @@ MODULE_DEVICE_TABLE(acpi, mxt_acpi_id);
 static struct i2c_driver mxt_driver = {
 	.driver = {
 		.name	= "atmel_mxt_ts",
-		.owner	= THIS_MODULE,
 		.pm	= &mxt_pm_ops,
 		.acpi_match_table = ACPI_PTR(mxt_acpi_id),
 		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
@@ -4310,8 +4309,7 @@ static int __init mxt_init(void)
 
 static void __exit mxt_exit(void)
 {
-	if (mxt_debugfs_root)
-		debugfs_remove_recursive(mxt_debugfs_root);
+	debugfs_remove_recursive(mxt_debugfs_root);
 
 	i2c_del_driver(&mxt_driver);
 }
