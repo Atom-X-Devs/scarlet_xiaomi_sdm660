@@ -445,6 +445,13 @@
 	no-sd;
 	assigned-clocks = <&topckgen CLK_TOP_MUX_MSDC30_1>;
 	assigned-clock-parents = <&topckgen CLK_TOP_MSDCPLL_D2>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	qca_wifi: qca_wifi {
+		compatible = "qcom,ath10k";
+		reg = <1>;
+	};
 };
 
 &mt6358_vdram2_reg {

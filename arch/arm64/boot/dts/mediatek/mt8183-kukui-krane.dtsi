@@ -418,6 +418,10 @@
 	};
 };
 
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "LE_Krane";
+};
+
 &seninf {
 	status = "okay";
 
