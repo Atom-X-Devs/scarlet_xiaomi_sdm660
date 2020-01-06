@@ -626,6 +626,9 @@ struct task_struct {
 #endif
 	int				on_rq;
 
+	unsigned long			last_sleep;
+	unsigned long			last_runnable;
+
 	int				prio;
 	int				static_prio;
 	int				normal_prio;

@@ -757,6 +757,8 @@ void activate_task(struct rq *rq, struct task_struct *p, int flags)
 	if (task_contributes_to_load(p))
 		rq->nr_uninterruptible--;
 
+	p->last_runnable = sched_clock();
+
 	enqueue_task(rq, p, flags);
 }
 
@@ -764,6 +766,9 @@ void deactivate_task(struct rq *rq, struct task_struct *p, int flags)
 {
 	if (task_contributes_to_load(p))
 		rq->nr_uninterruptible++;
+
+	if (flags & DEQUEUE_SLEEP)
+		p->last_sleep = sched_clock();
 
 	dequeue_task(rq, p, flags);
 }
@@ -2159,6 +2164,8 @@ int wake_up_state(struct task_struct *p, unsigned int state)
 static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	p->on_rq			= 0;
+	p->last_sleep			= 0;
+	p->last_runnable		= 0;
 
 	p->se.on_rq			= 0;
 	p->se.exec_start		= 0;
@@ -5345,9 +5352,11 @@ void sched_show_task(struct task_struct *p)
 	if (pid_alive(p))
 		ppid = task_pid_nr(rcu_dereference(p->real_parent));
 	rcu_read_unlock();
-	printk(KERN_CONT "%5lu %5d %6d 0x%08lx\n", free,
+	printk(KERN_CONT "%5lu %5d %6d 0x%08lx last_sleep: %lu."
+			"  last_runnable: %lu\n", free,
 		task_pid_nr(p), ppid,
-		(unsigned long)task_thread_info(p)->flags);
+		(unsigned long)task_thread_info(p)->flags,
+		p->last_sleep, p->last_runnable);
 
 	print_worker_info(KERN_INFO, p);
 	show_stack(p, NULL);
