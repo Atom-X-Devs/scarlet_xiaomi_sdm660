@@ -209,10 +209,8 @@ static int gpio_display_mux_probe(struct platform_device *pdev)
 	}
 
 	for_each_child_of_node(port, ep) {
-		if (!ep->name || (of_node_cmp(ep->name, "endpoint") != 0)) {
-			of_node_put(ep);
+		if (!ep->name || (of_node_cmp(ep->name, "endpoint") != 0))
 			continue;
-		}
 
 		if (of_property_read_u32(ep, "reg", &reg) < 0 ||
 				reg >= ARRAY_SIZE(gpio_display_mux->next)) {
@@ -233,7 +231,6 @@ static int gpio_display_mux_probe(struct platform_device *pdev)
 			of_node_put(port);
 			return -EINVAL;
 		}
-		of_node_put(ep);
 
 		if (of_device_is_compatible(remote, "hdmi-connector")) {
 			of_node_put(remote);
@@ -245,6 +242,7 @@ static int gpio_display_mux_probe(struct platform_device *pdev)
 			dev_err(dev, "Waiting for external bridge %s\n",
 				remote->name);
 			of_node_put(remote);
+			of_node_put(ep);
 			of_node_put(port);
 			return -EPROBE_DEFER;
 		}
@@ -289,7 +287,7 @@ static const struct of_device_id gpio_display_mux_match[] = {
 	{},
 };
 
-struct platform_driver gpio_display_mux_driver = {
+static struct platform_driver gpio_display_mux_driver = {
 	.probe = gpio_display_mux_probe,
 	.remove = gpio_display_mux_remove,
 	.driver = {
