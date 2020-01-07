@@ -264,8 +264,10 @@ static int __sched_core_stopper(void *data)
 		}
 	}
 
-	for_each_online_cpu(cpu)
-		cpu_rq(cpu)->core_enabled = enabled;
+	for_each_online_cpu(cpu) {
+		if (!enabled || (enabled && cpumask_weight(cpu_smt_mask(cpu)) >= 2))
+			cpu_rq(cpu)->core_enabled = enabled;
+	}
 
 	return 0;
 }
