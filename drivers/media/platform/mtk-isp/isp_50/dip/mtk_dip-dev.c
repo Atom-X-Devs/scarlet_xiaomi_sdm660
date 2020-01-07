@@ -288,6 +288,14 @@ void mtk_dip_pipe_try_fmt(struct mtk_dip_pipe *pipe,
 
 		stride = mtk_dip_pipe_get_stride(pipe, &fmt->fmt.pix_mp,
 						 dfmt, i, node->desc->name);
+
+		/*
+		 * Check whether user prepare buffer with larger stride
+		 * than HW required.
+		 */
+		if (stride < ufmt->fmt.pix_mp.plane_fmt[i].bytesperline)
+			stride = ufmt->fmt.pix_mp.plane_fmt[i].bytesperline;
+
 		if (dfmt->pass_1_align)
 			sizeimage = stride * fmt->fmt.pix_mp.height;
 		else
