@@ -52,7 +52,6 @@
 		pinctrl-0 = <&pp3300_panel_pins>;
 
 		enable-active-high;
-		regulator-boot-on;
 
 		gpio = <&pio 35 GPIO_ACTIVE_HIGH>;
 	};
