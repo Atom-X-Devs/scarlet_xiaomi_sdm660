@@ -356,15 +356,11 @@ static int mdp_m2m_s_fmt_mplane(struct file *file, void *fh,
 		ctx->curr_param.ycbcr_enc = f->fmt.pix_mp.ycbcr_enc;
 		ctx->curr_param.quant = f->fmt.pix_mp.quantization;
 		ctx->curr_param.xfer_func = f->fmt.pix_mp.xfer_func;
-
-		mdp_m2m_ctx_set_state(ctx, MDP_M2M_SRC_FMT);
 	} else {
 		capture->compose.left = 0;
 		capture->compose.top = 0;
 		capture->compose.width = f->fmt.pix_mp.width;
 		capture->compose.height = f->fmt.pix_mp.height;
-
-		mdp_m2m_ctx_set_state(ctx, MDP_M2M_DST_FMT);
 	}
 
 	ctx->frame_count = 0;
@@ -398,15 +394,6 @@ static int mdp_m2m_streamon(struct file *file, void *fh,
 {
 	struct mdp_m2m_ctx *ctx = fh_to_ctx(fh);
 	int ret;
-
-	/* The source and target color formats need to be set */
-	if (V4L2_TYPE_IS_OUTPUT(type)) {
-		if (!mdp_m2m_ctx_is_state_set(ctx, MDP_M2M_SRC_FMT))
-			return -EINVAL;
-	} else {
-		if (!mdp_m2m_ctx_is_state_set(ctx, MDP_M2M_DST_FMT))
-			return -EINVAL;
-	}
 
 	if (!mdp_m2m_ctx_is_state_set(ctx, MDP_VPU_INIT)) {
 		ret = mdp_vpu_get_locked(ctx->mdp_dev);
@@ -497,22 +484,20 @@ static int mdp_m2m_s_selection(struct file *file, void *fh,
 	capture = ctx_get_frame(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
 	/* Check to see if scaling ratio is within supported range */
-	if (mdp_m2m_ctx_is_state_set(ctx, MDP_M2M_DST_FMT | MDP_M2M_SRC_FMT)) {
-		if (mdp_target_is_crop(s->target)) {
-			ret = mdp_check_scaling_ratio(&r, &capture->compose,
-						      capture->rotation,
-						      ctx->curr_param.limit);
-		} else {
-			ret = mdp_check_scaling_ratio(&capture->crop.c, &r,
-						      capture->rotation,
-						      ctx->curr_param.limit);
-		}
+	if (mdp_target_is_crop(s->target)) {
+		ret = mdp_check_scaling_ratio(&r, &capture->compose,
+					      capture->rotation,
+					      ctx->curr_param.limit);
+	} else {
+		ret = mdp_check_scaling_ratio(&capture->crop.c, &r,
+					      capture->rotation,
+					      ctx->curr_param.limit);
+	}
 
-		if (ret) {
-			dev_info(&ctx->mdp_dev->pdev->dev,
-				 "Out of scaling range\n");
-			return ret;
-		}
+	if (ret) {
+		dev_info(&ctx->mdp_dev->pdev->dev,
+			 "Out of scaling range\n");
+		return ret;
 	}
 
 	if (mdp_target_is_crop(s->target))
@@ -587,6 +572,7 @@ static int mdp_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct mdp_m2m_ctx *ctx = ctrl_to_ctx(ctrl);
 	struct mdp_frame *capture;
+	int ret;
 
 	if (ctrl->flags & V4L2_CTRL_FLAG_INACTIVE)
 		return 0;
@@ -600,16 +586,12 @@ static int mdp_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 		capture->vflip = ctrl->val;
 		break;
 	case V4L2_CID_ROTATE:
-		if (mdp_m2m_ctx_is_state_set(ctx,
-					     MDP_M2M_DST_FMT |
-					     MDP_M2M_SRC_FMT)) {
-			int ret = mdp_check_scaling_ratio(&capture->crop.c,
-				&capture->compose, ctrl->val,
-				ctx->curr_param.limit);
+		ret = mdp_check_scaling_ratio(&capture->crop.c,
+					      &capture->compose, ctrl->val,
+					      ctx->curr_param.limit);
 
-			if (ret)
-				return ret;
-		}
+		if (ret)
+			return ret;
 		capture->rotation = ctrl->val;
 		break;
 	}
@@ -651,6 +633,7 @@ static int mdp_m2m_open(struct file *file)
 	struct mdp_dev *mdp = video_get_drvdata(vdev);
 	struct mdp_m2m_ctx *ctx;
 	int ret;
+	struct v4l2_format default_format;
 
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
@@ -693,6 +676,16 @@ static int mdp_m2m_open(struct file *file)
 	}
 
 	mutex_unlock(&mdp->m2m_lock);
+
+	/* Default format */
+	memset(&default_format, 0, sizeof(default_format));
+	default_format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	default_format.fmt.pix_mp.width = 32;
+	default_format.fmt.pix_mp.height = 32;
+	default_format.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_YUV420M;
+	mdp_m2m_s_fmt_mplane(file, &ctx->fh, &default_format);
+	default_format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	mdp_m2m_s_fmt_mplane(file, &ctx->fh, &default_format);
 
 	mdp_dbg(1, "%s [%d]", dev_name(&mdp->pdev->dev), ctx->id);
 
