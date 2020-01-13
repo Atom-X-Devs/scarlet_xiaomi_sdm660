@@ -2474,6 +2474,12 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define IS_KBL_ULX(dev_priv)	(INTEL_DEVID(dev_priv) == 0x590E || \
 				 INTEL_DEVID(dev_priv) == 0x5915 || \
 				 INTEL_DEVID(dev_priv) == 0x591E)
+#define IS_CML_ULT(dev_priv)	(INTEL_DEVID(dev_priv) == 0x9B21 || \
+				 INTEL_DEVID(dev_priv) == 0x9BAA || \
+				 INTEL_DEVID(dev_priv) == 0x9BAC || \
+				 INTEL_DEVID(dev_priv) == 0x9B41 || \
+				 INTEL_DEVID(dev_priv) == 0x9BCA || \
+				 INTEL_DEVID(dev_priv) == 0x9BCC)
 #define IS_SKL_GT2(dev_priv)	(IS_SKYLAKE(dev_priv) && \
 				 (dev_priv)->info.gt == 2)
 #define IS_SKL_GT3(dev_priv)	(IS_SKYLAKE(dev_priv) && \
