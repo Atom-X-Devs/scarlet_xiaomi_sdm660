@@ -30,7 +30,7 @@ drm-$(CONFIG_PCI) += ati_pcigart.o
 drm-$(CONFIG_DRM_PANEL) += drm_panel.o
 drm-$(CONFIG_OF) += drm_of.o
 drm-$(CONFIG_AGP) += drm_agpsupport.o
-drm-$(CONFIG_DEBUG_FS) += drm_debugfs.o drm_debugfs_crc.o
+drm-$(CONFIG_DEBUG_FS) += drm_debugfs.o drm_debugfs_crc.o drm_trace.o
 drm-$(CONFIG_DRM_LOAD_EDID_FIRMWARE) += drm_edid_load.o
 
 drm_vram_helper-y := drm_gem_vram_helper.o \
