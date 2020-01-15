@@ -132,6 +132,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_RT286 if I2C
 	select SND_SOC_RT298 if I2C
 	select SND_SOC_RT1011 if I2C
+	select SND_SOC_RT1015 if I2C
 	select SND_SOC_RT1305 if I2C
 	select SND_SOC_RT5514 if I2C
 	select SND_SOC_RT5616 if I2C
@@ -801,6 +802,7 @@ config SND_SOC_RL6231
 	default y if SND_SOC_RT5677=y
 	default y if SND_SOC_RT5682=y
 	default y if SND_SOC_RT1011=y
+	default y if SND_SOC_RT1015=y
 	default y if SND_SOC_RT1305=y
 	default m if SND_SOC_RT5514=m
 	default m if SND_SOC_RT5616=m
@@ -816,6 +818,7 @@ config SND_SOC_RL6231
 	default m if SND_SOC_RT5677=m
 	default m if SND_SOC_RT5682=m
 	default m if SND_SOC_RT1011=m
+	default m if SND_SOC_RT1015=m
 	default m if SND_SOC_RT1305=m
 
 config SND_SOC_RL6347A
@@ -840,6 +843,9 @@ config SND_SOC_RT298
 	depends on I2C
 
 config SND_SOC_RT1011
+	tristate
+
+config SND_SOC_RT1015
 	tristate
 
 config SND_SOC_RT1305
