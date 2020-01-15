@@ -71,7 +71,7 @@ static void mtk_cam_dev_job_done(struct mtk_cam_dev *cam,
 {
 	struct media_request_object *obj, *obj_prev;
 	unsigned long flags;
-	u64 ts_eof = ktime_get_boot_ns();
+	u64 ts_eof = ktime_get_ns();
 
 	if (!cam->streaming)
 		return;
@@ -1402,7 +1402,7 @@ mtk_cam_video_register_device(struct mtk_cam_dev *cam,
 	vbq->ops = &mtk_cam_vb2_ops;
 	vbq->mem_ops = &vb2_dma_contig_memops;
 	vbq->buf_struct_size = sizeof(struct mtk_cam_dev_buffer);
-	vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_BOOTIME;
+	vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	if (output)
 		vbq->timestamp_flags |= V4L2_BUF_FLAG_TSTAMP_SRC_EOF;
 	else

@@ -343,7 +343,7 @@ static void isp_irq_handle_sof(struct mtk_isp_p1_device *p1_dev,
 
 	req = mtk_cam_dev_get_req(&p1_dev->cam_dev, dequeued_frame_seq_no);
 	if (req)
-		req->timestamp = ktime_get_boot_ns();
+		req->timestamp = ktime_get_ns();
 
 	/* Update CQ base address if needed */
 	if (composed_frame_seq_no <= dequeued_frame_seq_no) {
