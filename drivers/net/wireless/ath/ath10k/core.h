@@ -79,6 +79,8 @@
 /* The magic used by QCA spec */
 #define ATH10K_SMBIOS_BDF_EXT_MAGIC "BDF_"
 
+#define ATH10K_START_RETRY 10
+
 struct ath10k;
 
 static inline const char *ath10k_bus_str(enum ath10k_bus bus)

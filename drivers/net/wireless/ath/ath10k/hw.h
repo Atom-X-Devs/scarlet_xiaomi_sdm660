@@ -616,6 +616,8 @@ struct ath10k_hw_params {
 
 	/* tx stats support over pktlog */
 	bool tx_stats_over_pktlog;
+
+	u32 start_retry;
 };
 
 struct htt_rx_desc;

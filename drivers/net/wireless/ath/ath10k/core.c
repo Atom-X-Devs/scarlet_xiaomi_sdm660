@@ -190,6 +190,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.uart_pin_workaround = true,
 		.tx_stats_over_pktlog = false,
 		.bmi_large_size_download = true,
+		.start_retry = ATH10K_START_RETRY,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,

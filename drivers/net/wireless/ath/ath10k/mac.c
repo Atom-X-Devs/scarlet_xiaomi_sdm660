@@ -4669,7 +4669,7 @@ static int ath10k_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
 	return ret;
 }
 
-static int ath10k_start(struct ieee80211_hw *hw)
+static int __ath10k_start(struct ieee80211_hw *hw)
 {
 	struct ath10k *ar = hw->priv;
 	u32 param;
@@ -4850,6 +4850,27 @@ err_off:
 
 err:
 	mutex_unlock(&ar->conf_mutex);
+	return ret;
+}
+
+static int ath10k_start(struct ieee80211_hw *hw)
+{
+	struct ath10k *ar = hw->priv;
+	int ret, loop = ar->hw_params.start_retry + 1;
+	enum ath10k_state state = ar->state;
+
+	while (loop != 0) {
+		ar->state = state;
+		ret = __ath10k_start(hw);
+		loop--;
+
+		if (ret)
+			ath10k_warn(ar, "failed to start, loops: %d, ret: %d\n",
+				    loop, ret);
+		else
+			break;
+	}
+
 	return ret;
 }
 
