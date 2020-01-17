@@ -156,6 +156,8 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		gpio = <&pio 85 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sdio_fixed_3v3_pins>;
 	};
 
 	sound: sound {
@@ -353,6 +355,8 @@
 
 	da9211: da9211@68 {
 		compatible = "dlg,da9211";
+		interrupt-parent = <&pio>;
+		interrupts = <15 IRQ_TYPE_LEVEL_LOW>;
 		reg = <0x68>;
 
 		regulators {
@@ -462,7 +466,7 @@
 	cap-sd-highspeed;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
-	cd-gpios = <&pio 1 GPIO_ACTIVE_HIGH>;
+	cd-gpios = <&pio 1 GPIO_ACTIVE_LOW>;
 	vmmc-supply = <&mt6397_vmch_reg>;
 	vqmmc-supply = <&mt6397_vmc_reg>;
 };
@@ -657,11 +661,6 @@
 			bias-pull-down;
 			drive-strength = <MTK_DRIVE_8mA>;
 		};
-
-		pins_pdn {
-			pinmux = <MT8173_PIN_85_AUD_DAT_MOSI__FUNC_GPIO85>;
-			output-low;
-		};
 	};
 
 	mmc0_pins_uhs: mmc0 {
@@ -790,6 +789,13 @@
 		pins1 {
 			pinmux = <MT8173_PIN_3_EINT3__FUNC_GPIO3>;
 			bias-pull-down;
+		};
+	};
+
+	sdio_fixed_3v3_pins: sdio_fixed_3v3_pins {
+		pins1 {
+			pinmux = <MT8173_PIN_85_AUD_DAT_MOSI__FUNC_GPIO85>;
+			output-low;
 		};
 	};
 
