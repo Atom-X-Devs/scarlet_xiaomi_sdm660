@@ -197,7 +197,7 @@ void i915_gem_park(struct drm_i915_private *i915)
 		return;
 
 	/* Defer the actual call to __i915_gem_park() to prevent ping-pongs */
-	mod_delayed_work(i915->wq, &i915->gt.idle_work, msecs_to_jiffies(100));
+	mod_delayed_work(i915->wq, &i915->gt.idle_work, 1);
 }
 
 void i915_gem_unpark(struct drm_i915_private *i915)
