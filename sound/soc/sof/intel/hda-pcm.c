@@ -116,9 +116,9 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 	/* disable SPIB, to enable buffer wrap for stream */
 	hda_dsp_stream_spib_config(sdev, stream, HDA_DSP_SPIB_DISABLE, 0);
 
-	/* update no_period_irq flag for ipc params */
+	/* set host_period_bytes to 0 if no IPC position */
 	if (hda && hda->no_ipc_position)
-		ipc_params->no_period_irq = 1;
+		ipc_params->host_period_bytes = 0;
 
 	ipc_params->stream_tag = hstream->stream_tag;
 
