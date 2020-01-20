@@ -282,8 +282,7 @@ void hda_dsp_ipc_int_disable(struct snd_sof_dev *sdev)
 			HDA_DSP_REG_HIPCCTL_BUSY | HDA_DSP_REG_HIPCCTL_DONE, 0);
 }
 
-static int hda_suspend(struct snd_sof_dev *sdev, int state,
-		       bool runtime_suspend)
+static int hda_suspend(struct snd_sof_dev *sdev, int state)
 {
 	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	const struct sof_intel_dsp_desc *chip = hda->desc;
@@ -296,12 +295,6 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state,
 	hda_dsp_ipc_int_disable(sdev);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	if (IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC) && runtime_suspend)
-		/* enable controller wake up event */
-		snd_hdac_chip_writew(bus, WAKEEN,
-				     snd_hdac_chip_readw(bus, WAKEEN) |
-				     hda->hda_codec_mask);
-
 	/* power down all hda link */
 	snd_hdac_ext_bus_link_power_down_all(bus);
 #endif
@@ -336,12 +329,11 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state,
 	return 0;
 }
 
-static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
+static int hda_resume(struct snd_sof_dev *sdev)
 {
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
 	struct hdac_bus *bus = sof_to_bus(sdev);
 	struct hdac_ext_link *hlink = NULL;
-	int status;
 #endif
 	int ret;
 
@@ -352,11 +344,6 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 	snd_sof_pci_update_bits(sdev, PCI_TCSEL, 0x07, 0);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	if (runtime_resume) {
-		/* read STATESTS before controller reset */
-		status = snd_hdac_chip_readw(bus, STATESTS);
-	}
-
 	/* reset and start hda controller */
 	ret = hda_dsp_ctrl_init_chip(sdev, true);
 	if (ret < 0) {
@@ -372,10 +359,6 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 		bus->io_ops->reg_writel(0, hlink->ml_addr + AZX_REG_ML_LOSIDV);
 
 	hda_dsp_ctrl_misc_clock_gating(sdev, true);
-
-	/* check jack status based on controller status */
-	if (runtime_resume)
-		hda_codec_jack_check(sdev, status);
 
 	/* turn off the links that were off before suspend */
 	list_for_each_entry(hlink, &bus->hlink_list, list) {
@@ -424,13 +407,13 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 int hda_dsp_resume(struct snd_sof_dev *sdev)
 {
 	/* init hda controller. DSP cores will be powered up during fw boot */
-	return hda_resume(sdev, false);
+	return hda_resume(sdev);
 }
 
 int hda_dsp_runtime_resume(struct snd_sof_dev *sdev)
 {
 	/* init hda controller. DSP cores will be powered up during fw boot */
-	return hda_resume(sdev, true);
+	return hda_resume(sdev);
 }
 
 int hda_dsp_runtime_idle(struct snd_sof_dev *sdev)
@@ -449,7 +432,7 @@ int hda_dsp_runtime_idle(struct snd_sof_dev *sdev)
 int hda_dsp_runtime_suspend(struct snd_sof_dev *sdev, int state)
 {
 	/* stop hda controller and power dsp off */
-	return hda_suspend(sdev, state, true);
+	return hda_suspend(sdev, state);
 }
 
 int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
@@ -458,7 +441,7 @@ int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
 	int ret;
 
 	/* stop hda controller and power dsp off */
-	ret = hda_suspend(sdev, state, false);
+	ret = hda_suspend(sdev, state);
 	if (ret < 0) {
 		dev_err(bus->dev, "error: suspending dsp\n");
 		return ret;
