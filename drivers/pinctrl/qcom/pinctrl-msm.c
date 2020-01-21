@@ -1108,16 +1108,11 @@ static int msm_gpio_irq_set_wake(struct irq_data *d, unsigned int on)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct msm_pinctrl *pctrl = gpiochip_get_data(gc);
-	unsigned long flags;
 
 	if (d->parent_data)
 		return irq_chip_set_wake_parent(d, on);
 
-	raw_spin_lock_irqsave(&pctrl->lock, flags);
-
 	irq_set_irq_wake(pctrl->irq, on);
-
-	raw_spin_unlock_irqrestore(&pctrl->lock, flags);
 
 	return 0;
 }
