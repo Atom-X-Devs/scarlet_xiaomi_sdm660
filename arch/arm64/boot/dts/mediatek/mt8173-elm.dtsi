@@ -143,15 +143,53 @@
 		};
 	};
 
+	hdmi_mux: hdmi_mux {
+		compatible = "gpio-display-mux";
+		status = "okay";
+		detect-gpios = <&pio 36 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hdmi_mux_pins>;
+		ddc-i2c-bus = <&hdmiddc0>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 { /* input */
+				reg = <0>;
+
+				hdmi_mux_in: endpoint {
+					remote-endpoint = <&hdmi0_out>;
+				};
+			};
+
+			port@1 { /* output */
+				reg = <1>;
+
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				hdmi_mux_out_anx: endpoint@0 {
+					reg = <0>;
+					remote-endpoint = <&anx7688_in>;
+				};
+
+				hdmi_mux_out_hdmi: endpoint@1 {
+					reg = <1>;
+					remote-endpoint = <&hdmi_connector_in>;
+				};
+			};
+		};
+	};
+
 	hdmicon: connector {
 		compatible = "hdmi-connector";
 		label = "hdmi";
 		type = "a";
-		ddc-i2c-bus = <&hdmiddc0>;
 
 		port {
 			hdmi_connector_in: endpoint {
-				remote-endpoint = <&hdmi0_out>;
+				remote-endpoint = <&hdmi_mux_out_hdmi>;
 			};
 		};
 	};
@@ -219,7 +257,7 @@
 			reg = <1>;
 
 			hdmi0_out: endpoint {
-				remote-endpoint = <&hdmi_connector_in>;
+				remote-endpoint = <&hdmi_mux_in>;
 			};
 		};
 	};
@@ -250,8 +288,8 @@
 	ps8640: edp-bridge@8 {
 		compatible = "parade,ps8640";
 		reg = <0x8>;
-		powerdown-gpios = <&pio 127 GPIO_ACTIVE_LOW>;
-		reset-gpios = <&pio 115 GPIO_ACTIVE_LOW>;
+		sleep-gpios = <&pio 127 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pio 115 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ps8640_pins>;
 		vdd12-supply = <&ps8640_fixed_1v2>;
@@ -429,6 +467,10 @@
 		interrupt-parent = <&pio>;
 		interrupts = <38 IRQ_TYPE_LEVEL_LOW>;
 		marvell,wakeup-pin = <3>;
+		marvell,caldata_ed_mac = /bits/ 8 <
+0x01 0x00 0x07 0x00 0x14 0x00 0x01 0x00 0x00 0x00 0x12 0x00 0x02 0x00 0x01 0x00
+0x01 0x00 0x00 0x00 0x12 0x00 0x02 0x00 0x01 0x00
+                >;
 	};
 };
 
@@ -1147,6 +1189,25 @@
 				reg = <0xb>;
 				sbs,i2c-retry-count = <2>;
 				sbs,poll-retry-count = <1>;
+			};
+		};
+
+		i2c_tunnel_b: i2c-tunnel@1 {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			anx7688: anx7688@2c {
+				compatible = "analogix,anx7688";
+				status = "okay";
+				reg = <0x2c>;
+
+				port {
+					anx7688_in: endpoint {
+						remote-endpoint = <&hdmi_mux_out_anx>;
+					};
+				};
 			};
 		};
 	};
