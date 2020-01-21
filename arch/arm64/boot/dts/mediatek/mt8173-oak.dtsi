@@ -276,11 +276,6 @@
 	status = "okay";
 };
 
-&gpu {
-	mfgsys-power-supply = <&da9211_vgpu_reg>;
-	status = "okay";
-};
-
 &hdmi0 {
 	status = "okay";
 	ports {
