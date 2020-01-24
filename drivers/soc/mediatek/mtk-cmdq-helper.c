@@ -10,9 +10,8 @@
 #include <linux/soc/mediatek/mtk-cmdq.h>
 
 #define CMDQ_WRITE_ENABLE_MASK	BIT(0)
+#define CMDQ_POLL_ENABLE_MASK	BIT(0)
 #define CMDQ_EOC_IRQ_EN		BIT(0)
-#define CMDQ_EOC_CMD		((u64)((CMDQ_CODE_EOC << CMDQ_OP_CODE_SHIFT)) \
-				<< 32 | CMDQ_EOC_IRQ_EN)
 
 struct cmdq_instruction {
 	union {
@@ -80,6 +79,7 @@ struct cmdq_client *cmdq_mbox_create(struct device *dev, int index, u32 timeout)
 	client->client.dev = dev;
 	client->client.tx_block = false;
 	client->chan = mbox_request_channel(&client->client, index);
+	mutex_init(&client->mutex);
 
 	if (IS_ERR(client->chan)) {
 		long err;
@@ -196,15 +196,18 @@ int cmdq_pkt_write_mask(struct cmdq_pkt *pkt, u8 subsys,
 {
 	struct cmdq_instruction inst = { {0} };
 	u16 offset_mask = offset;
-	int err = 0;
+	int err;
 
 	if (mask != 0xffffffff) {
 		inst.op = CMDQ_CODE_MASK;
 		inst.mask = ~mask;
 		err = cmdq_pkt_append_command(pkt, inst);
+		if (err < 0)
+			return err;
+
 		offset_mask |= CMDQ_WRITE_ENABLE_MASK;
 	}
-	err |= cmdq_pkt_write(pkt, subsys, offset_mask, value);
+	err = cmdq_pkt_write(pkt, subsys, offset_mask, value);
 
 	return err;
 }
@@ -243,14 +246,16 @@ EXPORT_SYMBOL(cmdq_pkt_clear_event);
 int cmdq_pkt_poll(struct cmdq_pkt *pkt, u8 subsys,
 		  u16 offset, u32 value)
 {
-	struct cmdq_instruction inst;
+	struct cmdq_instruction inst = { {0} };
+	int err;
 
 	inst.op = CMDQ_CODE_POLL;
 	inst.value = value;
 	inst.offset = offset;
 	inst.subsys = subsys;
+	err = cmdq_pkt_append_command(pkt, inst);
 
-	return cmdq_pkt_append_command(pkt, inst);
+	return err;
 }
 EXPORT_SYMBOL(cmdq_pkt_poll);
 
@@ -258,13 +263,16 @@ int cmdq_pkt_poll_mask(struct cmdq_pkt *pkt, u8 subsys,
 		       u16 offset, u32 value, u32 mask)
 {
 	struct cmdq_instruction inst = { {0} };
-	int err = 0;
+	int err;
 
 	inst.op = CMDQ_CODE_MASK;
 	inst.mask = ~mask;
 	err = cmdq_pkt_append_command(pkt, inst);
-	offset = offset | 0x1;
-	err |= cmdq_pkt_poll(pkt, subsys, offset, value);
+	if (err < 0)
+		return err;
+
+	offset = offset | CMDQ_POLL_ENABLE_MASK;
+	err = cmdq_pkt_poll(pkt, subsys, offset, value);
 
 	return err;
 }
@@ -273,17 +281,19 @@ EXPORT_SYMBOL(cmdq_pkt_poll_mask);
 static int cmdq_pkt_finalize(struct cmdq_pkt *pkt)
 {
 	struct cmdq_instruction inst = { {0} };
-	int err = 0;
+	int err;
 
 	/* insert EOC and generate IRQ for each command iteration */
 	inst.op = CMDQ_CODE_EOC;
 	inst.value = CMDQ_EOC_IRQ_EN;
 	err = cmdq_pkt_append_command(pkt, inst);
+	if (err < 0)
+		return err;
 
 	/* JUMP to end */
 	inst.op = CMDQ_CODE_JUMP;
 	inst.value = CMDQ_JUMP_PASS;
-	err |= cmdq_pkt_append_command(pkt, inst);
+	err = cmdq_pkt_append_command(pkt, inst);
 
 	return err;
 }
@@ -341,9 +351,11 @@ int cmdq_pkt_flush_async(struct cmdq_pkt *pkt, cmdq_async_flush_cb cb,
 		spin_unlock_irqrestore(&client->lock, flags);
 	}
 
+	mutex_lock(&client->mutex);
 	mbox_send_message(client->chan, pkt);
 	/* We can send next packet immediately, so just call txdone. */
 	mbox_client_txdone(client->chan, 0);
+	mutex_unlock(&client->mutex);
 
 	return 0;
 }

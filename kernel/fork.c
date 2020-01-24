@@ -91,6 +91,7 @@
 #include <linux/kcov.h>
 #include <linux/livepatch.h>
 #include <linux/thread_info.h>
+#include <linux/kstaled.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -162,10 +163,6 @@ static inline void free_task_struct(struct task_struct *tsk)
 	kmem_cache_free(task_struct_cachep, tsk);
 }
 #endif
-
-void __weak arch_release_thread_stack(unsigned long *stack)
-{
-}
 
 #ifndef CONFIG_ARCH_THREAD_STACK_ALLOCATOR
 
@@ -376,7 +373,6 @@ static void release_task_stack(struct task_struct *tsk)
 		return;  /* Better to leak the stack than to free prematurely */
 
 	account_kernel_stack(tsk, -1);
-	arch_release_thread_stack(tsk->stack);
 	free_thread_stack(tsk);
 	tsk->stack = NULL;
 #ifdef CONFIG_VMAP_STACK
@@ -615,7 +611,23 @@ static void check_mm(struct mm_struct *mm)
 }
 
 #define allocate_mm()	(kmem_cache_alloc(mm_cachep, GFP_KERNEL))
+#ifdef CONFIG_KSTALED
+static void rcu_free_mm(struct rcu_head *rcu)
+{
+	struct mm_struct *mm = container_of(rcu, struct mm_struct, rcu_head);
+
+	kmem_cache_free(mm_cachep, mm);
+}
+
+static void free_mm(struct mm_struct *mm)
+{
+	kstaled_del_mm(mm);
+
+	call_rcu(&mm->rcu_head, rcu_free_mm);
+}
+#else
 #define free_mm(mm)	(kmem_cache_free(mm_cachep, (mm)))
+#endif
 
 /*
  * Called when the last reference to the mm
@@ -975,6 +987,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		goto fail_nocontext;
 
 	mm->user_ns = get_user_ns(user_ns);
+	kstaled_add_mm(mm);
 	return mm;
 
 fail_nocontext:
@@ -1803,6 +1816,10 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 	p->default_timer_slack_ns = current->timer_slack_ns;
+
+#ifdef CONFIG_PSI
+	p->psi_flags = 0;
+#endif
 
 	task_io_accounting_init(&p->ioac);
 	acct_clear_integrals(p);

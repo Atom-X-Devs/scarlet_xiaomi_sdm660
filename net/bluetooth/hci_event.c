@@ -5854,13 +5854,17 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 	u8 status = 0, event = hdr->evt, req_evt = 0;
 	u16 opcode = HCI_OP_NOP;
 
-	if (hdev->sent_cmd && bt_cb(hdev->sent_cmd)->hci.req_event == event) {
+	if (hdev->sent_cmd && event != 0 &&
+	    bt_cb(hdev->sent_cmd)->hci.req_event == event) {
 		struct hci_command_hdr *cmd_hdr = (void *) hdev->sent_cmd->data;
 		opcode = __le16_to_cpu(cmd_hdr->opcode);
 		hci_req_cmd_complete(hdev, opcode, status, &req_complete,
 				     &req_complete_skb);
 		req_evt = event;
 	}
+
+	if (event == 0)
+		BT_ERR("Received unexpected HCI Event 00000000");
 
 	/* If it looks like we might end up having to call
 	 * req_complete_skb, store a pristine copy of the skb since the

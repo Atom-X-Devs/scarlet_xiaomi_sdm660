@@ -25,9 +25,8 @@
  * @enqueued_frame_seq_no: Frame sequence number of enqueued frame
  * @dequeued_frame_seq_no: Frame sequence number of dequeued frame
  * @composed_frame_seq_no: Frame sequence number of composed frame
- * @timestamp: Frame timestamp in ns
- * @meta0_vb2_index: Meta0 vb2 buffer index, set when SOF
- * @meta1_vb2_index: Meta1 vb2 buffer index, set when SOF
+ * @enqueued_meta_seq_no: Frame sequence number array of enqueued meta frames
+ * @dequeued_meta_seq_no: Frame sequence number array of dequeued meta frames
  * @sof_count: SOF counter
  * @composer_wq: The work queue for frame request composing
  * @composer_scp_addr: SCP address of ISP composer memory
@@ -37,7 +36,7 @@
  */
 struct mtk_isp_p1_device {
 	struct device *dev;
-	struct platform_device *scp_pdev;
+	struct mtk_scp *scp;
 	struct rproc *rproc_handle;
 	struct mtk_cam_dev cam_dev;
 	void __iomem *regs;
@@ -48,8 +47,8 @@ struct mtk_isp_p1_device {
 	unsigned int enqueued_frame_seq_no;
 	unsigned int dequeued_frame_seq_no;
 	unsigned int composed_frame_seq_no;
-	unsigned int meta0_vb2_index;
-	unsigned int meta1_vb2_index;
+	unsigned int enqueued_meta_seq_no[2];
+	unsigned int dequeued_meta_seq_no[2];
 	u8 sof_count;
 	struct workqueue_struct *composer_wq;
 	dma_addr_t composer_scp_addr;

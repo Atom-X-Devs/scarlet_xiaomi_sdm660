@@ -445,6 +445,13 @@
 	no-sd;
 	assigned-clocks = <&topckgen CLK_TOP_MUX_MSDC30_1>;
 	assigned-clock-parents = <&topckgen CLK_TOP_MSDCPLL_D2>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	qca_wifi: qca_wifi {
+		compatible = "qcom,ath10k";
+		reg = <1>;
+	};
 };
 
 &mt6358_vdram2_reg {
@@ -1099,8 +1106,16 @@
 };
 
 &usb_host {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	vusb33-supply = <&mt6358_vusb_reg>;
 	status = "okay";
+
+	hub@1 {
+		compatible = "usb5e3,610";
+		reg = <1>;
+		hub,interval = <7>;
+	};
 };
 
 &u3phy {

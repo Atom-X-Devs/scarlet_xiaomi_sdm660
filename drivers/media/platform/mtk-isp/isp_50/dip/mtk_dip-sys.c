@@ -33,7 +33,7 @@ int mtk_dip_hw_working_buf_pool_init(struct mtk_dip_dev *dip_dev)
 	dip_dev->working_buf_mem_size = DIP_SUB_FRM_DATA_NUM *
 		working_buf_size;
 	dip_dev->working_buf_mem_vaddr =
-		dma_alloc_coherent(&dip_dev->scp_pdev->dev,
+		dma_alloc_coherent(scp_get_device(dip_dev->scp),
 				   dip_dev->working_buf_mem_size,
 				   &dip_dev->working_buf_mem_scp_daddr,
 				   GFP_KERNEL);
@@ -66,7 +66,7 @@ int mtk_dip_hw_working_buf_pool_init(struct mtk_dip_dev *dip_dev)
 		dev_err(dip_dev->dev,
 			"failed to map buffer: s_daddr(%pad)\n",
 			&dip_dev->working_buf_mem_scp_daddr);
-		dma_free_coherent(&dip_dev->scp_pdev->dev,
+		dma_free_coherent(scp_get_device(dip_dev->scp),
 				  dip_dev->working_buf_mem_size,
 				  dip_dev->working_buf_mem_vaddr,
 				  dip_dev->working_buf_mem_scp_daddr);
@@ -126,7 +126,7 @@ void mtk_dip_hw_working_buf_pool_release(struct mtk_dip_dev *dip_dev)
 			   dip_dev->working_buf_mem_size, DMA_BIDIRECTIONAL,
 			   DMA_ATTR_SKIP_CPU_SYNC);
 
-	dma_free_coherent(&dip_dev->scp_pdev->dev,
+	dma_free_coherent(scp_get_device(dip_dev->scp),
 			  dip_dev->working_buf_mem_size,
 			  dip_dev->working_buf_mem_vaddr,
 			  dip_dev->working_buf_mem_scp_daddr);
@@ -203,7 +203,7 @@ static void mdp_cb_timeout_worker(struct work_struct *work)
 	struct img_ipi_param ipi_param;
 
 	ipi_param.usage = IMG_IPI_DEBUG;
-	scp_ipi_send(req->dip_pipe->dip_dev->scp_pdev, SCP_IPI_DIP,
+	scp_ipi_send(req->dip_pipe->dip_dev->scp, SCP_IPI_DIP,
 		     &ipi_param, sizeof(ipi_param), 0);
 	mtk_dip_notify(req);
 }
@@ -366,7 +366,7 @@ static void dip_composer_workfunc(struct work_struct *work)
 
 	mutex_lock(&dip_dev->hw_op_lock);
 	atomic_inc(&dip_dev->num_composing);
-	ret = scp_ipi_send(dip_dev->scp_pdev, SCP_IPI_DIP, &ipi_param,
+	ret = scp_ipi_send(dip_dev->scp, SCP_IPI_DIP, &ipi_param,
 			   sizeof(ipi_param), 0);
 	if (ret) {
 		dev_err(dip_dev->dev,
@@ -423,12 +423,11 @@ static int mtk_dip_hw_connect(struct mtk_dip_dev *dip_dev)
 	struct img_ipi_param ipi_param;
 
 	pm_runtime_get_sync(dip_dev->dev);
-	scp_ipi_register(dip_dev->scp_pdev, SCP_IPI_DIP, dip_scp_handler,
-			 dip_dev);
+	scp_ipi_register(dip_dev->scp, SCP_IPI_DIP, dip_scp_handler, dip_dev);
 	memset(&ipi_param, 0, sizeof(ipi_param));
 	ipi_param.usage = IMG_IPI_INIT;
 
-	ret = scp_ipi_send(dip_dev->scp_pdev, SCP_IPI_DIP, &ipi_param,
+	ret = scp_ipi_send(dip_dev->scp, SCP_IPI_DIP, &ipi_param,
 			   sizeof(ipi_param), 200);
 	if (ret) {
 		dev_err(dip_dev->dev, "%s: send SCP_IPI_DIP_FRAME failed %d\n",
@@ -447,13 +446,13 @@ static void mtk_dip_hw_disconnect(struct mtk_dip_dev *dip_dev)
 	struct img_ipi_param ipi_param;
 
 	ipi_param.usage = IMG_IPI_DEINIT;
-	ret = scp_ipi_send(dip_dev->scp_pdev, SCP_IPI_DIP, &ipi_param,
+	ret = scp_ipi_send(dip_dev->scp, SCP_IPI_DIP, &ipi_param,
 			   sizeof(ipi_param), 200);
 	if (ret)
 		dev_err(dip_dev->dev,
 			"%s: SCP IMG_IPI_DEINIT failed(%d)\n", __func__, ret);
 
-	scp_ipi_unregister(dip_dev->scp_pdev, SCP_IPI_DIP);
+	scp_ipi_unregister(dip_dev->scp, SCP_IPI_DIP);
 }
 
 int mtk_dip_hw_streamon(struct mtk_dip_pipe *pipe)

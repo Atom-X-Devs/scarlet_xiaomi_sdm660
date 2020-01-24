@@ -153,7 +153,7 @@ static void rk3288_dmc_stop_hardware_counter(void)
 static int rk3288_dmc_get_busier_ch(void)
 {
 	u64 tmp, max = 0;
-	int i, busier_ch;
+	int i, busier_ch = 0;
 
 	rk3288_dmc_stop_hardware_counter();
 	/* Find out which channel is busier */

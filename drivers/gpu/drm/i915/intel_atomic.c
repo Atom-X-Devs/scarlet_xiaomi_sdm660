@@ -34,6 +34,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_plane_helper.h>
 #include "intel_drv.h"
+#include "intel_privacy_screen.h"
 
 /**
  * intel_digital_connector_atomic_get_property - hook for connector->atomic_get_property.
@@ -53,11 +54,14 @@ int intel_digital_connector_atomic_get_property(struct drm_connector *connector,
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct intel_digital_connector_state *intel_conn_state =
 		to_intel_digital_connector_state(state);
+	struct intel_connector *intel_connector = to_intel_connector(connector);
 
 	if (property == dev_priv->force_audio_property)
 		*val = intel_conn_state->force_audio;
 	else if (property == dev_priv->broadcast_rgb_property)
 		*val = intel_conn_state->broadcast_rgb;
+	else if (property == intel_connector->privacy_screen_property)
+		*val = intel_conn_state->privacy_screen_status;
 	else {
 		DRM_DEBUG_ATOMIC("Unknown property [PROP:%d:%s]\n",
 				 property->base.id, property->name);
@@ -85,14 +89,17 @@ int intel_digital_connector_atomic_set_property(struct drm_connector *connector,
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct intel_digital_connector_state *intel_conn_state =
 		to_intel_digital_connector_state(state);
+	struct intel_connector *intel_connector = to_intel_connector(connector);
 
 	if (property == dev_priv->force_audio_property) {
 		intel_conn_state->force_audio = val;
 		return 0;
-	}
-
-	if (property == dev_priv->broadcast_rgb_property) {
+	} else if (property == dev_priv->broadcast_rgb_property) {
 		intel_conn_state->broadcast_rgb = val;
+		return 0;
+	} else if (property == intel_connector->privacy_screen_property) {
+		intel_privacy_screen_set_val(intel_connector, val);
+		intel_conn_state->privacy_screen_status = val;
 		return 0;
 	}
 

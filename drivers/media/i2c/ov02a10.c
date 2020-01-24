@@ -36,7 +36,6 @@
 #define REG_HS_MODE_BLC					0x9d
 
 #define CLOCK_HS_MODE_ENABLE				BIT(7)
-#define CLOCK_HS_VOD_ADJUST	(BIT(6) | BIT(5) | BIT(4) | BIT(3) | BIT(2))
 
 /* Bit[2:0] MIPI transmission speed select */
 #define TX_SPEED_AREA_SEL				0xa1
@@ -109,7 +108,6 @@ struct ov02a10_mode {
 struct ov02a10 {
 	u32			eclk_freq;
 	u32                     mipi_clock_tx_speed;
-	u32                     mipi_clock_hs_vod_adjust_cnt;
 
 	struct clk		*eclk;
 	struct gpio_desc	*pd_gpio;
@@ -218,7 +216,7 @@ static const struct ov02a10_reg ov02a10_1600x1200_regs[] = {
 	{0x19, 0xf1},
 	{0x29, 0x01},
 	{0xfd, 0x01},
-	{0x9d, 0xd6},
+	{0x9d, 0x16},
 	{0xa0, 0x29},
 	{0xa1, 0x03},
 	{0xad, 0x62},
@@ -530,12 +528,6 @@ static int __ov02a10_start_stream(struct ov02a10 *ov02a10)
 	ret = ov02a10_mod_reg(ov02a10, REG_HS_MODE_BLC, CLOCK_HS_MODE_ENABLE,
 			      ov02a10->mipi_clock_hs_mode_enable ?
 			      CLOCK_HS_MODE_ENABLE : 0);
-	if (ret < 0)
-		return ret;
-
-	/* Set clock lane HS VOD adjust to DT property */
-	ret = ov02a10_mod_reg(ov02a10, REG_HS_MODE_BLC, CLOCK_HS_VOD_ADJUST,
-			      ov02a10->mipi_clock_hs_vod_adjust_cnt << 2);
 	if (ret < 0)
 		return ret;
 
@@ -933,7 +925,6 @@ static int ov02a10_probe(struct i2c_client *client)
 	struct ov02a10 *ov02a10;
 	unsigned int rotation;
 	unsigned int clock_lane_tx_speed;
-	unsigned int hs_vod_adjust_cnt;
 	unsigned int i;
 	int ret;
 
@@ -966,15 +957,6 @@ static int ov02a10_probe(struct i2c_client *client)
 				 rotation);
 		}
 	}
-
-	/* Optional indication of HS VOD adjust */
-	ret = fwnode_property_read_u32(dev_fwnode(dev),
-				       "ovti,hs-vod-adjust",
-				       &hs_vod_adjust_cnt);
-	if (!ret)
-		ov02a10->mipi_clock_hs_vod_adjust_cnt = hs_vod_adjust_cnt;
-	else
-		dev_warn(dev, "failed to get hs vod adjust, using default\n");
 
 	/* Optional indication of mipi TX speed */
 	ret = fwnode_property_read_u32(dev_fwnode(dev),

@@ -1282,6 +1282,15 @@ enum drm_dp_quirk {
 	 * driver still need to implement proper handling for such device.
 	 */
 	DP_DPCD_QUIRK_NO_PSR,
+	/**
+	 * @DP_DPCD_QUIRK_SYNCHRONIZATION_LATENCY
+	 *
+	 * The Helios AUO PSR2 panel requires more number of frames on PSR exit,
+	 * to synchronize to the Source device-provided timing. Currently DPCD
+	 * 0x2009 offset in TCON has the value of 0. Increasing this value to 8
+	 * till this gets fixed in TCON of the panel.
+	 */
+	DP_DPCD_QUIRK_SYNCHRONIZATION_LATENCY,
 };
 
 /**

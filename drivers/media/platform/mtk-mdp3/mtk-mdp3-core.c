@@ -60,13 +60,13 @@ int mdp_vpu_get_locked(struct mdp_dev *mdp)
 				"vpu_load_firmware failed %d\n", ret);
 			goto err_load_vpu;
 		}
-		ret = mdp_vpu_register(mdp->vpu_dev);
+		ret = mdp_vpu_register(mdp);
 		if (ret) {
 			dev_err(&mdp->pdev->dev,
 				"mdp_vpu register failed %d\n", ret);
 			goto err_reg_vpu;
 		}
-		ret = mdp_vpu_dev_init(&mdp->vpu, mdp->vpu_dev, &mdp->vpu_lock);
+		ret = mdp_vpu_dev_init(&mdp->vpu, mdp->scp, &mdp->vpu_lock);
 		if (ret) {
 			dev_err(&mdp->pdev->dev,
 				"mdp_vpu device init failed %d\n", ret);
@@ -76,7 +76,7 @@ int mdp_vpu_get_locked(struct mdp_dev *mdp)
 	return 0;
 
 err_init_vpu:
-	mdp_vpu_unregister(mdp->vpu_dev);
+	mdp_vpu_unregister(mdp);
 err_reg_vpu:
 err_load_vpu:
 	mdp->vpu_count--;
@@ -87,7 +87,7 @@ void mdp_vpu_put_locked(struct mdp_dev *mdp)
 {
 	if (--mdp->vpu_count == 0) {
 		mdp_vpu_dev_deinit(&mdp->vpu);
-		mdp_vpu_unregister(mdp->vpu_dev);
+		mdp_vpu_unregister(mdp);
 	}
 }
 
@@ -95,7 +95,6 @@ static int mdp_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mdp_dev *mdp;
-	phandle rproc_phandle;
 	int ret;
 
 	mdp = devm_kzalloc(dev, sizeof(*mdp), GFP_KERNEL);
@@ -124,24 +123,15 @@ static int mdp_probe(struct platform_device *pdev)
 		goto err_destroy_clock_wq;
 	}
 
-	mdp->vpu_dev = scp_get_pdev(pdev);
-
-	ret = of_property_read_u32(pdev->dev.of_node, "mediatek,scp",
-				   &rproc_phandle);
-	if (ret) {
+	mdp->scp = scp_get(pdev);
+	if (!mdp->scp) {
 		dev_err(&pdev->dev, "Could not get scp device\n");
-		goto err_destroy_clock_wq;
-	}
-
-	mdp->rproc_handle = rproc_get_by_phandle(rproc_phandle);
-
-	dev_info(&pdev->dev, "MDP rproc_handle: %pK", mdp->rproc_handle);
-
-	if (!mdp->rproc_handle) {
-		dev_err(&pdev->dev, "Could not get MDP's rproc_handle\n");
 		ret = -ENODEV;
 		goto err_destroy_clock_wq;
 	}
+
+	mdp->rproc_handle = scp_get_rproc(mdp->scp);
+	dev_info(&pdev->dev, "MDP rproc_handle: %pK", mdp->rproc_handle);
 
 	mutex_init(&mdp->vpu_lock);
 	mutex_init(&mdp->m2m_lock);
@@ -149,7 +139,7 @@ static int mdp_probe(struct platform_device *pdev)
 	mdp->cmdq_clt = cmdq_mbox_create(dev, 0, 1200);
 	if (IS_ERR(mdp->cmdq_clt)) {
 		ret = PTR_ERR(mdp->cmdq_clt);
-		goto err_destroy_clock_wq;
+		goto err_put_scp;
 	}
 
 	init_waitqueue_head(&mdp->callback_wq);
@@ -179,6 +169,8 @@ err_unregister_device:
 	v4l2_device_unregister(&mdp->v4l2_dev);
 err_mbox_destroy:
 	cmdq_mbox_destroy(mdp->cmdq_clt);
+err_put_scp:
+	scp_put(mdp->scp);
 err_destroy_clock_wq:
 	destroy_workqueue(mdp->clock_wq);
 err_destroy_job_wq:
@@ -194,6 +186,8 @@ static int mdp_remove(struct platform_device *pdev)
 
 	mdp_m2m_device_unregister(mdp);
 	v4l2_device_unregister(&mdp->v4l2_dev);
+
+	scp_put(mdp->scp);
 
 	destroy_workqueue(mdp->job_wq);
 	destroy_workqueue(mdp->clock_wq);

@@ -78,10 +78,10 @@
 /* Frame sequence number */
 #define REG_FRAME_SEQ_NUM		0x13b8
 
-/* Spare register for meta0 vb2 index */
-#define REG_META0_VB2_INDEX		0x14dc
-/* Spare register for meta1 vb2 index */
-#define REG_META1_VB2_INDEX		0x151c
+/* Spare register for meta0 sequence number */
+#define REG_META0_SEQ_NUM		0x14dc
+/* Spare register for meta1 sequence number */
+#define REG_META1_SEQ_NUM		0x151c
 
 /* AAO FBC's status */
 #define REG_AAO_FBC_STATUS		0x013c

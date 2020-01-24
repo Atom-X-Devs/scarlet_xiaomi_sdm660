@@ -11,6 +11,7 @@
 typedef void (*scp_ipi_handler_t) (void *data,
 				   unsigned int len,
 				   void *priv);
+struct mtk_scp;
 
 /**
  * enum ipi_id - the id of inter-processor interrupt
@@ -44,100 +45,22 @@ enum scp_ipi_id {
 	SCP_IPI_MAX = 0x100,
 };
 
+struct mtk_scp *scp_get(struct platform_device *pdev);
+void scp_put(struct mtk_scp *scp);
 
-/**
- * scp_ipi_register - register an ipi function
- *
- * @pdev:	SCP platform device
- * @id:		IPI ID
- * @handler:	IPI handler
- * @priv:	private data for IPI handler
- *
- * Register an ipi function to receive ipi interrupt from SCP.
- *
- * Return: Return 0 if ipi registers successfully, otherwise it is failed.
- */
-int scp_ipi_register(struct platform_device *pdev,
-		     u32 id,
-		     scp_ipi_handler_t handler,
+struct device *scp_get_device(struct mtk_scp *scp);
+struct rproc *scp_get_rproc(struct mtk_scp *scp);
+
+int scp_ipi_register(struct mtk_scp *scp, u32 id, scp_ipi_handler_t handler,
 		     void *priv);
+void scp_ipi_unregister(struct mtk_scp *scp, u32 id);
 
-/**
- * scp_ipi_unregister - unregister an ipi function
- *
- * @pdev:	SCP platform device
- * @id:		IPI ID
- *
- * Unregister an ipi function to receive ipi interrupt from SCP.
- */
-void scp_ipi_unregister(struct platform_device *pdev, u32 id);
-
-/**
- * scp_ipi_send - send data from AP to scp.
- *
- * @pdev:	SCP platform device
- * @id:		IPI ID
- * @buf:	the data buffer
- * @len:	the data buffer length
- * @wait:	1: need ack
- *
- * This function is thread-safe. When this function returns,
- * SCP has received the data and starts the processing.
- * When the processing completes, IPI handler registered
- * by scp_ipi_register will be called in interrupt context.
- *
- * Return: Return 0 if sending data successfully, otherwise it is failed.
- **/
-int scp_ipi_send(struct platform_device *pdev,
-		 u32 id,
-		 void *buf,
-		 unsigned int len,
+int scp_ipi_send(struct mtk_scp *scp, u32 id, void *buf, unsigned int len,
 		 unsigned int wait);
 
-/**
- * scp_get_pdev - get SCP's platform device
- *
- * @pdev:	the platform device of the module requesting SCP platform
- *		device for using SCP API.
- *
- * Return: Return NULL if it is failed.
- * otherwise it is SCP's platform device
- **/
-struct platform_device *scp_get_pdev(struct platform_device *pdev);
+unsigned int scp_get_vdec_hw_capa(struct mtk_scp *scp);
+unsigned int scp_get_venc_hw_capa(struct mtk_scp *scp);
 
-/**
- * scp_get_vdec_hw_capa - get video decoder hardware capability
- *
- * @pdev:	SCP platform device
- *
- * Return: video decoder hardware capability
- **/
-unsigned int scp_get_vdec_hw_capa(struct platform_device *pdev);
-
-/**
- * scp_get_venc_hw_capa - get video encoder hardware capability
- *
- * @pdev:	SCP platform device
- *
- * Return: video encoder hardware capability
- **/
-unsigned int scp_get_venc_hw_capa(struct platform_device *pdev);
-
-/**
- * scp_mapping_dm_addr - Mapping SRAM/DRAM to kernel virtual address
- *
- * @pdev:	SCP platform device
- * @mem_addr:	SCP views memory address
- *
- * Mapping the SCP's SRAM address /
- * DMEM (Data Extended Memory) memory address /
- * Working buffer memory address to
- * kernel virtual address.
- *
- * Return: Return ERR_PTR(-EINVAL) if mapping failed,
- * otherwise the mapped kernel virtual address
- **/
-void *scp_mapping_dm_addr(struct platform_device *pdev,
-			  u32 mem_addr);
+void *scp_mapping_dm_addr(struct mtk_scp *scp, u32 mem_addr);
 
 #endif /* _MTK_SCP_H */

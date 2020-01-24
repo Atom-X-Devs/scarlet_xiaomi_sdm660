@@ -43,6 +43,7 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "intel_psr.h"
+#include "intel_privacy_screen.h"
 
 #define DP_DPRX_ESI_LEN 14
 
@@ -1923,12 +1924,17 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 				  const struct link_config_limits *limits)
 {
 	struct drm_display_mode *adjusted_mode = &pipe_config->base.adjusted_mode;
+	struct intel_lspcon *lspcon = dp_to_lspcon(intel_dp);
 	int bpp, clock, lane_count;
 	int mode_rate, link_clock, link_avail;
 
 	for (bpp = limits->max_bpp; bpp >= limits->min_bpp; bpp -= 2 * 3) {
 		mode_rate = intel_dp_link_required(adjusted_mode->crtc_clock,
 						   bpp);
+
+		/* Bypass this mode if require bandwidth over HDMI spec when LSPCON active */
+		if (lspcon->active && mode_rate > lspcon_max_rate(lspcon))
+			continue;
 
 		for (clock = limits->min_clock; clock <= limits->max_clock; clock++) {
 			for (lane_count = limits->min_lane_count;
@@ -5775,6 +5781,7 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 {
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	enum port port = dp_to_dig_port(intel_dp)->base.port;
+	struct intel_connector *intel_connector = to_intel_connector(connector);
 
 	if (!IS_G4X(dev_priv) && port != PORT_A)
 		intel_attach_force_audio_property(connector);
@@ -5792,6 +5799,12 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 
 		connector->state->scaling_mode = DRM_MODE_SCALE_ASPECT;
 
+		/* Lookup the ACPI node corresponding to the connector */
+		intel_acpi_device_id_update(dev_priv);
+
+		/* Check for integrated Privacy screen support */
+		if (intel_privacy_screen_present(intel_connector))
+			intel_attach_privacy_screen_property(connector);
 	}
 }
 

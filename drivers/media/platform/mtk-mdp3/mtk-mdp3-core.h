@@ -32,7 +32,7 @@ struct mdp_dev {
 	struct workqueue_struct	*job_wq;
 	struct workqueue_struct	*clock_wq;
 	struct mdp_vpu_dev	vpu;
-	struct platform_device	*vpu_dev;
+	struct mtk_scp		*scp;
 	struct rproc		*rproc_handle;
 	/* synchronization protect for accessing vpu working buffer info */
 	struct mutex		vpu_lock;
@@ -53,6 +53,8 @@ struct mdp_dev {
 
 int mdp_vpu_get_locked(struct mdp_dev *mdp);
 void mdp_vpu_put_locked(struct mdp_dev *mdp);
+int mdp_vpu_register(struct mdp_dev *mdp);
+void mdp_vpu_unregister(struct mdp_dev *mdp);
 
 extern int mtk_mdp_debug;
 

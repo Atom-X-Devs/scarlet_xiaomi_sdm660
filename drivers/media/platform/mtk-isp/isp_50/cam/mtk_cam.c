@@ -22,6 +22,7 @@
 
 #include "mtk_cam.h"
 #include "mtk_cam-hw.h"
+#include "mtk_cam-regs.h"
 
 #define R_IMGO		BIT(0)
 #define R_RRZO		BIT(1)
@@ -70,7 +71,7 @@ static void mtk_cam_dev_job_done(struct mtk_cam_dev *cam,
 {
 	struct media_request_object *obj, *obj_prev;
 	unsigned long flags;
-	u64 ts_eof = ktime_get_boot_ns();
+	u64 ts_eof = ktime_get_ns();
 
 	if (!cam->streaming)
 		return;
@@ -102,30 +103,50 @@ static void mtk_cam_dev_job_done(struct mtk_cam_dev *cam,
 
 void mtk_cam_dev_dequeue_frame(struct mtk_cam_dev *cam,
 			       unsigned int node_id, unsigned int frame_seq_no,
-			       int vb2_index)
+			       int seq_no)
 {
 	struct device *dev = cam->dev;
+	struct mtk_isp_p1_device *p1_dev = dev_get_drvdata(dev);
 	struct mtk_cam_video_device *node = &cam->vdev_nodes[node_id];
 	struct mtk_cam_dev_buffer *buf, *buf_prev;
 	struct vb2_buffer *vb;
 	unsigned long flags;
+	unsigned int fbc_cnt;
 
 	if (!cam->vdev_nodes[node_id].enabled || !cam->streaming)
 		return;
 
+	/*
+	 * This is a specail case for non-request meta buffer.
+	 * The ISP ISR function may be blocked due to other ISR issue.
+	 * If the FBC of ring buffer is 0, it means driver
+	 * doesn't dequeue the meta buffers from HW to user space on time.
+	 * In order to avoid deadlock between user space & kernel driver,
+	 * return all buffers to user space if the FBC is 0.
+	 */
+	if (node_id == MTK_CAM_P1_META_OUT_0)
+		fbc_cnt = readl(p1_dev->regs + REG_AAO_FBC_STATUS) & 0x7F;
+	else
+		fbc_cnt = readl(p1_dev->regs + REG_AFO_FBC_STATUS) & 0x7F;
+
+	/* Update sequence number to the last enqueued sn# if FBC is zero */
+	if (!fbc_cnt)
+		seq_no = p1_dev->enqueued_meta_seq_no[node_id -
+						      MTK_CAM_P1_META_OUT_0];
+
 	spin_lock_irqsave(&node->buf_list_lock, flags);
 	list_for_each_entry_safe(buf, buf_prev, &node->buf_list, list) {
-		vb = &buf->vbb.vb2_buf;
-		if (!vb->vb2_queue->uses_requests &&
-		    vb->index == vb2_index) {
-			dev_dbg(dev, "%s:%d:%d", __func__, node_id, vb2_index);
-			vb->timestamp = ktime_get_boot_ns();
-			/* AFO seq. num usage */
-			buf->vbb.sequence = frame_seq_no;
-			list_del(&buf->list);
-			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
+		if (buf->seq_no > seq_no)
 			break;
-		}
+
+		vb = &buf->vbb.vb2_buf;
+		vb->timestamp = ktime_get_boot_ns();
+		buf->vbb.sequence = frame_seq_no++;
+		vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
+		list_del(&buf->list);
+		dev_dbg(dev, "node:%d meta buf_seq:%d:%d:%d is dequeued\n",
+			buf->node_id, buf->seq_no, buf->vbb.vb2_buf.index,
+			buf->vbb.sequence);
 	}
 	spin_unlock_irqrestore(&node->buf_list_lock, flags);
 }
@@ -1381,7 +1402,7 @@ mtk_cam_video_register_device(struct mtk_cam_dev *cam,
 	vbq->ops = &mtk_cam_vb2_ops;
 	vbq->mem_ops = &vb2_dma_contig_memops;
 	vbq->buf_struct_size = sizeof(struct mtk_cam_dev_buffer);
-	vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_BOOTIME;
+	vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	if (output)
 		vbq->timestamp_flags |= V4L2_BUF_FLAG_TSTAMP_SRC_EOF;
 	else

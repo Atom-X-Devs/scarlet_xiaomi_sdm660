@@ -311,7 +311,7 @@ ath10k_htc_process_lookahead_bundle(struct ath10k_htc *htc,
 	struct ath10k *ar = htc->ar;
 	int bundle_cnt = len / sizeof(*report);
 
-	if (!bundle_cnt || (bundle_cnt > HTC_HOST_MAX_MSG_PER_RX_BUNDLE)) {
+	if (!bundle_cnt || (bundle_cnt > htc->max_msgs_per_htc_bundle)) {
 		ath10k_warn(ar, "Invalid lookahead bundle count: %d\n",
 			    bundle_cnt);
 		return -EINVAL;
@@ -865,6 +865,27 @@ void ath10k_htc_setup_tx_req(struct ath10k_htc_ep *ep)
 		ep->bundle_tx = true;
 		skb_queue_head_init(&ep->tx_req_head);
 		skb_queue_head_init(&ep->tx_complete_head);
+	}
+}
+
+void ath10k_htc_stop_hl(struct ath10k *ar)
+{
+	struct ath10k_htc_ep *ep;
+	int i;
+
+	cancel_work_sync(&ar->bundle_tx_work);
+	cancel_work_sync(&ar->tx_complete_work);
+
+	for (i = 0; i < ARRAY_SIZE(ar->htc.endpoint); i++) {
+		ep = &ar->htc.endpoint[i];
+
+		if (!ep->bundle_tx)
+			continue;
+
+		ath10k_dbg(ar, ATH10K_DBG_HTC, "stop tx work, eid:%d, count:%d\n",
+			   ep->eid, skb_queue_len(&ep->tx_req_head));
+
+		skb_queue_purge(&ep->tx_req_head);
 	}
 }
 
