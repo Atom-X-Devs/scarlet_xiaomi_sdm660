@@ -413,7 +413,7 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	int32_t finger_cnt = 0;
 
 #if WAKEUP_GESTURE
-	if (!bTouchIsAwake)
+	if (unlikely(!bTouchIsAwake))
 		pm_wakeup_event(&ts->input_dev->dev, 5000);
 #endif
 
@@ -428,7 +428,7 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 		goto XFER_ERROR;
 
 #if WAKEUP_GESTURE
-	if (!bTouchIsAwake) {
+	if (unlikely(!bTouchIsAwake)) {
 		input_id = (uint8_t)(point_data[1] >> 3);
 		nvt_ts_wakeup_gesture_report(input_id, point_data);
 		goto XFER_ERROR;
