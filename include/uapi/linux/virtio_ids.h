@@ -44,9 +44,6 @@
 #define VIRTIO_ID_VSOCK        19 /* virtio vsock transport */
 #define VIRTIO_ID_CRYPTO       20 /* virtio crypto */
 #define VIRTIO_ID_PMEM         27 /* virtio pmem */
-/* TODO(crbug.com/1031512): Remove *_LEGACY once crosvm is updated */
-#define VIRTIO_ID_WL_LEGACY    30 /* virtio wayland */
-#define VIRTIO_ID_TPM_LEGACY   31 /* virtio wayland */
 
 /* Chrome OS-specific devices */
 #define VIRTIO_ID_WL           63 /* virtio wayland */

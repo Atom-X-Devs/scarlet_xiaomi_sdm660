@@ -1456,8 +1456,6 @@ static void virtwl_scan(struct virtio_device *vdev)
 }
 
 static struct virtio_device_id id_table[] = {
-	/* TODO(crbug.com/1031512): Remove once crosvm is updated */
-	{ VIRTIO_ID_WL_LEGACY, VIRTIO_DEV_ANY_ID },
 	{ VIRTIO_ID_WL, VIRTIO_DEV_ANY_ID },
 	{ 0 },
 };

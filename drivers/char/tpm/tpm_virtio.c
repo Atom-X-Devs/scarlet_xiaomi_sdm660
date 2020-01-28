@@ -440,11 +440,6 @@ static void vtpm_remove(struct virtio_device *vdev)
 }
 
 static struct virtio_device_id id_table[] = {
-	/* TODO(crbug.com/1031512): Remove once crosvm is updated */
-	{
-		.device = VIRTIO_ID_TPM_LEGACY,
-		.vendor = VIRTIO_DEV_ANY_ID,
-	},
 	{
 		.device = VIRTIO_ID_TPM,
 		.vendor = VIRTIO_DEV_ANY_ID,
