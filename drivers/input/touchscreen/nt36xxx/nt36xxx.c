@@ -493,7 +493,7 @@ static void nvt_ts_worker(struct work_struct *work)
 	sched_setscheduler(current, SCHED_RR, &param);
 
 #if WAKEUP_GESTURE
-	if (bTouchIsAwake == 0) {
+	if (unlikely(bTouchIsAwake == 0)) {
 #if XIAOMI_PANEL
 		__pm_wakeup_event(gesture_wakelock, msecs_to_jiffies(5000));
 #else
@@ -505,14 +505,14 @@ static void nvt_ts_worker(struct work_struct *work)
 	mutex_lock(&ts->lock);
 
 	ret = CTP_I2C_READ(ts->client, I2C_FW_Address, point_data, POINT_DATA_LEN + 1);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		goto XFER_ERROR;
 
 	if (nvt_fw_recovery(point_data))
 		goto XFER_ERROR;
 
 #if WAKEUP_GESTURE
-	if (bTouchIsAwake == 0) {
+	if (unlikely(bTouchIsAwake == 0)) {
 		input_id = (uint8_t)(point_data[1] >> 3);
 		nvt_ts_wakeup_gesture_report(input_id, point_data);
 		goto XFER_ERROR;
