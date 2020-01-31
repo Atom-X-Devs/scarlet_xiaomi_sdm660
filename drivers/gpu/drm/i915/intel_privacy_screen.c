@@ -62,11 +62,8 @@ bool intel_privacy_screen_present(struct intel_connector *connector)
 	if (!acpi_check_dsm(handle, &drm_conn_dsm_guid,
 			    CONNECTOR_DSM_REVID,
 			    1 << CONNECTOR_DSM_FN_PRIVACY_ENABLE |
-			    1 << CONNECTOR_DSM_FN_PRIVACY_DISABLE)) {
-		DRM_WARN("%s: Odd, connector ACPI node but no privacy scrn?\n",
-			 dev_name(connector->base.dev->dev));
+			    1 << CONNECTOR_DSM_FN_PRIVACY_DISABLE))
 		return false;
-	}
 	DRM_DEV_INFO(connector->base.dev->dev, "supports privacy screen\n");
 	return true;
 }
