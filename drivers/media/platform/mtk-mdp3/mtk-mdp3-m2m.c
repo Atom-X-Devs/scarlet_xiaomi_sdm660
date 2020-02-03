@@ -393,7 +393,27 @@ static int mdp_m2m_streamon(struct file *file, void *fh,
 			    enum v4l2_buf_type type)
 {
 	struct mdp_m2m_ctx *ctx = fh_to_ctx(fh);
+	struct mdp_frame *capture;
 	int ret;
+	bool out_streaming, cap_streaming;
+
+	capture = ctx_get_frame(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	out_streaming = ctx->m2m_ctx->out_q_ctx.q.streaming;
+	cap_streaming = ctx->m2m_ctx->cap_q_ctx.q.streaming;
+
+	/* Check to see if scaling ratio is within supported range */
+	if ((V4L2_TYPE_IS_OUTPUT(type) && cap_streaming) ||
+	    (!V4L2_TYPE_IS_OUTPUT(type) && out_streaming)) {
+		ret = mdp_check_scaling_ratio(&capture->crop.c,
+					      &capture->compose,
+					      capture->rotation,
+					      ctx->curr_param.limit);
+		if (ret) {
+			dev_info(&ctx->mdp_dev->pdev->dev,
+				 "Out of scaling range\n");
+			return ret;
+		}
+	}
 
 	if (!mdp_m2m_ctx_is_state_set(ctx, MDP_VPU_INIT)) {
 		ret = mdp_vpu_get_locked(ctx->mdp_dev);
@@ -483,23 +503,6 @@ static int mdp_m2m_s_selection(struct file *file, void *fh,
 		return ret;
 	capture = ctx_get_frame(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
-	/* Check to see if scaling ratio is within supported range */
-	if (mdp_target_is_crop(s->target)) {
-		ret = mdp_check_scaling_ratio(&r, &capture->compose,
-					      capture->rotation,
-					      ctx->curr_param.limit);
-	} else {
-		ret = mdp_check_scaling_ratio(&capture->crop.c, &r,
-					      capture->rotation,
-					      ctx->curr_param.limit);
-	}
-
-	if (ret) {
-		dev_info(&ctx->mdp_dev->pdev->dev,
-			 "Out of scaling range\n");
-		return ret;
-	}
-
 	if (mdp_target_is_crop(s->target))
 		capture->crop.c = r;
 	else
@@ -572,7 +575,6 @@ static int mdp_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct mdp_m2m_ctx *ctx = ctrl_to_ctx(ctrl);
 	struct mdp_frame *capture;
-	int ret;
 
 	if (ctrl->flags & V4L2_CTRL_FLAG_INACTIVE)
 		return 0;
@@ -586,12 +588,6 @@ static int mdp_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 		capture->vflip = ctrl->val;
 		break;
 	case V4L2_CID_ROTATE:
-		ret = mdp_check_scaling_ratio(&capture->crop.c,
-					      &capture->compose, ctrl->val,
-					      ctx->curr_param.limit);
-
-		if (ret)
-			return ret;
 		capture->rotation = ctrl->val;
 		break;
 	}
