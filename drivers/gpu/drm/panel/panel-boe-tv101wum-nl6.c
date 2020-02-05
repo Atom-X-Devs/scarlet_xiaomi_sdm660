@@ -4,7 +4,6 @@
  * Author: Jitao Shi <jitao.shi@mediatek.com>
  */
 
-#include <linux/backlight.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
@@ -44,7 +43,6 @@ struct boe_panel {
 
 	const struct panel_desc *desc;
 
-	struct backlight_device *backlight;
 	struct regulator *pp1800;
 	struct regulator *avee;
 	struct regulator *avdd;
@@ -52,9 +50,6 @@ struct boe_panel {
 
 	bool prepared_power;
 	bool prepared;
-	bool enabled;
-
-	const struct drm_display_mode *mode;
 };
 
 enum dsi_cmd_type {
@@ -435,7 +430,7 @@ static inline struct boe_panel *to_boe_panel(struct drm_panel *panel)
 	return container_of(panel, struct boe_panel, base);
 }
 
-static int boe_panel_init(struct boe_panel *boe)
+static int boe_panel_init_dcs_cmd(struct boe_panel *boe)
 {
 	struct mipi_dsi_device *dsi = boe->dsi;
 	struct drm_panel *panel = &boe->base;
@@ -474,30 +469,20 @@ static int boe_panel_init(struct boe_panel *boe)
 	return 0;
 }
 
-static int boe_panel_off(struct boe_panel *boe)
+static int boe_panel_enter_sleep_mode(struct boe_panel *boe)
 {
 	struct mipi_dsi_device *dsi = boe->dsi;
 	int ret;
 
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
-	ret = mipi_dsi_dcs_enter_sleep_mode(dsi);
+	ret = mipi_dsi_dcs_set_display_off(dsi);
 	if (ret < 0)
 		return ret;
 
-	return 0;
-}
-
-static int boe_panel_disable(struct drm_panel *panel)
-{
-	struct boe_panel *boe = to_boe_panel(panel);
-
-	if (!boe->enabled)
-		return 0;
-
-	backlight_disable(boe->backlight);
-
-	boe->enabled = false;
+	ret = mipi_dsi_dcs_enter_sleep_mode(dsi);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }
@@ -509,8 +494,9 @@ static int boe_panel_unprepare_power(struct drm_panel *panel)
 	if (!boe->prepared_power)
 		return 0;
 
+	msleep(150);
+
 	if (boe->desc->discharge_on_disable) {
-		msleep(150);
 		regulator_disable(boe->avee);
 		regulator_disable(boe->avdd);
 		usleep_range(5000, 7000);
@@ -518,7 +504,6 @@ static int boe_panel_unprepare_power(struct drm_panel *panel)
 		usleep_range(5000, 7000);
 		regulator_disable(boe->pp1800);
 	} else {
-		msleep(150);
 		gpiod_set_value(boe->enable_gpio, 0);
 		usleep_range(500, 1000);
 		regulator_disable(boe->avee);
@@ -541,7 +526,7 @@ static int boe_panel_unprepare(struct drm_panel *panel)
 		return 0;
 
 	if (!boe->desc->discharge_on_disable) {
-		ret = boe_panel_off(boe);
+		ret = boe_panel_enter_sleep_mode(boe);
 		if (ret < 0) {
 			dev_err(panel->dev, "failed to set panel off: %d\n",
 				ret);
@@ -609,7 +594,7 @@ static int boe_panel_prepare(struct drm_panel *panel)
 	if (boe->prepared)
 		return 0;
 
-	ret = boe_panel_init(boe);
+	ret = boe_panel_init_dcs_cmd(boe);
 	if (ret < 0) {
 		dev_err(panel->dev, "failed to init panel: %d\n", ret);
 		return ret;
@@ -622,23 +607,7 @@ static int boe_panel_prepare(struct drm_panel *panel)
 
 static int boe_panel_enable(struct drm_panel *panel)
 {
-	struct boe_panel *boe = to_boe_panel(panel);
-	int ret;
-
-	if (boe->enabled)
-		return 0;
-
 	msleep(130);
-
-	ret = backlight_enable(boe->backlight);
-	if (ret) {
-		dev_err(panel->dev, "Failed to enable backlight %d\n",
-			ret);
-		return ret;
-	}
-
-	boe->enabled = true;
-
 	return 0;
 }
 
@@ -759,8 +728,9 @@ static int boe_panel_get_modes(struct drm_panel *panel)
 	struct boe_panel *boe = to_boe_panel(panel);
 	const struct drm_display_mode *m = boe->desc->modes;
 	struct drm_display_mode *mode;
+	struct drm_connector *connector = panel->connector;
 
-	mode = drm_mode_duplicate(panel->drm, m);
+	mode = drm_mode_duplicate(connector->dev, m);
 	if (!mode) {
 		dev_err(panel->dev, "failed to add mode %ux%u@%u\n",
 			m->hdisplay, m->vdisplay, m->vrefresh);
@@ -769,17 +739,16 @@ static int boe_panel_get_modes(struct drm_panel *panel)
 
 	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
 	drm_mode_set_name(mode);
-	drm_mode_probed_add(panel->connector, mode);
+	drm_mode_probed_add(connector, mode);
 
-	panel->connector->display_info.width_mm = boe->desc->size.width_mm;
-	panel->connector->display_info.height_mm = boe->desc->size.height_mm;
-	panel->connector->display_info.bpc = boe->desc->bpc;
+	connector->display_info.width_mm = boe->desc->size.width_mm;
+	connector->display_info.height_mm = boe->desc->size.height_mm;
+	connector->display_info.bpc = boe->desc->bpc;
 
 	return 1;
 }
 
 static const struct drm_panel_funcs boe_panel_funcs = {
-	.disable = boe_panel_disable,
 	.unprepare = boe_panel_unprepare,
 	.unprepare_power = boe_panel_unprepare_power,
 	.prepare = boe_panel_prepare,
@@ -814,10 +783,6 @@ static int boe_panel_add(struct boe_panel *boe)
 
 	gpiod_set_value(boe->enable_gpio, 0);
 
-	boe->backlight = devm_of_find_backlight(dev);
-	if (IS_ERR(boe->backlight))
-		return PTR_ERR(boe->backlight);
-
 	drm_panel_init(&boe->base);
 	ret = of_drm_get_panel_orientation(dev->of_node,
 					   &boe->base.orientation);
@@ -826,6 +791,10 @@ static int boe_panel_add(struct boe_panel *boe)
 
 	boe->base.funcs = &boe_panel_funcs;
 	boe->base.dev = &boe->dsi->dev;
+
+	ret = drm_panel_of_backlight(&boe->base);
+	if (ret)
+		return ret;
 
 	return drm_panel_add(&boe->base);
 }
@@ -852,7 +821,19 @@ static int boe_panel_probe(struct mipi_dsi_device *dsi)
 
 	mipi_dsi_set_drvdata(dsi, boe);
 
-	return mipi_dsi_attach(dsi);
+	ret = mipi_dsi_attach(dsi);
+	if (ret)
+		drm_panel_remove(&boe->base);
+
+	return ret;
+}
+
+static void boe_panel_shutdown(struct mipi_dsi_device *dsi)
+{
+	struct boe_panel *boe = mipi_dsi_get_drvdata(dsi);
+
+	drm_panel_disable(&boe->base);
+	drm_panel_unprepare(&boe->base);
 }
 
 static int boe_panel_remove(struct mipi_dsi_device *dsi)
@@ -860,9 +841,7 @@ static int boe_panel_remove(struct mipi_dsi_device *dsi)
 	struct boe_panel *boe = mipi_dsi_get_drvdata(dsi);
 	int ret;
 
-	ret = boe_panel_disable(&boe->base);
-	if (ret < 0)
-		dev_err(&dsi->dev, "failed to disable panel: %d\n", ret);
+	boe_panel_shutdown(dsi);
 
 	ret = mipi_dsi_detach(dsi);
 	if (ret < 0)
@@ -872,13 +851,6 @@ static int boe_panel_remove(struct mipi_dsi_device *dsi)
 		drm_panel_remove(&boe->base);
 
 	return 0;
-}
-
-static void boe_panel_shutdown(struct mipi_dsi_device *dsi)
-{
-	struct boe_panel *boe = mipi_dsi_get_drvdata(dsi);
-
-	boe_panel_disable(&boe->base);
 }
 
 static const struct of_device_id boe_of_match[] = {
