@@ -555,12 +555,14 @@ void ath10k_htt_htc_tx_complete(struct ath10k *ar, struct sk_buff *skb)
 	struct htt_data_tx_desc *desc_hdr;
 	u16 flags1;
 
+	dev_kfree_skb_any(skb);
+
 	if (!htt->disable_tx_comp)
-		goto free_skb;
+		return;
 
 	htt_hdr = (struct htt_cmd_hdr *)skb->data;
 	if (htt_hdr->msg_type != HTT_H2T_MSG_TYPE_TX_FRM)
-		goto free_skb;
+		return;
 
 	desc_hdr = (struct htt_data_tx_desc *)
 		(skb->data + sizeof(*htt_hdr));
@@ -571,14 +573,11 @@ void ath10k_htt_htc_tx_complete(struct ath10k *ar, struct sk_buff *skb)
 		   __le16_to_cpu(desc_hdr->id), flags1);
 
 	if (flags1 & HTT_DATA_TX_DESC_FLAGS1_TX_COMPLETE)
-		goto free_skb;
+		return;
 
 	tx_done.status = HTT_TX_COMPL_STATE_ACK;
 	tx_done.msdu_id = __le16_to_cpu(desc_hdr->id);
 	ath10k_txrx_tx_unref(&ar->htt, &tx_done);
-
-free_skb:
-	dev_kfree_skb_any(skb);
 }
 
 void ath10k_htt_hif_tx_complete(struct ath10k *ar, struct sk_buff *skb)
