@@ -554,19 +554,23 @@ void ath10k_htt_htc_tx_complete(struct ath10k *ar, struct sk_buff *skb)
 	struct htt_cmd_hdr *htt_hdr;
 	struct htt_data_tx_desc *desc_hdr;
 	u16 flags1;
+	u8 msg_type;
+
+	if (htt->disable_tx_comp) {
+		htt_hdr = (struct htt_cmd_hdr *)skb->data;
+		msg_type = htt_hdr->msg_type;
+
+		if (msg_type == HTT_H2T_MSG_TYPE_TX_FRM) {
+			desc_hdr = (struct htt_data_tx_desc *)
+				(skb->data + sizeof(*htt_hdr));
+			flags1 = __le16_to_cpu(desc_hdr->flags1);
+		}
+	}
 
 	dev_kfree_skb_any(skb);
 
-	if (!htt->disable_tx_comp)
+	if ((!htt->disable_tx_comp) || (msg_type != HTT_H2T_MSG_TYPE_TX_FRM))
 		return;
-
-	htt_hdr = (struct htt_cmd_hdr *)skb->data;
-	if (htt_hdr->msg_type != HTT_H2T_MSG_TYPE_TX_FRM)
-		return;
-
-	desc_hdr = (struct htt_data_tx_desc *)
-		(skb->data + sizeof(*htt_hdr));
-	flags1 = __le16_to_cpu(desc_hdr->flags1);
 
 	ath10k_dbg(ar, ATH10K_DBG_HTT,
 		   "htt tx complete msdu id:%u ,flags1:%x\n",
