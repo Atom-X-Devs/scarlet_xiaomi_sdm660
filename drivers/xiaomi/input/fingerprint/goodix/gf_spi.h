@@ -8,8 +8,8 @@
 
 #include <linux/types.h>
 #include <linux/notifier.h>
-/**********************************************************/
-enum FP_MODE{
+
+enum FP_MODE {
 	GF_IMAGE_MODE = 0,
 	GF_KEY_MODE,
 	GF_SLEEP_MODE,
@@ -19,7 +19,7 @@ enum FP_MODE{
 
 #define SUPPORT_NAV_EVENT
 
-#if defined(SUPPORT_NAV_EVENT)
+#ifdef SUPPORT_NAV_EVENT
 #define GF_NAV_INPUT_UP			KEY_UP
 #define GF_NAV_INPUT_DOWN		KEY_DOWN
 #define GF_NAV_INPUT_LEFT		KEY_LEFT
@@ -29,14 +29,13 @@ enum FP_MODE{
 #define GF_NAV_INPUT_LONG_PRESS		KEY_SEARCH
 #define GF_NAV_INPUT_HEAVY		KEY_CHAT
 #endif
-
 #define GF_KEY_INPUT_HOME		KEY_HOME
 #define GF_KEY_INPUT_MENU		KEY_MENU
 #define GF_KEY_INPUT_BACK		KEY_BACK
 #define GF_KEY_INPUT_POWER		KEY_POWER
 #define GF_KEY_INPUT_CAMERA		KEY_CAMERA
 
-#if defined(SUPPORT_NAV_EVENT)
+#ifdef SUPPORT_NAV_EVENT
 typedef enum gf_nav_event {
 	GF_NAV_NONE = 0,
 	GF_NAV_FINGER_UP,
@@ -63,7 +62,7 @@ typedef enum gf_key_event {
 
 struct gf_key {
 	enum gf_key_event key;
-	uint32_t value;   /* key down = 1, key up = 0 */
+	uint32_t value;	/* key down = 1, key up = 0 */
 };
 
 struct gf_key_map {
@@ -78,52 +77,38 @@ struct gf_ioc_chip_info {
 	unsigned char reserved[5];
 };
 
-#define GF_IOC_MAGIC    'g'     //define magic number
-#define GF_IOC_INIT             _IOR(GF_IOC_MAGIC, 0, uint8_t)
-#define GF_IOC_EXIT             _IO(GF_IOC_MAGIC, 1)
-#define GF_IOC_RESET            _IO(GF_IOC_MAGIC, 2)
-#define GF_IOC_ENABLE_IRQ       _IO(GF_IOC_MAGIC, 3)
-#define GF_IOC_DISABLE_IRQ      _IO(GF_IOC_MAGIC, 4)
-#define GF_IOC_ENABLE_SPI_CLK   _IOW(GF_IOC_MAGIC, 5, uint32_t)
-#define GF_IOC_DISABLE_SPI_CLK  _IO(GF_IOC_MAGIC, 6)
-#define GF_IOC_ENABLE_POWER     _IO(GF_IOC_MAGIC, 7)
-#define GF_IOC_DISABLE_POWER    _IO(GF_IOC_MAGIC, 8)
-#define GF_IOC_INPUT_KEY_EVENT  _IOW(GF_IOC_MAGIC, 9, struct gf_key)
-#define GF_IOC_ENTER_SLEEP_MODE _IO(GF_IOC_MAGIC, 10)
-#define GF_IOC_GET_FW_INFO      _IOR(GF_IOC_MAGIC, 11, uint8_t)
-#define GF_IOC_REMOVE           _IO(GF_IOC_MAGIC, 12)
-#define GF_IOC_CHIP_INFO        _IOW(GF_IOC_MAGIC, 13, struct gf_ioc_chip_info)
-
-#if defined(SUPPORT_NAV_EVENT)
+#define GF_IOC_MAGIC		'g'	//define magic number
+#define GF_IOC_INIT		_IOR(GF_IOC_MAGIC, 0, uint8_t)
+#define GF_IOC_EXIT		_IO(GF_IOC_MAGIC, 1)
+#define GF_IOC_RESET		_IO(GF_IOC_MAGIC, 2)
+#define GF_IOC_ENABLE_IRQ	_IO(GF_IOC_MAGIC, 3)
+#define GF_IOC_DISABLE_IRQ	_IO(GF_IOC_MAGIC, 4)
+#define GF_IOC_ENABLE_SPI_CLK	_IOW(GF_IOC_MAGIC, 5, uint32_t)
+#define GF_IOC_DISABLE_SPI_CLK	_IO(GF_IOC_MAGIC, 6)
+#define GF_IOC_ENABLE_POWER	_IO(GF_IOC_MAGIC, 7)
+#define GF_IOC_DISABLE_POWER	_IO(GF_IOC_MAGIC, 8)
+#define GF_IOC_INPUT_KEY_EVENT	_IOW(GF_IOC_MAGIC, 9, struct gf_key)
+#define GF_IOC_ENTER_SLEEP_MODE	_IO(GF_IOC_MAGIC, 10)
+#define GF_IOC_GET_FW_INFO	_IOR(GF_IOC_MAGIC, 11, uint8_t)
+#define GF_IOC_REMOVE		_IO(GF_IOC_MAGIC, 12)
+#define GF_IOC_CHIP_INFO	_IOW(GF_IOC_MAGIC, 13, struct gf_ioc_chip_info)
+#ifdef SUPPORT_NAV_EVENT
 #define GF_IOC_NAV_EVENT	_IOW(GF_IOC_MAGIC, 14, gf_nav_event_t)
-#define  GF_IOC_MAXNR    15  /* THIS MACRO IS NOT USED NOW... */
-#else
-#define  GF_IOC_MAXNR    14  /* THIS MACRO IS NOT USED NOW... */
 #endif
-
-//#define AP_CONTROL_CLK       1
-#define  USE_PLATFORM_BUS     1
-//#define  USE_SPI_BUS	1
-//#define GF_FASYNC   1	/*If support fasync mechanism.*/
-#define GF_NETLINK_ENABLE 1
+#define USE_PLATFORM_BUS 1
 #define GF_NET_EVENT_IRQ 1
 #define GF_NET_EVENT_FB_BLACK 2
 #define GF_NET_EVENT_FB_UNBLACK 3
 #define NETLINK_TEST 25
+#define MAX_MSGSIZE 32
 
 struct gf_dev {
 	dev_t devt;
 	struct list_head device_entry;
-#if defined(USE_SPI_BUS)
-	struct spi_device *spi;
-#elif defined(USE_PLATFORM_BUS)
 	struct platform_device *spi;
-#endif
 	struct clk *core_clk;
 	struct clk *iface_clk;
-
 	struct input_dev *input;
-	/* buffer is NULL unless this device is open (users > 0) */
 	unsigned users;
 	signed irq_gpio;
 	signed reset_gpio;
@@ -131,24 +116,44 @@ struct gf_dev {
 	int irq;
 	int irq_enabled;
 	int clk_enabled;
-#ifdef GF_FASYNC
-	struct fasync_struct *async;
-#endif
 	struct notifier_block notifier;
 	char device_available;
 	char fb_black;
+	char wait_finger_down;
+	struct work_struct work;
+	bool proximity_state; /* 0:far 1:near */
 };
 
-int gf_parse_dts(struct gf_dev* gf_dev);
-void gf_cleanup(struct gf_dev *gf_dev);
+static inline int gf_parse_dts(struct gf_dev *gf_dev);
+static inline void gf_cleanup(struct gf_dev *gf_dev)
+{
+	pr_info("[info] %s\n", __func__);
 
-int gf_power_on(struct gf_dev *gf_dev);
-int gf_power_off(struct gf_dev *gf_dev);
+	if (gpio_is_valid(gf_dev->irq_gpio)) {
+		gpio_free(gf_dev->irq_gpio);
+		pr_info("remove irq_gpio success\n");
+	}
 
-int gf_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms);
-int gf_irq_num(struct gf_dev *gf_dev);
+	if (gpio_is_valid(gf_dev->reset_gpio)) {
+		gpio_free(gf_dev->reset_gpio);
+		pr_info("remove reset_gpio success\n");
+	}
+}
 
-int sendnlmsg(char *msg);
-int netlink_init(void);
-void netlink_exit(void);
+static inline int gf_power_on(struct gf_dev *gf_dev)
+{
+	return 0;
+}
+
+static inline int gf_power_off(struct gf_dev *gf_dev)
+{
+	return 0;
+}
+
+static inline int gf_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms);
+static inline int gf_irq_num(struct gf_dev *gf_dev);
+
+static inline int sendnlmsg(char *msg);
+static inline int netlink_init(void);
+static inline void netlink_exit(void);
 #endif /*__GF_SPI_H*/
