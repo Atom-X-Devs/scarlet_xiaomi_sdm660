@@ -15,3 +15,9 @@ config FPC_FINGERPRINT
 	depends on INPUT_FINGERPRINT
 	help
 	 This adds support for fpc1020 fingerprint driver.
+
+config GOODIX_FINGERPRINT
+	tristate "generic goodix fingerprint driver"
+	depends on INPUT_FINGERPRINT
+	help
+	 This adds support for goodix fingerprint driver.
