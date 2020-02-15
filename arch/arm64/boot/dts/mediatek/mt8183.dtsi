@@ -335,7 +335,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu1: cpu@1 {
@@ -350,7 +350,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu2: cpu@2 {
@@ -365,7 +365,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu3: cpu@3 {
@@ -380,7 +380,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu4: cpu@100 {
@@ -395,7 +395,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		cpu5: cpu@101 {
@@ -410,7 +410,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		cpu6: cpu@102 {
@@ -425,7 +425,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		cpu7: cpu@103 {
@@ -440,7 +440,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		idle-states {
@@ -455,7 +455,16 @@
 				min-residency-us = <800>;
 			};
 
-			MCDI_CLUSTER: mcdi-cluster {
+			MCDI_CLUSTER0: mcdi-cluster@0 {
+				compatible = "arm,idle-state";
+				local-timer-stop;
+				arm,psci-suspend-param = <0x01010001>;
+				entry-latency-us = <250>;
+				exit-latency-us = <400>;
+				min-residency-us = <1300>;
+			};
+
+			MCDI_CLUSTER1: mcdi-cluster@1 {
 				compatible = "arm,idle-state";
 				local-timer-stop;
 				arm,psci-suspend-param = <0x01010001>;

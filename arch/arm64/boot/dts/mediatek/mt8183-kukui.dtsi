@@ -232,34 +232,42 @@
 
 &cpu0 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu1 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu2 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu3 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu4 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &cpu5 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &cpu6 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &cpu7 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &dpi0 {
@@ -396,6 +404,10 @@
 	pinctrl-0 = <&i2c6_pins>;
 	status = "okay";
 	clock-frequency = <100000>;
+};
+
+&MCDI_CLUSTER0 {
+	min-residency-us = <1000>;
 };
 
 &mipi_tx0 {
