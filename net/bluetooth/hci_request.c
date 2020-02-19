@@ -2672,19 +2672,16 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 
 		memset(&ext_enable_cp, 0, sizeof(ext_enable_cp));
 		ext_enable_cp.enable = LE_SCAN_ENABLE;
-		ext_enable_cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
-			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
+		ext_enable_cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
 
 		hci_req_add(req, HCI_OP_LE_SET_EXT_SCAN_ENABLE,
-			sizeof(ext_enable_cp), &ext_enable_cp);
+			    sizeof(ext_enable_cp), &ext_enable_cp);
 	} else {
 		struct hci_cp_le_set_scan_enable cp;
 
 		memset(&cp, 0, sizeof(cp));
 		cp.enable = LE_SCAN_ENABLE;
-		cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
-			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
-
+		cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
 		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
 	}
 
