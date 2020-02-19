@@ -1924,17 +1924,12 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 				  const struct link_config_limits *limits)
 {
 	struct drm_display_mode *adjusted_mode = &pipe_config->base.adjusted_mode;
-	struct intel_lspcon *lspcon = dp_to_lspcon(intel_dp);
 	int bpp, clock, lane_count;
 	int mode_rate, link_clock, link_avail;
 
 	for (bpp = limits->max_bpp; bpp >= limits->min_bpp; bpp -= 2 * 3) {
 		mode_rate = intel_dp_link_required(adjusted_mode->crtc_clock,
 						   bpp);
-
-		/* Bypass this mode if require bandwidth over HDMI spec when LSPCON active */
-		if (lspcon->active && mode_rate > lspcon_max_rate(lspcon))
-			continue;
 
 		for (clock = limits->min_clock; clock <= limits->max_clock; clock++) {
 			for (lane_count = limits->min_lane_count;
