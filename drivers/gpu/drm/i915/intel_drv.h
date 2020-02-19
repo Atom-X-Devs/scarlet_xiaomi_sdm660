@@ -2228,6 +2228,7 @@ void intel_color_load_luts(struct drm_crtc_state *crtc_state);
 bool lspcon_init(struct intel_digital_port *intel_dig_port);
 void lspcon_resume(struct intel_lspcon *lspcon);
 void lspcon_wait_pcon_mode(struct intel_lspcon *lspcon);
+int lspcon_max_rate(struct intel_lspcon *lspcon);
 
 /* intel_pipe_crc.c */
 #ifdef CONFIG_DEBUG_FS
