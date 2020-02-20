@@ -37,14 +37,13 @@ static int virtio_gpu_resource_id_get(struct virtio_gpu_device *vgdev,
 	if (handle < 0)
 		return handle;
 #else
-	static int handle;
-
 	/*
 	 * FIXME: dirty hack to avoid re-using IDs, virglrenderer
 	 * can't deal with that.  Needs fixing in virglrenderer, also
 	 * should figure a better way to handle that in the guest.
 	 */
-	handle++;
+	static atomic_t seqno = ATOMIC_INIT(0);
+	int handle = atomic_inc_return(&seqno);
 #endif
 
 	*resid = handle + 1;
