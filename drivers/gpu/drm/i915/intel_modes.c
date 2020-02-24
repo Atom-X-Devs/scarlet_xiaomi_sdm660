@@ -151,9 +151,9 @@ void
 intel_attach_privacy_screen_property(struct drm_connector *connector)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
-	struct drm_property *prop;
+	struct drm_property *prop = intel_connector->privacy_screen_property;
 
-	if (!intel_connector->privacy_screen_property) {
+	if (!prop) {
 		prop = drm_property_create_enum(connector->dev,
 						DRM_MODE_PROP_ENUM,
 						"privacy-screen",
