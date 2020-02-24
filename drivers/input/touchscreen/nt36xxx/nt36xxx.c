@@ -7,6 +7,9 @@
  *
  */
 
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+#include <linux/input/tp_common.h>
+#endif
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
@@ -27,6 +30,9 @@
 
 struct nvt_ts_data *ts;
 static uint8_t bTouchIsAwake = 0;
+#if WAKEUP_GESTURE && defined(CONFIG_TOUCHSCREEN_COMMON)
+bool enable_gesture_mode = false;
+#endif
 
 #if BOOT_UPDATE_FIRMWARE
 static struct workqueue_struct *nvt_fwu_wq;
@@ -73,6 +79,33 @@ const uint16_t gesture_key_array[] = {
 	KEY_POWER, /* GESTURE_SLIDE_LEFT */
 	KEY_POWER, /* GESTURE_SLIDE_RIGHT */
 };
+
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static inline ssize_t double_tap_show(struct kobject *kobj,
+				      struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", enable_gesture_mode);
+}
+
+static inline ssize_t double_tap_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	int rc, val;
+
+	rc = kstrtoint(buf, 10, &val);
+	if (rc)
+		return -EINVAL;
+
+	enable_gesture_mode = !!val;
+	return count;
+}
+
+static struct tp_common_ops double_tap_ops = {
+	.show = double_tap_show,
+	.store = double_tap_store
+};
+#endif
 
 inline void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
 {
@@ -659,6 +692,9 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 #if WAKEUP_GESTURE
 	for (retry = 0; retry < ARRAY_SIZE(gesture_key_array); retry++)
 		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	ret = tp_common_set_double_tap_ops(&double_tap_ops);
+#endif
 #endif
 
 	snprintf(ts->phys, sizeof(ts->phys), "input/ts");
@@ -818,7 +854,10 @@ static inline int32_t nvt_ts_suspend(struct device *dev)
 	if (!bTouchIsAwake)
 		return 0;
 
-#if !WAKEUP_GESTURE
+#if WAKEUP_GESTURE && defined(CONFIG_TOUCHSCREEN_COMMON)
+	if (!enable_gesture_mode)
+		nvt_irq_enable(false);
+#else
 	nvt_irq_enable(false);
 #endif
 
@@ -827,11 +866,17 @@ static inline int32_t nvt_ts_suspend(struct device *dev)
 	bTouchIsAwake = 0;
 
 #if WAKEUP_GESTURE
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x13;
-	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	if (enable_gesture_mode) {
+#endif
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x13;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 
-	enable_irq_wake(ts->client->irq);
+		enable_irq_wake(ts->client->irq);
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	}
+#endif
 #else
 	buf[0] = EVENT_MAP_HOST_CMD;
 	buf[1] = 0x11;
@@ -874,7 +919,10 @@ static inline int32_t nvt_ts_resume(struct device *dev)
 		nvt_check_fw_reset_state(RESET_STATE_REK);
 	}
 
-#if !WAKEUP_GESTURE
+#if WAKEUP_GESTURE && defined(CONFIG_TOUCHSCREEN_COMMON)
+	if (!enable_gesture_mode)
+		nvt_irq_enable(true);
+#else
 	nvt_irq_enable(true);
 #endif
 
