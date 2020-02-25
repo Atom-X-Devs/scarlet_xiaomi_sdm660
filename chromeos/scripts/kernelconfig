@@ -62,7 +62,7 @@ build_one() {
 			cross="${prefix}-cros-linux-gnu"
 		elif [[ "${arch}" == "armel" ]]; then
 			prefix=armv7a
-			compiler=gcc
+			compiler=clang
 			cross="${prefix}-cros-linux-gnueabihf"
 		fi
 	else
