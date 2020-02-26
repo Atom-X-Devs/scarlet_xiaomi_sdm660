@@ -1380,7 +1380,7 @@ struct hci_rp_read_local_amp_assoc {
 	__u8     status;
 	__u8     phy_handle;
 	__le16   rem_len;
-	__u8     frag[0];
+	__u8     frag[];
 } __packed;
 
 #define HCI_OP_WRITE_REMOTE_AMP_ASSOC	0x140b
@@ -1388,7 +1388,7 @@ struct hci_cp_write_remote_amp_assoc {
 	__u8     phy_handle;
 	__le16   len_so_far;
 	__le16   rem_len;
-	__u8     frag[0];
+	__u8     frag[];
 } __packed;
 struct hci_rp_write_remote_amp_assoc {
 	__u8     status;
@@ -1660,7 +1660,7 @@ struct hci_cp_le_set_ext_scan_params {
 	__u8    own_addr_type;
 	__u8    filter_policy;
 	__u8    scanning_phys;
-	__u8    data[0];
+	__u8    data[];
 } __packed;
 
 #define LE_SCAN_PHY_1M		0x01
@@ -1688,7 +1688,7 @@ struct hci_cp_le_ext_create_conn {
 	__u8      peer_addr_type;
 	bdaddr_t  peer_addr;
 	__u8      phys;
-	__u8      data[0];
+	__u8      data[];
 } __packed;
 
 struct hci_cp_le_ext_conn_param {
@@ -1740,7 +1740,7 @@ struct hci_rp_le_set_ext_adv_params {
 struct hci_cp_le_set_ext_adv_enable {
 	__u8  enable;
 	__u8  num_of_sets;
-	__u8  data[0];
+	__u8  data[];
 } __packed;
 
 struct hci_cp_ext_adv_set {
@@ -1913,7 +1913,7 @@ struct hci_comp_pkts_info {
 
 struct hci_ev_num_comp_pkts {
 	__u8     num_hndl;
-	struct hci_comp_pkts_info handles[0];
+	struct hci_comp_pkts_info handles[];
 } __packed;
 
 #define HCI_EV_MODE_CHANGE		0x14
@@ -2146,7 +2146,7 @@ struct hci_comp_blocks_info {
 struct hci_ev_num_comp_blocks {
 	__le16   num_blocks;
 	__u8     num_hndl;
-	struct hci_comp_blocks_info handles[0];
+	struct hci_comp_blocks_info handles[];
 } __packed;
 
 #define HCI_EV_SYNC_TRAIN_COMPLETE	0x4F
@@ -2204,7 +2204,7 @@ struct hci_ev_le_advertising_info {
 	__u8	 bdaddr_type;
 	bdaddr_t bdaddr;
 	__u8	 length;
-	__u8	 data[0];
+	__u8	 data[];
 } __packed;
 
 #define HCI_EV_LE_CONN_UPDATE_COMPLETE	0x03
@@ -2280,7 +2280,7 @@ struct hci_ev_le_ext_adv_report {
 	__u8  	 direct_addr_type;
 	bdaddr_t direct_addr;
 	__u8  	 length;
-	__u8	 data[0];
+	__u8	 data[];
 } __packed;
 
 #define HCI_EV_LE_ENHANCED_CONN_COMPLETE    0x0a
@@ -2312,7 +2312,7 @@ struct hci_evt_le_ext_adv_set_term {
 #define HCI_EV_STACK_INTERNAL	0xfd
 struct hci_ev_stack_internal {
 	__u16    type;
-	__u8     data[0];
+	__u8     data[];
 } __packed;
 
 #define HCI_EV_SI_DEVICE	0x01
