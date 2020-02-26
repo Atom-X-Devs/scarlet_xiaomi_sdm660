@@ -123,6 +123,7 @@ static const struct mfd_cell cros_ec_platform_cells[] = {
 	{ .name = "cros-ec-lightbar", },
 	{ .name = "cros-ec-pd-sysfs" },
 	{ .name = "cros-ec-sysfs", },
+	{ .name = "cros-ec-pd-update", },
 };
 
 static const struct mfd_cell cros_ec_vbc_cells[] = {
