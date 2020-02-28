@@ -1929,4 +1929,10 @@ int sched_trace_rq_cpu(struct rq *rq);
 
 const struct cpumask *sched_trace_rd_span(struct root_domain *rd);
 
+#ifdef CONFIG_SCHED_CORE
+int task_set_core_sched(int set, struct task_struct *tsk);
+#else
+#define task_set_core_sched(set, tsk) (-ENOTSUPP)
+#endif
+
 #endif

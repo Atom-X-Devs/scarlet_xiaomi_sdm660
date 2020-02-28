@@ -2797,6 +2797,13 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 #endif
 #ifdef CONFIG_SCHED_CORE
 	RB_CLEAR_NODE(&p->core_node);
+
+	/*
+	 * If task is using prctl(2) for tagging, do the prctl(2)-style tagging
+	 * for the child as well.
+	 */
+	if (current->core_cookie && ((unsigned long)current == current->core_cookie))
+		task_set_core_sched(1, p);
 #endif
 	return 0;
 }
@@ -7071,6 +7078,61 @@ void ___might_sleep(const char *file, int line, int preempt_offset)
 	add_taint(TAINT_WARN, LOCKDEP_STILL_OK);
 }
 EXPORT_SYMBOL(___might_sleep);
+#endif
+
+#ifdef CONFIG_SCHED_CORE
+
+/* Ensure that all siblings have rescheduled once */
+static int task_set_core_sched_stopper(void *data)
+{
+	return 0;
+}
+
+int task_set_core_sched(int set, struct task_struct *tsk)
+{
+	if (!tsk)
+		tsk = current;
+
+	// if (!capable(CAP_SYS_ADMIN))
+	//	return -EPERM;
+
+	if (set > 1)
+		return -ERANGE;
+
+	if (!static_branch_likely(&sched_smt_present))
+		return -EINVAL;
+
+	/*
+	 * If cookie was set previously, return -EBUSY if either of the
+	 * following are true:
+	 * 1. Task was previously tagged by CGroup method.
+	 * 2. Task or its parent were tagged by prctl().
+	 *
+	 * Note that, if CGroup tagging is done after prctl(), then that would
+	 * override the cookie. However, if prctl() is done after task was
+	 * added to tagged CGroup, then the prctl() returns -EBUSY.
+	 */
+	if (!!tsk->core_cookie == set) {
+		if ((tsk->core_cookie == (unsigned long)tsk) ||
+		    (tsk->core_cookie == (unsigned long)tsk->sched_task_group)) {
+			return -EBUSY;
+		}
+	}
+
+	if (set)
+		sched_core_get();
+
+	tsk->core_cookie = set ? (unsigned long)tsk : 0;
+
+	stop_machine(task_set_core_sched_stopper, NULL, NULL);
+
+	if (!set)
+		sched_core_put();
+
+	pr_alert("coresched: prctl success: %s/%d %lx (fork: %d)\n", tsk->comm,
+		 tsk->pid, tsk->core_cookie, tsk != current);
+	return 0;
+}
 #endif
 
 #ifdef CONFIG_MAGIC_SYSRQ
