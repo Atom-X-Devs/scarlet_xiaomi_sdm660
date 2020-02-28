@@ -616,7 +616,7 @@ static int sof_pcm_new(struct snd_soc_pcm_runtime *rtd)
 
 	snd_pcm_lib_preallocate_pages(pcm->streams[stream].substream,
 				      SNDRV_DMA_TYPE_DEV_SG, sdev->dev,
-				      le32_to_cpu(caps->buffer_size_min),
+				      0,
 				      le32_to_cpu(caps->buffer_size_max));
 capture:
 	stream = SNDRV_PCM_STREAM_CAPTURE;
@@ -633,7 +633,7 @@ capture:
 
 	snd_pcm_lib_preallocate_pages(pcm->streams[stream].substream,
 				      SNDRV_DMA_TYPE_DEV_SG, sdev->dev,
-				      le32_to_cpu(caps->buffer_size_min),
+				      0,
 				      le32_to_cpu(caps->buffer_size_max));
 
 	return 0;
