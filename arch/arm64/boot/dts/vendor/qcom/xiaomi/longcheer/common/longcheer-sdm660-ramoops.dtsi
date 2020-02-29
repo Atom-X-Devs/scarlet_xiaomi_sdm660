@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+/* ramoops dts configuration */
+&reserved_mem {
+	ramoops_mem: ramoops_region@b0000000 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0 0xA0000000 0 0x00400000>;
+	};
+};
+
+&soc {
+	ramoops {
+		compatible = "ramoops";
+		memory-region = <&ramoops_mem>;
+		console-size = <0x0 0x200000>;
+		pmsg-size = <0x0 0x200000>;
+	};
+};
