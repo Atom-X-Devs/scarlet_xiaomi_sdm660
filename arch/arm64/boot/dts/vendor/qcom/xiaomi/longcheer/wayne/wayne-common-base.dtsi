@@ -1,0 +1,199 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include "wayne-camera-sensor-mtp.dtsi"
+#include "sdm660-i2c_d2s.dtsi"
+
+/* Common between jasmine and wayne */
+&int_codec {
+	qcom,msm-mbhc-usbc-audio-supported = <1>;
+	qcom,usbc-analog-en1_gpio = <&wcd_usbc_analog_en1_gpio>;
+	qcom,usbc-analog-en2_n_gpio = <&wcd_usbc_analog_en2n_gpio>;
+};
+
+&tlmm {
+	hall_int_active:hall_int_active {
+		mux {
+            pins = "gpio76";
+            function = "gpio";
+		};
+
+		config {
+            pins = "gpio76";
+            drive-strength = <6>;
+            bias-pull-up;
+        };
+    };
+
+	hall_int_suspend: hall_int_suspend {
+		mux {
+            pins = "gpio76";
+            function = "gpio";
+		};
+
+        config {
+            pins = "gpio76";
+            drive-strength = <6>;
+            bias-pull-up;
+		};
+    };
+};
+
+&pm660_gpios {
+	 gpio@cb00 {
+		qcom,mode = <1>;      // Output
+		qcom,pull = <5>;      // No Pull
+		qcom,vin-sel = <0>;   // VIN0 GPIO_LV
+		qcom,src-sel = <2>;   // Special Function 1
+		qcom,invert = <0>;    // Invert
+		qcom,master-en = <1>; // Enable GPIO
+        status = "ok";
+	};
+};
+
+&spi_8{
+	status = "ok";
+
+    dbmd4_spi: dbmd4_interface@0 {
+		compatible = "dspg,dbmd4-spi";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+		read-chunk-size  = <0x2000>;
+		write-chunk-size = <0x20000>;
+		dma_min_buffer_size = <0>;
+	};
+};
+
+&soc {
+	hall_switch {
+	    compatible = "hall-switch,och175";
+	    pinctrl-names = "hall_active","hall_suspend";
+	    pinctrl-0 = <&hall_int_active>;
+	    pinctrl-1 = <&hall_int_suspend>;
+	    vdd-io-supply= <&pm660_l8>;
+	    interrupt-names = "hall_irq";
+	    hall,irq-gpio = <&tlmm 76 0x0>;
+	};
+
+
+	dbmdx {
+		compatible = "dspg,dbmdx-codec";
+		status = "okay";
+		reset-gpio = <&tlmm 63 0>;
+		sv-gpio = <&tlmm 65 0>;
+		wakeup-gpio = <&tlmm 0 0>;
+		auto_buffering = <1>;
+		multi-interface-support = <1>;
+		cd-interfaces = <&dbmd4_spi >;
+		va-interfaces = <0 0 0 0>;
+		feature-va;
+		va-firmware-name = "dbmd4_va_fw.bin";
+		va-config = <0x80000000
+			     0x80000000
+			     0x80290020
+			     0x80330019
+			     0x802210e4
+			     0x80158E8E
+			     0x801b0020
+			     0x80230001
+			     0x801A0017
+			     0x80103015
+			     0x80000000
+			     0x80000000
+			     0x80000000>;
+		va-speeds = <0x0000 460800  0 960000
+			     0x0000 2000000 0 4800000
+			     0x0000 3000000 0 4800000>;
+		va-mic-config = <0xf041 0x1044 0x0008>;
+		va-mic-mode = <4>;
+		master-clk-rate = <32768>;
+		firmware_id = <0xdbd4>;
+		use_gpio_for_wakeup = <1>;
+		wakeup_set_value = <0>;
+		auto_detection = <1>;
+		detection_buffer_channels = <0>;
+		min_samples_chunk_size = <128>;
+		pcm_streaming_mode = <1>;
+		boot_options = <0x200>;
+		amodel_options = <0x4>;
+		send_uevent_on_detection = <1>;
+		send_uevent_after_buffering = <0>;
+		detection_after_buffering = <0>;
+		va_backlog_length = <0x7d0>;
+	};
+
+	dbmdx-snd-soc-platform {
+		compatible = "dspg,dbmdx-snd-soc-platform";
+	};
+
+	snd-dbmdx-mach-drv {
+		compatible = "dspg,snd-dbmdx-mach-drv";
+	};
+};
+
+/* sdm660-common.dtsi diff wayne - whyred/tulip */
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq = <0xf8 0x80
+				0x33 0x84
+				0x83 0x88
+				0xc0 0x8c
+				0x30 0x08
+				0x79 0x0c
+				0x21 0x10
+				0x14 0x9c
+				0x9f 0x1c
+				0x00 0x18>;
+};
+
+/* msm-pm660.dtsi wayne specific diff */
+&pm660_coincell {
+	qcom,charge-enable = <0>;
+};
+
+&pm660_charger {
+	qcom,usb-icl-ua = <2900000>;
+	qcom,otg-cl-ua = <1500000>;
+	qcom,dc-icl-ua = <2900000>;
+	qcom,fcc-max-ua = <2900000>;
+	qcom,fv-max-uv  = <4400000>;
+	qcom,thermal-mitigation
+			= <2900000 2000000 1800000 1500000 1000000 500000 100000>;
+};
+
+&pm660_fg {
+	qcom,fg-recharge-voltage = <4340>;
+};
+
+&pm660_haptics {
+	/delete-property/ qcom,correct-lra-drive-freq;
+	qcom,play-mode = "buffer";
+	qcom,vmax-mv = <2204>;
+	qcom,wave-shape = "sine";
+	qcom,wave-play-rate-us = <4878>;
+	qcom,int-pwm-freq-khz = <253>;
+	qcom,brake-pattern = [02 02 01 00];
+	qcom,wave-samples = [3e 3e 3e 00 00 00 00 00];
+	qcom,wave-samples-two = [3e 3e 3e 3e 00 00 00 00];
+	qcom,wave-samples-three = [3e 3e 3e 3e 3e 00 00 00];
+	qcom,wave-rep-cnt = <1>;
+	qcom,wave-samp-rep-cnt = <1>;
+	qcom,lra-high-z = "opt1";
+	qcom,lra-auto-res-mode = "none";
+	qcom,lra-hw-auto-resonance;
+};
+
+/* msm-audio.dtsi wayne specific diff */
+&int_codec {
+	qcom,wsa-disable;
+	/delete-property/ qcom,msm-micbias2-ext-cap;
+};
+
+/* sdm660-mtp.dtsi wayne specific diff */
+&mtp_batterydata {
+	#include "fg-gen3-batterydata-l8866sun-3000mah.dtsi"
+	#include "fg-gen3-batterydata-l8866cos-3000mah.dtsi"
+	#include "fg-gen3-batterydata-l8866default-3000mah.dtsi"
+};
+
+&dsi_nt36672_tianma_fhd_video {
+	qcom,mdss-brightness-max-level = <4095>;
+};
