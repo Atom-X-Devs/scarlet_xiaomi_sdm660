@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include "display/dsi-panel-tianma-nt36672-1080p-video.dtsi"
+#include "display/dsi-panel-jdi-nt36672-1080p-video.dtsi"
+
+/* sdm660-mdss-panels.dtsi common diff */
+&dsi_panel_pwr_supply {
+	qcom,panel-supply-entry@0 {
+		qcom,supply-post-on-sleep = <2>;
+		qcom,supply-pre-off-sleep = <10>;
+	};
+
+	qcom,panel-supply-entry@1 {
+		qcom,supply-pre-on-sleep = <8>;
+	};
+
+	qcom,panel-supply-entry@2 {
+		qcom,supply-pre-on-sleep = <8>;
+	};
+};
+
+&dsi_nt36672_tianma_fhd_video {
+	qcom,mdss-dsi-panel-timings-phy-v2 = [
+		25 1f 09 0a 06 03 04 a0
+		25 1f 09 0a 06 03 04 a0
+		25 1f 09 0a 06 03 04 a0
+		25 1f 09 0a 06 03 04 a0
+		25 1e 08 0a 06 03 04 a0
+	];
+	qcom,mdss-dsi-min-refresh-rate = <48>;
+	qcom,mdss-dsi-max-refresh-rate = <60>;
+};
+
+&dsi_nt36672_jdi_fhd_video {
+	qcom,mdss-dsi-panel-timings-phy-v2 = [
+		25 1f 09 0a 06 03 04 a0
+		25 1f 09 0a 06 03 04 a0
+		25 1f 09 0a 06 03 04 a0
+		25 1f 09 0a 06 03 04 a0
+		25 1e 08 0a 06 03 04 a0
+	];
+	qcom,mdss-dsi-min-refresh-rate = <48>;
+	qcom,mdss-dsi-max-refresh-rate = <60>;
+};
