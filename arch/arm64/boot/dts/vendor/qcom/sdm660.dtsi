@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
 #include "skeleton64.dtsi"
 #include <dt-bindings/clock/qcom,gcc-sdm660.h>
 #include <dt-bindings/clock/qcom,gpu-sdm660.h>
@@ -324,7 +326,7 @@
 		};
 	};
 
-	reserved-memory {
+	reserved_mem: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
