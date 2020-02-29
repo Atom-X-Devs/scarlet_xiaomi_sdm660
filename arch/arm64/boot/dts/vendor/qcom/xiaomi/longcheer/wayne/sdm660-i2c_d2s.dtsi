@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Synaptics DSX touchscreen driver
+ *
+ * Copyright (C) 2012-2016 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2012 Alexandra Chin <alexandra.chin@tw.synaptics.com>
+ * Copyright (C) 2012 Scott Lin <scott.lin@tw.synaptics.com>
+ *
+ */
+
+&i2c_1 {
+	status = "ok";
+	novatek@62 {
+		compatible = "novatek,NVT-ts";
+		reg = <0x62>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <67 0x2008>;
+		vcc_i2c-supply=<&pm660_l11>;
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_active>;
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+		novatek,reset-gpio = <&tlmm 66 0x00>;
+		novatek,irq-gpio = <&tlmm 67 0x2001>;
+	};
+};

@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include "whyred-camera-sensor-mtp.dtsi"
+#include "sdm636-i2c_e7s.dsi"
+
+/* msm-pm660.dtsi whyred specific diff */
+&pm660_charger {
+	qcom,micro-usb;
+	qcom,fv-max-uv = <4408000>;
+	qcom,thermal-mitigation
+			= <2500000 2300000 2000000 1500000 1000000 400000 200000>;
+};
+
+/* msm-audio.dtsi whyred specific diff */
+&int_codec {
+	qcom,wsa-disable;
+	/delete-property/ qcom,msm-micbias2-ext-cap;
+};
+
+/* sdm660-mtp.dtsi whyred specific diff */
+&mtp_batterydata {
+	#include "fg-gen3-batterydata-l6650sun-4000mah.dtsi"
+	#include "fg-gen3-batterydata-l6650cos-4000mah.dtsi"
+	#include "fg-gen3-batterydata-l6650desay-4000mah.dtsi"
+};
+
+&dsi_nt36672_tianma_fhd_video {
+	qcom,mdss-brightness-max-level = <4095>;
+};
+
+&dsi_td4310_tianma_fhd_video {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <4095>;
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+};
+
+&dsi_nt36672_huaxing_fhd_video {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <4095>;
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+};
+
+&dsi_td4310_shenchao_fhd_video {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <4095>;
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+}; 
