@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include "longcheer/common/longcheer-sdm660-base.dtsi"
+#include "longcheer/wayne/wayne-common-base.dtsi"
+
+&firmware {
+	android {
+		fstab {
+			vendor {
+				mnt_flags = "ro,barrier=1";
+				fsmgr_flags = "wait,slotselect,verify";
+			};
+		};
+	};
+};
