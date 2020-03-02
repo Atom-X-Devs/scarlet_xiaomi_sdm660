@@ -128,7 +128,6 @@ enum it6505_audio_sample_rate {
 	SAMPLE_RATE_44_1K = 0x0,
 	SAMPLE_RATE_88_2K = 0x8,
 	SAMPLE_RATE_176_4K = 0xC,
-	SAMPLE_RATE_UNKNOWN = 0xFF,
 };
 
 enum it6505_audio_type {
@@ -673,26 +672,22 @@ static const struct it6505_audio_sample_rate_map audio_sample_rate_map[] = {
 	{SAMPLE_RATE_44_1K, 44100},
 	{SAMPLE_RATE_88_2K, 88200},
 	{SAMPLE_RATE_176_4K, 176400},
-	{SAMPLE_RATE_UNKNOWN, 0},
 };
 
 static void show_audio_m_count(struct it6505 *it6505)
 {
-	unsigned int audio_n, vclk, aclk, audio_m_cal, audio_m_count, i;
+	unsigned int audio_n, vclk, aclk = 0, audio_m_cal, audio_m_count, i;
 	struct device *dev = &it6505->client->dev;
 
 	vclk = it6505->hbr ? 2700000 : 1620000;
 
-	for (i = 0; audio_sample_rate_map[i].rate != SAMPLE_RATE_UNKNOWN; i++) {
+	for (i = 0; i < ARRAY_SIZE(audio_sample_rate_map); i++) {
 		if (it6505->audio_sample_rate ==
 		    audio_sample_rate_map[i].rate) {
 			aclk = audio_sample_rate_map[i].sample_rate_value / 100;
 			break;
 		}
 	}
-
-	if (audio_sample_rate_map[i].rate == SAMPLE_RATE_UNKNOWN)
-		aclk = audio_sample_rate_map[i].sample_rate_value;
 
 	audio_n = (dptx_read(it6505, 0xE0) << 16) +
 		  (dptx_read(it6505, 0xDF) << 8) + dptx_read(it6505, 0xDE);
@@ -1426,12 +1421,12 @@ static int __maybe_unused it6505_audio_set_hw_params(struct it6505 *it6505,
 	if (!it6505->bridge.encoder)
 		return -ENODEV;
 
-	while (audio_sample_rate_map[i].sample_rate_value &&
+	while (i < ARRAY_SIZE(audio_sample_rate_map) &&
 	       params->sample_rate !=
-			audio_sample_rate_map[i].sample_rate_value) {
+		       audio_sample_rate_map[i].sample_rate_value) {
 		i++;
 	}
-	if (!audio_sample_rate_map[i].sample_rate_value) {
+	if (i == ARRAY_SIZE(audio_sample_rate_map)) {
 		DRM_DEV_DEBUG_DRIVER(dev, "sample rate: %d Hz not support",
 				     params->sample_rate);
 		return -EINVAL;
