@@ -141,6 +141,7 @@
 		#iommu-cells = <1>;
 		qcom,dynamic;
 		qcom,use-3-lvl-tables;
+		qcom,skip-init;
 		qcom,disable-atos;
 		qcom,regulator-names = "vdd";
 		#global-interrupts = <0>;
