@@ -200,7 +200,7 @@ config CROS_EC_DEBUGFS
 
 config CROS_EC_PD_UPDATE
 	tristate "ChromeOS Embedded Controller PD device update driver"
-	depends on CROS_EC
+	depends on CROS_EC && CROS_USBPD_NOTIFY
 
 	help
 	  If you say Y here, you get support for updating ChromeOS
