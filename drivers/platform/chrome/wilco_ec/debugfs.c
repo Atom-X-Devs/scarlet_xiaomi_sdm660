@@ -211,7 +211,7 @@ static int h1_gpio_get(void *arg, u64 *val)
 	return send_ec_cmd(arg, SUB_CMD_H1_GPIO, (u8 *)val);
 }
 
-DEFINE_DEBUGFS_ATTRIBUTE(fops_h1_gpio, h1_gpio_get, NULL, "0x%02llx\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_h1_gpio, h1_gpio_get, NULL, "0x%02hhx\n");
 
 /**
  * test_event_set() - Sends command to EC to cause an EC test event.
