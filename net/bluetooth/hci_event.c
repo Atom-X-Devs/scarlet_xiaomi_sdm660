@@ -5889,9 +5889,6 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 		req_evt = event;
 	}
 
-	if (event == 0)
-		BT_ERR("Received unexpected HCI Event 00000000");
-
 	/* If it looks like we might end up having to call
 	 * req_complete_skb, store a pristine copy of the skb since the
 	 * various handlers may modify the original one through
