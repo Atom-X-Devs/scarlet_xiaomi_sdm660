@@ -422,8 +422,6 @@ int evdi_fbdev_init(struct drm_device *dev)
 		return ret;
 	}
 
-	drm_fb_helper_single_add_all_connectors(&ufbdev->helper);
-
 	ret = drm_fb_helper_initial_config(&ufbdev->helper, 32);
 	if (ret) {
 		drm_fb_helper_fini(&ufbdev->helper);

@@ -242,10 +242,6 @@ int vbox_fbdev_init(struct drm_device *dev)
 	if (ret)
 		return ret;
 
-	ret = drm_fb_helper_single_add_all_connectors(&fbdev->helper);
-	if (ret)
-		goto err_fini;
-
 	/* disable all the possible outputs/crtcs before entering KMS mode */
 	drm_helper_disable_unused_functions(dev);
 

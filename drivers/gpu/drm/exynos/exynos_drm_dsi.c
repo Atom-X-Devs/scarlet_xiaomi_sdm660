@@ -1494,7 +1494,6 @@ static int exynos_dsi_create_connector(struct drm_encoder *encoder)
 		return 0;
 
 	connector->funcs->reset(connector);
-	drm_fb_helper_add_one_connector(drm->fb_helper, connector);
 	drm_connector_register(connector);
 	return 0;
 }
