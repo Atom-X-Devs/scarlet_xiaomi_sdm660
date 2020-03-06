@@ -2939,6 +2939,7 @@ static void read_enc_key_size_complete(struct hci_dev *hdev, u8 status,
 	 * supported.
 	 */
 	if (rp->status) {
+		WARN(1, "Read Encryption Key Size command failed, chip may not support this");
 		bt_dev_err(hdev, "failed to read key size for handle %u",
 			   handle);
 		conn->enc_key_size = HCI_LINK_KEY_SIZE;
@@ -3035,15 +3036,6 @@ static void hci_encrypt_change_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	if (!ev->status && ev->encrypt && conn->type == ACL_LINK) {
 		struct hci_cp_read_enc_key_size cp;
 		struct hci_request req;
-
-		/* Only send HCI_Read_Encryption_Key_Size if the
-		 * controller really supports it. If it doesn't, assume
-		 * the default size (16).
-		 */
-		if (!(hdev->commands[20] & 0x10)) {
-			conn->enc_key_size = HCI_LINK_KEY_SIZE;
-			goto notify;
-		}
 
 		hci_req_init(&req, hdev);
 
