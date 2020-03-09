@@ -96,7 +96,6 @@
  * 0: for bitland 10e, quanta zde
  * 1: for google kukui p1/p2, huaqin krane
  */
-#define AFE_SETTING 1
 
 static u8 afe_setting_table[2][3] = {
 	{0, 0, 0},
@@ -106,7 +105,7 @@ static u8 afe_setting_table[2][3] = {
 enum it6505_sys_state {
 	SYS_UNPLUG = 0,
 	SYS_HPD,
-	SYS_AUTOTRAIN,
+	SYS_TRAIN,
 	SYS_WAIT,
 	SYS_TRAINFAIL,
 	SYS_HDCP,
@@ -171,13 +170,20 @@ struct it6505_platform_data {
 	struct gpio_desc *gpiod_reset;
 };
 
+struct it6505_drm_dp_link {
+	unsigned char revision;
+	unsigned int rate;
+	unsigned int num_lanes;
+	unsigned long capabilities;
+};
+
 struct it6505 {
 	struct drm_dp_aux aux;
 	struct drm_bridge bridge;
 	struct i2c_client *client;
 	struct edid *edid;
 	struct drm_connector connector;
-	struct drm_dp_link link;
+	struct it6505_drm_dp_link link;
 	struct it6505_platform_data pdata;
 	struct mutex lock;
 	struct mutex mode_lock;
@@ -208,12 +214,15 @@ struct it6505 {
 	bool hdcp_flag;
 	bool enable_hdcp;
 	bool enable_audio;
-	u8 auto_train_count;
+	u8 train_count;
 	u8 train_fail_hpd;
+	bool train_pass;
+	bool enable_auto_train;
 	bool cp_capable;
 	u8 sha1_input[64];
 	u8 av[5][4];
 	u8 bv[5][4];
+	u8 dpcd[DP_RECEIVER_CAP_SIZE];
 	bool powered;
 	u8 dpcd_sink_count;
 	/* it6505 driver hold option */
@@ -222,6 +231,11 @@ struct it6505 {
 	hdmi_codec_plugged_cb plugged_cb;
 	struct device *codec_dev;
 	enum drm_connector_status last_connector_status;
+};
+
+struct it6505_lane_voltage_pre_emphasis {
+	u8 voltage_swing[MAX_LANE_COUNT];
+	u8 pre_emphasis[MAX_LANE_COUNT];
 };
 
 static const struct regmap_range it6505_bridge_volatile_ranges[] = {
@@ -369,6 +383,79 @@ static void dpcd_debug_print(struct it6505 *it6505, unsigned int reg,
 				     val);
 }
 
+static int it6505_drm_dp_link_probe(struct drm_dp_aux *aux,
+				    struct it6505_drm_dp_link *link)
+{
+	u8 values[3];
+	int err;
+
+	memset(link, 0, sizeof(*link));
+
+	err = drm_dp_dpcd_read(aux, DP_DPCD_REV, values, sizeof(values));
+	if (err < 0)
+		return err;
+
+	link->revision = values[0];
+	link->rate = drm_dp_bw_code_to_link_rate(values[1]);
+	link->num_lanes = values[2] & DP_MAX_LANE_COUNT_MASK;
+
+	if (values[2] & DP_ENHANCED_FRAME_CAP)
+		link->capabilities = 1;
+
+	return 0;
+}
+
+static int it6505_drm_dp_link_power_up(struct drm_dp_aux *aux,
+				       struct it6505_drm_dp_link *link)
+{
+	u8 value;
+	int err;
+
+	/* DP_SET_POWER register is only available on DPCD v1.1 and later */
+	if (link->revision < 0x11)
+		return 0;
+
+	err = drm_dp_dpcd_readb(aux, DP_SET_POWER, &value);
+	if (err < 0)
+		return err;
+
+	value &= ~DP_SET_POWER_MASK;
+	value |= DP_SET_POWER_D0;
+
+	err = drm_dp_dpcd_writeb(aux, DP_SET_POWER, value);
+	if (err < 0)
+		return err;
+
+	/*
+	 * According to the DP 1.1 specification, a "Sink Device must exit the
+	 * power saving state within 1 ms" (Section 2.5.3.1, Table 5-52, "Sink
+	 * Control Field" (register 0x600).
+	 */
+	usleep_range(1000, 2000);
+
+	return 0;
+}
+
+static int it6505_drm_dp_link_configure(struct it6505 *it6505)
+{
+	u8 values[2];
+	int err;
+	struct it6505_drm_dp_link *link = &it6505->link;
+	struct drm_dp_aux *aux = &it6505->aux;
+
+	values[0] = it6505->hbr ? DP_LINK_BW_2_7 : DP_LINK_BW_1_62;
+	values[1] = link->num_lanes;
+
+	if (link->capabilities)
+		values[1] |= DP_LANE_COUNT_ENHANCED_FRAME_EN;
+
+	err = drm_dp_dpcd_write(aux, DP_LINK_BW_SET, values, sizeof(values));
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+
 static inline struct it6505 *connector_to_it6505(struct drm_connector *c)
 {
 	return container_of(c, struct it6505, connector);
@@ -379,7 +466,7 @@ static inline struct it6505 *bridge_to_it6505(struct drm_bridge *bridge)
 	return container_of(bridge, struct it6505, bridge);
 }
 
-static void it6505_init_fsm(struct it6505 *it6505)
+static void it6505_init_variable(struct it6505 *it6505)
 {
 	it6505->audio_select = AUDIO_SELECT;
 	it6505->audio_sample_rate = AUDIO_SAMPLE_RATE;
@@ -392,19 +479,18 @@ static void it6505_init_fsm(struct it6505 *it6505)
 	it6505->i2s_data_sequence = I2S_DATA_SEQUENCE;
 	it6505->audio_word_length = AUDIO_WORD_LENGTH;
 	it6505->enable_audio = false;
-	it6505->enable_hdcp =  true;
+	it6505->enable_hdcp = true;
 	it6505->lane_count = min(MAX_LANE_COUNT, TRAINING_LANE_COUNT);
 	it6505->hbr = min(MAX_LINK_RATE, TRAINING_LINK_RATE) ? true : false;
 	it6505->enable_ssc = true;
 	it6505->lane_swap = ENABLE_DP_LANE_SWAP ? true : false;
+	it6505->train_pass = false;
 }
 
 static void it6505_lane_termination_on(struct it6505 *it6505)
 {
-	if (dptx_read(it6505, 0xCF) == 0xF0) {
+	if (dptx_read(it6505, 0xCF) == 0xF0)
 		dptx_set_bits(it6505, 0x5D, 0x80, 0x00);
-		dptx_set_bits(it6505, 0x5E, 0x02, 0x02);
-	}
 
 	if (dptx_read(it6505, 0xCF) == 0x70) {
 		if (it6505->lane_swap) {
@@ -433,11 +519,8 @@ static void it6505_lane_termination_on(struct it6505 *it6505)
 
 static void it6505_lane_termination_off(struct it6505 *it6505)
 {
-	if (dptx_read(it6505, 0xCF) == 0xF0) {
+	if (dptx_read(it6505, 0xCF) == 0xF0)
 		dptx_set_bits(it6505, 0x5D, 0x80, 0x80);
-		dptx_set_bits(it6505, 0x5E, 0x02, 0x00);
-		dptx_set_bits(it6505, 0x5C, 0xF0, 0x00);
-	}
 
 	if (dptx_read(it6505, 0xCF) == 0x70)
 		dptx_set_bits(it6505, 0x5D, 0x0C, 0x00);
@@ -711,7 +794,7 @@ static void it6505_audio_disable(struct it6505 *it6505)
 static const char *const state_string[] = {
 	[SYS_UNPLUG] = "SYS_UNPLUG",
 	[SYS_HPD] = "SYS_HPD",
-	[SYS_AUTOTRAIN] = "SYS_AUTOTRAIN",
+	[SYS_TRAIN] = "SYS_TRAIN",
 	[SYS_WAIT] = "SYS_WAIT",
 	[SYS_TRAINFAIL] = "SYS_TRAINFAIL",
 	[SYS_HDCP] = "SYS_HDCP",
@@ -728,8 +811,6 @@ static void dptx_sys_chg(struct it6505 *it6505, enum it6505_sys_state newstate)
 		if (!dptx_get_sink_hpd(it6505))
 			newstate = SYS_UNPLUG;
 	}
-	if (it6505->state == newstate)
-		return;
 
 	DRM_DEV_DEBUG_DRIVER(dev, "sys_state change: %s -> %s",
 			     state_string[it6505->state],
@@ -753,18 +834,20 @@ static void dptx_sys_chg(struct it6505 *it6505, enum it6505_sys_state newstate)
 	case SYS_HPD:
 		it6505_aux_on(it6505);
 		break;
-	case SYS_AUTOTRAIN:
+	case SYS_TRAIN:
 		break;
 	case SYS_WAIT:
 		break;
 	case SYS_HDCP:
 		break;
 	case SYS_NOROP:
+		it6505->enable_auto_train = true;
 		for (i = 0; i < 3; i++)
 			show_video_info(it6505);
 		break;
 	case SYS_TRAINFAIL:
 		/* it6505 goes to idle */
+		it6505->enable_auto_train = true;
 		break;
 	default:
 		break;
@@ -1059,7 +1142,7 @@ static enum drm_connector_status it6505_detect(struct drm_connector *connector,
 
 	it6505_aux_on(it6505);
 	dpcd600 = dpcd_read(it6505, DP_SET_POWER);
-	dpcd_debug_print(it6505, DP_SET_POWER, "");
+	dpcd_debug_print(it6505, DP_SET_POWER, "detect:");
 
 	if (!dptx_get_sink_hpd(it6505) ||
 	    (dpcd600 & DP_SET_POWER_MASK) != DP_SET_POWER_D0) {
@@ -1067,10 +1150,13 @@ it6505_no_powered:
 		it6505->dpcd_sink_count = 0;
 	}
 
-	if (it6505->dpcd_sink_count)
+	if (it6505->dpcd_sink_count) {
 		status = connector_status_connected;
-	else
+	} else {
 		status = connector_status_disconnected;
+		if (it6505->powered)
+			it6505_lane_off(it6505);
+	}
 
 	DRM_DEV_DEBUG_DRIVER(&it6505->client->dev, "sink_count:%d status:%d",
 			     it6505->dpcd_sink_count, status);
@@ -1118,7 +1204,6 @@ static void it6505_extcon_work(struct work_struct *work)
 		it6505_poweron(it6505);
 		if (!dptx_get_sink_hpd(it6505))
 			it6505_lane_off(it6505);
-		it6505_aux_on(it6505);
 	} else {
 		DRM_DEV_DEBUG_DRIVER(dev, "start to power off");
 		while (it6505_poweroff(it6505) && pwroffretry++ < 5) {
@@ -1390,8 +1475,8 @@ static void it6505_set_audio(struct it6505 *it6505)
 		DRM_DEV_DEBUG_DRIVER(dev, "no audio input");
 	}
 
-	dptx_set_audio_format(it6505);
 	dptx_set_audio_channel_status(it6505);
+	dptx_set_audio_format(it6505);
 	dptx_set_audio_infoframe(it6505);
 
 	/* Enable Enhanced Audio TimeStmp Mode */
@@ -1573,12 +1658,12 @@ static int it6505_get_dpcd(struct it6505 *it6505, int offset, u8 *dpcd, int num)
 
 static void it6505_parse_dpcd(struct it6505 *it6505)
 {
-	u8 dpcd[DP_RECEIVER_CAP_SIZE];
 	struct device *dev = &it6505->client->dev;
 	int bcaps;
-	struct drm_dp_link *link = &it6505->link;
+	struct it6505_drm_dp_link *link = &it6505->link;
 
-	it6505_get_dpcd(it6505, DP_DPCD_REV, dpcd, ARRAY_SIZE(dpcd));
+	it6505_get_dpcd(it6505, DP_DPCD_REV, it6505->dpcd,
+			ARRAY_SIZE(it6505->dpcd));
 
 	DRM_DEV_DEBUG_DRIVER(dev, "#########DPCD Rev.: %d.%d###########",
 			     link->revision >> 4, link->revision & 0x0F);
@@ -1644,13 +1729,13 @@ static void it6505_parse_dpcd(struct it6505 *it6505)
 		DRM_DEV_ERROR(dev, "Lane Count Error: %u", link->num_lanes);
 	}
 
-	if (link->capabilities & DP_LINK_CAP_ENHANCED_FRAMING)
+	if (link->capabilities)
 		DRM_DEV_DEBUG_DRIVER(dev, "Support Enhanced Framing");
 	else
 		DRM_DEV_DEBUG_DRIVER(dev,
 				     "Can not support Enhanced Framing Mode");
 
-	if (dpcd[DP_MAX_DOWNSPREAD] & DP_MAX_DOWNSPREAD_0_5) {
+	if (it6505->dpcd[DP_MAX_DOWNSPREAD] & DP_MAX_DOWNSPREAD_0_5) {
 		DRM_DEV_DEBUG_DRIVER(dev,
 				     "Maximum Down-Spread: 0.5, support SSC!");
 	} else {
@@ -1660,7 +1745,7 @@ static void it6505_parse_dpcd(struct it6505 *it6505)
 	}
 
 	if (link->revision >= 0x11 &&
-	    dpcd[DP_MAX_DOWNSPREAD] & DP_NO_AUX_HANDSHAKE_LINK_TRAINING)
+	    it6505->dpcd[DP_MAX_DOWNSPREAD] & DP_NO_AUX_HANDSHAKE_LINK_TRAINING)
 		DRM_DEV_DEBUG_DRIVER(dev, "Support No AUX Training");
 	else
 		DRM_DEV_DEBUG_DRIVER(dev, "Can not support No AUX Training");
@@ -1792,9 +1877,10 @@ static void it6505_pixel_clk_phase_adjustment(struct it6505 *it6505)
 static void it6505_set_afe_driving(struct it6505 *it6505)
 {
 	struct device *dev = &it6505->client->dev;
-	unsigned int afe_setting;
+	u32 afe_setting;
 
-	afe_setting = AFE_SETTING;
+	if (device_property_read_u32(dev, "afe-setting", &afe_setting) < 0)
+		afe_setting = 0;
 	if (afe_setting >= ARRAY_SIZE(afe_setting_table)) {
 		DRM_DEV_ERROR(dev, "afe setting value error and use default");
 		afe_setting = 0;
@@ -1808,7 +1894,7 @@ static void it6505_set_afe_driving(struct it6505 *it6505)
 	}
 }
 
-static void dptx_output(struct it6505 *it6505)
+static void dptx_output_config(struct it6505 *it6505)
 {
 	/* change bank 0 */
 	dptx_select_bank(it6505, 0);
@@ -1841,7 +1927,7 @@ static void dptx_output(struct it6505 *it6505)
 	dptx_write(it6505, 0xC9, 0xF5);
 	dptx_write(it6505, 0x5C, 0x02);
 
-	drm_dp_link_power_up(&it6505->aux, &it6505->link);
+	it6505_drm_dp_link_power_up(&it6505->aux, &it6505->link);
 	dptx_set_bits(it6505, 0x59, 0x01, 0x01);
 	dptx_set_bits(it6505, 0x5A, 0x05, 0x01);
 	dptx_write(it6505, 0x12, 0x01);
@@ -1858,10 +1944,10 @@ static void dptx_output(struct it6505 *it6505)
 
 	it6505_set_ssc(it6505);
 
-	if (it6505->link.capabilities & DP_LINK_CAP_ENHANCED_FRAMING) {
+	if (it6505->link.capabilities) {
 		dptx_write(it6505, 0xD3, 0x33);
 		dpcd_write(it6505, DP_LANE_COUNT_SET,
-			    DP_LANE_COUNT_ENHANCED_FRAME_EN);
+			  it6505->lane_count | DP_LANE_COUNT_ENHANCED_FRAME_EN);
 	} else {
 		dptx_write(it6505, 0xD3, 0x32);
 	}
@@ -1869,10 +1955,9 @@ static void dptx_output(struct it6505 *it6505)
 	/* it6505 displayport phy and logic reset */
 	dptx_set_bits(it6505, 0x15, 0x02, 0x02);
 	dptx_set_bits(it6505, 0x15, 0x02, 0x00);
-	dptx_set_bits(it6505, 0x05, 0x03, 0x02);
 	dptx_set_bits(it6505, 0x05, 0x03, 0x00);
 
-	/* reg60[2] = InDDR */
+	/* reg60[2] = Input DDR */
 	dptx_write(it6505, 0x60, 0x44);
 	/* M444B24 format */
 	dptx_write(it6505, 0x62, 0x01);
@@ -1885,33 +1970,246 @@ static void dptx_output(struct it6505 *it6505)
 	dptx_write(it6505, 0x07, 0xFF);
 	dptx_write(it6505, 0x08, 0xFF);
 
-	dptx_set_bits(it6505, 0xD3, 0x30, 0x00);
+	dptx_set_bits(it6505, 0xD3, 0x10, 0x00);
 	dptx_set_bits(it6505, 0xD4, 0x41, 0x41);
 	dptx_set_bits(it6505, 0xE8, 0x11, 0x11);
 
 	it6505_set_afe_driving(it6505);
+}
+
+static void it6505_start_auto_train(struct it6505 *it6505)
+{
 	/* reset auto DP link training */
 	dptx_write(it6505, 0x17, 0x04);
 	/* start auto DP link training */
 	dptx_write(it6505, 0x17, 0x01);
 }
 
+static u8 dp_link_status(const u8 link_status[DP_LINK_STATUS_SIZE], int r)
+{
+	return link_status[r - DP_LANE0_1_STATUS];
+}
+
+static bool it6505_use_step_train_check(struct it6505 *it6505)
+{
+	if (it6505->link.revision >= 0x12)
+		return it6505->dpcd[DP_TRAINING_AUX_RD_INTERVAL] >= 0x01;
+
+	return true;
+}
+
+static bool it6505_check_max_value(u8 lane_voltage_swing_pre_emphasis)
+{
+	return ((lane_voltage_swing_pre_emphasis & 0x03) == 0x03);
+}
+
+static bool it6505_check_max_voltage_swing_reached(u8 *lane_voltage_swing,
+						   u8 lane_count)
+{
+	u8 i;
+
+	for (i = 0; i < lane_count; i++) {
+		if (lane_voltage_swing[i] & DP_TRAIN_MAX_SWING_REACHED)
+			return true;
+	}
+
+	return false;
+}
+
+static bool it6505_step_train_lane_voltage_pre_emphasis_set(
+	struct it6505 *it6505,
+	struct it6505_lane_voltage_pre_emphasis *lane_voltage_pre_emphasis,
+	u8 *lane_voltage_pre_emphasis_set)
+{
+	u8 i;
+
+	for (i = 0; i < it6505->lane_count; i++) {
+		lane_voltage_pre_emphasis->voltage_swing[i] &= 0x03;
+		lane_voltage_pre_emphasis_set[i] =
+			lane_voltage_pre_emphasis->voltage_swing[i];
+		if (it6505_check_max_value(
+			    lane_voltage_pre_emphasis->voltage_swing[i]))
+			lane_voltage_pre_emphasis_set[i] |=
+				DP_TRAIN_MAX_SWING_REACHED;
+
+		lane_voltage_pre_emphasis->pre_emphasis[i] &= 0x03;
+		lane_voltage_pre_emphasis_set[i] |=
+			lane_voltage_pre_emphasis->pre_emphasis[i]
+			<< DP_TRAIN_PRE_EMPHASIS_SHIFT;
+		if (it6505_check_max_value(
+			    lane_voltage_pre_emphasis->pre_emphasis[i]))
+			lane_voltage_pre_emphasis_set[i] |=
+				DP_TRAIN_MAX_PRE_EMPHASIS_REACHED;
+		dpcd_write(it6505, DP_TRAINING_LANE0_SET + i,
+			   lane_voltage_pre_emphasis_set[i]);
+
+		if (lane_voltage_pre_emphasis_set[i] !=
+		    dpcd_read(it6505, DP_TRAINING_LANE0_SET + i))
+			return false;
+	}
+
+	return true;
+}
+
+static bool it6505_step_cr_train(
+	struct it6505 *it6505,
+	struct it6505_lane_voltage_pre_emphasis *lane_voltage_pre_emphasis)
+{
+	u8 loop_count = 0, i = 0, j, voltage_swing_adjust = -1;
+	u8 link_status[DP_LINK_STATUS_SIZE] = { 0 }, pre_emphasis_adjust = -1;
+	u8 lane_level_config[MAX_LANE_COUNT] = { 0 };
+
+	it6505_drm_dp_link_configure(it6505);
+	dpcd_write(it6505, DP_DOWNSPREAD_CTRL,
+		   it6505->enable_ssc ? DP_SPREAD_AMP_0_5 : 0 << 4);
+	dpcd_write(it6505, DP_TRAINING_PATTERN_SET, DP_TRAINING_PATTERN_1);
+
+	while (loop_count < 5 && i < 10) {
+		i++;
+		if (!it6505_step_train_lane_voltage_pre_emphasis_set(
+			    it6505, lane_voltage_pre_emphasis,
+			    lane_level_config))
+			continue;
+		drm_dp_link_train_clock_recovery_delay(it6505->dpcd);
+		it6505_get_dpcd(it6505, DP_LANE0_1_STATUS, link_status,
+				ARRAY_SIZE(link_status));
+
+		if (drm_dp_clock_recovery_ok(link_status, it6505->lane_count)) {
+			dptx_set_bits(it6505, 0x16, BIT(5), BIT(5));
+			return true;
+		}
+		DRM_DEV_DEBUG_DRIVER(&it6505->client->dev, "cr not done");
+
+		if (it6505_check_max_voltage_swing_reached(lane_level_config,
+							   it6505->lane_count))
+			goto cr_train_fail;
+
+		for (j = 0; j < it6505->lane_count; j++) {
+			lane_voltage_pre_emphasis->voltage_swing[j] =
+				drm_dp_get_adjust_request_voltage(link_status,
+								  j) >>
+				DP_TRAIN_VOLTAGE_SWING_SHIFT;
+			lane_voltage_pre_emphasis->pre_emphasis[j] =
+				drm_dp_get_adjust_request_pre_emphasis(
+					link_status, j) >>
+				DP_TRAIN_PRE_EMPHASIS_SHIFT;
+			if ((voltage_swing_adjust ==
+			     lane_voltage_pre_emphasis->voltage_swing[j]) &&
+			    (pre_emphasis_adjust ==
+			     lane_voltage_pre_emphasis->pre_emphasis[j])) {
+				loop_count++;
+				continue;
+			}
+
+			voltage_swing_adjust =
+				lane_voltage_pre_emphasis->voltage_swing[j];
+			pre_emphasis_adjust =
+				lane_voltage_pre_emphasis->pre_emphasis[j];
+			loop_count = 0;
+
+			if (voltage_swing_adjust + pre_emphasis_adjust > 0x03)
+				lane_voltage_pre_emphasis->voltage_swing[j] =
+					0x03 - lane_voltage_pre_emphasis
+						       ->pre_emphasis[j];
+		}
+	}
+
+cr_train_fail:
+	dpcd_write(it6505, DP_TRAINING_PATTERN_SET,
+		   DP_TRAINING_PATTERN_DISABLE);
+
+	return false;
+}
+
+static bool it6505_step_eq_train(
+	struct it6505 *it6505,
+	struct it6505_lane_voltage_pre_emphasis *lane_voltage_pre_emphasis)
+{
+	u8 loop_count = 0, i, link_status[DP_LINK_STATUS_SIZE] = { 0 };
+	u8 lane_level_config[MAX_LANE_COUNT] = { 0 };
+
+	dpcd_write(it6505, DP_TRAINING_PATTERN_SET, DP_TRAINING_PATTERN_2);
+
+	while (loop_count < 6) {
+		loop_count++;
+
+		if (!it6505_step_train_lane_voltage_pre_emphasis_set(
+			    it6505, lane_voltage_pre_emphasis,
+			    lane_level_config))
+			continue;
+
+		drm_dp_link_train_channel_eq_delay(it6505->dpcd);
+		it6505_get_dpcd(it6505, DP_LANE0_1_STATUS, link_status,
+				ARRAY_SIZE(link_status));
+
+		if (!drm_dp_clock_recovery_ok(link_status, it6505->lane_count))
+			goto eq_train_fail;
+
+		if (drm_dp_channel_eq_ok(link_status, it6505->lane_count)) {
+			dpcd_write(it6505, DP_TRAINING_PATTERN_SET,
+				   DP_TRAINING_PATTERN_DISABLE);
+			dptx_set_bits(it6505, 0x16, BIT(6), BIT(6));
+			return true;
+		}
+		DRM_DEV_DEBUG_DRIVER(&it6505->client->dev, "eq not done");
+
+		for (i = 0; i < it6505->lane_count; i++) {
+			lane_voltage_pre_emphasis->voltage_swing[i] =
+				drm_dp_get_adjust_request_voltage(link_status,
+								  i) >>
+				DP_TRAIN_VOLTAGE_SWING_SHIFT;
+			lane_voltage_pre_emphasis->pre_emphasis[i] =
+				drm_dp_get_adjust_request_pre_emphasis(
+					link_status, i) >>
+				DP_TRAIN_PRE_EMPHASIS_SHIFT;
+
+			if (lane_voltage_pre_emphasis->voltage_swing[i] +
+				    lane_voltage_pre_emphasis->pre_emphasis[i] >
+			    0x03)
+				lane_voltage_pre_emphasis->voltage_swing[i] =
+					0x03 - lane_voltage_pre_emphasis
+						       ->pre_emphasis[i];
+		}
+	}
+
+eq_train_fail:
+	dpcd_write(it6505, DP_TRAINING_PATTERN_SET,
+		   DP_TRAINING_PATTERN_DISABLE);
+	return false;
+}
+
+static bool it6505_step_train(struct it6505 *it6505)
+{
+	struct it6505_lane_voltage_pre_emphasis lane_voltage_pre_emphasis = {
+		.voltage_swing = { 0 },
+		.pre_emphasis = { 0 },
+	};
+
+	if (!it6505_step_cr_train(it6505, &lane_voltage_pre_emphasis))
+		return false;
+	if (!it6505_step_eq_train(it6505, &lane_voltage_pre_emphasis))
+		return false;
+	return true;
+}
+
 static void dptx_process_sys_wait(struct it6505 *it6505)
 {
-	int reg0e;
 	struct device *dev = &it6505->client->dev;
 
-	reg0e = dptx_read(it6505, 0x0E);
-	DRM_DEV_DEBUG_DRIVER(dev, "SYS_WAIT state reg0e=0x%02x", reg0e);
 	dptx_debug_print(it6505, 0x9F, "");
 
-	if (reg0e & BIT(4)) {
-		DRM_DEV_DEBUG_DRIVER(dev, "Auto Link Training Success...");
-		DRM_DEV_DEBUG_DRIVER(dev, "Link State: 0x%x", reg0e & 0x1F);
+	if (it6505->train_pass) {
+		DRM_DEV_DEBUG_DRIVER(dev, "%s Training Success",
+				     it6505->enable_auto_train ? "Auto" :
+								 "Step");
+		if (it6505->enable_auto_train)
+			dptx_debug_print(it6505, 0x0E, "Auto training state:");
+
 		if (it6505_audio_input(it6505)) {
 			DRM_DEV_DEBUG_DRIVER(dev, "Enable audio!");
 			it6505_set_audio(it6505);
 		}
+		it6505->enable_auto_train = true;
 
 		if (it6505->hdcp_flag) {
 			DRM_DEV_DEBUG_DRIVER(dev, "Enable HDCP");
@@ -1921,17 +2219,22 @@ static void dptx_process_sys_wait(struct it6505 *it6505)
 			dptx_sys_chg(it6505, SYS_NOROP);
 		}
 	} else {
-		DRM_DEV_DEBUG_DRIVER(dev, "Auto Link Training fail step %d",
-				     it6505->auto_train_count);
+		DRM_DEV_DEBUG_DRIVER(dev, "%s Training fail step %d",
+				     it6505->enable_auto_train ? "Auto" :
+								 "Step",
+				     it6505->train_count);
 		dptx_debug_print(it6505, 0x0D, "system state");
-		if (it6505->auto_train_count > 0) {
-			it6505->auto_train_count--;
-			dptx_sys_chg(it6505, SYS_AUTOTRAIN);
+		if (it6505->train_count > 0) {
+			it6505->train_count--;
+			dptx_sys_chg(it6505, SYS_TRAIN);
 		} else {
-			DRM_DEV_DEBUG_DRIVER(dev, "Auto Training Fail 5 times");
+			DRM_DEV_DEBUG_DRIVER(
+				dev, "%s Training Fail 3 times",
+				it6505->enable_auto_train ? "Auto" : "Step");
 			DRM_DEV_DEBUG_DRIVER(dev, "Sys change to SYS_HPD");
-			dpcd_write(it6505, DP_TRAINING_PATTERN_SET, 0x00);
 			if (it6505->train_fail_hpd > 0) {
+				if (it6505_use_step_train_check(it6505))
+					it6505->enable_auto_train = false;
 				it6505->train_fail_hpd--;
 				dptx_sys_chg(it6505, SYS_HPD);
 			} else {
@@ -1958,8 +2261,8 @@ static void dptx_sys_fsm(struct it6505 *it6505)
 
 	case SYS_HPD:
 		dptx_debug_print(it6505, 0x9F, "aux status");
-		drm_dp_link_probe(&it6505->aux, &it6505->link);
-		drm_dp_link_power_up(&it6505->aux, &it6505->link);
+		it6505_drm_dp_link_probe(&it6505->aux, &it6505->link);
+		it6505_drm_dp_link_power_up(&it6505->aux, &it6505->link);
 		dpcd_debug_print(it6505, DP_SET_POWER, "");
 		it6505->dpcd_sink_count
 			= dpcd_read(it6505, DP_SINK_COUNT);
@@ -1976,36 +2279,47 @@ static void dptx_sys_fsm(struct it6505 *it6505)
 			}
 		}
 
-		it6505_init_fsm(it6505);
+		it6505_init_variable(it6505);
 		/* GETDPCD */
 		it6505_parse_dpcd(it6505);
 
 		/*
-		 * training fail 5 times,
+		 * training fail 3 times,
 		 * then change to HPD to restart
 		 */
-		it6505->auto_train_count = 5;
+		it6505->train_count = 3;
 		DRM_DEV_DEBUG_DRIVER(dev, "will Train %s, %d lanes",
 				     it6505->hbr ? "HBR" : "RBR",
 				     it6505->lane_count);
-		dptx_sys_chg(it6505, SYS_AUTOTRAIN);
+		it6505_disable_hdcp(it6505);
+		it6505_audio_disable(it6505);
+		dptx_output_config(it6505);
+		dptx_sys_chg(it6505, SYS_TRAIN);
 		break;
 
-	case SYS_AUTOTRAIN:
-		it6505_disable_hdcp(it6505);
-		dptx_output(it6505);
-
-		/*
-		 * waiting for training down flag
-		 * because we don't know
-		 * how long this step will be completed
-		 * so use step 1ms to wait
-		 */
-		for (i = 0; i < 200; i++) {
-			usleep_range(1000, 2000);
-			reg0e = dptx_read(it6505, 0x0E);
-			if (reg0e & BIT(4))
-				break;
+	case SYS_TRAIN:
+		if (it6505->enable_auto_train) {
+			it6505_start_auto_train(it6505);
+			/*
+			 * waiting for training down flag
+			 * because we don't know
+			 * how long this step will be completed
+			 * so use step 1ms to wait
+			 */
+			for (i = 0; i < 200; i++) {
+				usleep_range(1000, 2000);
+				reg0e = dptx_read(it6505, 0x0E);
+				if (reg0e & BIT(4)) {
+					it6505->train_pass = true;
+					break;
+				}
+			}
+		} else {
+			dptx_set_bits(it6505, 0x16, 0x60, 0x00);
+			dpcd_write(it6505, DP_TRAINING_PATTERN_SET,
+				   DP_TRAINING_PATTERN_DISABLE);
+			if (it6505_step_train(it6505))
+				it6505->train_pass = true;
 		}
 
 		dptx_sys_chg(it6505, SYS_WAIT);
@@ -2134,7 +2448,8 @@ static void it6505_check_sha1_result(struct it6505 *it6505)
 
 static void to_fsm_state(struct it6505 *it6505, enum it6505_sys_state state)
 {
-	while (it6505->state != state && it6505->state != SYS_TRAINFAIL) {
+	while (it6505->state != state && it6505->state != SYS_TRAINFAIL &&
+	       it6505->state != SYS_NOROP) {
 		dptx_sys_fsm(it6505);
 		if (it6505->state == SYS_UNPLUG)
 			return;
@@ -2142,11 +2457,6 @@ static void to_fsm_state(struct it6505 *it6505, enum it6505_sys_state state)
 }
 
 static void go_on_fsm(struct it6505 *it6505);
-
-static u8 dp_link_status(const u8 link_status[DP_LINK_STATUS_SIZE], int r)
-{
-	return link_status[r - DP_LANE0_1_STATUS];
-}
 
 static void hpd_irq(struct it6505 *it6505)
 {
@@ -2157,7 +2467,8 @@ static void hpd_irq(struct it6505 *it6505)
 
 	dpcd_sink_count = dpcd_read(it6505, DP_SINK_COUNT);
 	dpcd_irq_vector = dpcd_read(it6505, DP_DEVICE_SERVICE_IRQ_VECTOR);
-	drm_dp_dpcd_read_link_status(&it6505->aux, link_status);
+	it6505_get_dpcd(it6505, DP_LANE0_1_STATUS, link_status,
+			ARRAY_SIZE(link_status));
 
 	DRM_DEV_DEBUG_DRIVER(dev, "dpcd_sink_count = 0x%x", dpcd_sink_count);
 	DRM_DEV_DEBUG_DRIVER(dev, "dpcd_irq_vector = 0x%x", dpcd_irq_vector);
@@ -2185,8 +2496,10 @@ static void hpd_irq(struct it6505 *it6505)
 				dev, "Link Integrity Fail, restart HDCP");
 			return;
 		}
-		if (bstatus & DP_BSTATUS_R0_PRIME_READY)
+		if (bstatus & DP_BSTATUS_R0_PRIME_READY) {
 			DRM_DEV_DEBUG_DRIVER(dev, "HDCP R0' ready");
+			go_on_fsm(it6505);
+		}
 	}
 
 	if (dp_link_status(link_status, DP_LANE_ALIGN_STATUS_UPDATED) &
@@ -2245,7 +2558,7 @@ static void it6505_check_reg06(struct it6505 *it6505, unsigned int reg06)
 				if (rddata & BIT(2)) {
 					go_on_fsm(it6505);
 				} else {
-					dptx_write(it6505, 0x05, 0x00);
+					dptx_set_bits(it6505, 0x05, 0x01, 0x00);
 					dptx_set_bits(it6505, 0x61, 0x02, 0x02);
 					dptx_set_bits(it6505, 0x61, 0x02, 0x00);
 				}
@@ -2283,8 +2596,10 @@ static void it6505_check_reg06(struct it6505 *it6505, unsigned int reg06)
 
 		if (rddata & BIT(2)) {
 			DRM_DEV_DEBUG_DRIVER(dev, "Video Stable On Interrupt");
-			dptx_sys_chg(it6505, SYS_AUTOTRAIN);
+			if (it6505->state == SYS_HPD)
+				dptx_sys_chg(it6505, SYS_TRAIN);
 			go_on_fsm(it6505);
+
 		} else {
 			DRM_DEV_DEBUG_DRIVER(dev, "Video Stable Off Interrupt");
 		}
@@ -2359,7 +2674,7 @@ static void it6505_check_reg08(struct it6505 *it6505, unsigned int reg08)
 	if (reg08 & BIT(4)) {
 		DRM_DEV_DEBUG_DRIVER(dev, "Link Training Fail Interrupt");
 		/* restart training */
-		dptx_sys_chg(it6505, SYS_AUTOTRAIN);
+		dptx_sys_chg(it6505, SYS_TRAIN);
 		go_on_fsm(it6505);
 	}
 
@@ -2412,7 +2727,6 @@ static void it6505_bridge_disable(struct drm_bridge *bridge)
 {
 	struct it6505 *it6505 = bridge_to_it6505(bridge);
 
-	it6505_poweroff(it6505);
 	dptx_sys_chg(it6505, SYS_UNPLUG);
 }
 
@@ -2661,6 +2975,13 @@ static const struct attribute *it6505_attrs[] = {
 	NULL,
 };
 
+static void it6505_shutdown(struct i2c_client *client)
+{
+	struct it6505 *it6505 = dev_get_drvdata(&client->dev);
+
+	dptx_sys_chg(it6505, SYS_UNPLUG);
+}
+
 static int it6505_i2c_probe(struct i2c_client *client,
 			    const struct i2c_device_id *id)
 {
@@ -2746,6 +3067,7 @@ static int it6505_i2c_probe(struct i2c_client *client,
 	it6505->enable_drv_hold = DEFAULT_DRV_HOLD;
 	it6505->enable_hdcp = true;
 	it6505->enable_audio = false;
+	it6505->enable_auto_train = true;
 	it6505->powered = false;
 
 	if (DEFAULT_PWR_ON)
@@ -2794,6 +3116,7 @@ static struct i2c_driver it6505_i2c_driver = {
 	},
 	.probe = it6505_i2c_probe,
 	.remove = it6505_remove,
+	.shutdown = it6505_shutdown,
 	.id_table = it6505_id,
 };
 
