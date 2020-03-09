@@ -4439,7 +4439,7 @@ static void hci_scodata_packet(struct hci_dev *hdev, struct sk_buff *skb)
 	struct hci_conn *conn;
 	__u16 handle;
 
-	handle = __le16_to_cpu(hdr->handle) & 0xfff;
+	handle = __le16_to_cpu(hdr->handle);
 
 	BT_DBG("%s len %d handle 0x%4.4x", hdev->name, skb->len, handle);
 
