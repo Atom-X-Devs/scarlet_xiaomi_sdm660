@@ -18,6 +18,7 @@
 
 #include <linux/acpi.h>
 #include <linux/delay.h>
+#include <linux/dmi.h>
 #include <linux/firmware.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
@@ -181,6 +182,8 @@ struct mip4_ts {
 	unsigned short key_code[MIP4_MAX_KEYS];
 
 	bool wake_irq_enabled;
+
+	bool poweron_delay;
 
 	u8 buf[MIP4_BUF_SIZE];
 };
@@ -374,12 +377,15 @@ static int mip4_query_device(struct mip4_ts *ts)
 
 static int mip4_power_on(struct mip4_ts *ts)
 {
-	if (ts->gpio_ce)
+	if (ts->gpio_ce) {
 		gpiod_set_value_cansleep(ts->gpio_ce, 1);
 
-	/* Booting delay : 200~300ms */
-	usleep_range(200 * 1000, 300 * 1000);
-
+		/* Booting delay : 200~300ms */
+		usleep_range(200 * 1000, 300 * 1000);
+	} else if (ts->poweron_delay) {
+		/* Booting delay : 200~300ms */
+		usleep_range(200 * 1000, 300 * 1000);
+	}
 	return 0;
 }
 
@@ -1432,6 +1438,18 @@ static const struct attribute_group mip4_attr_group = {
 	.attrs = mip4_attrs,
 };
 
+/* Some firmware needs additional delay in poweron */
+static const struct dmi_system_id mip4_poweron_delay_dmi_table[] = {
+	{
+		.ident = "Google Sarien",
+		.matches = {
+			DMI_MATCH(DMI_BOARD_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_BOARD_NAME, "Sarien"),
+		},
+	},
+	{ }
+};
+
 static int mip4_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct mip4_ts *ts;
@@ -1451,6 +1469,7 @@ static int mip4_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (!input)
 		return -ENOMEM;
 
+	ts->poweron_delay = dmi_check_system(mip4_poweron_delay_dmi_table);
 	ts->client = client;
 	ts->input = input;
 
