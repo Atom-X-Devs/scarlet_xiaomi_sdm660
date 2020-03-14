@@ -6939,11 +6939,8 @@ static int add_advertising(struct sock *sk, struct hci_dev *hdev,
 	if (!err)
 		err = hci_req_run(&req, add_advertising_complete);
 
-	if (err < 0) {
-		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_ADVERTISING,
-				      MGMT_STATUS_FAILED);
+	if (err < 0)
 		mgmt_pending_remove(cmd);
-	}
 
 unlock:
 	hci_dev_unlock(hdev);
