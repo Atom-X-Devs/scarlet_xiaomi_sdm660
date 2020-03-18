@@ -1931,8 +1931,12 @@ const struct cpumask *sched_trace_rd_span(struct root_domain *rd);
 
 #ifdef CONFIG_SCHED_CORE
 int task_set_core_sched(int set, struct task_struct *tsk);
+void sched_core_irq_enter(void);
+void sched_core_irq_exit(void);
 #else
 #define task_set_core_sched(set, tsk) (-ENOTSUPP)
+#define sched_core_irq_enter(void) do { } while (0)
+#define sched_core_irq_exit(void) do { } while (0)
 #endif
 
 #endif
