@@ -109,11 +109,12 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_GET_PHY_CONFIGURATION,
 	MGMT_OP_SET_PHY_CONFIGURATION,
 	MGMT_OP_SET_BLOCKED_KEYS,
+	/* Begin Chromium only op codes*/
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
 	MGMT_OP_SET_EVENT_MASK,
-	MGMT_OP_READ_SUPPORTED_CAPABILITIES,
 	MGMT_OP_SET_KERNEL_DEBUG,
 	MGMT_OP_SET_WAKE_CAPABLE,
+	/* End Chromium only op codes*/
 };
 
 static const u16 mgmt_events[] = {
@@ -7166,21 +7167,6 @@ static int get_adv_size_info(struct sock *sk, struct hci_dev *hdev,
 	return err;
 }
 
-static int read_supported_capabilities(struct sock *sk, struct hci_dev *hdev,
-				       void *data, u16 data_len)
-{
-	struct mgmt_rp_read_supported_capabilities rp;
-	int err;
-
-	rp.wide_band_speech = hdev->wide_band_speech;
-
-	err = mgmt_cmd_complete(sk, hdev->id,
-				MGMT_OP_READ_SUPPORTED_CAPABILITIES,
-				MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
-
-	return err;
-}
-
 static int set_kernel_debug(struct sock *sk, struct hci_dev *hdev,
 			    void *data, u16 data_len)
 {
@@ -7317,7 +7303,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
 	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
 	{ NULL }, // 0x0062
-	{ read_supported_capabilities, MGMT_READ_SUPPORTED_CAPABILITIES_SIZE },
+	{ NULL }, // 0x0063
 	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
 						HCI_MGMT_NO_HDEV |
 						HCI_MGMT_UNTRUSTED },
