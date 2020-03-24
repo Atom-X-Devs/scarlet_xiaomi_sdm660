@@ -602,8 +602,8 @@ static void get_pic_info(struct vdec_h264_slice_inst *inst,
 			inst->vsi_ctx.dec.realloc_mv_buf = true;
 
 		mtk_v4l2_debug(1, "ResChg: (%d %d) : old(%d, %d) -> new(%d, %d)",
-			inst->vsi_ctx->dec.resolution_changed,
-			inst->vsi_ctx->dec.realloc_mv_buf,
+			inst->vsi_ctx.dec.resolution_changed,
+			inst->vsi_ctx.dec.realloc_mv_buf,
 			ctx->last_decoded_picinfo.pic_w,
 			ctx->last_decoded_picinfo.pic_h,
 			ctx->picinfo.pic_w, ctx->picinfo.pic_h);
