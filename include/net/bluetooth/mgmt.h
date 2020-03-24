@@ -773,6 +773,13 @@ struct mgmt_cp_set_kernel_debug {
 	__u8	enabled;
 } __packed;
 
+#define MGMT_OP_SET_WAKE_CAPABLE			0x0065
+#define MGMT_SET_WAKE_CAPABLE_SIZE			8
+struct mgmt_cp_set_wake_capable {
+	struct mgmt_addr_info addr;
+	u8 wake_capable;
+} __packed;
+
 /*
  * End chromium only op_codes
  */
