@@ -822,12 +822,6 @@
 	};
 
 	scp_pins: scp {
-		pins_eint {
-			pinmux = <PINMUX_GPIO5__FUNC_TP_GPIO5_AO>,
-				 <PINMUX_GPIO6__FUNC_TP_GPIO6_AO>,
-				 <PINMUX_GPIO7__FUNC_TP_GPIO7_AO>;
-		};
-
 		pins_scp_uart {
 			pinmux = <PINMUX_GPIO110__FUNC_TP_URXD1_AO>,
 				 <PINMUX_GPIO112__FUNC_TP_UTXD1_AO>;
