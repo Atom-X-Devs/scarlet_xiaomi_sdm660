@@ -374,7 +374,9 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 	if (!indio_dev)
 		return -ENOMEM;
 
-	ret = cros_ec_sensors_core_init(pdev, indio_dev, true);
+	ret = cros_ec_sensors_core_init(pdev, indio_dev, true,
+					cros_ec_light_capture
+					cros_ec_sensors_push_data);
 	if (ret)
 		return ret;
 
@@ -446,11 +448,6 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 	channel->scan_type.storagebits = 64;
 
 	state->core.read_ec_sensors_data = cros_ec_sensors_read_cmd;
-
-	ret = devm_iio_triggered_buffer_setup(dev, indio_dev, NULL,
-					      cros_ec_light_capture, NULL);
-	if (ret)
-		return ret;
 
 	return devm_iio_device_register(dev, indio_dev);
 }
