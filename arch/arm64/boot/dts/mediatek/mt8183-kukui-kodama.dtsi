@@ -41,6 +41,25 @@
 	};
 };
 
+&camera_pins_cam0 {
+	pins_reset {
+		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+		output-low;
+	};
+};
+
+&camera_pins_cam1 {
+	pins_powerdown {
+		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+		output-high;
+	};
+
+	pins_reset {
+		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+		output-low;
+	};
+};
+
 &cpu_thermal {
 	sustainable-power = <4500>; /* milliwatts */
 };
@@ -59,11 +78,6 @@
 		post-power-on-delay-ms = <10>;
 		hid-descr-addr = <0x0001>;
 	};
-};
-
-&mt6358_vcama2_reg {
-	regulator-min-microvolt = <2800000>;
-	regulator-max-microvolt = <2800000>;
 };
 
 &i2c2 {
@@ -168,6 +182,11 @@
 			};
 		};
 	};
+};
+
+&mt6358_vcama2_reg {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
 };
 
 &pio {
@@ -459,23 +478,4 @@
 
 &ts3a227e {
 	status = "okay";
-};
-
-&camera_pins_cam0 {
-	pins_reset {
-		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
-		output-low;
-	};
-};
-
-&camera_pins_cam1 {
-	pins_powerdown {
-		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
-		output-high;
-	};
-
-	pins_reset {
-		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
-		output-low;
-	};
 };
