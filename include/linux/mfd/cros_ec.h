@@ -40,15 +40,4 @@ struct cros_ec_dev {
 
 #define to_cros_ec_dev(dev)  container_of(dev, struct cros_ec_dev, class_dev)
 
-/**
- * cros_ec_check_features - Test for the presence of EC features
- *
- * Call this function to test whether the ChromeOS EC supports a feature.
- *
- * @ec_dev: EC device
- * @msg: One of ec_feature_code values
- * @return: 1 if supported, 0 if not
- */
-int cros_ec_check_features(struct cros_ec_dev *ec, int feature);
-
 #endif /* __LINUX_MFD_CROS_EC_H */
