@@ -208,10 +208,15 @@ static int send_ec_cmd(struct wilco_ec_device *ec, u8 sub_cmd, u8 *out_val)
  */
 static int h1_gpio_get(void *arg, u64 *val)
 {
-	return send_ec_cmd(arg, SUB_CMD_H1_GPIO, (u8 *)val);
+	int ret;
+
+	ret = send_ec_cmd(arg, SUB_CMD_H1_GPIO, (u8 *)val);
+	if (ret == 0)
+		*val &= 0xFF;
+	return ret;
 }
 
-DEFINE_DEBUGFS_ATTRIBUTE(fops_h1_gpio, h1_gpio_get, NULL, "0x%02hhx\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_h1_gpio, h1_gpio_get, NULL, "0x%02llx\n");
 
 /**
  * test_event_set() - Sends command to EC to cause an EC test event.
