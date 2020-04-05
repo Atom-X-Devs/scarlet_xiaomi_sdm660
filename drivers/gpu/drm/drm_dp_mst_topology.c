@@ -1338,7 +1338,6 @@ drm_dp_mst_topology_get_port_validated(struct drm_dp_mst_topology_mgr *mgr,
 				       struct drm_dp_mst_port *port)
 {
 	struct drm_dp_mst_port *rport = NULL;
-
 	mutex_lock(&mgr->lock);
 	if (mgr->mst_primary) {
 		rport = drm_dp_mst_topology_get_port_validated_locked(
