@@ -1656,6 +1656,11 @@ EXPORT_SYMBOL(pagecache_get_page);
  * Any shadow entries of evicted pages, or swap entries from
  * shmem/tmpfs, are included in the returned array.
  *
+ * If it finds a Transparent Huge Page, head or tail, find_get_entries()
+ * stops at that page: the caller is likely to have a better way to handle
+ * the compound page as a whole, and then skip its extent, than repeatedly
+ * calling find_get_entries() to return all its tails.
+ *
  * find_get_entries() returns the number of pages and shadow entries
  * which were found.
  */
@@ -1705,6 +1710,13 @@ repeat:
 			put_page(head);
 			goto repeat;
 		}
+
+		/*
+		 * Terminate early on finding a THP, to allow the caller to
+		 * handle it all at once; but continue if this is hugetlbfs.
+		 */
+		if (PageTransHuge(page) && !PageHuge(page))
+			nr_entries = ret + 1;
 export:
 		indices[ret] = iter.index;
 		entries[ret] = page;
