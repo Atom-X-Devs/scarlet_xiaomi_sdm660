@@ -7,9 +7,6 @@
 #include "mt8183-kukui.dtsi"
 
 / {
-	model = "MediaTek kakadu board";
-	compatible = "google,kakadu", "google,kukui", "mediatek,mt8183";
-
 	ppvarn_lcd: ppvarn-lcd {
 		compatible = "regulator-fixed";
 		regulator-name = "ppvarn_lcd";
@@ -195,19 +192,6 @@
 &mt6358_vcama2_reg {
 	regulator-min-microvolt = <2800000>;
 	regulator-max-microvolt = <2800000>;
-};
-
-&panel {
-	status = "okay";
-	compatible = "boe,tv105wum-nw0";
-	reg = <0>;
-	enable-gpios = <&pio 45 0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&panel_pins_default>;
-	avdd-supply = <&ppvarn_lcd>;
-	avee-supply = <&ppvarp_lcd>;
-	pp1800-supply = <&pp1800_lcd>;
-	rotation = <270>;
 };
 
 &pio {
