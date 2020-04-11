@@ -111,62 +111,22 @@ static const struct clk_ops mtk_mipi_tx_pll_ops = {
 	.recalc_rate = mtk_mipi_tx_pll_recalc_rate,
 };
 
-static int mtk_mipi_tx_config_calibration_data(struct mtk_mipi_tx *mipi_tx)
+static void mtk_mipi_tx_config_calibration_data(struct mtk_mipi_tx *mipi_tx)
 {
-	u32 *buf = NULL;
 	int i, j;
-	struct nvmem_cell *cell;
-	struct device *dev = mipi_tx->dev;
-	size_t len;
-
-	cell = nvmem_cell_get(dev, "calibration-data");
-	if (IS_ERR(cell)) {
-		dev_warn(dev, "nvmem_cell_get fail\n");
-		return -EINVAL;
-	}
-
-	buf = (u32 *)nvmem_cell_read(cell, &len);
-
-	nvmem_cell_put(cell);
-
-	if (IS_ERR(buf)) {
-		dev_warn(dev, "can't get data\n");
-		return -EINVAL;
-	}
-
-	if (len < 3 * sizeof(u32)) {
-		dev_warn(dev, "invalid calibration data\n");
-		kfree(buf);
-		return -EINVAL;
-	}
-
-	mipi_tx->rt_code[0] = ((buf[0] >> 6 & 0x1F) << 5) |
-			      (buf[0] >> 11 & 0x1F);
-	mipi_tx->rt_code[1] = ((buf[1] >> 27 & 0x1F) << 5) |
-			      (buf[0] >> 1 & 0x1F);
-	mipi_tx->rt_code[2] = ((buf[1] >> 17 & 0x1F) << 5) |
-			      (buf[1] >> 22 & 0x1F);
-	mipi_tx->rt_code[3] = ((buf[1] >> 7 & 0x1F) << 5) |
-			      (buf[1] >> 12 & 0x1F);
-	mipi_tx->rt_code[4] = ((buf[2] >> 27 & 0x1F) << 5) |
-			      (buf[1] >> 2 & 0x1F);
 
 	for (i = 0; i < 5; i++) {
-		if ((mipi_tx->rt_code[i] & 0x1F) == 0)
+		if ((mipi_tx->rt_code[i] & 0x1f) == 0)
 			mipi_tx->rt_code[i] |= 0x10;
 
-		if ((mipi_tx->rt_code[i] >> 5 & 0x1F) == 0)
+		if ((mipi_tx->rt_code[i] >> 5 & 0x1f) == 0)
 			mipi_tx->rt_code[i] |= 0x10 << 5;
 
-		for (j = 0; j < 10; j++) {
+		for (j = 0; j < 10; j++)
 			mtk_mipi_tx_update_bits(mipi_tx,
 				MIPITX_D2P_RTCODE * (i + 1) + j * 4,
 				1, mipi_tx->rt_code[i] >> j & 1);
-		}
 	}
-
-	kfree(buf);
-	return 0;
 }
 
 static void mtk_mipi_tx_power_on_signal(struct phy *phy)
