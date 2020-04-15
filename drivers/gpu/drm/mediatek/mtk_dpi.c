@@ -82,7 +82,7 @@ struct mtk_dpi {
 	enum mtk_dpi_out_bit_num bit_num;
 	enum mtk_dpi_out_channel_swap channel_swap;
 	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_default;
+	struct pinctrl_state *pins_gpio;
 	struct pinctrl_state *pins_dpi;
 	int refcount;
 };
@@ -398,8 +398,8 @@ static void mtk_dpi_power_off(struct mtk_dpi *dpi)
 	if (--dpi->refcount != 0)
 		return;
 
-	if (dpi->conf->dpi_pin_ctrl)
-		pinctrl_select_state(dpi->pinctrl, dpi->pins_default);
+	if (dpi->pinctrl && dpi->pins_gpio)
+		pinctrl_select_state(dpi->pinctrl, dpi->pins_gpio);
 
 	mtk_dpi_disable(dpi);
 	clk_disable_unprepare(dpi->pixel_clk);
@@ -429,7 +429,7 @@ static int mtk_dpi_power_on(struct mtk_dpi *dpi)
 		goto err_pixel;
 	}
 
-	if (dpi->conf->dpi_pin_ctrl)
+	if (dpi->pinctrl && dpi->pins_dpi)
 		pinctrl_select_state(dpi->pinctrl, dpi->pins_dpi);
 
 	mtk_dpi_enable(dpi);
@@ -741,27 +741,26 @@ static int mtk_dpi_probe(struct platform_device *pdev)
 	dpi->dev = dev;
 	dpi->conf = (struct mtk_dpi_conf *)of_device_get_match_data(dev);
 
-	if (dpi->conf->dpi_pin_ctrl) {
-		dpi->pinctrl = devm_pinctrl_get(&pdev->dev);
-		if (IS_ERR(dpi->pinctrl)) {
-			dev_err(&pdev->dev, "Cannot find pinctrl!\n");
-			return PTR_ERR(dpi->pinctrl);
+	dpi->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(dpi->pinctrl)) {
+		dpi->pinctrl = NULL;
+		dev_dbg(&pdev->dev, "Cannot find pinctrl!\n");
+	}
+	if (dpi->pinctrl) {
+		dpi->pins_gpio = pinctrl_lookup_state(dpi->pinctrl, "sleep");
+		if (IS_ERR(dpi->pins_gpio)) {
+			dpi->pins_gpio = NULL;
+			dev_dbg(&pdev->dev, "Cannot find pinctrl idle!\n");
 		}
+		if (dpi->pins_gpio)
+			pinctrl_select_state(dpi->pinctrl, dpi->pins_gpio);
 
-		dpi->pins_default = pinctrl_lookup_state(dpi->pinctrl,
-							 "default");
-		if (IS_ERR(dpi->pins_default)) {
-			dev_err(&pdev->dev, "Cannot find pinctrl default!\n");
-			return PTR_ERR(dpi->pins_default);
-		}
-
-		dpi->pins_dpi = pinctrl_lookup_state(dpi->pinctrl, "dpimode");
+		dpi->pins_dpi = pinctrl_lookup_state(dpi->pinctrl, "default");
 		if (IS_ERR(dpi->pins_dpi)) {
-			dev_err(&pdev->dev, "Cannot find pinctrl dpimode!\n");
-			return PTR_ERR(dpi->pins_dpi);
+			dpi->pins_dpi = NULL;
+			dev_dbg(&pdev->dev, "Cannot find pinctrl active!\n");
 		}
 	}
-
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dpi->regs = devm_ioremap_resource(dev, mem);
 	if (IS_ERR(dpi->regs)) {
