@@ -5,7 +5,7 @@
 
 /dts-v1/;
 #include "mt8183-kukui-jacuzzi.dtsi"
-#include "mt8183-kukui-audio-ts3a227e.dtsi"
+#include "mt8183-kukui-audio-da7219.dtsi"
 
 / {
 	model = "Google damu board";
