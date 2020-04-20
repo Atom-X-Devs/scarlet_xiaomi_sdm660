@@ -987,6 +987,10 @@ static int __ov5695_power_on(struct ov5695 *ov5695)
 
 	gpiod_set_value_cansleep(ov5695->reset_gpio, 1);
 
+	/*
+	 * The hardware requires the regulators to be powered on in order,
+	 * so enable them one by one.
+	 */
 	for (i = 0; i < OV5695_NUM_SUPPLIES; i++) {
 		ret = regulator_enable(ov5695->supplies[i].consumer);
 		if (ret) {
@@ -1018,6 +1022,10 @@ static void __ov5695_power_off(struct ov5695 *ov5695)
 	clk_disable_unprepare(ov5695->xvclk);
 	gpiod_set_value_cansleep(ov5695->reset_gpio, 1);
 
+	/*
+	 * The hardware requires the regulators to be powered off in order,
+	 * so disable them one by one.
+	 */
 	for (i = OV5695_NUM_SUPPLIES - 1; i >= 0; i--) {
 		ret = regulator_disable(ov5695->supplies[i].consumer);
 		if (ret)
