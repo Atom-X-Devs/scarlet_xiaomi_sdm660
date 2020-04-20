@@ -23,6 +23,7 @@
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinconf-generic.h>
 #include <linux/platform_device.h>
+#include <linux/sysfs.h>
 
 #define CHV_INTSTAT			0x300
 #define CHV_INTMASK			0x380
@@ -1341,6 +1342,32 @@ static void chv_gpio_irq_ack(struct irq_data *d)
 	raw_spin_unlock(&chv_lock);
 }
 
+/* count occurrences of INTMASK write failure bug b:140090263 */
+static atomic_t intmask_failure_cnt = ATOMIC_INIT(0);
+
+static ssize_t gpiomask_failures_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", atomic_read(&intmask_failure_cnt));
+}
+
+static DEVICE_ATTR_RO(gpiomask_failures);
+
+static struct attribute *chv_pinctrl_sysfs_entries[] = {
+	&dev_attr_gpiomask_failures.attr,
+	NULL
+};
+
+static const struct attribute_group chv_pinctrl_sysfs_group = {
+	.name = "chv_pinctrl_group",
+	.attrs = chv_pinctrl_sysfs_entries,
+};
+
+static const struct attribute_group *chv_pinctrl_sysfs_groups[] = {
+	&chv_pinctrl_sysfs_group,
+	NULL
+};
+
 static void chv_gpio_irq_mask_unmask(struct irq_data *d, bool mask)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
@@ -1348,19 +1375,31 @@ static void chv_gpio_irq_mask_unmask(struct irq_data *d, bool mask)
 	int pin = irqd_to_hwirq(d);
 	u32 value, intr_line;
 	unsigned long flags;
+	int retry_cnt = 0xff;
 
 	raw_spin_lock_irqsave(&chv_lock, flags);
 
-	intr_line = readl(chv_padreg(pctrl, pin, CHV_PADCTRL0));
-	intr_line &= CHV_PADCTRL0_INTSEL_MASK;
-	intr_line >>= CHV_PADCTRL0_INTSEL_SHIFT;
+	do {
+		intr_line = readl(chv_padreg(pctrl, pin, CHV_PADCTRL0));
+		intr_line &= CHV_PADCTRL0_INTSEL_MASK;
+		intr_line >>= CHV_PADCTRL0_INTSEL_SHIFT;
 
-	value = readl(pctrl->regs + CHV_INTMASK);
-	if (mask)
-		value &= ~BIT(intr_line);
-	else
-		value |= BIT(intr_line);
-	chv_writel(value, pctrl->regs + CHV_INTMASK);
+		value = readl(pctrl->regs + CHV_INTMASK);
+		if (mask)
+			value &= ~BIT(intr_line);
+		else
+			value |= BIT(intr_line);
+		chv_writel(value, pctrl->regs + CHV_INTMASK);
+
+		/* check if write to INTMASK was successful */
+		if (value == readl(pctrl->regs + CHV_INTMASK))
+			break; /* success */
+
+		/* bug b:140090263 occurred
+		 * increase global failure count and retry
+		 */
+		atomic_inc(&intmask_failure_cnt);
+	} while (retry_cnt-- > 0); /* prevent dead lock */
 
 	raw_spin_unlock_irqrestore(&chv_lock, flags);
 }
@@ -1649,6 +1688,14 @@ static int chv_gpio_probe(struct chv_pinctrl *pctrl, int irq)
 
 	gpiochip_set_chained_irqchip(chip, &pctrl->irqchip, irq,
 				     chv_gpio_irq_handler);
+
+	ret = sysfs_create_groups(&pctrl->dev->kobj, chv_pinctrl_sysfs_groups);
+	if (ret) {
+		dev_err(pctrl->dev,
+			"failed to create sysfs attributes: %d\n", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
