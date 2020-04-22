@@ -2508,12 +2508,6 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 		goto err_hif_stop;
 	}
 
-	status = ath10k_hif_set_mbox_sleep(ar, true);
-	if (status) {
-		ath10k_err(ar, "failed to enable mbox sleep: %d\n", status);
-		goto err_hif_stop;
-	}
-
 	if (mode == ATH10K_FIRMWARE_MODE_NORMAL) {
 		status = ath10k_htt_connect(&ar->htt);
 		if (status) {
