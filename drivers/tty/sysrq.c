@@ -887,6 +887,7 @@ static bool sysrq_handle_keypress(struct sysrq_state *sysrq,
 
 	case KEY_SYSRQ:
 	case KEY_F10:
+	case KEY_VOLUMEUP:
 		if (!value) {
 			if (code == sysrq->sysrq_use) {
 				/* SysRq is being released */
