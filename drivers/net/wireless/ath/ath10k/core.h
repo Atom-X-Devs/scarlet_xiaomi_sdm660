@@ -495,6 +495,8 @@ struct ath10k_sta {
 	u16 peer_id;
 	struct rate_info txrate;
 	struct ieee80211_tx_info tx_info;
+	u32 tx_retries;
+	u32 tx_failed;
 
 	struct work_struct update_wk;
 	u64 rx_duration;
