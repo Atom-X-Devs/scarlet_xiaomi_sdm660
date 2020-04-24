@@ -1194,14 +1194,8 @@ static int drm_dp_mst_wait_tx_reply(struct drm_dp_mst_branch *mstb,
 
 		/* remove from q */
 		if (txmsg->state == DRM_DP_SIDEBAND_TX_QUEUED ||
-		    txmsg->state == DRM_DP_SIDEBAND_TX_START_SEND) {
+		    txmsg->state == DRM_DP_SIDEBAND_TX_START_SEND)
 			list_del(&txmsg->next);
-		}
-
-		if (txmsg->state == DRM_DP_SIDEBAND_TX_START_SEND ||
-		    txmsg->state == DRM_DP_SIDEBAND_TX_SENT) {
-			mstb->tx_slots[txmsg->seqno] = NULL;
-		}
 	}
 out:
 	if (unlikely(ret == -EIO && drm_dp_dbg_enabled())) {
@@ -1423,11 +1417,12 @@ static void drm_dp_destroy_mst_branch_device(struct kref *kref)
 	struct drm_dp_mst_branch *mstb =
 		container_of(kref, struct drm_dp_mst_branch, topology_kref);
 	struct drm_dp_mst_topology_mgr *mgr = mstb->mgr;
-	struct drm_dp_mst_port *port, *tmp;
+	struct drm_dp_mst_port *port, *port_tmp;
+	struct drm_dp_sideband_msg_tx *txmsg, *txmsg_tmp;
 	bool wake_tx = false;
 
 	mutex_lock(&mgr->lock);
-	list_for_each_entry_safe(port, tmp, &mstb->ports, next) {
+	list_for_each_entry_safe(port, port_tmp, &mstb->ports, next) {
 		list_del(&port->next);
 		drm_dp_mst_topology_put_port(port);
 	}
@@ -1435,14 +1430,12 @@ static void drm_dp_destroy_mst_branch_device(struct kref *kref)
 
 	/* drop any tx slots msg */
 	mutex_lock(&mstb->mgr->qlock);
-	if (mstb->tx_slots[0]) {
-		mstb->tx_slots[0]->state = DRM_DP_SIDEBAND_TX_TIMEOUT;
-		mstb->tx_slots[0] = NULL;
-		wake_tx = true;
-	}
-	if (mstb->tx_slots[1]) {
-		mstb->tx_slots[1]->state = DRM_DP_SIDEBAND_TX_TIMEOUT;
-		mstb->tx_slots[1] = NULL;
+	list_for_each_entry_safe(txmsg, txmsg_tmp, &mgr->tx_msg_downq, next) {
+		if (txmsg->dst != mstb)
+			continue;
+
+		txmsg->state = DRM_DP_SIDEBAND_TX_TIMEOUT;
+		list_del(&txmsg->next);
 		wake_tx = true;
 	}
 	mutex_unlock(&mstb->mgr->qlock);
@@ -2201,22 +2194,6 @@ static int set_hdr_from_dst_qlock(struct drm_dp_sideband_msg_hdr *hdr,
 	struct drm_dp_mst_branch *mstb = txmsg->dst;
 	u8 req_type;
 
-	/* both msg slots are full */
-	if (txmsg->seqno == -1) {
-		if (mstb->tx_slots[0] && mstb->tx_slots[1]) {
-			DRM_DEBUG_KMS("%s: failed to find slot\n", __func__);
-			return -EAGAIN;
-		}
-		if (mstb->tx_slots[0] == NULL && mstb->tx_slots[1] == NULL) {
-			txmsg->seqno = mstb->last_seqno;
-			mstb->last_seqno ^= 1;
-		} else if (mstb->tx_slots[0] == NULL)
-			txmsg->seqno = 0;
-		else
-			txmsg->seqno = 1;
-		mstb->tx_slots[txmsg->seqno] = txmsg;
-	}
-
 	req_type = txmsg->msg[0] & 0x7f;
 	if (req_type == DP_CONNECTION_STATUS_NOTIFY ||
 		req_type == DP_RESOURCE_STATUS_NOTIFY)
@@ -2228,7 +2205,7 @@ static int set_hdr_from_dst_qlock(struct drm_dp_sideband_msg_hdr *hdr,
 	hdr->lcr = mstb->lct - 1;
 	if (mstb->lct > 1)
 		memcpy(hdr->rad, mstb->rad, mstb->lct / 2);
-	hdr->seqno = txmsg->seqno;
+
 	return 0;
 }
 /*
@@ -2243,15 +2220,15 @@ static int process_single_tx_qlock(struct drm_dp_mst_topology_mgr *mgr,
 	int len, space, idx, tosend;
 	int ret;
 
+	if (txmsg->state == DRM_DP_SIDEBAND_TX_SENT)
+		return 0;
+
 	memset(&hdr, 0, sizeof(struct drm_dp_sideband_msg_hdr));
 
-	if (txmsg->state == DRM_DP_SIDEBAND_TX_QUEUED) {
-		txmsg->seqno = -1;
+	if (txmsg->state == DRM_DP_SIDEBAND_TX_QUEUED)
 		txmsg->state = DRM_DP_SIDEBAND_TX_START_SEND;
-	}
 
-	/* make hdr from dst mst - for replies use seqno
-	   otherwise assign one */
+	/* make hdr from dst mst */
 	ret = set_hdr_from_dst_qlock(&hdr, txmsg);
 	if (ret < 0)
 		return ret;
@@ -2304,37 +2281,14 @@ static void process_single_down_tx_qlock(struct drm_dp_mst_topology_mgr *mgr)
 	if (list_empty(&mgr->tx_msg_downq))
 		return;
 
-	txmsg = list_first_entry(&mgr->tx_msg_downq, struct drm_dp_sideband_msg_tx, next);
+	txmsg = list_first_entry(&mgr->tx_msg_downq,
+				 struct drm_dp_sideband_msg_tx, next);
 	ret = process_single_tx_qlock(mgr, txmsg, false);
-	if (ret == 1) {
-		/* txmsg is sent it should be in the slots now */
-		list_del(&txmsg->next);
-	} else if (ret) {
+	if (ret < 0) {
 		DRM_DEBUG_KMS("failed to send msg in q %d\n", ret);
 		list_del(&txmsg->next);
-		if (txmsg->seqno != -1)
-			txmsg->dst->tx_slots[txmsg->seqno] = NULL;
 		txmsg->state = DRM_DP_SIDEBAND_TX_TIMEOUT;
 		wake_up_all(&mgr->tx_waitq);
-	}
-}
-
-/* called holding qlock */
-static void process_single_up_tx_qlock(struct drm_dp_mst_topology_mgr *mgr,
-				       struct drm_dp_sideband_msg_tx *txmsg)
-{
-	int ret;
-
-	/* construct a chunk from the first msg in the tx_msg queue */
-	ret = process_single_tx_qlock(mgr, txmsg, true);
-
-	if (ret != 1)
-		DRM_DEBUG_KMS("failed to send msg in q %d\n", ret);
-
-	if (txmsg->seqno != -1) {
-		WARN_ON((unsigned int)txmsg->seqno >
-			ARRAY_SIZE(txmsg->dst->tx_slots));
-		txmsg->dst->tx_slots[txmsg->seqno] = NULL;
 	}
 }
 
@@ -2875,7 +2829,7 @@ static int drm_dp_encode_up_ack_reply(struct drm_dp_sideband_msg_tx *msg, u8 req
 
 static int drm_dp_send_up_ack_reply(struct drm_dp_mst_topology_mgr *mgr,
 				    struct drm_dp_mst_branch *mstb,
-				    int req_type, int seqno, bool broadcast)
+				    int req_type, bool broadcast)
 {
 	struct drm_dp_sideband_msg_tx *txmsg;
 
@@ -2884,13 +2838,11 @@ static int drm_dp_send_up_ack_reply(struct drm_dp_mst_topology_mgr *mgr,
 		return -ENOMEM;
 
 	txmsg->dst = mstb;
-	txmsg->seqno = seqno;
 	drm_dp_encode_up_ack_reply(txmsg, req_type);
 
 	mutex_lock(&mgr->qlock);
-
-	process_single_up_tx_qlock(mgr, txmsg);
-
+	/* construct a chunk from the first msg in the tx_msg queue */
+	process_single_tx_qlock(mgr, txmsg, true);
 	mutex_unlock(&mgr->qlock);
 
 	kfree(txmsg);
@@ -3149,7 +3101,6 @@ static int drm_dp_mst_handle_down_rep(struct drm_dp_mst_topology_mgr *mgr)
 	if (mgr->down_rep_recv.have_eomt) {
 		struct drm_dp_sideband_msg_tx *txmsg;
 		struct drm_dp_mst_branch *mstb;
-		int slot = -1;
 		mstb = drm_dp_get_mst_branch_device(mgr,
 						    mgr->down_rep_recv.initial_hdr.lct,
 						    mgr->down_rep_recv.initial_hdr.rad);
@@ -3161,10 +3112,10 @@ static int drm_dp_mst_handle_down_rep(struct drm_dp_mst_topology_mgr *mgr)
 		}
 
 		/* find the message */
-		slot = mgr->down_rep_recv.initial_hdr.seqno;
+		WARN_ON(mgr->down_rep_recv.initial_hdr.seqno != 0);
 		mutex_lock(&mgr->qlock);
-		txmsg = mstb->tx_slots[slot];
-		/* remove from slots */
+		txmsg = list_first_entry_or_null(&mgr->tx_msg_downq,
+					struct drm_dp_sideband_msg_tx, next);
 		mutex_unlock(&mgr->qlock);
 
 		if (!txmsg) {
@@ -3194,7 +3145,7 @@ static int drm_dp_mst_handle_down_rep(struct drm_dp_mst_topology_mgr *mgr)
 
 		mutex_lock(&mgr->qlock);
 		txmsg->state = DRM_DP_SIDEBAND_TX_RX;
-		mstb->tx_slots[slot] = NULL;
+		list_del(&txmsg->next);
 		mutex_unlock(&mgr->qlock);
 
 		wake_up_all(&mgr->tx_waitq);
@@ -3215,7 +3166,6 @@ static int drm_dp_mst_handle_up_req(struct drm_dp_mst_topology_mgr *mgr)
 	if (mgr->up_req_recv.have_eomt) {
 		struct drm_dp_sideband_msg_req_body msg;
 		struct drm_dp_mst_branch *mstb = NULL;
-		bool seqno;
 
 		if (!mgr->up_req_recv.initial_hdr.broadcast) {
 			mstb = drm_dp_get_mst_branch_device(mgr,
@@ -3228,11 +3178,11 @@ static int drm_dp_mst_handle_up_req(struct drm_dp_mst_topology_mgr *mgr)
 			}
 		}
 
-		seqno = mgr->up_req_recv.initial_hdr.seqno;
+		WARN_ON(mgr->up_req_recv.initial_hdr.seqno != 0);
 		drm_dp_sideband_parse_req(&mgr->up_req_recv, &msg);
 
 		if (msg.req_type == DP_CONNECTION_STATUS_NOTIFY) {
-			drm_dp_send_up_ack_reply(mgr, mgr->mst_primary, msg.req_type, seqno, false);
+			drm_dp_send_up_ack_reply(mgr, mgr->mst_primary, msg.req_type, false);
 
 			if (!mstb)
 				mstb = drm_dp_get_mst_branch_device_by_guid(mgr, msg.u.conn_stat.guid);
@@ -3249,7 +3199,7 @@ static int drm_dp_mst_handle_up_req(struct drm_dp_mst_topology_mgr *mgr)
 			(*mgr->cbs->hotplug)(mgr);
 
 		} else if (msg.req_type == DP_RESOURCE_STATUS_NOTIFY) {
-			drm_dp_send_up_ack_reply(mgr, mgr->mst_primary, msg.req_type, seqno, false);
+			drm_dp_send_up_ack_reply(mgr, mgr->mst_primary, msg.req_type, false);
 			if (!mstb)
 				mstb = drm_dp_get_mst_branch_device_by_guid(mgr, msg.u.resource_stat.guid);
 
