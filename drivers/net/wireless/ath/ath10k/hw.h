@@ -618,6 +618,9 @@ struct ath10k_hw_params {
 	bool tx_stats_over_pktlog;
 
 	u32 start_retry;
+
+	/* provides bitrates for sta_statistics using WMI_TLV_PEER_STATS_INFO_EVENTID */
+	bool supports_peer_stats_info;
 };
 
 struct htt_rx_desc;
