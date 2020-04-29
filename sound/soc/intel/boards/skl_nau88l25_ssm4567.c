@@ -21,7 +21,6 @@
 #include <linux/input.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/delay.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
@@ -67,7 +66,7 @@ static const struct snd_kcontrol_new skylake_controls[] = {
 };
 
 static int platform_clock_control(struct snd_soc_dapm_widget *w,
-		struct snd_kcontrol *k, int event)
+		struct snd_kcontrol *k, int  event)
 {
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_card *card = dapm->card;
@@ -80,7 +79,14 @@ static int platform_clock_control(struct snd_soc_dapm_widget *w,
 		return -EIO;
 	}
 
-	if (!SND_SOC_DAPM_EVENT_ON(event)) {
+	if (SND_SOC_DAPM_EVENT_ON(event)) {
+		ret = snd_soc_dai_set_sysclk(codec_dai,
+				NAU8825_CLK_MCLK, 24000000, SND_SOC_CLOCK_IN);
+		if (ret < 0) {
+			dev_err(card->dev, "set sysclk err = %d\n", ret);
+			return -EIO;
+		}
+	} else {
 		ret = snd_soc_dai_set_sysclk(codec_dai,
 				NAU8825_CLK_INTERNAL, 0, SND_SOC_CLOCK_IN);
 		if (ret < 0) {
@@ -88,7 +94,6 @@ static int platform_clock_control(struct snd_soc_dapm_widget *w,
 			return -EIO;
 		}
 	}
-
 	return ret;
 }
 
@@ -354,40 +359,24 @@ static int skylake_dmic_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
-static int skylake_nau8825_trigger(struct snd_pcm_substream *substream, int cmd)
+static int skylake_nau8825_hw_params(struct snd_pcm_substream *substream,
+	struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	int ret = 0;
+	int ret;
 
-	switch (cmd) {
-	case SNDRV_PCM_TRIGGER_START:
-		ret = snd_soc_dai_set_sysclk(codec_dai, NAU8825_CLK_FLL_FS, 0,
-					     SND_SOC_CLOCK_IN);
-		if (ret < 0) {
-			dev_err(codec_dai->dev, "can't set FS clock %d\n", ret);
-			break;
-		}
-		ret = snd_soc_dai_set_pll(codec_dai, 0, 0, runtime->rate,
-					  runtime->rate * 256);
-		if (ret < 0)
-			dev_err(codec_dai->dev, "can't set FLL: %d\n", ret);
-		break;
-	case SNDRV_PCM_TRIGGER_RESUME:
-		ret = snd_soc_dai_set_pll(codec_dai, 0, 0, runtime->rate,
-					  runtime->rate * 256);
-		if (ret < 0)
-			dev_err(codec_dai->dev, "can't set FLL: %d\n", ret);
-		msleep(20);
-		break;
-	}
+	ret = snd_soc_dai_set_sysclk(codec_dai,
+			NAU8825_CLK_MCLK, 24000000, SND_SOC_CLOCK_IN);
+
+	if (ret < 0)
+		dev_err(rtd->dev, "snd_soc_dai_set_sysclk err = %d\n", ret);
 
 	return ret;
 }
 
-static struct snd_soc_ops skylake_nau8825_ops = {
-	.trigger = skylake_nau8825_trigger,
+static const struct snd_soc_ops skylake_nau8825_ops = {
+	.hw_params = skylake_nau8825_hw_params,
 };
 
 static const unsigned int channels_dmic[] = {
@@ -697,32 +686,10 @@ static int skylake_card_late_probe(struct snd_soc_card *card)
 	return hdac_hdmi_jack_port_init(component, &card->dapm);
 }
 
-static int __maybe_unused skylake_nau8825_resume_post(struct snd_soc_card *card)
-{
-	struct snd_soc_dai *codec_dai;
-
-	codec_dai = snd_soc_card_get_codec_dai(card, SKL_NUVOTON_CODEC_DAI);
-	if (!codec_dai) {
-		dev_err(card->dev, "Codec dai not found\n");
-		return -EIO;
-	}
-
-	dev_dbg(codec_dai->dev, "playback_active:%d playback_widget->active:%d codec_dai->rate:%d\n",
-		codec_dai->playback_active, codec_dai->playback_widget->active,
-		codec_dai->rate);
-
-	if (codec_dai->playback_active && codec_dai->playback_widget->active)
-		snd_soc_dai_set_sysclk(codec_dai, NAU8825_CLK_FLL_FS, 0,
-				       SND_SOC_CLOCK_IN);
-
-	return 0;
-}
-
 /* skylake audio machine driver for SPT + NAU88L25 */
 static struct snd_soc_card skylake_audio_card = {
 	.name = "sklnau8825adi",
 	.owner = THIS_MODULE,
-	.resume_post = skylake_nau8825_resume_post,
 	.dai_link = skylake_dais,
 	.num_links = ARRAY_SIZE(skylake_dais),
 	.controls = skylake_controls,
