@@ -43,24 +43,25 @@ static inline struct mtk_disp_gamma *comp_to_gamma(struct mtk_ddp_comp *comp)
 	return container_of(comp, struct mtk_disp_gamma, ddp_comp);
 }
 
-void mtk_gamma_set(struct mtk_ddp_comp *comp, struct drm_crtc_state *state)
+void mtk_gamma_set(struct mtk_ddp_comp *comp, struct drm_crtc_state *state,
+		   struct cmdq_pkt *cmdq_pkt)
 {
 	unsigned int i, reg;
 	struct drm_color_lut *lut;
-	void __iomem *lut_base;
+	u32 lut_base;
 	u32 word;
 
 	if (state->gamma_lut) {
 		reg = readl(comp->regs + DISP_GAMMA_CFG);
 		reg = reg | GAMMA_LUT_EN;
-		writel(reg, comp->regs + DISP_GAMMA_CFG);
-		lut_base = comp->regs + DISP_GAMMA_LUT;
+		mtk_ddp_write(cmdq_pkt, reg, comp, DISP_GAMMA_CFG);
+		lut_base = DISP_GAMMA_LUT;
 		lut = (struct drm_color_lut *)state->gamma_lut->data;
 		for (i = 0; i < MTK_LUT_SIZE; i++) {
 			word = (((lut[i].red >> 6) & LUT_10BIT_MASK) << 20) +
 				(((lut[i].green >> 6) & LUT_10BIT_MASK) << 10) +
 				((lut[i].blue >> 6) & LUT_10BIT_MASK);
-			writel(word, (lut_base + i * 4));
+			mtk_ddp_write(cmdq_pkt, word, comp, (lut_base + i * 4));
 		}
 	}
 }
