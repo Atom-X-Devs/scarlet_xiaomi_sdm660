@@ -38,14 +38,12 @@ enum mtk_mdp_comp_id {
  * struct mtk_mdp_comp - the MDP's function component data
  * @dev_node:	component device node
  * @clk:	clocks required for component
- * @regs:	Mapped address of component registers.
  * @type:	component type
  * @id:		component ID
  */
 struct mtk_mdp_comp {
 	struct device_node	*dev_node;
 	struct clk		*clk[2];
-	void __iomem		*regs;
 	enum mtk_mdp_comp_type	type;
 	enum mtk_mdp_comp_id	id;
 };
