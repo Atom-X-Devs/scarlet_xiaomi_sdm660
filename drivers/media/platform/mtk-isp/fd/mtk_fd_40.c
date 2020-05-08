@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
-//
-// Copyright (c) 2018 MediaTek Inc.
+/*
+ * Copyright (c) 2018 MediaTek Inc.
+ *
+ * Author: Jerry-ch Chen <jerry-ch.chen@mediatek.com>
+ *
+ */
 
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
@@ -24,6 +28,27 @@
 #include <media/videobuf2-core.h>
 
 #include "mtk_fd.h"
+
+/* Set the face angle and directions to be detected */
+#define V4L2_CID_MTK_FD_DETECT_POSE		(V4L2_CID_USER_MTK_FD_BASE + 1)
+
+/* Set image widths for an input image to be scaled down for face detection */
+#define V4L2_CID_MTK_FD_SCALE_DOWN_IMG_WIDTH	(V4L2_CID_USER_MTK_FD_BASE + 2)
+
+/* Set image heights for an input image to be scaled down for face detection */
+#define V4L2_CID_MTK_FD_SCALE_DOWN_IMG_HEIGHT	(V4L2_CID_USER_MTK_FD_BASE + 3)
+
+/* Set the length of scale down size array */
+#define V4L2_CID_MTK_FD_SCALE_IMG_NUM		(V4L2_CID_USER_MTK_FD_BASE + 4)
+
+/* Set the detection speed, usually reducing accuracy. */
+#define V4L2_CID_MTK_FD_DETECT_SPEED		(V4L2_CID_USER_MTK_FD_BASE + 5)
+
+/* Select the detection model or algorithm to be used. */
+#define V4L2_CID_MTK_FD_DETECTION_MODEL		(V4L2_CID_USER_MTK_FD_BASE + 6)
+
+/* We reserve 16 controls for this driver. */
+#define V4L2_CID_MTK_FD_MAX			16
 
 static const struct v4l2_pix_format_mplane mtk_fd_img_fmts[] = {
 	{
@@ -60,7 +85,7 @@ static inline struct mtk_fd_ctx *fh_to_ctx(struct v4l2_fh *fh)
 }
 
 /*  */
-static dma_addr_t mtk_fd_hw_alloc_rs_dma_addr(struct mtk_fd_dev *fd)
+static int mtk_fd_hw_alloc_rs_dma_addr(struct mtk_fd_dev *fd)
 {
 	struct device *dev = fd->dev;
 	void *va;
@@ -76,47 +101,42 @@ static dma_addr_t mtk_fd_hw_alloc_rs_dma_addr(struct mtk_fd_dev *fd)
 	fd->rs_dma_buf = va;
 	fd->rs_dma_handle = dma_handle;
 
-	return dma_handle;
+	return 0;
 }
 
 static int mtk_fd_send_ipi_init(struct mtk_fd_dev *fd)
 {
 	struct ipi_message fd_init_msg;
-	dma_addr_t rs_dma_addr;
 
 	fd_init_msg.cmd_id = MTK_FD_IPI_CMD_INIT;
 
 	fd_init_msg.fd_init_param.fd_manager.scp_addr = fd->scp_mem.scp_addr;
 	fd_init_msg.fd_init_param.fd_manager.dma_addr = fd->scp_mem.dma_addr;
 
-	rs_dma_addr = mtk_fd_hw_alloc_rs_dma_addr(fd);
-	if (!rs_dma_addr)
-		return -ENOMEM;
 	memset(fd->rs_dma_buf, 0, MTK_FD_RS_BUF_SIZE);
 
 	fd_init_msg.fd_init_param.rs_dma_addr = fd->rs_dma_handle;
 
-	return scp_ipi_send(fd->scp_pdev, SCP_IPI_FD_CMD, &fd_init_msg,
-			    sizeof(fd_init_msg), MTK_FD_IPI_SEND_TIMEOUT);
+	return scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_init_msg,
+			    sizeof(fd_init_msg), 300);
 }
 
 static void mtk_fd_free_dma_handle(struct mtk_fd_dev *fd)
 {
-	if (!IS_ERR(fd->rs_dma_buf))
-		dma_free_coherent(fd->dev, MTK_FD_RS_BUF_SIZE,
-				  fd->rs_dma_buf,
-				  fd->rs_dma_handle);
+	dma_free_coherent(fd->dev, MTK_FD_RS_BUF_SIZE,
+			  fd->rs_dma_buf,
+			  fd->rs_dma_handle);
 }
 
 static int mtk_fd_hw_enable(struct mtk_fd_dev *fd)
 {
 	int ret;
 
+	pm_runtime_get_sync(fd->dev);
 	ret = mtk_fd_send_ipi_init(fd);
+	pm_runtime_put(fd->dev);
 	if (ret) {
 		dev_err(fd->dev, "Failed to send fd ipi init\n");
-		if (!IS_ERR(fd->rs_dma_buf))
-			mtk_fd_free_dma_handle(fd);
 		return ret;
 	}
 	return 0;
@@ -128,6 +148,8 @@ static void mtk_fd_hw_job_finish(struct mtk_fd_dev *fd,
 	struct mtk_fd_ctx *ctx;
 	struct vb2_v4l2_buffer *src_vbuf = NULL, *dst_vbuf = NULL;
 
+	pm_runtime_put(fd->dev);
+
 	ctx = v4l2_m2m_get_curr_priv(fd->m2m_dev);
 	src_vbuf = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
 	dst_vbuf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
@@ -137,6 +159,16 @@ static void mtk_fd_hw_job_finish(struct mtk_fd_dev *fd,
 	v4l2_m2m_buf_done(src_vbuf, vb_state);
 	v4l2_m2m_buf_done(dst_vbuf, vb_state);
 	v4l2_m2m_job_finish(fd->m2m_dev, ctx->fh.m2m_ctx);
+	complete_all(&fd->fd_job_finished);
+}
+
+static void mtk_fd_hw_done(struct mtk_fd_dev *fd,
+			   enum vb2_buffer_state vb_state)
+{
+	if (!cancel_delayed_work(&fd->job_timeout_work))
+		return;
+
+	mtk_fd_hw_job_finish(fd, vb_state);
 }
 
 static void mtk_fd_ipi_handler(void *data, unsigned int len, void *priv)
@@ -154,11 +186,16 @@ static void mtk_fd_ipi_handler(void *data, unsigned int len, void *priv)
 		if (fd_ack->ret_code) {
 			dev_err(dev, "ipi ret: %d, message: %d\n",
 				fd_ack->ret_code, fd_ack->ret_msg);
-			pm_runtime_put((fd->dev));
-			mtk_fd_hw_job_finish(fd, VB2_BUF_STATE_ERROR);
+			mtk_fd_hw_done(fd, VB2_BUF_STATE_ERROR);
 		}
 		return;
+	case MTK_FD_IPI_CMD_EXIT_ACK:
+		if (fd_ack->ret_code)
+			dev_err(dev, "Failed to exit FD HW\n");
+		return;
 	case MTK_FD_IPI_CMD_RESET_ACK:
+		if (fd_ack->ret_code)
+			dev_err(dev, "Failed to reset FD HW\n");
 		return;
 	}
 }
@@ -178,7 +215,7 @@ static int mtk_fd_hw_connect(struct mtk_fd_dev *fd)
 		return ret;
 	}
 
-	ret = scp_ipi_register(fd->scp_pdev, SCP_IPI_FD_CMD,
+	ret = scp_ipi_register(fd->scp, SCP_IPI_FD_CMD,
 			       mtk_fd_ipi_handler, fd);
 	if (ret) {
 		dev_err(fd->dev, "Failed to register IPI cmd handler\n");
@@ -199,16 +236,21 @@ err_rproc_shutdown:
 	return ret;
 }
 
+static void mtk_fd_exit_hw(struct mtk_fd_dev *fd)
+{
+	struct ipi_message fd_ipi_msg;
+
+	fd_ipi_msg.cmd_id = MTK_FD_IPI_CMD_EXIT;
+	if (scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_ipi_msg,
+			 sizeof(fd_ipi_msg), 300))
+		dev_err(fd->dev, "FD EXIT HW error\n");
+}
+
 static void mtk_fd_hw_disconnect(struct mtk_fd_dev *fd)
 {
 	fd->fd_stream_count--;
-
-	if (fd->fd_stream_count == 0) {
-		if (!IS_ERR(fd->rs_dma_buf))
-			mtk_fd_free_dma_handle(fd);
-
-		rproc_shutdown(fd->rproc_handle);
-	}
+	mtk_fd_exit_hw(fd);
+	rproc_shutdown(fd->rproc_handle);
 }
 
 static int mtk_fd_hw_job_exec(struct mtk_fd_dev *fd,
@@ -219,14 +261,16 @@ static int mtk_fd_hw_job_exec(struct mtk_fd_dev *fd,
 
 	pm_runtime_get_sync((fd->dev));
 
-	reinit_completion(&fd->fd_irq_done);
+	reinit_completion(&fd->fd_job_finished);
+	schedule_delayed_work(&fd->job_timeout_work,
+			      msecs_to_jiffies(MTK_FD_HW_TIMEOUT));
+
 	fd_ipi_msg.cmd_id = MTK_FD_IPI_CMD_ENQUEUE;
 	memcpy(&fd_ipi_msg.fd_enq_param, fd_param, sizeof(struct fd_enq_param));
-	ret = scp_ipi_send(fd->scp_pdev, SCP_IPI_FD_CMD, &fd_ipi_msg,
-			   sizeof(fd_ipi_msg), MTK_FD_IPI_SEND_TIMEOUT);
+	ret = scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_ipi_msg,
+			   sizeof(fd_ipi_msg), 300);
 	if (ret) {
-		pm_runtime_put((fd->dev));
-		mtk_fd_hw_job_finish(fd, VB2_BUF_STATE_ERROR);
+		mtk_fd_hw_done(fd, VB2_BUF_STATE_ERROR);
 		return ret;
 	}
 	return 0;
@@ -343,23 +387,29 @@ static int mtk_fd_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 		return 0;
 }
 
-static int mtk_fd_job_abort(struct mtk_fd_dev *fd)
+static void mtk_fd_reset_hw(struct mtk_fd_dev *fd)
 {
-	u32 ret;
+	struct ipi_message fd_ipi_msg;
 
-	ret = wait_for_completion_timeout(&fd->fd_irq_done,
-					  msecs_to_jiffies(MTK_FD_HW_TIMEOUT));
-	/* Reset FD HW */
-	if (!ret) {
-		struct ipi_message fd_ipi_msg;
+	fd_ipi_msg.cmd_id = MTK_FD_IPI_CMD_RESET;
+	if (scp_ipi_send(fd->scp, SCP_IPI_FD_CMD, &fd_ipi_msg,
+			 sizeof(fd_ipi_msg), 300))
+		dev_err(fd->dev, "FD Reset HW error\n");
+}
 
-		fd_ipi_msg.cmd_id = MTK_FD_IPI_CMD_RESET;
-		if (scp_ipi_send(fd->scp_pdev, SCP_IPI_FD_CMD, &fd_ipi_msg,
-				 sizeof(fd_ipi_msg), MTK_FD_IPI_SEND_TIMEOUT))
-			dev_err(fd->dev, "FD Reset HW error\n");
-		return -ETIMEDOUT;
-	}
-	return 0;
+static void mtk_fd_job_timeout_work(struct work_struct *work)
+{
+	struct mtk_fd_dev *fd =
+		container_of(work, struct mtk_fd_dev, job_timeout_work.work);
+
+	dev_err(fd->dev, "FD Job timeout!");
+	mtk_fd_reset_hw(fd);
+	mtk_fd_hw_job_finish(fd, VB2_BUF_STATE_ERROR);
+}
+
+static void mtk_fd_job_wait_finish(struct mtk_fd_dev *fd)
+{
+	wait_for_completion(&fd->fd_job_finished);
 }
 
 static void mtk_fd_vb2_stop_streaming(struct vb2_queue *vq)
@@ -370,7 +420,7 @@ static void mtk_fd_vb2_stop_streaming(struct vb2_queue *vq)
 	struct v4l2_m2m_ctx *m2m_ctx = ctx->fh.m2m_ctx;
 	struct v4l2_m2m_queue_ctx *queue_ctx;
 
-	mtk_fd_job_abort(fd);
+	mtk_fd_job_wait_finish(fd);
 	queue_ctx = V4L2_TYPE_IS_OUTPUT(vq->type) ?
 					&m2m_ctx->out_q_ctx :
 					&m2m_ctx->cap_q_ctx;
@@ -632,7 +682,7 @@ static struct v4l2_ctrl_config mtk_fd_controls[] = {
 		.max = 0xffff,
 		.step = 1,
 		.def = 0x3ff,
-		.dims = { MTK_FD_FACE_ANGLE_NUM},
+		.dims = { MTK_FD_FACE_ANGLE_NUM },
 	},
 	{
 		.id = V4L2_CID_MTK_FD_DETECT_SPEED,
@@ -974,15 +1024,14 @@ static irqreturn_t mtk_fd_irq(int irq, void *data)
 	fd->output->number = readl(fd->fd_base + MTK_FD_REG_OFFSET_RESULT);
 	dev_dbg(fd->dev, "mtk_fd_face_num:%d\n", fd->output->number);
 
-	pm_runtime_put((fd->dev));
-	mtk_fd_hw_job_finish(fd, VB2_BUF_STATE_DONE);
-	complete_all(&fd->fd_irq_done);
+	mtk_fd_hw_done(fd, VB2_BUF_STATE_DONE);
 	return IRQ_HANDLED;
 }
 
 static int mtk_fd_hw_get_scp_mem(struct mtk_fd_dev *fd)
 {
 	struct device *dev = fd->dev;
+	struct device *scp_dev = scp_get_device(fd->scp);
 	dma_addr_t addr;
 	void *ptr;
 	u32 ret;
@@ -992,8 +1041,8 @@ static int mtk_fd_hw_get_scp_mem(struct mtk_fd_dev *fd)
 	 * The size of SCP composer's memory is fixed to 0x100000
 	 * for the requirement of firmware.
 	 */
-	ptr = dma_alloc_coherent(&fd->scp_pdev->dev,
-				 MTK_FD_HW_WORK_BUF_SIZE, &addr, GFP_KERNEL);
+	ptr = dma_alloc_coherent(scp_dev, MTK_FD_HW_WORK_BUF_SIZE, &addr,
+				 GFP_KERNEL);
 	if (!ptr)
 		return -ENOMEM;
 
@@ -1018,8 +1067,8 @@ static int mtk_fd_hw_get_scp_mem(struct mtk_fd_dev *fd)
 	return 0;
 
 fail_free_mem:
-	dma_free_coherent(&fd->scp_pdev->dev, MTK_FD_HW_WORK_BUF_SIZE,
-			  ptr, fd->scp_mem.scp_addr);
+	dma_free_coherent(scp_dev, MTK_FD_HW_WORK_BUF_SIZE, ptr,
+			  fd->scp_mem.scp_addr);
 	fd->scp_mem.scp_addr = 0;
 
 	return ret;
@@ -1031,7 +1080,6 @@ static int mtk_fd_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 	struct resource *res;
-	phandle rproc_phandle;
 	int irq;
 	int ret;
 
@@ -1069,32 +1117,29 @@ static int mtk_fd_probe(struct platform_device *pdev)
 	}
 
 	/* init scp */
-	fd->scp_pdev = scp_get_pdev(pdev);
-	if (!fd->scp_pdev) {
+	fd->scp = scp_get(pdev);
+	if (!fd->scp) {
 		dev_err(dev, "Failed to get scp device\n");
 		return -ENODEV;
 	}
 
-	if (of_property_read_u32(fd->dev->of_node, "mediatek,scp",
-				 &rproc_phandle)) {
-		dev_err(dev, "Failed to get scp device\n");
-		return -EINVAL;
-	}
-
-	fd->rproc_handle = rproc_get_by_phandle(rproc_phandle);
-	if (!fd->rproc_handle) {
-		dev_err(dev, "Failed to get FD's rproc_handle\n");
-		return -EINVAL;
-	}
+	fd->rproc_handle = scp_get_rproc(fd->scp);
 
 	ret = mtk_fd_hw_get_scp_mem(fd);
 	if (ret) {
 		dev_err(dev, "Failed to init scp memory: %d\n", ret);
+		goto err_put_scp;
+	}
+
+	ret = mtk_fd_hw_alloc_rs_dma_addr(fd);
+	if (ret) {
+		dev_err(dev, "Failed to allocate dma buffer: %d\n", ret);
 		return ret;
 	}
 
 	mutex_init(&fd->vfd_lock);
-	init_completion(&fd->fd_irq_done);
+	init_completion(&fd->fd_job_finished);
+	INIT_DELAYED_WORK(&fd->job_timeout_work, mtk_fd_job_timeout_work);
 	pm_runtime_enable(dev);
 
 	ret = mtk_fd_dev_v4l2_init(fd);
@@ -1108,6 +1153,9 @@ static int mtk_fd_probe(struct platform_device *pdev)
 err_destroy_mutex:
 	mutex_destroy(&fd->vfd_lock);
 	pm_runtime_disable(fd->dev);
+	mtk_fd_free_dma_handle(fd);
+err_put_scp:
+	scp_put(fd->scp);
 	return ret;
 }
 
@@ -1122,12 +1170,13 @@ static int mtk_fd_remove(struct platform_device *pdev)
 			     MTK_FD_HW_WORK_BUF_SIZE,
 			     DMA_TO_DEVICE,
 			     DMA_ATTR_SKIP_CPU_SYNC);
-	dma_free_coherent(&fd->scp_pdev->dev,
+	dma_free_coherent(scp_get_device(fd->scp),
 			  MTK_FD_HW_WORK_BUF_SIZE,
 			  fd->scp_mem_virt_addr,
 			  fd->scp_mem.scp_addr);
 	mutex_destroy(&fd->vfd_lock);
-	rproc_put(fd->rproc_handle);
+	mtk_fd_free_dma_handle(fd);
+	scp_put(fd->scp);
 
 	return 0;
 }
@@ -1139,9 +1188,7 @@ static int mtk_fd_suspend(struct device *dev)
 	if (pm_runtime_suspended(dev))
 		return 0;
 
-	if (fd->fd_stream_count)
-		if (mtk_fd_job_abort(fd))
-			mtk_fd_hw_job_finish(fd, VB2_BUF_STATE_ERROR);
+	v4l2_m2m_suspend(fd->m2m_dev);
 
 	/* suspend FD HW */
 	writel(0x0, fd->fd_base + MTK_FD_REG_OFFSET_INT_EN);
@@ -1170,6 +1217,8 @@ static int mtk_fd_resume(struct device *dev)
 	writel(MTK_FD_SET_HW_ENABLE, fd->fd_base + MTK_FD_REG_OFFSET_HW_ENABLE);
 	writel(0x1, fd->fd_base + MTK_FD_REG_OFFSET_INT_EN);
 	dev_dbg(dev, "%s:enable clock\n", __func__);
+
+	v4l2_m2m_resume(fd->m2m_dev);
 
 	return 0;
 }
@@ -1217,6 +1266,6 @@ static struct platform_driver mtk_fd_driver = {
 	}
 };
 module_platform_driver(mtk_fd_driver);
-
+MODULE_AUTHOR("Jerry-ch Chen <jerry-ch.chen@mediatek.com>");
+MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Mediatek FD driver");
-MODULE_LICENSE("GPL");

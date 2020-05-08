@@ -22,7 +22,6 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
-#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/watchdog.h>
 
@@ -66,19 +65,19 @@ struct mtk_wdt_dev {
 };
 
 struct mtk_wdt_data {
-	int sw_rst_num;
+	int toprgu_sw_rst_num;
 };
 
 static const struct mtk_wdt_data mt2712_data = {
-	.sw_rst_num = MT2712_TOPRGU_SW_RST_NUM,
+	.toprgu_sw_rst_num = MT2712_TOPRGU_SW_RST_NUM,
 };
 
 static const struct mtk_wdt_data mt8183_data = {
-	.sw_rst_num = MT8183_TOPRGU_SW_RST_NUM,
+	.toprgu_sw_rst_num = MT8183_TOPRGU_SW_RST_NUM,
 };
 
-static int toprgu_reset_assert(struct reset_controller_dev *rcdev,
-			       unsigned long id)
+static int toprgu_reset_update(struct reset_controller_dev *rcdev,
+			       unsigned long id, bool assert)
 {
 	unsigned int tmp;
 	unsigned long flags;
@@ -87,8 +86,11 @@ static int toprgu_reset_assert(struct reset_controller_dev *rcdev,
 
 	spin_lock_irqsave(&data->lock, flags);
 
-	tmp = __raw_readl(data->wdt_base + WDT_SWSYSRST);
-	tmp |= BIT(id);
+	tmp = readl(data->wdt_base + WDT_SWSYSRST);
+	if (assert)
+		tmp |= BIT(id);
+	else
+		tmp &= ~BIT(id);
 	tmp |= WDT_SWSYS_RST_KEY;
 	writel(tmp, data->wdt_base + WDT_SWSYSRST);
 
@@ -97,24 +99,16 @@ static int toprgu_reset_assert(struct reset_controller_dev *rcdev,
 	return 0;
 }
 
+static int toprgu_reset_assert(struct reset_controller_dev *rcdev,
+			       unsigned long id)
+{
+	return toprgu_reset_update(rcdev, id, true);
+}
+
 static int toprgu_reset_deassert(struct reset_controller_dev *rcdev,
 				 unsigned long id)
 {
-	unsigned int tmp;
-	unsigned long flags;
-	struct mtk_wdt_dev *data =
-		 container_of(rcdev, struct mtk_wdt_dev, rcdev);
-
-	spin_lock_irqsave(&data->lock, flags);
-
-	tmp = __raw_readl(data->wdt_base + WDT_SWSYSRST);
-	tmp &= ~BIT(id);
-	tmp |= WDT_SWSYS_RST_KEY;
-	writel(tmp, data->wdt_base + WDT_SWSYSRST);
-
-	spin_unlock_irqrestore(&data->lock, flags);
-
-	return 0;
+	return toprgu_reset_update(rcdev, id, false);
 }
 
 static int toprgu_reset(struct reset_controller_dev *rcdev,
@@ -147,7 +141,7 @@ static int toprgu_register_reset_controller(struct platform_device *pdev,
 	mtk_wdt->rcdev.nr_resets = rst_num;
 	mtk_wdt->rcdev.ops = &toprgu_reset_ops;
 	mtk_wdt->rcdev.of_node = pdev->dev.of_node;
-	ret = reset_controller_register(&mtk_wdt->rcdev);
+	ret = devm_reset_controller_register(&pdev->dev, &mtk_wdt->rcdev);
 	if (ret != 0)
 		dev_err(&pdev->dev,
 			"couldn't register wdt reset controller: %d\n", ret);
@@ -254,7 +248,7 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mtk_wdt_dev *mtk_wdt;
-	struct mtk_wdt_data *wdt_data;
+	const struct mtk_wdt_data *wdt_data;
 	int err;
 
 	mtk_wdt = devm_kzalloc(dev, sizeof(*mtk_wdt), GFP_KERNEL);
@@ -290,10 +284,10 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 	dev_info(dev, "Watchdog enabled (timeout=%d sec, nowayout=%d)\n",
 		 mtk_wdt->wdt_dev.timeout, nowayout);
 
-	wdt_data = (struct mtk_wdt_data *)of_device_get_match_data(dev);
+	wdt_data = of_device_get_match_data(dev);
 	if (wdt_data) {
 		err = toprgu_register_reset_controller(pdev,
-						       wdt_data->sw_rst_num);
+						       wdt_data->toprgu_sw_rst_num);
 		if (err)
 			return err;
 	}

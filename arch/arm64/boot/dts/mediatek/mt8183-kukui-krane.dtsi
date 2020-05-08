@@ -40,6 +40,10 @@
 	};
 };
 
+&bluetooth {
+	firmware-name = "nvm_00440302_i2s_eu.bin";
+};
+
 &i2c0 {
 	status = "okay";
 
@@ -145,7 +149,6 @@
 		clock-names = "eclk", "freq_mux";
 		clock-frequency = <24000000>;
 		rotation = <180>;
-		ovti,hs-vod-adjust = <21>;
 		ovti,mipi-tx-speed = <3>;
 
 		assigned-clocks = <&topckgen CLK_TOP_MUX_CAMTG2>,
@@ -417,6 +420,10 @@
 			output-high;
 		};
 	};
+};
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "LE_Krane";
 };
 
 &seninf {

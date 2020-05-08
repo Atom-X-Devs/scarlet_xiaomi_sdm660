@@ -20,8 +20,8 @@
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <drm/drmP.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
+#include <drm/drmP.h>
 #include "mtk_drm_drv.h"
 #include "mtk_drm_plane.h"
 #include "mtk_drm_ddp_comp.h"
@@ -46,13 +46,23 @@
 #define CCORR_EN				BIT(0)
 #define DISP_CCORR_CFG				0x0020
 #define CCORR_RELAY_MODE			BIT(0)
+#define CCORR_ENGINE_EN				BIT(1)
+#define CCORR_GAMMA_OFF				BIT(2)
+#define CCORR_WGAMUT_SRC_CLIP			BIT(3)
 #define DISP_CCORR_SIZE				0x0030
+#define DISP_CCORR_COEF_0			0x0080
+#define DISP_CCORR_COEF_1			0x0084
+#define DISP_CCORR_COEF_2			0x0088
+#define DISP_CCORR_COEF_3			0x008C
+#define DISP_CCORR_COEF_4			0x0090
 
 #define DISP_DITHER_EN				0x0000
 #define DITHER_EN				BIT(0)
 #define DISP_DITHER_CFG				0x0020
 #define DITHER_RELAY_MODE			BIT(0)
+#define DITHER_ENGINE_EN			BIT(1)
 #define DISP_DITHER_SIZE			0x0030
+#define DITHER_REG(idx)				(0x100 + (idx) * 4)
 
 #define DISP_GAMMA_EN				0x0000
 #define DISP_GAMMA_CFG				0x0020
@@ -88,10 +98,12 @@
 void mtk_ddp_write(struct cmdq_pkt *cmdq_pkt, unsigned int value,
 		   struct mtk_ddp_comp *comp, unsigned int offset)
 {
-	if (IS_ENABLED(CONFIG_MTK_CMDQ) && cmdq_pkt)
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+	if (cmdq_pkt)
 		cmdq_pkt_write(cmdq_pkt, comp->subsys,
 			       comp->regs_pa + offset, value);
 	else
+#endif
 		writel(value, comp->regs + offset);
 }
 
@@ -99,10 +111,12 @@ void mtk_ddp_write_relaxed(struct cmdq_pkt *cmdq_pkt, unsigned int value,
 			   struct mtk_ddp_comp *comp,
 			   unsigned int offset)
 {
-	if (IS_ENABLED(CONFIG_MTK_CMDQ) && cmdq_pkt)
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+	if (cmdq_pkt)
 		cmdq_pkt_write(cmdq_pkt, comp->subsys,
 			       comp->regs_pa + offset, value);
 	else
+#endif
 		writel_relaxed(value, comp->regs + offset);
 }
 
@@ -112,15 +126,19 @@ void mtk_ddp_write_mask(struct cmdq_pkt *cmdq_pkt,
 			unsigned int offset,
 			unsigned int mask)
 {
-	if (IS_ENABLED(CONFIG_MTK_CMDQ) && cmdq_pkt) {
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+	if (cmdq_pkt) {
 		cmdq_pkt_write_mask(cmdq_pkt, comp->subsys,
 				    comp->regs_pa + offset, value, mask);
 	} else {
+#endif
 		u32 tmp = readl(comp->regs + offset);
 
 		tmp = (tmp & ~mask) | (value & mask);
 		writel(tmp, comp->regs + offset);
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
 	}
+#endif
 }
 
 void mtk_dither_set(struct mtk_ddp_comp *comp, unsigned int bpc,
@@ -189,7 +207,7 @@ static void mtk_ccorr_config(struct mtk_ddp_comp *comp, unsigned int w,
 			     unsigned int bpc, struct cmdq_pkt *cmdq_pkt)
 {
 	mtk_ddp_write(cmdq_pkt, h << 16 | w, comp, DISP_CCORR_SIZE);
-	mtk_ddp_write(cmdq_pkt, CCORR_RELAY_MODE, comp, DISP_CCORR_CFG);
+	mtk_ddp_write(cmdq_pkt, CCORR_ENGINE_EN, comp, DISP_CCORR_CFG);
 }
 
 static void mtk_ccorr_start(struct mtk_ddp_comp *comp)
@@ -202,12 +220,97 @@ static void mtk_ccorr_stop(struct mtk_ddp_comp *comp)
 	writel_relaxed(0x0, comp->regs + DISP_CCORR_EN);
 }
 
+/* Converts a DRM S31.32 value to the HW S1.10 format. */
+static u16 mtk_ctm_s31_32_to_s1_10(u64 in)
+{
+	u16 r;
+
+	/* Sign bit. */
+	r = in & BIT_ULL(63) ? BIT(11) : 0;
+
+	if ((in & GENMASK_ULL(62, 33)) > 0) {
+		/* identity value 0x100000000 -> 0x400, */
+		/* if bigger this, set it to max 0x7ff. */
+		r |= GENMASK(10, 0);
+	} else {
+		/* take the 11 most important bits. */
+		r |= (in >> 22) & GENMASK(10, 0);
+	}
+
+	return r;
+}
+
+static void mtk_ccorr_ctm_set(struct mtk_ddp_comp *comp,
+			      struct drm_crtc_state *state)
+{
+	struct drm_property_blob *blob = state->ctm;
+	struct drm_color_ctm *ctm;
+	const u64 *input;
+	uint16_t coeffs[9] = { 0 };
+	int i;
+	struct cmdq_pkt *cmdq_pkt = NULL;
+
+	if (!blob)
+		return;
+
+	ctm = (struct drm_color_ctm *)blob->data;
+	input = ctm->matrix;
+
+	for (i = 0; i < ARRAY_SIZE(coeffs); i++)
+		coeffs[i] = mtk_ctm_s31_32_to_s1_10(input[i]);
+
+	mtk_ddp_write(cmdq_pkt, coeffs[0] << 16 | coeffs[1],
+		      comp, DISP_CCORR_COEF_0);
+	mtk_ddp_write(cmdq_pkt, coeffs[2] << 16 | coeffs[3],
+		      comp, DISP_CCORR_COEF_1);
+	mtk_ddp_write(cmdq_pkt, coeffs[4] << 16 | coeffs[5],
+		      comp, DISP_CCORR_COEF_2);
+	mtk_ddp_write(cmdq_pkt, coeffs[6] << 16 | coeffs[7],
+		      comp, DISP_CCORR_COEF_3);
+	mtk_ddp_write(cmdq_pkt, coeffs[8] << 16,
+		      comp, DISP_CCORR_COEF_4);
+}
+
 static void mtk_dither_config(struct mtk_ddp_comp *comp, unsigned int w,
 			      unsigned int h, unsigned int vrefresh,
 			      unsigned int bpc, struct cmdq_pkt *cmdq_pkt)
 {
-	mtk_ddp_write(cmdq_pkt, h << 16 | w, comp, DISP_DITHER_SIZE);
-	mtk_ddp_write(cmdq_pkt, DITHER_RELAY_MODE, comp, DISP_DITHER_CFG);
+	bool enable = true;
+
+	const u32 dither_setting[] = {
+		0x00000000, /* 5 */
+		0x00003002, /* 6 */
+		0x00000000, /* 7 */
+		0x00000000, /* 8 */
+		0x00000000, /* 9 */
+		0x00000000, /* 10 */
+		0x00000000, /* 11 */
+		0x00000011, /* 12 */
+		0x00000000, /* 13 */
+		0x00000000, /* 14 */
+	};
+
+	if (bpc == 6) {
+		mtk_ddp_write(cmdq_pkt, 0x40400001, comp, DITHER_REG(15));
+		mtk_ddp_write(cmdq_pkt, 0x40404040, comp, DITHER_REG(16));
+	} else if (bpc == 5) {
+		mtk_ddp_write(cmdq_pkt, 0x50500001, comp, DITHER_REG(15));
+		mtk_ddp_write(cmdq_pkt, 0x50504040, comp, DITHER_REG(16));
+	} else {
+		enable = false;
+	}
+
+	if (enable) {
+		u32 idx;
+
+		for (idx = 0; idx < ARRAY_SIZE(dither_setting); idx++)
+			mtk_ddp_write(cmdq_pkt, dither_setting[idx], comp,
+				      DITHER_REG(idx + 5));
+	}
+
+	mtk_ddp_write(cmdq_pkt, w << 16 | h, comp, DISP_DITHER_SIZE);
+	mtk_ddp_write(cmdq_pkt, enable ? DITHER_ENGINE_EN : DITHER_RELAY_MODE,
+		      comp, DISP_DITHER_CFG);
 }
 
 static void mtk_dither_start(struct mtk_ddp_comp *comp)
@@ -239,24 +342,24 @@ static void mtk_gamma_stop(struct mtk_ddp_comp *comp)
 }
 
 static void mtk_gamma_set(struct mtk_ddp_comp *comp,
-			  struct drm_crtc_state *state,
-			  struct cmdq_pkt *cmdq_pkt)
+			  struct drm_crtc_state *state)
 {
-	unsigned int i;
+	unsigned int i, reg;
 	struct drm_color_lut *lut;
-	u32 lut_base;
+	void __iomem *lut_base;
 	u32 word;
 
 	if (state->gamma_lut) {
-		mtk_ddp_write_mask(cmdq_pkt, GAMMA_LUT_EN, comp,
-				   DISP_GAMMA_CFG, GAMMA_LUT_EN);
-		lut_base = DISP_GAMMA_LUT;
+		reg = readl(comp->regs + DISP_GAMMA_CFG);
+		reg = reg | GAMMA_LUT_EN;
+		writel(reg, comp->regs + DISP_GAMMA_CFG);
+		lut_base = comp->regs + DISP_GAMMA_LUT;
 		lut = (struct drm_color_lut *)state->gamma_lut->data;
 		for (i = 0; i < MTK_LUT_SIZE; i++) {
 			word = (((lut[i].red >> 6) & LUT_10BIT_MASK) << 20) +
 				(((lut[i].green >> 6) & LUT_10BIT_MASK) << 10) +
 				((lut[i].blue >> 6) & LUT_10BIT_MASK);
-			mtk_ddp_write(cmdq_pkt, word, comp, lut_base + i * 4);
+			writel(word, (lut_base + i * 4));
 		}
 	}
 }
@@ -272,6 +375,7 @@ static const struct mtk_ddp_comp_funcs ddp_ccorr = {
 	.config = mtk_ccorr_config,
 	.start = mtk_ccorr_start,
 	.stop = mtk_ccorr_stop,
+	.ctm_set = mtk_ccorr_ctm_set,
 };
 
 static const struct mtk_ddp_comp_funcs ddp_dither = {
@@ -373,6 +477,11 @@ int mtk_ddp_comp_init(struct device *dev, struct device_node *node,
 		      const struct mtk_ddp_comp_funcs *funcs)
 {
 	struct platform_device *comp_pdev;
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+	struct resource res;
+	struct cmdq_client_reg cmdq_reg;
+	int ret;
+#endif
 
 	if (comp_id < 0 || comp_id >= DDP_COMPONENT_ID_MAX)
 		return -EINVAL;
@@ -407,40 +516,19 @@ int mtk_ddp_comp_init(struct device *dev, struct device_node *node,
 	}
 	comp->dev = &comp_pdev->dev;
 
-	if (IS_ENABLED(CONFIG_MTK_CMDQ)) {
-		struct platform_device *comp_pdev;
-		struct resource res;
-		struct cmdq_client_reg *cmdq_reg;
-		int ret = 0;
-
-		if (of_address_to_resource(node, 0, &res) != 0) {
-			dev_err(dev, "Missing reg in %s node\n",
-				node->full_name);
-			return -EINVAL;
-		}
-		comp->regs_pa = res.start;
-
-		comp_pdev = of_find_device_by_node(node);
-		if (!comp_pdev) {
-			dev_warn(dev, "Waiting for component device %s\n",
-				 node->full_name);
-			return -EPROBE_DEFER;
-		}
-
-		cmdq_reg = kzalloc(sizeof(*cmdq_reg), GFP_KERNEL);
-		if (!cmdq_reg)
-			return -EINVAL;
-
-		ret = cmdq_dev_get_client_reg(&comp_pdev->dev, cmdq_reg, 0);
-		if (ret != 0)
-			dev_dbg(&comp_pdev->dev,
-				"get mediatek,gce-client-reg fail!\n");
-		else
-			comp->subsys = cmdq_reg->subsys;
-
-		kfree(cmdq_reg);
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+	if (of_address_to_resource(node, 0, &res) != 0) {
+		dev_err(dev, "Missing reg in %s node\n", node->full_name);
+		return -EINVAL;
 	}
+	comp->regs_pa = res.start;
 
+	ret = cmdq_dev_get_client_reg(dev, &cmdq_reg, 0);
+	if (ret)
+		dev_dbg(dev, "get mediatek,gce-client-reg fail!\n");
+	else
+		comp->subsys = cmdq_reg.subsys;
+#endif
 	return 0;
 }
 

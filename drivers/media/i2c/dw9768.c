@@ -17,23 +17,28 @@
  * A value of 1 gives maximum accuracy for a desired focus position
  */
 #define DW9768_FOCUS_STEPS			1
-/*
- * DW9768 separates two registers to control the VCM position.
- * One for MSB value, another is LSB value.
- */
-#define DW9768_REG_MASK_MSB			0x03
-#define DW9768_REG_MASK_LSB			0xff
-#define DW9768_SET_POSITION_ADDR                0x03
+#define DW9768_CONTROL_REG			0x02
+#define DW9768_SET_POSITION_ADDR		0x03
+#define DW9768_CONTOL_POWER_DOWN		BIT(0)
+#define DW9768_AAC_MODE_EN			BIT(1)
 
 #define DW9768_CMD_DELAY			0xff
 #define DW9768_CTRL_DELAY_US			5000
-
-#define DW9768_DAC_SHIFT			8
+/*
+ * This acts as the minimum granularity of lens movement.
+ * Keep this value power of 2, so the control steps can be
+ * uniformly adjusted for gradual lens movement, with desired
+ * number of control steps.
+ */
+#define DW9768_MOVE_STEPS			16
+#define DW9768_MOVE_DELAY_US			8400
+#define DW9768_STABLE_TIME_US			20000
 
 /* dw9768 device structure */
 struct dw9768 {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_subdev sd;
+	struct v4l2_ctrl *focus;
 	struct regulator *vin;
 	struct regulator *vdd;
 };
@@ -54,17 +59,10 @@ struct regval_list {
 };
 
 static struct regval_list dw9768_init_regs[] = {
-	{0x02, 0x02},
+	{DW9768_CONTROL_REG, DW9768_AAC_MODE_EN},
 	{DW9768_CMD_DELAY, DW9768_CMD_DELAY},
 	{0x06, 0x41},
 	{0x07, 0x39},
-	{DW9768_CMD_DELAY, DW9768_CMD_DELAY},
-};
-
-static struct regval_list dw9768_release_regs[] = {
-	{0x02, 0x00},
-	{DW9768_CMD_DELAY, DW9768_CMD_DELAY},
-	{0x01, 0x00},
 	{DW9768_CMD_DELAY, DW9768_CMD_DELAY},
 };
 
@@ -107,14 +105,62 @@ static int dw9768_set_position(struct dw9768 *dw9768, u16 val)
 
 static int dw9768_release(struct dw9768 *dw9768)
 {
-	return dw9768_write_array(dw9768, dw9768_release_regs,
-				  ARRAY_SIZE(dw9768_release_regs));
+	struct i2c_client *client = v4l2_get_subdevdata(&dw9768->sd);
+	int ret, val;
+
+	for (val = round_down(dw9768->focus->val, DW9768_MOVE_STEPS);
+	     val >= 0; val -= DW9768_MOVE_STEPS) {
+		ret = dw9768_set_position(dw9768, val);
+		if (ret) {
+			dev_err(&client->dev, "%s I2C failure: %d",
+				__func__, ret);
+			return ret;
+		}
+		usleep_range(DW9768_MOVE_DELAY_US,
+			     DW9768_MOVE_DELAY_US + 1000);
+	}
+
+	/*
+	 * Wait for the motor to stabilize after the last movement
+	 * to prevent the motor from shaking.
+	 */
+	usleep_range(DW9768_STABLE_TIME_US - DW9768_MOVE_DELAY_US,
+		     DW9768_STABLE_TIME_US - DW9768_MOVE_DELAY_US + 1000);
+
+	ret = i2c_smbus_write_byte_data(client, DW9768_CONTROL_REG,
+					DW9768_CONTOL_POWER_DOWN);
+	if (ret)
+		return ret;
+
+	usleep_range(DW9768_CTRL_DELAY_US, DW9768_CTRL_DELAY_US + 100);
+
+	return 0;
 }
 
 static int dw9768_init(struct dw9768 *dw9768)
 {
-	return dw9768_write_array(dw9768, dw9768_init_regs,
-				  ARRAY_SIZE(dw9768_init_regs));
+	struct i2c_client *client = v4l2_get_subdevdata(&dw9768->sd);
+	int ret, val;
+
+	ret = dw9768_write_array(dw9768, dw9768_init_regs,
+				 ARRAY_SIZE(dw9768_init_regs));
+	if (ret)
+		return ret;
+
+	for (val = dw9768->focus->val % DW9768_MOVE_STEPS;
+	     val <= dw9768->focus->val;
+	     val += DW9768_MOVE_STEPS) {
+		ret = dw9768_set_position(dw9768, val);
+		if (ret) {
+			dev_err(&client->dev, "%s I2C failure: %d",
+				__func__, ret);
+			return ret;
+		}
+		usleep_range(DW9768_MOVE_DELAY_US,
+			     DW9768_MOVE_DELAY_US + 1000);
+	}
+
+	return 0;
 }
 
 /* Power handling */
@@ -220,7 +266,7 @@ static int dw9768_init_controls(struct dw9768 *dw9768)
 
 	v4l2_ctrl_handler_init(hdl, 1);
 
-	v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_ABSOLUTE,
+	dw9768->focus = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_ABSOLUTE,
 			  0, DW9768_MAX_FOCUS_POS, DW9768_FOCUS_STEPS, 0);
 
 	if (hdl->error)

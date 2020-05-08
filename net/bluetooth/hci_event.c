@@ -35,15 +35,13 @@
 #include "a2mp.h"
 #include "amp.h"
 #include "smp.h"
+#include "msft.h"
 
 #define ZERO_KEY "\x00\x00\x00\x00\x00\x00\x00\x00" \
 		 "\x00\x00\x00\x00\x00\x00\x00\x00"
 
 /* Minimum encryption key length, value adopted from BLE (7 bytes) */
 #define MIN_ENC_KEY_LEN 7
-
-/* Intel manufacturer ID  and specific events */
-#define MAUFACTURER_ID_INTEL      0x0002
 
 /* Handle HCI Event packets */
 
@@ -860,6 +858,37 @@ static void hci_cc_read_inq_rsp_tx_power(struct hci_dev *hdev,
 		return;
 
 	hdev->inq_tx_power = rp->tx_power;
+}
+
+static void hci_cc_read_def_err_data_reporting(struct hci_dev *hdev,
+					       struct sk_buff *skb)
+{
+	struct hci_rp_read_def_err_data_reporting *rp = (void *)skb->data;
+
+	BT_DBG("%s status 0x%2.2x", hdev->name, rp->status);
+
+	if (rp->status)
+		return;
+
+	hdev->err_data_reporting = rp->err_data_reporting;
+}
+
+static void hci_cc_write_def_err_data_reporting(struct hci_dev *hdev,
+						struct sk_buff *skb)
+{
+	__u8 status = *((__u8 *)skb->data);
+	struct hci_cp_write_def_err_data_reporting *cp;
+
+	BT_DBG("%s status 0x%2.2x", hdev->name, status);
+
+	if (status)
+		return;
+
+	cp = hci_sent_cmd_data(hdev, HCI_OP_WRITE_DEF_ERR_DATA_REPORTING);
+	if (!cp)
+		return;
+
+	hdev->err_data_reporting = cp->err_data_reporting;
 }
 
 static void hci_cc_pin_code_reply(struct hci_dev *hdev, struct sk_buff *skb)
@@ -2147,7 +2176,6 @@ static void hci_cs_disconnect(struct hci_dev *hdev, u8 status)
 {
 	struct hci_cp_disconnect *cp;
 	struct hci_conn *conn;
-	u8 type;
 
 	if (!status)
 		return;
@@ -2160,27 +2188,19 @@ static void hci_cs_disconnect(struct hci_dev *hdev, u8 status)
 
 	conn = hci_conn_hash_lookup_handle(hdev, __le16_to_cpu(cp->handle));
 	if (conn) {
+		u8 type = conn->type;
+
 		mgmt_disconnect_failed(hdev, &conn->dst, conn->type,
 				       conn->dst_type, status);
 
 		/* If the disconnection failed for any reason, the upper layer
 		 * does not retry to disconnect in current implementation.
-		 * Hence, we need to do some basic cleanup here.
-		 * TODO(b/72355862): Intel to fix the controller firmware.
-		 * The disconnect failure occurs sometimes on Intel 7265
-		 * controller as follows:
-		 *     > HCI Event: Command Status (0x0f) plen 4
-		 *         Disconnect (0x01|0x0006) ncmd 1
-		 *           Status: Unknown Connection Identifier (0x02)
+		 * Hence, we need to do some basic cleanup here and re-enable
+		 * advertising if necessary.
 		 */
-		BT_DBG("Do some disconnect cleanup.");
-
-		type = conn->type;
 		hci_conn_del(conn);
 		if (type == LE_LINK)
 			hci_req_reenable_advertising(hdev);
-	} else {
-		BT_DBG("The connection handle cannot be found.");
 	}
 
 	hci_dev_unlock(hdev);
@@ -2451,6 +2471,7 @@ static void hci_inquiry_result_evt(struct hci_dev *hdev, struct sk_buff *skb)
 static void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct hci_ev_conn_complete *ev = (void *) skb->data;
+	struct inquiry_entry *ie;
 	struct hci_conn *conn;
 
 	BT_DBG("%s", hdev->name);
@@ -2459,14 +2480,30 @@ static void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 
 	conn = hci_conn_hash_lookup_ba(hdev, ev->link_type, &ev->bdaddr);
 	if (!conn) {
-		if (ev->link_type != SCO_LINK)
-			goto unlock;
+		/* Connection may not exist if auto-connected. Check the inquiry
+		 * cache to see if we've already discovered this bdaddr before.
+		 * If found and link is an ACL type, create a connection class
+		 * automatically.
+		 */
+		ie = hci_inquiry_cache_lookup(hdev, &ev->bdaddr);
+		if (ie && ev->link_type == ACL_LINK) {
+			conn = hci_conn_add(hdev, ev->link_type, &ev->bdaddr,
+					    HCI_ROLE_SLAVE);
+			if (!conn) {
+				bt_dev_err(hdev, "no memory for new conn");
+				goto unlock;
+			}
+		} else {
+			if (ev->link_type != SCO_LINK)
+				goto unlock;
 
-		conn = hci_conn_hash_lookup_ba(hdev, ESCO_LINK, &ev->bdaddr);
-		if (!conn)
-			goto unlock;
+			conn = hci_conn_hash_lookup_ba(hdev, ESCO_LINK,
+						       &ev->bdaddr);
+			if (!conn)
+				goto unlock;
 
-		conn->type = SCO_LINK;
+			conn->type = SCO_LINK;
+		}
 	}
 
 	if (!ev->status) {
@@ -2524,8 +2561,16 @@ static void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	if (ev->status) {
 		hci_connect_cfm(conn, ev->status);
 		hci_conn_del(conn);
-	} else if (ev->link_type != ACL_LINK)
+	} else if (ev->link_type == SCO_LINK) {
+		switch (conn->setting & SCO_AIRMODE_MASK) {
+		case SCO_AIRMODE_CVSD:
+			if (hdev->notify)
+				hdev->notify(hdev, HCI_NOTIFY_ENABLE_SCO_CVSD);
+			break;
+		}
+
 		hci_connect_cfm(conn, ev->status);
+	}
 
 unlock:
 	hci_dev_unlock(hdev);
@@ -2719,6 +2764,14 @@ static void hci_disconn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 
 	hci_disconn_cfm(conn, ev->reason);
 	hci_conn_del(conn);
+
+	/* The suspend notifier is waiting for all devices to disconnect so
+	 * clear the bit from pending tasks and inform the wait queue.
+	 */
+	if (list_empty(&hdev->conn_hash.list) &&
+	    test_and_clear_bit(SUSPEND_DISCONNECTING, hdev->suspend_tasks)) {
+		wake_up(&hdev->suspend_wait_q);
+	}
 
 	/* Re-enable advertising if necessary, since it might
 	 * have been disabled by the connection. From the
@@ -3272,6 +3325,14 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 		hci_cc_read_inq_rsp_tx_power(hdev, skb);
 		break;
 
+	case HCI_OP_READ_DEF_ERR_DATA_REPORTING:
+		hci_cc_read_def_err_data_reporting(hdev, skb);
+		break;
+
+	case HCI_OP_WRITE_DEF_ERR_DATA_REPORTING:
+		hci_cc_write_def_err_data_reporting(hdev, skb);
+		break;
+
 	case HCI_OP_PIN_CODE_REPLY:
 		hci_cc_pin_code_reply(hdev, skb);
 		break;
@@ -3733,49 +3794,6 @@ static void hci_num_comp_blocks_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	}
 
 	queue_work(hdev->workqueue, &hdev->tx_work);
-}
-
-static void hci_vendor_evt(struct hci_dev *hdev, struct sk_buff *skb)
-{
-	u8 evt_id;
-	u16 i;
-	u8 *b;
-	char line[HCI_MAX_EVENT_SIZE * 3 + 1] = {0x00,};
-
-	if (hdev->manufacturer == MAUFACTURER_ID_INTEL) {
-		if (skb->len < 1)
-			return;
-
-		BT_INFO("Manufacturer ID 0x%04X:", hdev->manufacturer);
-
-		evt_id = *((u8 *)skb->data);
-		skb_pull(skb, sizeof(evt_id));
-
-		switch (evt_id) {
-		case HCI_EV_INTEL_BOOT_UP:
-		case HCI_EV_INTEL_FATAL_EXCEPTION:
-		case HCI_EV_INTEL_DEBUG_EXCEPTION:
-			if (skb->len < 1) {
-				BT_WARN("Evt ID:%02X", evt_id);
-				return;
-			}
-			b = (u8 *)skb->data;
-			for (i = 0; i < skb->len && i < HCI_MAX_EVENT_SIZE; ++i)
-				sprintf(line + strlen(line), " %02X", b[i]);
-			BT_WARN("Evt ID: %02X data:%s", evt_id, line);
-			break;
-		default:
-			if (skb->len < 1) {
-				BT_ERR("Unknown Evt ID:%02x", evt_id);
-				return;
-			}
-			b = (u8 *)skb->data;
-			for (i = 0; i < skb->len && i < HCI_MAX_EVENT_SIZE; ++i)
-				sprintf(line + strlen(line), " %02X", b[i]);
-			BT_ERR("Unknown Evt ID: %02X data:%s", evt_id, line);
-			break;
-		}
-	}
 }
 
 static void hci_mode_change_evt(struct hci_dev *hdev, struct sk_buff *skb)
@@ -4240,9 +4258,17 @@ static void hci_sync_conn_complete_evt(struct hci_dev *hdev,
 		break;
 	}
 
-	if (ev->air_mode == SCO_AIRMODE_TRANSP) {
+	bt_dev_dbg(hdev, "SCO connected with air mode: %02x", ev->air_mode);
+
+	switch (conn->setting & SCO_AIRMODE_MASK) {
+	case SCO_AIRMODE_CVSD:
 		if (hdev->notify)
-			hdev->notify(hdev, HCI_NOTIFY_AIR_MODE_TRANSP);
+			hdev->notify(hdev, HCI_NOTIFY_ENABLE_SCO_CVSD);
+		break;
+	case SCO_AIRMODE_TRANSP:
+		if (hdev->notify)
+			hdev->notify(hdev, HCI_NOTIFY_ENABLE_SCO_TRANSP);
+		break;
 	}
 
 	hci_connect_cfm(conn, ev->status);
@@ -4567,6 +4593,16 @@ static void hci_user_confirm_request_evt(struct hci_dev *hdev,
 		    conn->io_capability != HCI_IO_NO_INPUT_OUTPUT &&
 		    (loc_mitm || rem_mitm)) {
 			BT_DBG("Confirming auto-accept as acceptor");
+			confirm_hint = 1;
+			goto confirm;
+		}
+
+		/* If there already exists link key in local host, leave the
+		 * decision to user space since the remote device could be
+		 * legitimate or malicious.
+		 */
+		if (hci_find_link_key(hdev, &ev->bdaddr)) {
+			bt_dev_dbg(hdev, "Local host already has link key");
 			confirm_hint = 1;
 			goto confirm;
 		}
@@ -5603,9 +5639,6 @@ static void hci_le_ltk_request_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	if (!ltk)
 		goto not_found;
 
-	if (is_ltk_blocked(ltk, hdev))
-		goto not_found;
-
 	if (smp_ltk_is_sc(ltk)) {
 		/* With SC both EDiv and Rand are set to zero */
 		if (ev->ediv || ev->rand)
@@ -5854,6 +5887,11 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 	u8 status = 0, event = hdr->evt, req_evt = 0;
 	u16 opcode = HCI_OP_NOP;
 
+	if (!event) {
+		bt_dev_warn(hdev, "Received unexpected HCI Event 00000000");
+		goto done;
+	}
+
 	if (hdev->sent_cmd && bt_cb(hdev->sent_cmd)->hci.req_event == event) {
 		struct hci_command_hdr *cmd_hdr = (void *) hdev->sent_cmd->data;
 		opcode = __le16_to_cpu(cmd_hdr->opcode);
@@ -6051,7 +6089,7 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 		break;
 
 	case HCI_EV_VENDOR:
-		hci_vendor_evt(hdev, skb);
+		msft_vendor_evt(hdev, skb);
 		break;
 
 	default:
@@ -6069,6 +6107,7 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 		req_complete_skb(hdev, status, opcode, orig_skb);
 	}
 
+done:
 	kfree_skb(orig_skb);
 	kfree_skb(skb);
 	hdev->stat.evt_rx++;

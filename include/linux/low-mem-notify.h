@@ -5,6 +5,7 @@
 #include <linux/ratelimit.h>
 #include <linux/stddef.h>
 #include <linux/swap.h>
+#include <linux/kstaled.h>
 
 /* We support up to this many different thresholds. */
 #define LOW_MEM_THRESHOLD_MAX 5
@@ -17,6 +18,7 @@ extern bool low_mem_margin_enabled;
 extern unsigned long low_mem_lowest_seen_anon_mem;
 extern unsigned int low_mem_ram_vs_swap_weight;
 extern struct ratelimit_state low_mem_logging_ratelimit;
+extern int extra_free_kbytes;
 
 #ifdef CONFIG_SYSFS
 extern void low_mem_threshold_notify(void);
@@ -35,12 +37,8 @@ static inline unsigned long get_available_file_mem(void)
 			global_node_page_state(NR_ACTIVE_FILE) +
 			global_node_page_state(NR_INACTIVE_FILE);
 	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
-#ifdef CONFIG_KSTALED
 	unsigned long min_file_mem = kstaled_is_enabled() ?
 			0 : min_filelist_kbytes >> (PAGE_SHIFT - 10);
-#else
-	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-#endif
 	unsigned long clean_file_mem = file_mem - dirty_mem;
 	/* Conservatively estimate the amount of available_file_mem */
 	unsigned long available_file_mem = (clean_file_mem > min_file_mem) ?
@@ -66,11 +64,16 @@ static inline unsigned long get_available_mem_adj(void)
 	/* free_mem is completely unallocated; clean file-backed memory
 	 * (file_mem - dirty_mem) is easy to reclaim, except for the last
 	 * min_filelist_kbytes. totalreserve_pages is the reserve of pages that
-	 * are not available to user space.
+	 * are not available to user space. totalreserve_pages is high watermark
+	 * + lowmem_reserve and extra_free_kbytes raises the high watermark.
+	 * Nullify the effect of extra_free_kbytes by excluding it from the
+	 * reserved pages.
 	 */
 	unsigned long raw_free_mem = global_zone_page_state(NR_FREE_PAGES);
-	unsigned long free_mem = (raw_free_mem > totalreserve_pages) ?
-			raw_free_mem - totalreserve_pages : 0;
+	unsigned long reserve_pages = totalreserve_pages -
+			(READ_ONCE(extra_free_kbytes) >> (PAGE_SHIFT - 10));
+	unsigned long free_mem = (raw_free_mem > reserve_pages) ?
+			raw_free_mem - reserve_pages : 0;
 	unsigned long available_mem = free_mem +
 			get_available_file_mem();
 	unsigned long swappable_pages = min_t(unsigned long,

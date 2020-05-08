@@ -356,15 +356,11 @@ static int mdp_m2m_s_fmt_mplane(struct file *file, void *fh,
 		ctx->curr_param.ycbcr_enc = f->fmt.pix_mp.ycbcr_enc;
 		ctx->curr_param.quant = f->fmt.pix_mp.quantization;
 		ctx->curr_param.xfer_func = f->fmt.pix_mp.xfer_func;
-
-		mdp_m2m_ctx_set_state(ctx, MDP_M2M_SRC_FMT);
 	} else {
 		capture->compose.left = 0;
 		capture->compose.top = 0;
 		capture->compose.width = f->fmt.pix_mp.width;
 		capture->compose.height = f->fmt.pix_mp.height;
-
-		mdp_m2m_ctx_set_state(ctx, MDP_M2M_DST_FMT);
 	}
 
 	ctx->frame_count = 0;
@@ -397,15 +393,26 @@ static int mdp_m2m_streamon(struct file *file, void *fh,
 			    enum v4l2_buf_type type)
 {
 	struct mdp_m2m_ctx *ctx = fh_to_ctx(fh);
+	struct mdp_frame *capture;
 	int ret;
+	bool out_streaming, cap_streaming;
 
-	/* The source and target color formats need to be set */
-	if (V4L2_TYPE_IS_OUTPUT(type)) {
-		if (!mdp_m2m_ctx_is_state_set(ctx, MDP_M2M_SRC_FMT))
-			return -EINVAL;
-	} else {
-		if (!mdp_m2m_ctx_is_state_set(ctx, MDP_M2M_DST_FMT))
-			return -EINVAL;
+	capture = ctx_get_frame(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	out_streaming = ctx->m2m_ctx->out_q_ctx.q.streaming;
+	cap_streaming = ctx->m2m_ctx->cap_q_ctx.q.streaming;
+
+	/* Check to see if scaling ratio is within supported range */
+	if ((V4L2_TYPE_IS_OUTPUT(type) && cap_streaming) ||
+	    (!V4L2_TYPE_IS_OUTPUT(type) && out_streaming)) {
+		ret = mdp_check_scaling_ratio(&capture->crop.c,
+					      &capture->compose,
+					      capture->rotation,
+					      ctx->curr_param.limit);
+		if (ret) {
+			dev_info(&ctx->mdp_dev->pdev->dev,
+				 "Out of scaling range\n");
+			return ret;
+		}
 	}
 
 	if (!mdp_m2m_ctx_is_state_set(ctx, MDP_VPU_INIT)) {
@@ -496,25 +503,6 @@ static int mdp_m2m_s_selection(struct file *file, void *fh,
 		return ret;
 	capture = ctx_get_frame(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
-	/* Check to see if scaling ratio is within supported range */
-	if (mdp_m2m_ctx_is_state_set(ctx, MDP_M2M_DST_FMT | MDP_M2M_SRC_FMT)) {
-		if (mdp_target_is_crop(s->target)) {
-			ret = mdp_check_scaling_ratio(&r, &capture->compose,
-						      capture->rotation,
-						      ctx->curr_param.limit);
-		} else {
-			ret = mdp_check_scaling_ratio(&capture->crop.c, &r,
-						      capture->rotation,
-						      ctx->curr_param.limit);
-		}
-
-		if (ret) {
-			dev_info(&ctx->mdp_dev->pdev->dev,
-				 "Out of scaling range\n");
-			return ret;
-		}
-	}
-
 	if (mdp_target_is_crop(s->target))
 		capture->crop.c = r;
 	else
@@ -600,16 +588,6 @@ static int mdp_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 		capture->vflip = ctrl->val;
 		break;
 	case V4L2_CID_ROTATE:
-		if (mdp_m2m_ctx_is_state_set(ctx,
-					     MDP_M2M_DST_FMT |
-					     MDP_M2M_SRC_FMT)) {
-			int ret = mdp_check_scaling_ratio(&capture->crop.c,
-				&capture->compose, ctrl->val,
-				ctx->curr_param.limit);
-
-			if (ret)
-				return ret;
-		}
 		capture->rotation = ctrl->val;
 		break;
 	}
@@ -651,6 +629,7 @@ static int mdp_m2m_open(struct file *file)
 	struct mdp_dev *mdp = video_get_drvdata(vdev);
 	struct mdp_m2m_ctx *ctx;
 	int ret;
+	struct v4l2_format default_format;
 
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
@@ -694,6 +673,16 @@ static int mdp_m2m_open(struct file *file)
 
 	mutex_unlock(&mdp->m2m_lock);
 
+	/* Default format */
+	memset(&default_format, 0, sizeof(default_format));
+	default_format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	default_format.fmt.pix_mp.width = 32;
+	default_format.fmt.pix_mp.height = 32;
+	default_format.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_YUV420M;
+	mdp_m2m_s_fmt_mplane(file, &ctx->fh, &default_format);
+	default_format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	mdp_m2m_s_fmt_mplane(file, &ctx->fh, &default_format);
+
 	mdp_dbg(1, "%s [%d]", dev_name(&mdp->pdev->dev), ctx->id);
 
 	return 0;
@@ -717,14 +706,13 @@ static int mdp_m2m_release(struct file *file)
 	struct mdp_m2m_ctx *ctx = fh_to_ctx(file->private_data);
 	struct mdp_dev *mdp = video_drvdata(file);
 
-	flush_workqueue(mdp->job_wq);
 	mutex_lock(&mdp->m2m_lock);
+	v4l2_m2m_ctx_release(ctx->m2m_ctx);
 	if (mdp_m2m_ctx_is_state_set(ctx, MDP_VPU_INIT)) {
 		mdp_vpu_ctx_deinit(&ctx->vpu);
 		mdp_vpu_put_locked(mdp);
 	}
 
-	v4l2_m2m_ctx_release(ctx->m2m_ctx);
 	v4l2_ctrl_handler_free(&ctx->ctrl_handler);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);

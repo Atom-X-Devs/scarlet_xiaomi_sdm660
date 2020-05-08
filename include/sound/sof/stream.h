@@ -84,7 +84,7 @@ struct sof_ipc_stream_params {
 	uint16_t sample_container_bytes;
 
 	uint32_t host_period_bytes;
-	uint16_t no_period_irq; /* 1 means period IRQ mode OFF */
+	uint16_t no_stream_position; /**< 1 means don't send stream position */
 
 	uint16_t reserved[3];
 	uint16_t chmap[SOF_IPC_MAX_CHANNELS];	/**< channel map - SOF_CHMAP_ */

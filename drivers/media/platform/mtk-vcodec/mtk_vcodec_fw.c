@@ -16,9 +16,10 @@ struct mtk_vcodec_fw_ops {
 };
 
 struct mtk_vcodec_fw {
+	enum mtk_vcodec_fw_type type;
 	const struct mtk_vcodec_fw_ops *ops;
 	struct platform_device *pdev;
-	struct rproc *rproc;
+	struct mtk_scp *scp;
 };
 
 static int mtk_vcodec_vpu_load_firmware(struct mtk_vcodec_fw *fw)
@@ -65,35 +66,35 @@ static const struct mtk_vcodec_fw_ops mtk_vcodec_vpu_msg = {
 
 static int mtk_vcodec_scp_load_firmware(struct mtk_vcodec_fw *fw)
 {
-	return rproc_boot(fw->rproc);
+	return rproc_boot(scp_get_rproc(fw->scp));
 }
 
 static unsigned int mtk_vcodec_scp_get_vdec_capa(struct mtk_vcodec_fw *fw)
 {
-	return scp_get_vdec_hw_capa(fw->pdev);
+	return scp_get_vdec_hw_capa(fw->scp);
 }
 
 static unsigned int mtk_vcodec_scp_get_venc_capa(struct mtk_vcodec_fw *fw)
 {
-	return scp_get_venc_hw_capa(fw->pdev);
+	return scp_get_venc_hw_capa(fw->scp);
 }
 
 static void *mtk_vcodec_vpu_scp_dm_addr(struct mtk_vcodec_fw *fw,
 					u32 dtcm_dmem_addr)
 {
-	return scp_mapping_dm_addr(fw->pdev, dtcm_dmem_addr);
+	return scp_mapping_dm_addr(fw->scp, dtcm_dmem_addr);
 }
 
 static int mtk_vcodec_scp_set_ipi_register(struct mtk_vcodec_fw *fw, int id,
 		mtk_vcodec_ipi_handler handler, const char *name, void *priv)
 {
-	return scp_ipi_register(fw->pdev, id, handler, priv);
+	return scp_ipi_register(fw->scp, id, handler, priv);
 }
 
 static int mtk_vcodec_scp_ipi_send(struct mtk_vcodec_fw *fw, int id, void *buf,
 		unsigned int len, unsigned int wait)
 {
-	return scp_ipi_send(fw->pdev, id, buf, len, wait);
+	return scp_ipi_send(fw->scp, id, buf, len, wait);
 }
 
 static const struct mtk_vcodec_fw_ops mtk_vcodec_rproc_msg = {
@@ -123,27 +124,29 @@ static void mtk_vcodec_reset_handler(void *priv)
 
 struct mtk_vcodec_fw *mtk_vcodec_fw_select(struct mtk_vcodec_dev *dev,
 					   enum mtk_vcodec_fw_type type,
-					   phandle rproc_phandle,
 					   enum rst_id rst_id)
 {
 	const struct mtk_vcodec_fw_ops *ops;
 	struct mtk_vcodec_fw *fw;
-	struct platform_device *fw_pdev;
-	struct rproc *rproc = NULL;
+	struct platform_device *fw_pdev = NULL;
+	struct mtk_scp *scp = NULL;
 
 	switch (type) {
 	case VPU:
 		ops = &mtk_vcodec_vpu_msg;
 		fw_pdev = vpu_get_plat_device(dev->plat_dev);
+		if (!fw_pdev) {
+			mtk_v4l2_err("firmware device is not ready");
+			return ERR_PTR(-EINVAL);
+		}
 		vpu_wdt_reg_handler(fw_pdev, mtk_vcodec_reset_handler,
 				    dev, rst_id);
 		break;
 	case SCP:
 		ops = &mtk_vcodec_rproc_msg;
-		fw_pdev = scp_get_pdev(dev->plat_dev);
-		rproc = rproc_get_by_phandle(rproc_phandle);
-		if (!rproc) {
-			mtk_v4l2_err("could not get vdec rproc handle");
+		scp = scp_get(dev->plat_dev);
+		if (!scp) {
+			mtk_v4l2_err("could not get vdec scp handle");
 			return ERR_PTR(-EPROBE_DEFER);
 		}
 		break;
@@ -152,22 +155,31 @@ struct mtk_vcodec_fw *mtk_vcodec_fw_select(struct mtk_vcodec_dev *dev,
 		return ERR_PTR(-EINVAL);
 	}
 
-	if (!fw_pdev) {
-		mtk_v4l2_err("firmware device is not ready");
-		return ERR_PTR(-EINVAL);
-	}
-
 	fw = devm_kzalloc(&dev->plat_dev->dev, sizeof(*fw), GFP_KERNEL);
 	if (!fw)
 		return ERR_PTR(-EINVAL);
 
+	fw->type = type;
 	fw->ops = ops;
 	fw->pdev = fw_pdev;
-	fw->rproc = rproc;
+	fw->scp = scp;
 
 	return fw;
 }
 EXPORT_SYMBOL_GPL(mtk_vcodec_fw_select);
+
+void mtk_vcodec_fw_release(struct mtk_vcodec_fw *fw)
+{
+	switch (fw->type) {
+	case VPU:
+		put_device(&fw->pdev->dev);
+		break;
+	case SCP:
+		scp_put(fw->scp);
+		break;
+	}
+}
+EXPORT_SYMBOL_GPL(mtk_vcodec_fw_release);
 
 int mtk_vcodec_fw_load_firmware(struct mtk_vcodec_fw *fw)
 {

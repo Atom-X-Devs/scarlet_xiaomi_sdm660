@@ -52,7 +52,6 @@
 		pinctrl-0 = <&pp3300_panel_pins>;
 
 		enable-active-high;
-		regulator-boot-on;
 
 		gpio = <&pio 35 GPIO_ACTIVE_HIGH>;
 	};
@@ -124,7 +123,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2_pins>;
 	status = "okay";
-	clock-frequency = <100000>;
+	clock-frequency = <400000>;
 
 	trackpad@15 {
 		compatible = "elan,ekth3000";

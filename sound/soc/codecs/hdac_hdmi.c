@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  hdac_hdmi.c - ASoc HDA-HDMI codec driver for Intel platforms
  *
@@ -5,15 +6,6 @@
  *  Author: Samreen Nilofer <samreen.nilofer@intel.com>
  *	    Subhransu S. Prusty <subhransu.s.prusty@intel.com>
  *  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; version 2 of the License.
- *
- *  This program is distributed in the hope that it will be useful, but
- *  WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- *  General Public License for more details.
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
@@ -96,8 +88,10 @@ struct hdac_hdmi_port {
 	hda_nid_t mux_nids[HDA_MAX_CONNECTIONS];
 	struct hdac_hdmi_eld eld;
 	const char *jack_pin;
+	bool is_connect;
 	struct snd_soc_dapm_context *dapm;
 	const char *output_pin;
+	struct work_struct dapm_work;
 };
 
 struct hdac_hdmi_pcm {
@@ -171,11 +165,7 @@ static void hdac_hdmi_jack_report(struct hdac_hdmi_pcm *pcm,
 {
 	struct hdac_device *hdev = port->pin->hdev;
 
-	if (is_connect)
-		snd_soc_dapm_enable_pin(port->dapm, port->jack_pin);
-	else
-		snd_soc_dapm_disable_pin(port->dapm, port->jack_pin);
-
+	port->is_connect = is_connect;
 	if (is_connect) {
 		/*
 		 * Report Jack connect event when a device is connected
@@ -201,8 +191,30 @@ static void hdac_hdmi_jack_report(struct hdac_hdmi_pcm *pcm,
 		if (pcm->jack_event > 0)
 			pcm->jack_event--;
 	}
+}
 
+static void hdac_hdmi_port_dapm_update(struct hdac_hdmi_port *port)
+{
+	if (port->is_connect)
+		snd_soc_dapm_enable_pin(port->dapm, port->jack_pin);
+	else
+		snd_soc_dapm_disable_pin(port->dapm, port->jack_pin);
 	snd_soc_dapm_sync(port->dapm);
+}
+
+static void hdac_hdmi_jack_dapm_work(struct work_struct *work)
+{
+	struct hdac_hdmi_port *port;
+
+	port = container_of(work, struct hdac_hdmi_port, dapm_work);
+	hdac_hdmi_port_dapm_update(port);
+}
+
+static void hdac_hdmi_jack_report_sync(struct hdac_hdmi_pcm *pcm,
+		struct hdac_hdmi_port *port, bool is_connect)
+{
+	hdac_hdmi_jack_report(pcm, port, is_connect);
+	hdac_hdmi_port_dapm_update(port);
 }
 
 /* MST supported verbs */
@@ -912,7 +924,7 @@ static int hdac_hdmi_set_pin_port_mux(struct snd_kcontrol *kcontrol,
 		list_for_each_entry_safe(p, p_next, &pcm->port_list, head) {
 			if (p == port && p->id == port->id &&
 					p->pin == port->pin) {
-				hdac_hdmi_jack_report(pcm, port, false);
+				hdac_hdmi_jack_report_sync(pcm, port, false);
 				list_del(&p->head);
 			}
 		}
@@ -926,7 +938,7 @@ static int hdac_hdmi_set_pin_port_mux(struct snd_kcontrol *kcontrol,
 		if (!strcmp(cvt_name, pcm->cvt->name)) {
 			list_add_tail(&port->head, &pcm->port_list);
 			if (port->eld.monitor_present && port->eld.eld_valid) {
-				hdac_hdmi_jack_report(pcm, port, true);
+				hdac_hdmi_jack_report_sync(pcm, port, true);
 				mutex_unlock(&hdmi->pin_mutex);
 				return ret;
 			}
@@ -1289,16 +1301,20 @@ static void hdac_hdmi_present_sense(struct hdac_hdmi_pin *pin,
 		 * report jack here. It will be done in usermode mux
 		 * control select.
 		 */
-		if (pcm)
+		if (pcm) {
 			hdac_hdmi_jack_report(pcm, port, false);
+			schedule_work(&port->dapm_work);
+		}
 
 		mutex_unlock(&hdmi->pin_mutex);
 		return;
 	}
 
 	if (port->eld.monitor_present && port->eld.eld_valid) {
-		if (pcm)
+		if (pcm) {
 			hdac_hdmi_jack_report(pcm, port, true);
+			schedule_work(&port->dapm_work);
+		}
 
 		print_hex_dump_debug("ELD: ", DUMP_PREFIX_OFFSET, 16, 1,
 			  port->eld.eld_buffer, port->eld.eld_size, false);
@@ -1327,6 +1343,7 @@ static int hdac_hdmi_add_ports(struct hdac_device *hdev,
 	for (i = 0; i < max_ports; i++) {
 		ports[i].id = i;
 		ports[i].pin = pin;
+		INIT_WORK(&ports[i].dapm_work, hdac_hdmi_jack_dapm_work);
 	}
 	pin->ports = ports;
 	pin->num_ports = max_ports;
@@ -2091,8 +2108,20 @@ static int hdac_hdmi_dev_probe(struct hdac_device *hdev)
 	return ret;
 }
 
+static void clear_dapm_works(struct hdac_device *hdev)
+{
+	struct hdac_hdmi_priv *hdmi = hdev_to_hdmi_priv(hdev);
+	struct hdac_hdmi_pin *pin;
+	int i;
+
+	list_for_each_entry(pin, &hdmi->pin_list, head)
+		for (i = 0; i < pin->num_ports; i++)
+			cancel_work_sync(&pin->ports[i].dapm_work);
+}
+
 static int hdac_hdmi_dev_remove(struct hdac_device *hdev)
 {
+	clear_dapm_works(hdev);
 	snd_hdac_display_power(hdev->bus, hdev->addr, false);
 
 	return 0;
@@ -2110,6 +2139,8 @@ static int hdac_hdmi_runtime_suspend(struct device *dev)
 	/* controller may not have been initialized for the first time */
 	if (!bus)
 		return 0;
+
+	clear_dapm_works(hdev);
 
 	/*
 	 * Power down afg.

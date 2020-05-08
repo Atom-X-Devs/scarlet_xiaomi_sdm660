@@ -96,14 +96,23 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void rdma_update_bits(struct mtk_ddp_comp *comp, unsigned int reg,
+			     unsigned int mask, unsigned int val)
+{
+	unsigned int tmp = readl(comp->regs + reg);
+
+	tmp = (tmp & ~mask) | (val & mask);
+	writel(tmp, comp->regs + reg);
+}
+
 static void mtk_rdma_enable_vblank(struct mtk_ddp_comp *comp,
 				   struct drm_crtc *crtc)
 {
 	struct mtk_disp_rdma *rdma = comp_to_rdma(comp);
 
 	rdma->crtc = crtc;
-	mtk_ddp_write_mask(NULL, RDMA_FRAME_END_INT, comp,
-			   DISP_REG_RDMA_INT_ENABLE, RDMA_FRAME_END_INT);
+	rdma_update_bits(comp, DISP_REG_RDMA_INT_ENABLE, RDMA_FRAME_END_INT,
+			 RDMA_FRAME_END_INT);
 }
 
 static void mtk_rdma_disable_vblank(struct mtk_ddp_comp *comp)
@@ -111,20 +120,18 @@ static void mtk_rdma_disable_vblank(struct mtk_ddp_comp *comp)
 	struct mtk_disp_rdma *rdma = comp_to_rdma(comp);
 
 	rdma->crtc = NULL;
-	mtk_ddp_write_mask(NULL, 0, comp,
-			   DISP_REG_RDMA_INT_ENABLE, RDMA_FRAME_END_INT);
+	rdma_update_bits(comp, DISP_REG_RDMA_INT_ENABLE, RDMA_FRAME_END_INT, 0);
 }
 
 static void mtk_rdma_start(struct mtk_ddp_comp *comp)
 {
-	mtk_ddp_write_mask(NULL, RDMA_ENGINE_EN, comp,
-			   DISP_REG_RDMA_GLOBAL_CON, RDMA_ENGINE_EN);
+	rdma_update_bits(comp, DISP_REG_RDMA_GLOBAL_CON, RDMA_ENGINE_EN,
+			 RDMA_ENGINE_EN);
 }
 
 static void mtk_rdma_stop(struct mtk_ddp_comp *comp)
 {
-	mtk_ddp_write_mask(NULL, 0, comp,
-			   DISP_REG_RDMA_GLOBAL_CON, RDMA_ENGINE_EN);
+	rdma_update_bits(comp, DISP_REG_RDMA_GLOBAL_CON, RDMA_ENGINE_EN, 0);
 }
 
 static void mtk_rdma_config(struct mtk_ddp_comp *comp, unsigned int width,
@@ -137,9 +144,9 @@ static void mtk_rdma_config(struct mtk_ddp_comp *comp, unsigned int width,
 	u32 rdma_fifo_size;
 
 	mtk_ddp_write_mask(cmdq_pkt, width, comp,
-			    DISP_REG_RDMA_SIZE_CON_0, 0xfff);
+			   DISP_REG_RDMA_SIZE_CON_0, 0xfff);
 	mtk_ddp_write_mask(cmdq_pkt, height, comp,
-			    DISP_REG_RDMA_SIZE_CON_1, 0xfffff);
+			   DISP_REG_RDMA_SIZE_CON_1, 0xfffff);
 
 	if (rdma->fifo_size)
 		rdma_fifo_size = rdma->fifo_size;
@@ -153,6 +160,10 @@ static void mtk_rdma_config(struct mtk_ddp_comp *comp, unsigned int width,
 	 * account for blanking, and with a pixel depth of 4 bytes:
 	 */
 	threshold = width * height * vrefresh * 4 * 7 / 1000000;
+
+	if (threshold > rdma_fifo_size)
+		threshold = rdma_fifo_size;
+
 	reg = RDMA_FIFO_UNDERFLOW_EN |
 	      RDMA_FIFO_PSEUDO_SIZE(rdma_fifo_size) |
 	      RDMA_OUTPUT_VALID_FIFO_THRESHOLD(threshold);
@@ -317,7 +328,8 @@ static int mtk_disp_rdma_probe(struct platform_device *pdev)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to initialize component: %d\n",
-					ret);
+				ret);
+
 		return ret;
 	}
 

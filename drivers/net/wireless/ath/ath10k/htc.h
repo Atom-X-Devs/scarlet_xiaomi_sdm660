@@ -12,6 +12,7 @@
 #include <linux/bug.h>
 #include <linux/skbuff.h>
 #include <linux/timer.h>
+#include <linux/bitfield.h>
 
 struct ath10k;
 
@@ -39,8 +40,8 @@ struct ath10k;
  * 4-byte aligned.
  */
 
-#define HTC_HOST_MAX_MSG_PER_RX_BUNDLE        8
 #define HTC_HOST_MAX_MSG_PER_TX_BUNDLE        16
+#define HTC_HOST_MAX_MSG_PER_RX_BUNDLE        32
 
 enum ath10k_htc_tx_flags {
 	ATH10K_HTC_FLAG_NEED_CREDIT_UPDATE = 0x01,
@@ -50,8 +51,26 @@ enum ath10k_htc_tx_flags {
 enum ath10k_htc_rx_flags {
 	ATH10K_HTC_FLAGS_RECV_1MORE_BLOCK = 0x01,
 	ATH10K_HTC_FLAG_TRAILER_PRESENT = 0x02,
-	ATH10K_HTC_FLAG_BUNDLE_MASK     = 0xF0
 };
+
+#define ATH10K_HTC_FLAG_BUNDLE_MASK GENMASK(7, 4)
+
+/* bits 2-3 are for extra bundle count bits 4-5 */
+#define ATH10K_HTC_BUNDLE_EXTRA_MASK GENMASK(3, 2)
+#define ATH10K_HTC_BUNDLE_EXTRA_SHIFT 4
+
+static inline unsigned int ath10k_htc_get_bundle_count(u8 max_msgs, u8 flags)
+{
+	unsigned int count, extra_count = 0;
+
+	count = FIELD_GET(ATH10K_HTC_FLAG_BUNDLE_MASK, flags);
+
+	if (max_msgs > 16)
+		extra_count = FIELD_GET(ATH10K_HTC_BUNDLE_EXTRA_MASK, flags) <<
+			ATH10K_HTC_BUNDLE_EXTRA_SHIFT;
+
+	return count + extra_count;
+}
 
 struct ath10k_htc_hdr {
 	u8 eid; /* @enum ath10k_htc_ep_id */
@@ -398,6 +417,8 @@ void ath10k_htc_change_tx_credit_flow(struct ath10k_htc *htc,
 				      bool enable);
 int ath10k_htc_send(struct ath10k_htc *htc, enum ath10k_htc_ep_id eid,
 		    struct sk_buff *packet);
+void ath10k_htc_stop_hl(struct ath10k *ar);
+
 int ath10k_htc_send_hl(struct ath10k_htc *htc, enum ath10k_htc_ep_id eid,
 		       struct sk_buff *packet);
 struct sk_buff *ath10k_htc_alloc_skb(struct ath10k *ar, int size);

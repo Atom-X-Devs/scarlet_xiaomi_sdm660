@@ -332,9 +332,7 @@ static inline bool mdp_target_is_compose(u32 target)
 #define MDP_MAX_CAPTURES	IMG_MAX_HW_OUTPUTS
 
 #define MDP_VPU_INIT		BIT(0)
-#define MDP_M2M_SRC_FMT		BIT(1)
-#define MDP_M2M_DST_FMT		BIT(2)
-#define MDP_M2M_CTX_ERROR	BIT(5)
+#define MDP_M2M_CTX_ERROR	BIT(1)
 
 struct mdp_frameparam {
 	struct list_head	list;

@@ -31,7 +31,6 @@
 #include <linux/suspend.h>
 #include <linux/gpio/consumer.h>
 #include <asm/unaligned.h>
-#include <linux/delay.h>
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
@@ -71,9 +70,7 @@ static struct usb_driver btusb_driver;
 #define BTUSB_BCM2045		0x40000
 #define BTUSB_IFNUM_2		0x80000
 #define BTUSB_CW6622		0x100000
-#define BTUSB_ALT6_FLOW_CNTRL	6
-
-static int set_hci_packet_interval_flow = BTUSB_ALT6_FLOW_CNTRL;
+#define BTUSB_WIDEBAND_SPEECH	0x400000
 
 static const struct usb_device_id btusb_table[] = {
 	/* Generic Bluetooth USB device */
@@ -348,15 +345,21 @@ static const struct usb_device_id blacklist_table[] = {
 	{ USB_DEVICE(0x1286, 0x204e), .driver_info = BTUSB_MARVELL },
 
 	/* Intel Bluetooth devices */
-	{ USB_DEVICE(0x8087, 0x0025), .driver_info = BTUSB_INTEL_NEW },
-	{ USB_DEVICE(0x8087, 0x0026), .driver_info = BTUSB_INTEL_NEW },
-	{ USB_DEVICE(0x8087, 0x0029), .driver_info = BTUSB_INTEL_NEW },
+	{ USB_DEVICE(0x8087, 0x0025), .driver_info = BTUSB_INTEL_NEW |
+						     BTUSB_WIDEBAND_SPEECH },
+	{ USB_DEVICE(0x8087, 0x0026), .driver_info = BTUSB_INTEL_NEW |
+						     BTUSB_WIDEBAND_SPEECH },
+	{ USB_DEVICE(0x8087, 0x0029), .driver_info = BTUSB_INTEL_NEW |
+						     BTUSB_WIDEBAND_SPEECH },
 	{ USB_DEVICE(0x8087, 0x07da), .driver_info = BTUSB_CSR },
 	{ USB_DEVICE(0x8087, 0x07dc), .driver_info = BTUSB_INTEL },
 	{ USB_DEVICE(0x8087, 0x0a2a), .driver_info = BTUSB_INTEL },
-	{ USB_DEVICE(0x8087, 0x0a2b), .driver_info = BTUSB_INTEL_NEW },
-	{ USB_DEVICE(0x8087, 0x0aa7), .driver_info = BTUSB_INTEL },
-	{ USB_DEVICE(0x8087, 0x0aaa), .driver_info = BTUSB_INTEL_NEW },
+	{ USB_DEVICE(0x8087, 0x0a2b), .driver_info = BTUSB_INTEL_NEW |
+						     BTUSB_WIDEBAND_SPEECH },
+	{ USB_DEVICE(0x8087, 0x0aa7), .driver_info = BTUSB_INTEL |
+						     BTUSB_WIDEBAND_SPEECH },
+	{ USB_DEVICE(0x8087, 0x0aaa), .driver_info = BTUSB_INTEL_NEW |
+						     BTUSB_WIDEBAND_SPEECH },
 
 	/* Other Intel Bluetooth devices */
 	{ USB_VENDOR_AND_INTERFACE_INFO(0x8087, 0xe0, 0x01, 0x01),
@@ -449,6 +452,7 @@ static const struct dmi_system_id btusb_needs_reset_resume_table[] = {
 #define BTUSB_DIAG_RUNNING	10
 #define BTUSB_OOB_WAKE_ENABLED	11
 #define BTUSB_HW_RESET_ACTIVE	12
+#define BTUSB_SUSPEND_REMOTE_WAKE	13
 
 struct btusb_data {
 	struct hci_dev       *hdev;
@@ -492,6 +496,8 @@ struct btusb_data {
 	__u8 cmdreq;
 
 	unsigned int sco_num;
+	unsigned int air_mode;
+	bool usb_alt6_packet_flow;
 	int isoc_altsetting;
 	int suspend_count;
 
@@ -533,6 +539,36 @@ static void btusb_intel_cmd_timeout(struct hci_dev *hdev)
 	bt_dev_err(hdev, "Initiating HW reset via gpio");
 	gpiod_set_value_cansleep(reset_gpio, 1);
 	msleep(100);
+	gpiod_set_value_cansleep(reset_gpio, 0);
+}
+
+static void btusb_rtl_cmd_timeout(struct hci_dev *hdev)
+{
+	struct btusb_data *data = hci_get_drvdata(hdev);
+	struct gpio_desc *reset_gpio = data->reset_gpio;
+
+	if (++data->cmd_timeout_cnt < 5)
+		return;
+
+	if (!reset_gpio) {
+		bt_dev_err(hdev, "No gpio to reset Realtek device, ignoring");
+		return;
+	}
+
+	/* Toggle the hard reset line. The Realtek device is going to
+	 * yank itself off the USB and then replug. The cleanup is handled
+	 * correctly on the way out (standard USB disconnect), and the new
+	 * device is detected cleanly and bound to the driver again like
+	 * it should be.
+	 */
+	if (test_and_set_bit(BTUSB_HW_RESET_ACTIVE, &data->flags)) {
+		bt_dev_err(hdev, "last reset failed? Not resetting again");
+		return;
+	}
+
+	bt_dev_err(hdev, "Reset Realtek device via gpio");
+	gpiod_set_value_cansleep(reset_gpio, 1);
+	msleep(200);
 	gpiod_set_value_cansleep(reset_gpio, 0);
 }
 
@@ -954,24 +990,28 @@ static void btusb_isoc_complete(struct urb *urb)
 }
 
 static inline void __fill_isoc_descriptor_msbc(struct urb *urb, int len,
-					       int mtu)
+					       int mtu, struct btusb_data *data)
 {
 	int i, offset = 0;
+	unsigned int interval;
 
-	/* For msbc ALT 6 setting the host will send the packet at continuous
+	BT_DBG("len %d mtu %d", len, mtu);
+
+	/* For mSBC ALT 6 setting the host will send the packet at continuous
 	 * flow. As per core spec 5, vol 4, part B, table 2.1. For ALT setting
 	 * 6 the HCI PACKET INTERVAL should be 7.5ms for every usb packets.
 	 * To maintain the rate we send 63bytes of usb packets alternatively for
 	 * 7ms and 8ms to maintain the rate as 7.5ms.
 	 */
-	if (set_hci_packet_interval_flow == 6)
-		set_hci_packet_interval_flow = 7;
-	else if (set_hci_packet_interval_flow == 7)
-		set_hci_packet_interval_flow = 6;
+	if (data->usb_alt6_packet_flow) {
+		interval = 7;
+		data->usb_alt6_packet_flow = false;
+	} else {
+		interval = 6;
+		data->usb_alt6_packet_flow = true;
+	}
 
-	BT_DBG("len %d mtu %d", len, mtu);
-
-	for (i = 0; i < set_hci_packet_interval_flow; i++) {
+	for (i = 0; i < interval; i++) {
 		urb->iso_frame_desc[i].offset = offset;
 		urb->iso_frame_desc[i].length = offset;
 	}
@@ -1211,7 +1251,7 @@ static int btusb_open(struct hci_dev *hdev)
 	if (data->setup_on_usb) {
 		err = data->setup_on_usb(hdev);
 		if (err < 0)
-			return err;
+			goto setup_fail;
 	}
 
 	data->intf->needs_remote_wakeup = 1;
@@ -1243,6 +1283,7 @@ done:
 
 failed:
 	clear_bit(BTUSB_INTR_RUNNING, &data->flags);
+setup_fail:
 	usb_autopm_put_interface(data->intf);
 	return err;
 }
@@ -1376,10 +1417,11 @@ static struct urb *alloc_isoc_urb(struct hci_dev *hdev, struct sk_buff *skb)
 
 	if (data->isoc_altsetting == 6)
 		__fill_isoc_descriptor_msbc(urb, skb->len,
-			       le16_to_cpu(data->isoc_tx_ep->wMaxPacketSize));
+					    le16_to_cpu(data->isoc_tx_ep->wMaxPacketSize),
+					    data);
 	else
 		__fill_isoc_descriptor(urb, skb->len,
-			       le16_to_cpu(data->isoc_tx_ep->wMaxPacketSize));
+				       le16_to_cpu(data->isoc_tx_ep->wMaxPacketSize));
 	skb->dev = (void *)hdev;
 
 	return urb;
@@ -1467,6 +1509,19 @@ static int btusb_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 	return -EILSEQ;
 }
 
+static void btusb_notify(struct hci_dev *hdev, unsigned int evt)
+{
+	struct btusb_data *data = hci_get_drvdata(hdev);
+
+	BT_DBG("%s evt %d", hdev->name, evt);
+
+	if (hci_conn_num(hdev, SCO_LINK) != data->sco_num) {
+		data->sco_num = hci_conn_num(hdev, SCO_LINK);
+		data->air_mode = evt;
+		schedule_work(&data->work);
+	}
+}
+
 static inline int __set_isoc_interface(struct hci_dev *hdev, int altsetting)
 {
 	struct btusb_data *data = hci_get_drvdata(hdev);
@@ -1510,7 +1565,7 @@ static inline int __set_isoc_interface(struct hci_dev *hdev, int altsetting)
 	return 0;
 }
 
-static int bt_switch_alt_setting(struct hci_dev *hdev, int new_alts)
+static int btusb_switch_alt_setting(struct hci_dev *hdev, int new_alts)
 {
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	int err;
@@ -1539,6 +1594,7 @@ static int bt_switch_alt_setting(struct hci_dev *hdev, int new_alts)
 		if (err < 0)
 			return err;
 	}
+
 	if (!test_and_set_bit(BTUSB_ISOC_RUNNING, &data->flags)) {
 		if (btusb_submit_isoc_urb(hdev, GFP_KERNEL) < 0)
 			clear_bit(BTUSB_ISOC_RUNNING, &data->flags);
@@ -1549,31 +1605,30 @@ static int bt_switch_alt_setting(struct hci_dev *hdev, int new_alts)
 	return 0;
 }
 
-static void btusb_notify(struct hci_dev *hdev, unsigned int evt)
+static struct usb_host_interface *btusb_find_altsetting(struct btusb_data *data,
+							int alt)
 {
-	struct btusb_data *data = hci_get_drvdata(hdev);
+	struct usb_interface *intf = data->isoc;
+	int i;
 
-	BT_DBG("%s evt %d", hdev->name, evt);
+	BT_DBG("Looking for Alt no :%d", alt);
 
-	if (hci_conn_num(hdev, SCO_LINK) != data->sco_num) {
-		data->sco_num = hci_conn_num(hdev, SCO_LINK);
-		schedule_work(&data->work);
+	if (!intf)
+		return NULL;
+
+	for (i = 0; i < intf->num_altsetting; i++) {
+		if (intf->altsetting[i].desc.bAlternateSetting == alt)
+			return &intf->altsetting[i];
 	}
 
-	if (evt == HCI_NOTIFY_AIR_MODE_TRANSP) {
-		/* Alt setting 6 is used for msbc encoded
-		 * audio channel
-		 */
-		if (bt_switch_alt_setting(hdev, 6) < 0)
-			BT_ERR("%s Set USB Alt6 failed", hdev->name);
-	}
+	return NULL;
 }
 
 static void btusb_work(struct work_struct *work)
 {
 	struct btusb_data *data = container_of(work, struct btusb_data, work);
 	struct hci_dev *hdev = data->hdev;
-	int new_alts;
+	int new_alts = 0;
 	int err;
 
 	if (data->sco_num > 0) {
@@ -1588,14 +1643,27 @@ static void btusb_work(struct work_struct *work)
 			set_bit(BTUSB_DID_ISO_RESUME, &data->flags);
 		}
 
-		if (hdev->voice_setting & 0x0020) {
-			static const int alts[3] = { 2, 4, 5 };
+		if (data->air_mode == HCI_NOTIFY_ENABLE_SCO_CVSD) {
+			if (hdev->voice_setting & 0x0020) {
+				static const int alts[3] = { 2, 4, 5 };
 
-			new_alts = alts[data->sco_num - 1];
-		} else {
-			new_alts = data->sco_num;
+				new_alts = alts[data->sco_num - 1];
+			} else {
+				new_alts = data->sco_num;
+			}
+		} else if (data->air_mode == HCI_NOTIFY_ENABLE_SCO_TRANSP) {
+
+			data->usb_alt6_packet_flow = true;
+
+			/* Check if Alt 6 is supported for Transparent audio */
+			if (btusb_find_altsetting(data, 6))
+				new_alts = 6;
+			else
+				bt_dev_err(hdev, "Device does not support ALT setting 6");
 		}
-		bt_switch_alt_setting(hdev, new_alts);
+
+		if (btusb_switch_alt_setting(hdev, new_alts) < 0)
+			bt_dev_err(hdev, "set USB alt:(%d) failed!", new_alts);
 	} else {
 		clear_bit(BTUSB_ISOC_RUNNING, &data->flags);
 		usb_kill_anchored_urbs(&data->isoc_anchor);
@@ -1942,11 +2010,6 @@ static int btusb_setup_intel(struct hci_dev *hdev)
 						 &disable_patch);
 		if (ret < 0)
 			goto exit_mfg_deactivate;
-		/* For each memory write controller need at least 2 ms to
-		 * realize the write is complete before it receives one
-		 * more write.
-		 */
-		mdelay(2);
 	}
 
 	release_firmware(fw);
@@ -1956,20 +2019,19 @@ static int btusb_setup_intel(struct hci_dev *hdev)
 
 	/* Patching completed successfully and disable the manufacturer mode
 	 * with reset and activate the downloaded firmware patches.
-	 * 8ms delay - Once firmware patch download complete, controller needs
-	 * 8ms to validate the patches.
 	 */
-	mdelay(8);
 	err = btintel_exit_mfg(hdev, true, true);
 	if (err)
 		return err;
 
-	/* Need build number for downloaded fw patches in every power-on boot */
-	err = btintel_read_version(hdev, &ver);
-	if (err)
-		return err;
-	BT_INFO("%s: Intel Bluetooth fw patch 0x%02x completed and activated",
-		hdev->name, ver.fw_patch_num);
+	/* Need build number for downloaded fw patches in
+	 * every power-on boot
+	 */
+       err = btintel_read_version(hdev, &ver);
+       if (err)
+               return err;
+       bt_dev_info(hdev, "Intel BT fw patch 0x%02x completed & activated",
+		   ver.fw_patch_num);
 
 	goto complete;
 
@@ -2480,6 +2542,15 @@ done:
 	 */
 	btintel_load_ddc_config(hdev, fwname);
 
+	/* All Intel controllers that support the Microsoft vendor
+	 * extension are using 0xFC1E for VsMsftOpCode.
+	 */
+	switch (ver.hw_variant) {
+	case 0x12:	/* ThP */
+		hci_set_msft_opcode(hdev, 0xFC1E);
+		break;
+	}
+
 	/* Set the event mask for Intel specific vendor events. This enables
 	 * a few extra events that are useful during general operation. It
 	 * does not enable any debugging related events.
@@ -2495,7 +2566,6 @@ done:
 		return err;
 
 	btintel_version_info(hdev, &ver);
-	bt_dev_info(hdev, "Setup complete");
 
 	return 0;
 }
@@ -3052,6 +3122,13 @@ static void btusb_check_needs_reset_resume(struct usb_interface *intf)
 		interface_to_usbdev(intf)->quirks |= USB_QUIRK_RESET_RESUME;
 }
 
+static bool btusb_prevent_wake(struct hci_dev *hdev)
+{
+	struct btusb_data *data = hci_get_drvdata(hdev);
+
+	return !device_may_wakeup(&data->udev->dev);
+}
+
 static int btusb_probe(struct usb_interface *intf,
 		       const struct usb_device_id *id)
 {
@@ -3184,6 +3261,7 @@ static int btusb_probe(struct usb_interface *intf,
 	hdev->flush  = btusb_flush;
 	hdev->send   = btusb_send_frame;
 	hdev->notify = btusb_notify;
+	hdev->prevent_wake = btusb_prevent_wake;
 
 #ifdef CONFIG_PM
 	err = btusb_config_oob_wake(hdev);
@@ -3234,14 +3312,7 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag_mfg;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
-
-#ifdef CONFIG_BT_EVE_HACKS
-		/* HCI_QUIRK_STRICT_DUPLICATE_FILTER is removed due to the
-		 * conflict of intention within BlueZ kernel.
-		 */
-#else
 		set_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks);
-#endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
 	}
@@ -3254,14 +3325,7 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
-
-#ifdef CONFIG_BT_EVE_HACKS
-		/* HCI_QUIRK_STRICT_DUPLICATE_FILTER is removed due to the
-		 * conflict of intention within BlueZ kernel.
-		 */
-#else
 		set_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks);
-#endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
 	}
@@ -3293,18 +3357,20 @@ static int btusb_probe(struct usb_interface *intf,
 		btusb_check_needs_reset_resume(intf);
 	}
 
-#ifdef CONFIG_BT_HCIBTUSB_RTL
-	if (id->driver_info & BTUSB_REALTEK) {
+	if (IS_ENABLED(CONFIG_BT_HCIBTUSB_RTL) &&
+	    (id->driver_info & BTUSB_REALTEK)) {
 		hdev->setup = btrtl_setup_realtek;
 		hdev->shutdown = btrtl_shutdown_realtek;
+		hdev->cmd_timeout = btusb_rtl_cmd_timeout;
 
-		/* Realtek devices lose their updated firmware over suspend,
-		 * but the USB hub doesn't notice any status change.
-		 * Explicitly request a device reset on resume.
+		/* Realtek devices lose their updated firmware over global
+		 * suspend, which happens when host doesn't send SET_FEATURE
+		 * (DEVICE_REMOTE_WAKEUP). Set the remote wake flag so suspend
+		 * will set the REMOTE_WAKEUP correctly in suspend. This
+		 * prevents global suspend entirely.
 		 */
-		interface_to_usbdev(intf)->quirks |= USB_QUIRK_RESET_RESUME;
+		set_bit(BTUSB_SUSPEND_REMOTE_WAKE, &data->flags);
 	}
-#endif
 
 	if (id->driver_info & BTUSB_AMP) {
 		/* AMP controllers do not support SCO packets */
@@ -3325,6 +3391,9 @@ static int btusb_probe(struct usb_interface *intf,
 
 	if (id->driver_info & BTUSB_BROKEN_ISOC)
 		data->isoc = NULL;
+
+	if (id->driver_info & BTUSB_WIDEBAND_SPEECH)
+		set_bit(HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED, &hdev->quirks);
 
 	if (id->driver_info & BTUSB_DIGIANSWER) {
 		data->cmdreq_type = USB_TYPE_VENDOR;
@@ -3390,9 +3459,6 @@ static int btusb_probe(struct usb_interface *intf,
 		goto out_free_dev;
 
 	usb_set_intfdata(intf, data);
-
-	hdev->controller_id.idVendor = id->idVendor;
-	hdev->controller_id.idProduct = id->idProduct;
 
 	return 0;
 
@@ -3477,6 +3543,14 @@ static int btusb_suspend(struct usb_interface *intf, pm_message_t message)
 		set_bit(BTUSB_OOB_WAKE_ENABLED, &data->flags);
 		enable_irq_wake(data->oob_wake_irq);
 		enable_irq(data->oob_wake_irq);
+	}
+
+	/* This flag indicates that the bluetooth firmware requires remote-wake
+	 * on suspend or it will lose firmware. Set the remote_wakeup feature
+	 * always so it never loses its firmware.
+	 */
+	if (test_bit(BTUSB_SUSPEND_REMOTE_WAKE, &data->flags)) {
+		data->udev->do_remote_wakeup = 1;
 	}
 
 	return 0;

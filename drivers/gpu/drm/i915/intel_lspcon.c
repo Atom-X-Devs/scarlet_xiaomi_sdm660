@@ -210,6 +210,16 @@ void lspcon_wait_pcon_mode(struct intel_lspcon *lspcon)
 	lspcon_wait_mode(lspcon, DRM_LSPCON_MODE_PCON);
 }
 
+int lspcon_max_rate(struct intel_lspcon *lspcon)
+{
+	enum drm_lspcon_mode current_mode = lspcon_get_current_mode(lspcon);
+
+	if (current_mode == DRM_LSPCON_MODE_LS)
+		return DIV_ROUND_UP(340000 * 24, 8);
+
+	return DIV_ROUND_UP(600000 * 24, 8);
+}
+
 bool lspcon_init(struct intel_digital_port *intel_dig_port)
 {
 	struct intel_dp *dp = &intel_dig_port->dp;

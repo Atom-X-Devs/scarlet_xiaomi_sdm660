@@ -189,6 +189,8 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.num_wds_entries = 0x20,
 		.uart_pin_workaround = true,
 		.tx_stats_over_pktlog = false,
+		.bmi_large_size_download = true,
+		.start_retry = ATH10K_START_RETRY,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -716,18 +718,6 @@ static int ath10k_init_sdio(struct ath10k *ar, enum ath10k_firmware_mode mode)
 		param |= HI_ACS_FLAGS_SDIO_SWAP_MAILBOX_SET;
 
 	ret = ath10k_bmi_write32(ar, hi_acs_flags, param);
-	if (ret)
-		return ret;
-
-	/* Explicitly set fwlog prints to zero as target may turn it on
-	 * based on scratch registers.
-	 */
-	ret = ath10k_bmi_read32(ar, hi_option_flag, &param);
-	if (ret)
-		return ret;
-
-	param |= HI_OPTION_DISABLE_DBGLOG;
-	ret = ath10k_bmi_write32(ar, hi_option_flag, param);
 	if (ret)
 		return ret;
 
@@ -1987,12 +1977,15 @@ static int ath10k_init_uart(struct ath10k *ar)
 		return ret;
 	}
 
-	if (!uart_print && ar->hw_params.uart_pin_workaround) {
-		ret = ath10k_bmi_write32(ar, hi_dbg_uart_txpin,
-					 ar->hw_params.uart_pin);
-		if (ret) {
-			ath10k_warn(ar, "failed to set UART TX pin: %d", ret);
-			return ret;
+	if (!uart_print) {
+		if (ar->hw_params.uart_pin_workaround) {
+			ret = ath10k_bmi_write32(ar, hi_dbg_uart_txpin,
+						 ar->hw_params.uart_pin);
+			if (ret) {
+				ath10k_warn(ar, "failed to set UART TX pin: %d",
+					    ret);
+				return ret;
+			}
 		}
 
 		return 0;
@@ -2053,6 +2046,14 @@ static void ath10k_core_restart(struct work_struct *work)
 {
 	struct ath10k *ar = container_of(work, struct ath10k, restart_work);
 	int ret;
+	int restart_count;
+
+	restart_count = atomic_add_return(1, &ar->restart_count);
+	if (restart_count > 1) {
+		ath10k_warn(ar, "can not restart, count: %d\n", restart_count);
+		atomic_dec(&ar->restart_count);
+		return;
+	}
 
 	set_bit(ATH10K_FLAG_CRASH_FLUSH, &ar->dev_flags);
 
@@ -2084,6 +2085,11 @@ static void ath10k_core_restart(struct work_struct *work)
 	cancel_work_sync(&ar->set_coverage_class_work);
 
 	mutex_lock(&ar->conf_mutex);
+
+	if (ar->state != ATH10K_STATE_ON) {
+		ath10k_warn(ar, "state is not on: %d\n", ar->state);
+		atomic_dec(&ar->restart_count);
+	}
 
 	switch (ar->state) {
 	case ATH10K_STATE_ON:
@@ -2499,6 +2505,12 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 	status = ath10k_hif_swap_mailbox(ar);
 	if (status) {
 		ath10k_err(ar, "failed to swap mailbox: %d\n", status);
+		goto err_hif_stop;
+	}
+
+	status = ath10k_hif_set_mbox_sleep(ar, true);
+	if (status) {
+		ath10k_err(ar, "failed to enable mbox sleep: %d\n", status);
 		goto err_hif_stop;
 	}
 

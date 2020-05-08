@@ -715,7 +715,7 @@ static int ath10k_wmi_tlv_op_pull_mgmt_rx_ev(struct ath10k *ar,
 	const struct wmi_tlv_mgmt_rx_ev *ev;
 	const u8 *frame;
 	u32 msdu_len;
-	int ret;
+	int ret, i;
 
 	tb = ath10k_wmi_tlv_parse_alloc(ar, skb->data, skb->len, GFP_ATOMIC);
 	if (IS_ERR(tb)) {
@@ -738,6 +738,9 @@ static int ath10k_wmi_tlv_op_pull_mgmt_rx_ev(struct ath10k *ar,
 	arg->snr = ev->snr;
 	arg->phy_mode = ev->phy_mode;
 	arg->rate = ev->rate;
+
+	for (i = 0; i < ARRAY_SIZE(ev->rssi); i++)
+		arg->rssi[i] = ev->rssi[i];
 
 	msdu_len = __le32_to_cpu(arg->buf_len);
 
@@ -1681,6 +1684,10 @@ static struct sk_buff *ath10k_wmi_tlv_op_gen_init(struct ath10k *ar)
 	cfg->num_ocb_channels = __cpu_to_le32(0);
 	cfg->num_ocb_schedules = __cpu_to_le32(0);
 	cfg->host_capab = __cpu_to_le32(0);
+
+	if (ath10k_peer_stats_enabled(ar))
+		cfg->host_capab |=
+			__cpu_to_le32(WMI_RSRC_CFG_FLAG_TX_PPDU_STATS);
 
 	ath10k_wmi_tlv_put_host_mem_chunks(ar, chunks);
 

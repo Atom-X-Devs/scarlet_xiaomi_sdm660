@@ -2474,6 +2474,12 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define IS_KBL_ULX(dev_priv)	(INTEL_DEVID(dev_priv) == 0x590E || \
 				 INTEL_DEVID(dev_priv) == 0x5915 || \
 				 INTEL_DEVID(dev_priv) == 0x591E)
+#define IS_CML_ULT(dev_priv)	(INTEL_DEVID(dev_priv) == 0x9B21 || \
+				 INTEL_DEVID(dev_priv) == 0x9BAA || \
+				 INTEL_DEVID(dev_priv) == 0x9BAC || \
+				 INTEL_DEVID(dev_priv) == 0x9B41 || \
+				 INTEL_DEVID(dev_priv) == 0x9BCA || \
+				 INTEL_DEVID(dev_priv) == 0x9BCC)
 #define IS_SKL_GT2(dev_priv)	(IS_SKYLAKE(dev_priv) && \
 				 (dev_priv)->info.gt == 2)
 #define IS_SKL_GT3(dev_priv)	(IS_SKYLAKE(dev_priv) && \
@@ -3497,12 +3503,16 @@ bool intel_bios_is_lspcon_present(struct drm_i915_private *dev_priv,
 				enum port port);
 
 /* intel_acpi.c */
+struct drm_i915_private;
 #ifdef CONFIG_ACPI
 extern void intel_register_dsm_handler(void);
 extern void intel_unregister_dsm_handler(void);
+void intel_acpi_device_id_update(struct drm_i915_private *i915);
 #else
 static inline void intel_register_dsm_handler(void) { return; }
 static inline void intel_unregister_dsm_handler(void) { return; }
+static inline
+void intel_acpi_device_id_update(struct drm_i915_private *i915) { return; }
 #endif /* CONFIG_ACPI */
 
 /* intel_device_info.c */

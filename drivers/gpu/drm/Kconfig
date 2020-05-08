@@ -13,6 +13,7 @@ menuconfig DRM
 	select I2C
 	select I2C_ALGOBIT
 	select DMA_SHARED_BUFFER
+	select RING_BUFFER
 	select SYNC_FILE
 	help
 	  Kernel-level support for the Direct Rendering Infrastructure (DRI)
@@ -348,6 +349,8 @@ source "drivers/gpu/drm/pl111/Kconfig"
 source "drivers/gpu/drm/tve200/Kconfig"
 
 source "drivers/gpu/drm/xen/Kconfig"
+
+source "drivers/gpu/drm/img-rogue/Kconfig"
 
 # Keep legacy drivers last
 
