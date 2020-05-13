@@ -340,7 +340,7 @@ static void mtdoops_notify_add(struct mtd_info *mtd)
 		return;
 	}
 
-	cxt->dump.max_reason = KMSG_DUMP_OOPS;
+	cxt->dump.max_reason = KMSG_DUMP_SHUTDOWN;
 	cxt->dump.dump = mtdoops_do_dump;
 	err = kmsg_dump_register(&cxt->dump);
 	if (err) {
