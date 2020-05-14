@@ -11,3 +11,7 @@
 	model = "Google damu board";
 	compatible = "google,damu", "mediatek,mt8183";
 };
+
+&cpu_thermal {
+	sustainable-power = <4500>; /* milliwatts */
+};
