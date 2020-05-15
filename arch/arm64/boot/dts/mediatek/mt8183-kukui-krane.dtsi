@@ -176,6 +176,10 @@
 	};
 };
 
+&it6505dptx {
+	afe-setting = <1>;
+};
+
 &pio {
 	/* 192 lines */
 	gpio-line-names =
