@@ -31,6 +31,7 @@
 /* sdm660-blsp.dtsi common diff */
 &i2c_1 {
 	status = "ok";
+	qcom,disable-dma;
 };
 
 &spi_7 {
