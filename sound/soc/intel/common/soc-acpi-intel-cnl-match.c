@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * soc-apci-intel-cnl-match.c - tables and support for CNL ACPI enumeration.
+ * soc-acpi-intel-cnl-match.c - tables and support for CNL ACPI enumeration.
  *
  * Copyright (c) 2018, Intel Corporation.
  *
@@ -20,8 +20,8 @@ static struct snd_soc_acpi_codecs cml_codecs = {
 };
 
 static struct snd_soc_acpi_codecs cml_spk_codecs = {
-	.num_codecs = 1,
-	.codecs = {"MX98357A"}
+	.num_codecs = 2,
+	.codecs = {"MX98357A", "MX98390"}
 };
 
 struct snd_soc_acpi_mach snd_soc_acpi_intel_cnl_machines[] = {

@@ -529,9 +529,15 @@ void ath10k_htt_tx_destroy(struct ath10k_htt *htt)
 	htt->tx_mem_allocated = false;
 }
 
+static void ath10k_htt_flush_tx_queue(struct ath10k_htt *htt)
+{
+	ath10k_htc_stop_hl(htt->ar);
+	idr_for_each(&htt->pending_tx, ath10k_htt_tx_clean_up_pending, htt->ar);
+}
+
 void ath10k_htt_tx_stop(struct ath10k_htt *htt)
 {
-	idr_for_each(&htt->pending_tx, ath10k_htt_tx_clean_up_pending, htt->ar);
+	ath10k_htt_flush_tx_queue(htt);
 	idr_destroy(&htt->pending_tx);
 }
 
@@ -553,19 +559,23 @@ void ath10k_htt_htc_tx_complete(struct ath10k *ar, struct sk_buff *skb)
 	struct htt_cmd_hdr *htt_hdr;
 	struct htt_data_tx_desc *desc_hdr;
 	u16 flags1;
+	u8 msg_type;
+
+	if (htt->disable_tx_comp) {
+		htt_hdr = (struct htt_cmd_hdr *)skb->data;
+		msg_type = htt_hdr->msg_type;
+
+		if (msg_type == HTT_H2T_MSG_TYPE_TX_FRM) {
+			desc_hdr = (struct htt_data_tx_desc *)
+				(skb->data + sizeof(*htt_hdr));
+			flags1 = __le16_to_cpu(desc_hdr->flags1);
+		}
+	}
 
 	dev_kfree_skb_any(skb);
 
-	if (!htt->disable_tx_comp)
+	if ((!htt->disable_tx_comp) || (msg_type != HTT_H2T_MSG_TYPE_TX_FRM))
 		return;
-
-	htt_hdr = (struct htt_cmd_hdr *)skb->data;
-	if (htt_hdr->msg_type != HTT_H2T_MSG_TYPE_TX_FRM)
-		return;
-
-	desc_hdr = (struct htt_data_tx_desc *)
-		(skb->data + sizeof(*htt_hdr));
-	flags1 = __le16_to_cpu(desc_hdr->flags1);
 
 	ath10k_dbg(ar, ATH10K_DBG_HTT,
 		   "htt tx complete msdu id:%u ,flags1:%x\n",
@@ -1810,6 +1820,7 @@ static const struct ath10k_htt_tx_ops htt_tx_ops_hl = {
 	.htt_send_frag_desc_bank_cfg = ath10k_htt_send_frag_desc_bank_cfg_32,
 	.htt_tx = ath10k_htt_tx_hl,
 	.htt_h2t_aggr_cfg_msg = ath10k_htt_h2t_aggr_cfg_msg_32,
+	.htt_flush_tx = ath10k_htt_flush_tx_queue,
 };
 
 void ath10k_htt_set_tx_ops(struct ath10k_htt *htt)

@@ -83,6 +83,24 @@
 		regulator-max-microvolt = <1800000>;
 	};
 
+	pp1800_alw: pp1800_alw {
+		compatible = "regulator-fixed";
+		regulator-name = "pp1800_alw";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	pp3300_alw: pp3300_alw {
+		compatible = "regulator-fixed";
+		regulator-name = "pp3300_alw";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
 	reserved_memory: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -113,7 +131,7 @@
 		compatible = "linux,bt-sco";
 	};
 
-	sound: mt8183-mt6358-ts3a227e-max98357a {
+	sound: mt8183-sound {
 		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
 		mediatek,hdmi-codec = <&it6505dptx>;
@@ -232,38 +250,46 @@
 
 &cpu0 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu1 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu2 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu3 {
 	proc-supply = <&mt6358_vproc12_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER0>;
 };
 
 &cpu4 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &cpu5 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &cpu6 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &cpu7 {
 	proc-supply = <&mt6358_vproc11_reg>;
+	cpu-idle-states = <&MCDI_CLUSTER1>;
 };
 
 &dpi0 {
-	pinctrl-names = "default", "dpimode";
+	pinctrl-names = "sleep", "default";
 	pinctrl-0 = <&dpi_pin_default>;
 	pinctrl-1 = <&dpi_pin_func>;
 	status = "okay";
@@ -374,21 +400,6 @@
 	clock-frequency = <100000>;
 	#address-cells = <1>;
 	#size-cells = <0>;
-
-	ts3a227e: ts3a227e@3b {
-		pinctrl-names = "default";
-		pinctrl-0 = <&ts3a227e_pins>;
-		compatible = "ti,ts3a227e";
-		reg = <0x3b>;
-		interrupt-parent = <&pio>;
-		interrupts = <157 IRQ_TYPE_LEVEL_LOW>;
-
-		/*
-		 * Only kukui variants with a headphone jack
-		 * will enable this node.
-		 */
-		status = "disabled";
-	};
 };
 
 &i2c6 {
@@ -396,6 +407,10 @@
 	pinctrl-0 = <&i2c6_pins>;
 	status = "okay";
 	clock-frequency = <100000>;
+};
+
+&MCDI_CLUSTER0 {
+	min-residency-us = <1000>;
 };
 
 &mipi_tx0 {
@@ -445,6 +460,13 @@
 	no-sd;
 	assigned-clocks = <&topckgen CLK_TOP_MUX_MSDC30_1>;
 	assigned-clock-parents = <&topckgen CLK_TOP_MSDCPLL_D2>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	qca_wifi: qca_wifi {
+		compatible = "qcom,ath10k";
+		reg = <1>;
+	};
 };
 
 &mt6358_vdram2_reg {
@@ -803,12 +825,6 @@
 	};
 
 	scp_pins: scp {
-		pins_eint {
-			pinmux = <PINMUX_GPIO5__FUNC_TP_GPIO5_AO>,
-				 <PINMUX_GPIO6__FUNC_TP_GPIO6_AO>,
-				 <PINMUX_GPIO7__FUNC_TP_GPIO7_AO>;
-		};
-
 		pins_scp_uart {
 			pinmux = <PINMUX_GPIO110__FUNC_TP_URXD1_AO>,
 				 <PINMUX_GPIO112__FUNC_TP_UTXD1_AO>;
@@ -878,15 +894,6 @@
 		};
 	};
 
-	ts3a227e_pins: ts3a227e_pins {
-		pins1 {
-			pinmux = <PINMUX_GPIO157__FUNC_GPIO157>;
-			input-enable;
-			bias-enable;
-			bias-pull-up;
-		};
-	};
-
 	uart0_pin: uart0default {
 		pins_rx {
 			pinmux = <PINMUX_GPIO95__FUNC_URXD0>;
@@ -901,6 +908,25 @@
 	uart1_pin: uart1default {
 		pins_rx {
 			pinmux = <PINMUX_GPIO121__FUNC_URXD1>;
+			input-enable;
+			bias-pull-up;
+		};
+		pins_tx {
+			pinmux = <PINMUX_GPIO115__FUNC_UTXD1>;
+		};
+		pins_rts {
+			pinmux = <PINMUX_GPIO47__FUNC_URTS1>;
+			output-enable;
+		};
+		pins_cts {
+			pinmux = <PINMUX_GPIO46__FUNC_UCTS1>;
+			input-enable;
+		};
+	};
+
+	uart1_pin_sleep: uart1sleep {
+		pins_rx {
+			pinmux = <PINMUX_GPIO121__FUNC_GPIO121>;
 			input-enable;
 			bias-pull-up;
 		};
@@ -1099,8 +1125,16 @@
 };
 
 &usb_host {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	vusb33-supply = <&mt6358_vusb_reg>;
 	status = "okay";
+
+	hub@1 {
+		compatible = "usb5e3,610";
+		reg = <1>;
+		hub,interval = <7>;
+	};
 };
 
 &u3phy {
@@ -1114,9 +1148,12 @@
 };
 
 &uart1 {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&uart1_pin>;
+	pinctrl-1 = <&uart1_pin_sleep>;
 	status = "okay";
+	interrupts-extended = <&sysirq GIC_SPI 92 IRQ_TYPE_LEVEL_LOW>,
+			      <&pio 121 IRQ_TYPE_EDGE_FALLING>;
 
 	bluetooth: qca6174-bt {
 		pinctrl-names = "default";

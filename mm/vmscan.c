@@ -51,6 +51,7 @@
 #include <linux/prefetch.h>
 #include <linux/printk.h>
 #include <linux/dax.h>
+#include <linux/psi.h>
 #include <linux/kstaled.h>
 
 #include <asm/tlbflush.h>
@@ -326,10 +327,19 @@ static inline bool memcg_congested(struct pglist_data *pgdat,
  */
 unsigned long zone_reclaimable_pages(struct zone *zone)
 {
+	u64 pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
 	unsigned long nr;
 
 	nr = zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_FILE) +
 		zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_FILE);
+
+	pages_min *= zone->managed_pages;
+	do_div(pages_min, totalram_pages);
+	if (nr < pages_min)
+		nr = 0;
+	else
+		nr -= pages_min;
+
 	if (get_nr_swap_pages() > 0)
 		nr += zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_ANON) +
 			zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_ANON);
@@ -1016,8 +1026,17 @@ static enum page_references page_check_references(struct page *page,
 	int referenced_ptes, referenced_page;
 	unsigned long vm_flags;
 
+	if (kstaled_is_enabled()) {
+		if (kstaled_get_age(page))
+			return PAGEREF_KEEP;
+		if (!PageTransHuge(page) && page_mapcount(page) <= 1)
+			return PAGEREF_RECLAIM;
+	}
 	referenced_ptes = page_referenced(page, 1, sc->target_mem_cgroup,
 					  &vm_flags);
+	if (kstaled_is_enabled())
+		return referenced_ptes ? PAGEREF_KEEP : PAGEREF_RECLAIM;
+
 	referenced_page = TestClearPageReferenced(page);
 
 	/*
@@ -1257,9 +1276,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 		if (!skip_reference_check)
 			references = page_check_references(page, sc);
-		else if (kstaled_is_enabled())
-			references = kstaled_get_age(page) ?
-				     PAGEREF_ACTIVATE : PAGEREF_RECLAIM;
 
 		switch (references) {
 		case PAGEREF_ACTIVATE:
@@ -1320,6 +1336,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto keep_locked;
 		}
 
+		/* split_huge_page_to_list() might have split a young pmd */
 		if (kstaled_is_enabled() && kstaled_get_age(page))
 			goto activate_locked;
 
@@ -1337,9 +1354,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto activate_locked;
 			}
 		}
-
-		if (kstaled_is_enabled() && kstaled_get_age(page))
-			goto activate_locked;
 
 		if (PageDirty(page)) {
 			/*
@@ -1977,7 +1991,7 @@ unsigned long node_shrink_list(struct pglist_data *node, struct list_head *list,
 	}
 
 	blk_start_plug(&plug);
-	reclaimed = shrink_page_list(list, node, &sc, 0, NULL, true);
+	reclaimed = shrink_page_list(list, node, &sc, 0, NULL, false);
 	blk_finish_plug(&plug);
 
 	spin_lock_irq(&node->lru_lock);
@@ -2006,12 +2020,12 @@ inline unsigned long node_shrink_slab(struct pglist_data *node,
 {
 	int i;
 
-	for (i = 0; i < DEF_PRIORITY; i++) {
-		if (total >> i <= scanned)
+	for (i = 1; i <= DEF_PRIORITY; i++) {
+		if (total >> i < scanned)
 			break;
 	}
 
-	return shrink_slab(gfp_mask, node->node_id, NULL, i);
+	return shrink_slab(gfp_mask, node->node_id, NULL, i - 1);
 }
 #endif
 
@@ -2284,6 +2298,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 		}
 
 		ClearPageActive(page);	/* we are de-activating */
+		SetPageWorkingset(page);
 		list_add(&page->lru, &l_inactive);
 	}
 
@@ -2614,10 +2629,13 @@ out:
 			/*
 			 * Scan types proportional to swappiness and
 			 * their relative recent reclaim efficiency.
-			 * Make sure we don't miss the last page
-			 * because of a round-off error.
+			 * Make sure we don't miss the last page on
+			 * the offlined memory cgroups because of a
+			 * round-off error.
 			 */
-			scan = DIV64_U64_ROUND_UP(scan * fraction[file],
+			scan = mem_cgroup_online(memcg) ?
+			       div64_u64(scan * fraction[file], denominator) :
+			       DIV64_U64_ROUND_UP(scan * fraction[file],
 						  denominator);
 			break;
 		case SCAN_FILE:
@@ -3462,6 +3480,7 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 {
 	struct zonelist *zonelist;
 	unsigned long nr_reclaimed;
+	unsigned long pflags;
 	int nid;
 	unsigned int noreclaim_flag;
 	struct scan_control sc = {
@@ -3490,9 +3509,13 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 					    sc.gfp_mask,
 					    sc.reclaim_idx);
 
+	psi_memstall_enter(&pflags);
 	noreclaim_flag = memalloc_noreclaim_save();
+
 	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
+
 	memalloc_noreclaim_restore(noreclaim_flag);
+	psi_memstall_leave(&pflags);
 
 	trace_mm_vmscan_memcg_reclaim_end(nr_reclaimed);
 
@@ -3657,6 +3680,7 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int classzone_idx)
 	int i;
 	unsigned long nr_soft_reclaimed;
 	unsigned long nr_soft_scanned;
+	unsigned long pflags;
 	struct zone *zone;
 	struct scan_control sc = {
 		.gfp_mask = GFP_KERNEL,
@@ -3667,6 +3691,7 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int classzone_idx)
 		.may_swap = 1,
 	};
 
+	psi_memstall_enter(&pflags);
 	__fs_reclaim_acquire();
 
 	count_vm_event(PAGEOUTRUN);
@@ -3768,6 +3793,7 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int classzone_idx)
 out:
 	snapshot_refaults(NULL, pgdat);
 	__fs_reclaim_release();
+	psi_memstall_leave(&pflags);
 	/*
 	 * Return the order kswapd stopped reclaiming at as
 	 * prepare_kswapd_sleep() takes it into account. If another caller

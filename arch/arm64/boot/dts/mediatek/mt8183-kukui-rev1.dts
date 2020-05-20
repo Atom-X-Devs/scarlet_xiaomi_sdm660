@@ -5,6 +5,7 @@
 
 /dts-v1/;
 #include "mt8183-kukui.dtsi"
+#include "mt8183-kukui-audio-ts3a227e.dtsi"
 
 / {
 	model = "MediaTek kukui rev1 board";
@@ -255,12 +256,4 @@
 		pinmux = <PINMUX_GPIO11__FUNC_TP_URXD1_AO>,
 			 <PINMUX_GPIO12__FUNC_TP_UTXD1_AO>;
 	};
-};
-
-&sound {
-	mediatek,headset-codec = <&ts3a227e>;
-};
-
-&ts3a227e {
-	status = "okay";
 };

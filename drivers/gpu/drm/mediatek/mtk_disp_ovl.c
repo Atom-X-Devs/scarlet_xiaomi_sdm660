@@ -138,7 +138,7 @@ static void mtk_ovl_config(struct mtk_ddp_comp *comp, unsigned int w,
 {
 	if (w != 0 && h != 0)
 		mtk_ddp_write_relaxed(cmdq_pkt, h << 16 | w, comp,
-		DISP_REG_OVL_ROI_SIZE);
+				      DISP_REG_OVL_ROI_SIZE);
 	mtk_ddp_write_relaxed(cmdq_pkt, 0x0, comp, DISP_REG_OVL_ROI_BGCLR);
 
 	mtk_ddp_write(cmdq_pkt, 0x1, comp, DISP_REG_OVL_RST);
@@ -208,16 +208,16 @@ static void mtk_ovl_layer_on(struct mtk_ddp_comp *comp, unsigned int idx,
 	mtk_ddp_write(cmdq_pkt, gmc_value,
 		      comp, DISP_REG_OVL_RDMA_GMC(idx));
 	mtk_ddp_write_mask(cmdq_pkt, BIT(idx), comp,
-			    DISP_REG_OVL_SRC_CON, BIT(idx));
+			   DISP_REG_OVL_SRC_CON, BIT(idx));
 }
 
 static void mtk_ovl_layer_off(struct mtk_ddp_comp *comp, unsigned int idx,
 			      struct cmdq_pkt *cmdq_pkt)
 {
 	mtk_ddp_write_mask(cmdq_pkt, 0, comp,
-			    DISP_REG_OVL_SRC_CON, BIT(idx));
+			   DISP_REG_OVL_SRC_CON, BIT(idx));
 	mtk_ddp_write(cmdq_pkt, 0, comp,
-		       DISP_REG_OVL_RDMA_CTRL(idx));
+		      DISP_REG_OVL_RDMA_CTRL(idx));
 }
 
 static unsigned int ovl_fmt_convert(struct mtk_disp_ovl *ovl, unsigned int fmt)
@@ -269,11 +269,13 @@ static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
 	unsigned int src_size = (pending->height << 16) | pending->width;
 	unsigned int con;
 
-	if (!pending->enable)
+	if (!pending->enable) {
 		mtk_ovl_layer_off(comp, idx, cmdq_pkt);
+		return;
+	}
 
 	con = ovl_fmt_convert(ovl, fmt);
-	if (idx != 0)
+	if (state->base.fb->format->has_alpha)
 		con |= OVL_CON_AEN | OVL_CON_ALPHA;
 
 	if (pending->rotation & DRM_MODE_REFLECT_Y) {
@@ -297,20 +299,25 @@ static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
 	mtk_ddp_write_relaxed(cmdq_pkt, addr, comp,
 			      DISP_REG_OVL_ADDR(ovl, idx));
 
-	if (pending->enable)
-		mtk_ovl_layer_on(comp, idx, cmdq_pkt);
+	mtk_ovl_layer_on(comp, idx, cmdq_pkt);
 }
 
 static void mtk_ovl_bgclr_in_on(struct mtk_ddp_comp *comp)
 {
-	mtk_ddp_write_mask(NULL, OVL_BGCLR_SEL_IN, comp,
-			   DISP_REG_OVL_DATAPATH_CON, OVL_BGCLR_SEL_IN);
+	unsigned int reg;
+
+	reg = readl(comp->regs + DISP_REG_OVL_DATAPATH_CON);
+	reg = reg | OVL_BGCLR_SEL_IN;
+	writel(reg, comp->regs + DISP_REG_OVL_DATAPATH_CON);
 }
 
 static void mtk_ovl_bgclr_in_off(struct mtk_ddp_comp *comp)
 {
-	mtk_ddp_write_mask(NULL, 0, comp,
-			   DISP_REG_OVL_DATAPATH_CON, OVL_BGCLR_SEL_IN);
+	unsigned int reg;
+
+	reg = readl(comp->regs + DISP_REG_OVL_DATAPATH_CON);
+	reg = reg & ~OVL_BGCLR_SEL_IN;
+	writel(reg, comp->regs + DISP_REG_OVL_DATAPATH_CON);
 }
 
 static const struct mtk_ddp_comp_funcs mtk_disp_ovl_funcs = {
@@ -321,8 +328,6 @@ static const struct mtk_ddp_comp_funcs mtk_disp_ovl_funcs = {
 	.disable_vblank = mtk_ovl_disable_vblank,
 	.supported_rotations = mtk_ovl_supported_rotations,
 	.layer_nr = mtk_ovl_layer_nr,
-	.layer_on = mtk_ovl_layer_on,
-	.layer_off = mtk_ovl_layer_off,
 	.layer_check = mtk_ovl_layer_check,
 	.layer_config = mtk_ovl_layer_config,
 	.bgclr_in_on = mtk_ovl_bgclr_in_on,
@@ -392,7 +397,8 @@ static int mtk_disp_ovl_probe(struct platform_device *pdev)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to initialize component: %d\n",
-					ret);
+				ret);
+
 		return ret;
 	}
 

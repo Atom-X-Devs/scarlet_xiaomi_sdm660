@@ -5,6 +5,7 @@
 
 /dts-v1/;
 #include "mt8183-kukui.dtsi"
+#include "mt8183-kukui-audio-ts3a227e.dtsi"
 
 / {
 	ppvarn_lcd: ppvarn-lcd {
@@ -41,6 +42,25 @@
 	};
 };
 
+&camera_pins_cam0 {
+	pins_reset {
+		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+		output-low;
+	};
+};
+
+&camera_pins_cam1 {
+	pins_powerdown {
+		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+		output-high;
+	};
+
+	pins_reset {
+		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+		output-low;
+	};
+};
+
 &cpu_thermal {
 	sustainable-power = <4500>; /* milliwatts */
 };
@@ -59,11 +79,6 @@
 		post-power-on-delay-ms = <10>;
 		hid-descr-addr = <0x0001>;
 	};
-};
-
-&mt6358_vcama2_reg {
-	regulator-min-microvolt = <2800000>;
-	regulator-max-microvolt = <2800000>;
 };
 
 &i2c2 {
@@ -144,7 +159,6 @@
 		clock-names = "eclk", "freq_mux";
 		clock-frequency = <24000000>;
 		rotation = <180>;
-		ovti,hs-vod-adjust = <5>;
 		ovti,mipi-tx-speed = <4>;
 
 		assigned-clocks = <&topckgen CLK_TOP_MUX_CAMTG2>,
@@ -169,6 +183,11 @@
 			};
 		};
 	};
+};
+
+&mt6358_vcama2_reg {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
 };
 
 &pio {
@@ -417,6 +436,10 @@
 	};
 };
 
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_KODAMA";
+};
+
 &seninf {
 	status = "okay";
 
@@ -442,37 +465,10 @@
 	};
 };
 
-&sound {
-	mediatek,headset-codec = <&ts3a227e>;
-};
-
 &spi2 {
 	cros_ec: ec@0 {
 		i2c_tunnel: i2c-tunnel {
 			google,remote-bus = <2>;
 		};
-	};
-};
-
-&ts3a227e {
-	status = "okay";
-};
-
-&camera_pins_cam0 {
-	pins_reset {
-		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
-		output-low;
-	};
-};
-
-&camera_pins_cam1 {
-	pins_powerdown {
-		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
-		output-high;
-	};
-
-	pins_reset {
-		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
-		output-low;
 	};
 };

@@ -1024,6 +1024,7 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi,
 	int ret = 0;
 
 	if (ioctl_new->type != VIRTWL_IOCTL_NEW_CTX &&
+		ioctl_new->type != VIRTWL_IOCTL_NEW_CTX_NAMED &&
 		ioctl_new->type != VIRTWL_IOCTL_NEW_ALLOC &&
 		ioctl_new->type != VIRTWL_IOCTL_NEW_PIPE_READ &&
 		ioctl_new->type != VIRTWL_IOCTL_NEW_PIPE_WRITE &&
@@ -1059,6 +1060,11 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi,
 	case VIRTWL_IOCTL_NEW_CTX:
 		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW_CTX;
 		ctrl_new->flags = VIRTIO_WL_VFD_WRITE | VIRTIO_WL_VFD_READ;
+		break;
+	case VIRTWL_IOCTL_NEW_CTX_NAMED:
+		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW_CTX_NAMED;
+		ctrl_new->flags = VIRTIO_WL_VFD_WRITE | VIRTIO_WL_VFD_READ;
+		memcpy(ctrl_new->name, ioctl_new->name, sizeof(ctrl_new->name));
 		break;
 	case VIRTWL_IOCTL_NEW_ALLOC:
 		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW;
@@ -1448,7 +1454,6 @@ static void virtwl_remove(struct virtio_device *vdev)
 static void virtwl_scan(struct virtio_device *vdev)
 {
 }
-
 
 static struct virtio_device_id id_table[] = {
 	{ VIRTIO_ID_WL, VIRTIO_DEV_ANY_ID },

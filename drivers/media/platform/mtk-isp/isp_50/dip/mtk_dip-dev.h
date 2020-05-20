@@ -351,7 +351,7 @@ struct mtk_dip_dev {
 	atomic_t num_composing;
 	struct workqueue_struct *mdpcb_wq;
 	struct platform_device *mdp_pdev;
-	struct platform_device *scp_pdev;
+	struct mtk_scp *scp;
 	struct rproc *rproc_handle;
 	struct mtk_dip_hw_working_buf_list dip_freebufferlist;
 	dma_addr_t working_buf_mem_scp_daddr;

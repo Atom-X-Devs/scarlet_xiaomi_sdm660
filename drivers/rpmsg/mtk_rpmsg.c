@@ -61,7 +61,7 @@ struct mtk_rpmsg_endpoint {
 
 static const struct rpmsg_endpoint_ops mtk_rpmsg_endpoint_ops;
 
-static void __ept_release(struct kref *kref)
+static void __mtk_ept_release(struct kref *kref)
 {
 	struct rpmsg_endpoint *ept = container_of(kref, struct rpmsg_endpoint,
 						  refcount);
@@ -81,9 +81,9 @@ static void mtk_rpmsg_ipi_handler(void *data, unsigned int len, void *priv)
 }
 
 static struct rpmsg_endpoint *
-__rpmsg_create_ept(struct mtk_rpmsg_rproc_subdev *mtk_subdev,
-		   struct rpmsg_device *rpdev, rpmsg_rx_cb_t cb, void *priv,
-		   u32 id)
+__mtk_create_ept(struct mtk_rpmsg_rproc_subdev *mtk_subdev,
+		 struct rpmsg_device *rpdev, rpmsg_rx_cb_t cb, void *priv,
+		 u32 id)
 {
 	struct mtk_rpmsg_endpoint *mept;
 	struct rpmsg_endpoint *ept;
@@ -108,7 +108,7 @@ __rpmsg_create_ept(struct mtk_rpmsg_rproc_subdev *mtk_subdev,
 					     mept);
 	if (ret) {
 		dev_err(&pdev->dev, "IPI register failed, id = %d", id);
-		kref_put(&ept->refcount, __ept_release);
+		kref_put(&ept->refcount, __mtk_ept_release);
 		return NULL;
 	}
 
@@ -122,7 +122,7 @@ mtk_rpmsg_create_ept(struct rpmsg_device *rpdev, rpmsg_rx_cb_t cb, void *priv,
 	struct mtk_rpmsg_rproc_subdev *mtk_subdev =
 		to_mtk_rpmsg_device(rpdev)->mtk_subdev;
 
-	return __rpmsg_create_ept(mtk_subdev, rpdev, cb, priv, chinfo.src);
+	return __mtk_create_ept(mtk_subdev, rpdev, cb, priv, chinfo.src);
 }
 
 static void mtk_rpmsg_destroy_ept(struct rpmsg_endpoint *ept)
@@ -131,7 +131,7 @@ static void mtk_rpmsg_destroy_ept(struct rpmsg_endpoint *ept)
 		to_mtk_rpmsg_endpoint(ept)->mtk_subdev;
 
 	mtk_subdev->info->unregister_ipi(mtk_subdev->pdev, ept->addr);
-	kref_put(&ept->refcount, __ept_release);
+	kref_put(&ept->refcount, __mtk_ept_release);
 }
 
 static int mtk_rpmsg_send(struct rpmsg_endpoint *ept, void *data, int len)
@@ -317,9 +317,9 @@ static int mtk_rpmsg_prepare(struct rproc_subdev *subdev)
 	/* a dedicated endpoint handles the name service msgs */
 	if (mtk_subdev->info->ns_ipi_id >= 0) {
 		mtk_subdev->ns_ept =
-			__rpmsg_create_ept(mtk_subdev, NULL, mtk_rpmsg_ns_cb,
-					   mtk_subdev,
-					   mtk_subdev->info->ns_ipi_id);
+			__mtk_create_ept(mtk_subdev, NULL, mtk_rpmsg_ns_cb,
+					 mtk_subdev,
+					 mtk_subdev->info->ns_ipi_id);
 		if (!mtk_subdev->ns_ept) {
 			dev_err(&mtk_subdev->pdev->dev,
 				"failed to create name service endpoint\n");

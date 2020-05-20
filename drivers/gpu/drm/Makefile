@@ -30,7 +30,7 @@ drm-$(CONFIG_PCI) += ati_pcigart.o
 drm-$(CONFIG_DRM_PANEL) += drm_panel.o
 drm-$(CONFIG_OF) += drm_of.o
 drm-$(CONFIG_AGP) += drm_agpsupport.o
-drm-$(CONFIG_DEBUG_FS) += drm_debugfs.o drm_debugfs_crc.o
+drm-$(CONFIG_DEBUG_FS) += drm_debugfs.o drm_debugfs_crc.o drm_trace.o
 drm-$(CONFIG_DRM_LOAD_EDID_FIRMWARE) += drm_edid_load.o
 
 drm_vram_helper-y := drm_gem_vram_helper.o \
@@ -100,6 +100,7 @@ obj-$(CONFIG_DRM_STM) += stm/
 obj-$(CONFIG_DRM_STI) += sti/
 obj-$(CONFIG_DRM_IMX) += imx/
 obj-$(CONFIG_DRM_MEDIATEK) += mediatek/
+obj-$(CONFIG_DRM_POWERVR_ROGUE_1_10) += img-rogue/1.10/
 obj-$(CONFIG_DRM_MESON)	+= meson/
 obj-y			+= i2c/
 obj-y			+= panel/

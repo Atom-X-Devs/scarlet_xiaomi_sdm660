@@ -79,6 +79,8 @@
 /* The magic used by QCA spec */
 #define ATH10K_SMBIOS_BDF_EXT_MAGIC "BDF_"
 
+#define ATH10K_START_RETRY 10
+
 struct ath10k;
 
 static inline const char *ath10k_bus_str(enum ath10k_bus bus)
@@ -119,6 +121,7 @@ struct ath10k_skb_cb {
 struct ath10k_skb_rxcb {
 	dma_addr_t paddr;
 	struct hlist_node hlist;
+	u8 eid;
 };
 
 static inline struct ath10k_skb_cb *ATH10K_SKB_CB(struct sk_buff *skb)
@@ -141,6 +144,26 @@ static inline u32 host_interest_item_address(u32 item_offset)
 {
 	return QCA988X_HOST_INTEREST_ADDRESS + item_offset;
 }
+
+enum ath10k_phy_mode {
+	ATH10K_PHY_MODE_LEGACY = 0,
+	ATH10K_PHY_MODE_HT = 1,
+	ATH10K_PHY_MODE_VHT = 2,
+};
+
+/* Data rate 100KBPS based on IE Index */
+struct ath10k_index_ht_data_rate_type {
+	u8   beacon_rate_index;
+	u16  supported_rate[4];
+};
+
+/* Data rate 100KBPS based on IE Index */
+struct ath10k_index_vht_data_rate_type {
+	u8   beacon_rate_index;
+	u16  supported_VHT80_rate[2];
+	u16  supported_VHT40_rate[2];
+	u16  supported_VHT20_rate[2];
+};
 
 struct ath10k_bmi {
 	bool done_sent;
@@ -184,7 +207,7 @@ struct ath10k_fw_stats_peer {
 	u32 peer_rssi;
 	u32 peer_tx_rate;
 	u32 peer_rx_rate; /* 10x only */
-	u32 rx_duration;
+	u64 rx_duration;
 };
 
 struct ath10k_fw_extd_stats_peer {
@@ -492,7 +515,13 @@ struct ath10k_sta {
 	u16 peer_id;
 	struct rate_info txrate;
 	struct ieee80211_tx_info tx_info;
+	u32 tx_retries;
+	u32 tx_failed;
 
+	u32 rx_rate_code;
+	u32 rx_bitrate_kbps;
+	u32 tx_rate_code;
+	u32 tx_bitrate_kbps;
 	struct work_struct update_wk;
 	u64 rx_duration;
 	struct ath10k_htt_tx_stats *tx_stats;
@@ -961,6 +990,9 @@ struct ath10k {
 	/* protected by conf_mutex */
 	u8 ps_state_enable;
 
+	atomic_t restart_count;
+
+	bool nlo_enabled;
 	bool p2p;
 
 	struct {
@@ -1057,8 +1089,10 @@ struct ath10k {
 
 	struct completion install_key_done;
 
+	int last_wmi_vdev_start_status;
 	struct completion vdev_setup_done;
 	struct completion vdev_delete_done;
+	struct completion peer_stats_info_complete;
 
 	struct workqueue_struct *workqueue;
 	/* Auxiliary workqueue */

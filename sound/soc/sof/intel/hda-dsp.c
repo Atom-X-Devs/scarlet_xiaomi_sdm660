@@ -19,6 +19,7 @@
 #include <sound/hda_register.h>
 #include "../ops.h"
 #include "hda.h"
+#include "hda-ipc.h"
 
 /*
  * DSP Core control.
@@ -42,6 +43,12 @@ int hda_dsp_core_reset_enter(struct snd_sof_dev *sdev, unsigned int core_mask)
 					((adspcs & reset) == reset),
 					HDA_DSP_REG_POLL_INTERVAL_US,
 					HDA_DSP_RESET_TIMEOUT_US);
+	if (ret < 0) {
+		dev_err(sdev->dev,
+			"error: %s: timeout on HDA_DSP_REG_ADSPCS read\n",
+			__func__);
+		return ret;
+	}
 
 	/* has core entered reset ? */
 	adspcs = snd_sof_dsp_read(sdev, HDA_DSP_BAR,
@@ -76,6 +83,13 @@ int hda_dsp_core_reset_leave(struct snd_sof_dev *sdev, unsigned int core_mask)
 					    !(adspcs & crst),
 					    HDA_DSP_REG_POLL_INTERVAL_US,
 					    HDA_DSP_RESET_TIMEOUT_US);
+
+	if (ret < 0) {
+		dev_err(sdev->dev,
+			"error: %s: timeout on HDA_DSP_REG_ADSPCS read\n",
+			__func__);
+		return ret;
+	}
 
 	/* has core left reset ? */
 	adspcs = snd_sof_dsp_read(sdev, HDA_DSP_BAR,
@@ -151,8 +165,12 @@ int hda_dsp_core_power_up(struct snd_sof_dev *sdev, unsigned int core_mask)
 					    (adspcs & cpa) == cpa,
 					    HDA_DSP_REG_POLL_INTERVAL_US,
 					    HDA_DSP_RESET_TIMEOUT_US);
-	if (ret < 0)
-		dev_err(sdev->dev, "error: timeout on core powerup\n");
+	if (ret < 0) {
+		dev_err(sdev->dev,
+			"error: %s: timeout on HDA_DSP_REG_ADSPCS read\n",
+			__func__);
+		return ret;
+	}
 
 	/* did core power up ? */
 	adspcs = snd_sof_dsp_read(sdev, HDA_DSP_BAR,
@@ -171,17 +189,24 @@ int hda_dsp_core_power_up(struct snd_sof_dev *sdev, unsigned int core_mask)
 int hda_dsp_core_power_down(struct snd_sof_dev *sdev, unsigned int core_mask)
 {
 	u32 adspcs;
+	int ret;
 
 	/* update bits */
 	snd_sof_dsp_update_bits_unlocked(sdev, HDA_DSP_BAR,
 					 HDA_DSP_REG_ADSPCS,
 					 HDA_DSP_ADSPCS_SPA_MASK(core_mask), 0);
 
-	return snd_sof_dsp_read_poll_timeout(sdev, HDA_DSP_BAR,
+	ret = snd_sof_dsp_read_poll_timeout(sdev, HDA_DSP_BAR,
 				HDA_DSP_REG_ADSPCS, adspcs,
 				!(adspcs & HDA_DSP_ADSPCS_SPA_MASK(core_mask)),
 				HDA_DSP_REG_POLL_INTERVAL_US,
 				HDA_DSP_PD_TIMEOUT * USEC_PER_MSEC);
+	if (ret < 0)
+		dev_err(sdev->dev,
+			"error: %s: timeout on HDA_DSP_REG_ADSPCS read\n",
+			__func__);
+
+	return ret;
 }
 
 bool hda_dsp_core_is_enabled(struct snd_sof_dev *sdev,
@@ -282,8 +307,80 @@ void hda_dsp_ipc_int_disable(struct snd_sof_dev *sdev)
 			HDA_DSP_REG_HIPCCTL_BUSY | HDA_DSP_REG_HIPCCTL_DONE, 0);
 }
 
-static int hda_suspend(struct snd_sof_dev *sdev, int state,
-		       bool runtime_suspend)
+static int hda_dsp_wait_d0i3c_done(struct snd_sof_dev *sdev, int retry)
+{
+	struct hdac_bus *bus = sof_to_bus(sdev);
+
+	while (snd_hdac_chip_readb(bus, VS_D0I3C) & SOF_HDA_VS_D0I3C_CIP) {
+		if (!retry--)
+			return -ETIMEDOUT;
+		usleep_range(10, 15);
+	}
+
+	return 0;
+}
+
+static int hda_dsp_send_pm_gate_ipc(struct snd_sof_dev *sdev, u32 flags)
+{
+	struct sof_ipc_pm_gate pm_gate;
+	struct sof_ipc_reply reply;
+
+	memset(&pm_gate, 0, sizeof(pm_gate));
+
+	/* configure pm_gate ipc message */
+	pm_gate.hdr.size = sizeof(pm_gate);
+	pm_gate.hdr.cmd = SOF_IPC_GLB_PM_MSG | SOF_IPC_PM_GATE;
+	pm_gate.flags = flags;
+
+	/* send pm_gate ipc to dsp */
+	return sof_ipc_tx_message(sdev->ipc, pm_gate.hdr.cmd, &pm_gate,
+				  sizeof(pm_gate), &reply, sizeof(reply));
+}
+
+int hda_dsp_set_power_state(struct snd_sof_dev *sdev,
+			    enum sof_d0_substate d0_substate)
+{
+	struct hdac_bus *bus = sof_to_bus(sdev);
+	u32 flags;
+	int ret;
+	u8 value;
+
+	/* Write to D0I3C after Command-In-Progress bit is cleared */
+	ret = hda_dsp_wait_d0i3c_done(sdev, HDA_DSP_REG_POLL_RETRY_COUNT);
+	if (ret < 0) {
+		dev_err(bus->dev, "CIP timeout before D0I3C update!\n");
+		return ret;
+	}
+
+	/* Update D0I3C register */
+	value = d0_substate == SOF_DSP_D0I3 ? SOF_HDA_VS_D0I3C_I3 : 0;
+	snd_hdac_chip_updateb(bus, VS_D0I3C, SOF_HDA_VS_D0I3C_I3, value);
+
+	/* Wait for cmd in progress to be cleared before exiting the function */
+	ret = hda_dsp_wait_d0i3c_done(sdev, HDA_DSP_REG_POLL_RETRY_COUNT);
+	if (ret < 0) {
+		dev_err(bus->dev, "CIP timeout after D0I3C update!\n");
+		return ret;
+	}
+
+	dev_vdbg(bus->dev, "D0I3C updated, register = 0x%x\n",
+		 snd_hdac_chip_readb(bus, VS_D0I3C));
+
+	if (d0_substate == SOF_DSP_D0I0)
+		flags = HDA_PM_PPG;/* prevent power gating in D0 */
+	else
+		flags = HDA_PM_NO_DMA_TRACE;/* disable DMA trace in D0I3*/
+
+	/* sending pm_gate IPC */
+	ret = hda_dsp_send_pm_gate_ipc(sdev, flags);
+	if (ret < 0)
+		dev_err(sdev->dev,
+			"error: PM_GATE ipc error %d\n", ret);
+
+	return ret;
+}
+
+static int hda_suspend(struct snd_sof_dev *sdev, bool runtime_suspend)
 {
 	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	const struct sof_intel_dsp_desc *chip = hda->desc;
@@ -296,11 +393,8 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state,
 	hda_dsp_ipc_int_disable(sdev);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	if (IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC) && runtime_suspend)
-		/* enable controller wake up event */
-		snd_hdac_chip_writew(bus, WAKEEN,
-				     snd_hdac_chip_readw(bus, WAKEEN) |
-				     hda->hda_codec_mask);
+	if (runtime_suspend)
+		hda_codec_jack_wake_enable(sdev);
 
 	/* power down all hda link */
 	snd_hdac_ext_bus_link_power_down_all(bus);
@@ -341,7 +435,6 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
 	struct hdac_bus *bus = sof_to_bus(sdev);
 	struct hdac_ext_link *hlink = NULL;
-	int status;
 #endif
 	int ret;
 
@@ -351,12 +444,6 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 	 */
 	snd_sof_pci_update_bits(sdev, PCI_TCSEL, 0x07, 0);
 
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	if (runtime_resume) {
-		/* read STATESTS before controller reset */
-		status = snd_hdac_chip_readw(bus, STATESTS);
-	}
-
 	/* reset and start hda controller */
 	ret = hda_dsp_ctrl_init_chip(sdev, true);
 	if (ret < 0) {
@@ -365,17 +452,10 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 		return ret;
 	}
 
-	hda_dsp_ctrl_misc_clock_gating(sdev, false);
-
-	/* Reset stream-to-link mapping */
-	list_for_each_entry(hlink, &bus->hlink_list, list)
-		bus->io_ops->reg_writel(0, hlink->ml_addr + AZX_REG_ML_LOSIDV);
-
-	hda_dsp_ctrl_misc_clock_gating(sdev, true);
-
-	/* check jack status based on controller status */
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+	/* check jack status */
 	if (runtime_resume)
-		hda_codec_jack_check(sdev, status);
+		hda_codec_jack_check(sdev);
 
 	/* turn off the links that were off before suspend */
 	list_for_each_entry(hlink, &bus->hlink_list, list) {
@@ -386,32 +466,6 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 	/* check dma status and clean up CORB/RIRB buffers */
 	if (!bus->cmd_dma_state)
 		snd_hdac_bus_stop_cmd_io(bus);
-#else
-
-	hda_dsp_ctrl_misc_clock_gating(sdev, false);
-
-	/* reset controller */
-	ret = hda_dsp_ctrl_link_reset(sdev, true);
-	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: failed to reset controller during resume\n");
-		return ret;
-	}
-
-	/* take controller out of reset */
-	ret = hda_dsp_ctrl_link_reset(sdev, false);
-	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: failed to ready controller during resume\n");
-		return ret;
-	}
-
-	/* enable hda bus irq */
-	snd_sof_dsp_update_bits(sdev, HDA_DSP_HDA_BAR, SOF_HDA_INTCTL,
-				SOF_HDA_INT_CTRL_EN | SOF_HDA_INT_GLOBAL_EN,
-				SOF_HDA_INT_CTRL_EN | SOF_HDA_INT_GLOBAL_EN);
-
-	hda_dsp_ctrl_misc_clock_gating(sdev, true);
 #endif
 
 	/* enable ppcap interrupt */
@@ -423,6 +477,22 @@ static int hda_resume(struct snd_sof_dev *sdev, bool runtime_resume)
 
 int hda_dsp_resume(struct snd_sof_dev *sdev)
 {
+	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
+	struct pci_dev *pci = to_pci_dev(sdev->dev);
+
+	if (snd_sof_dsp_d0i3_on_suspend(sdev)) {
+		/* restore L1SEN bit */
+		if (hda->l1_support_changed)
+			snd_sof_dsp_update_bits(sdev, HDA_DSP_HDA_BAR,
+						HDA_VS_INTEL_EM2,
+						HDA_VS_INTEL_EM2_L1SEN, 0);
+
+		/* restore and disable the system wakeup */
+		pci_restore_state(pci);
+		disable_irq_wake(pci->irq);
+		return 0;
+	}
+
 	/* init hda controller. DSP cores will be powered up during fw boot */
 	return hda_resume(sdev, false);
 }
@@ -446,19 +516,35 @@ int hda_dsp_runtime_idle(struct snd_sof_dev *sdev)
 	return 0;
 }
 
-int hda_dsp_runtime_suspend(struct snd_sof_dev *sdev, int state)
+int hda_dsp_runtime_suspend(struct snd_sof_dev *sdev)
 {
 	/* stop hda controller and power dsp off */
-	return hda_suspend(sdev, state, true);
+	return hda_suspend(sdev, true);
 }
 
-int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
+int hda_dsp_suspend(struct snd_sof_dev *sdev)
 {
+	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	struct hdac_bus *bus = sof_to_bus(sdev);
+	struct pci_dev *pci = to_pci_dev(sdev->dev);
 	int ret;
 
+	if (snd_sof_dsp_d0i3_on_suspend(sdev)) {
+		/* enable L1SEN to make sure the system can enter S0Ix */
+		hda->l1_support_changed =
+			snd_sof_dsp_update_bits(sdev, HDA_DSP_HDA_BAR,
+						HDA_VS_INTEL_EM2,
+						HDA_VS_INTEL_EM2_L1SEN,
+						HDA_VS_INTEL_EM2_L1SEN);
+
+		/* enable the system waking up via IPC IRQ */
+		enable_irq_wake(pci->irq);
+		pci_save_state(pci);
+		return 0;
+	}
+
 	/* stop hda controller and power dsp off */
-	ret = hda_suspend(sdev, state, false);
+	ret = hda_suspend(sdev, false);
 	if (ret < 0) {
 		dev_err(bus->dev, "error: suspending dsp\n");
 		return ret;
@@ -469,30 +555,24 @@ int hda_dsp_suspend(struct snd_sof_dev *sdev, int state)
 
 int hda_dsp_set_hw_params_upon_resume(struct snd_sof_dev *sdev)
 {
-	struct hdac_bus *bus = sof_to_bus(sdev);
-	struct sof_intel_hda_stream *hda_stream;
-	struct hdac_ext_stream *stream;
-	struct hdac_stream *s;
-
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+	struct hdac_bus *bus = sof_to_bus(sdev);
 	struct snd_soc_pcm_runtime *rtd;
+	struct hdac_ext_stream *stream;
 	struct hdac_ext_link *link;
+	struct hdac_stream *s;
 	const char *name;
 	int stream_tag;
-#endif
 
 	/* set internal flag for BE */
 	list_for_each_entry(s, &bus->stream_list, list) {
 		stream = stream_to_hdac_ext_stream(s);
-		hda_stream = container_of(stream, struct sof_intel_hda_stream,
-					  hda_stream);
-		hda_stream->hw_params_upon_resume = 1;
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+
 		/*
-		 * clear and release stream. This should already be taken care
-		 * for running streams when the SUSPEND trigger is called.
-		 * But paused streams do not get suspended, so this needs to be
-		 * done explicitly during suspend.
+		 * clear stream. This should already be taken care for running
+		 * streams when the SUSPEND trigger is called. But paused
+		 * streams do not get suspended, so this needs to be done
+		 * explicitly during suspend.
 		 */
 		if (stream->link_substream) {
 			rtd = snd_pcm_substream_chip(stream->link_substream);
@@ -500,12 +580,17 @@ int hda_dsp_set_hw_params_upon_resume(struct snd_sof_dev *sdev)
 			link = snd_hdac_ext_bus_get_link(bus, name);
 			if (!link)
 				return -EINVAL;
+
+			stream->link_prepared = 0;
+
+			if (hdac_stream(stream)->direction ==
+				SNDRV_PCM_STREAM_CAPTURE)
+				continue;
+
 			stream_tag = hdac_stream(stream)->stream_tag;
 			snd_hdac_ext_link_clear_stream_id(link, stream_tag);
-			snd_hdac_ext_stream_release(stream,
-						    HDAC_EXT_STREAM_TYPE_LINK);
 		}
-#endif
 	}
+#endif
 	return 0;
 }

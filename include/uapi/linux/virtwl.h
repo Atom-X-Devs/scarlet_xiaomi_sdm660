@@ -21,6 +21,7 @@ enum virtwl_ioctl_new_type {
 	VIRTWL_IOCTL_NEW_PIPE_WRITE,
 	/* create a new virtwl dmabuf that is writable via the returned fd */
 	VIRTWL_IOCTL_NEW_DMABUF,
+	VIRTWL_IOCTL_NEW_CTX_NAMED, /* open a new named connection context */
 };
 
 struct virtwl_ioctl_new {
@@ -42,6 +43,8 @@ struct virtwl_ioctl_new {
 			__u32 offset1; /* return offset1 */
 			__u32 offset2; /* return offset2 */
 		} dmabuf;
+		/* name of socket if type == VIRTIO_WL_CMD_VFD_NEW_CTX_NAMED */
+		char name[32];
 	};
 };
 

@@ -48,7 +48,7 @@ struct ath10k_hif_ops {
 	 */
 	void (*stop)(struct ath10k *ar);
 
-	int (*swap_mailbox)(struct ath10k *ar);
+	int (*start_post)(struct ath10k *ar);
 
 	int (*get_htt_tx_complete)(struct ath10k *ar);
 
@@ -132,10 +132,10 @@ static inline void ath10k_hif_stop(struct ath10k *ar)
 	return ar->hif.ops->stop(ar);
 }
 
-static inline int ath10k_hif_swap_mailbox(struct ath10k *ar)
+static inline int ath10k_hif_start_post(struct ath10k *ar)
 {
-	if (ar->hif.ops->swap_mailbox)
-		return ar->hif.ops->swap_mailbox(ar);
+	if (ar->hif.ops->start_post)
+		return ar->hif.ops->start_post(ar);
 	return 0;
 }
 

@@ -98,6 +98,7 @@ struct mtk_cam_dev_request {
  * @scp_addr: The SCP address of this buffer which
  *            is only supported for meta input node.
  * @node_id: The vidoe node id which this buffer belongs to.
+ * @seq_no: The buffer sequence number used for meta buffer.
  *
  */
 struct mtk_cam_dev_buffer {
@@ -107,6 +108,7 @@ struct mtk_cam_dev_buffer {
 	dma_addr_t daddr;
 	dma_addr_t scp_addr;
 	unsigned int node_id;
+	unsigned int seq_no;
 };
 
 /*

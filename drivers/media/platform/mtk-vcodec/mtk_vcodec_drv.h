@@ -13,12 +13,14 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
+#include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-core.h>
 #include "mtk_vcodec_util.h"
 
 #define MTK_VCODEC_DRV_NAME	"mtk_vcodec_drv"
 #define MTK_VCODEC_DEC_NAME	"mtk-vcodec-dec"
 #define MTK_VCODEC_ENC_NAME	"mtk-vcodec-enc"
+#define MTK_VENC_VP8_NAME	"mtk-venc-vp8"
 #define MTK_PLATFORM_STR	"platform:mt8173"
 
 #define MTK_VCODEC_MAX_PLANES	3
@@ -247,7 +249,9 @@ struct vdec_pic_info {
  * @decode_work: worker for the decoding
  * @encode_work: worker for the encoding
  * @last_decoded_picinfo: pic information get from latest decode
- * @empty_flush_buf: a fake size-0 capture buffer that indicates flush
+ * @empty_flush_buf: a fake size-0 capture buffer that indicates flush. Only
+ *		     to be used with encoder and stateful decoder.
+ * @is_flushing: set to true if flushing is in progress.
  * @current_codec: current set input codec, in V4L2 pixel format
  *
  * @colorspace: enum v4l2_colorspace; supplemental to pixelformat
@@ -286,7 +290,8 @@ struct mtk_vcodec_ctx {
 	struct work_struct decode_work;
 	struct work_struct encode_work;
 	struct vdec_pic_info last_decoded_picinfo;
-	struct mtk_video_dec_buf *empty_flush_buf;
+	struct v4l2_m2m_buffer empty_flush_buf;
+	bool is_flushing;
 
 	u32 current_codec;
 
@@ -354,25 +359,27 @@ struct mtk_vcodec_dec_pdata {
  * @chip: chip this encoder is compatible with
  *
  * @uses_ext: whether the encoder uses the extended firmware messaging format
- * @has_lt_irq: whether the encoder uses the LT irq
+ * @name: whether the encoder core is vp8
  * @min_birate: minimum supported encoding bitrate
  * @max_bitrate: maximum supported encoding bitrate
  * @capture_formats: array of supported capture formats
  * @num_capture_formats: number of entries in capture_formats
  * @output_formats: array of supported output formats
  * @num_output_formats: number of entries in output_formats
+ * @core_id: stand for h264 or vp8 encode index
  */
 struct mtk_vcodec_enc_pdata {
 	enum mtk_chip chip;
 
 	bool uses_ext;
-	bool has_lt_irq;
+	const char *name;
 	unsigned long min_bitrate;
 	unsigned long max_bitrate;
 	const struct mtk_video_fmt *capture_formats;
 	size_t num_capture_formats;
 	const struct mtk_video_fmt *output_formats;
 	size_t num_output_formats;
+	int core_id;
 };
 
 /**
@@ -404,7 +411,6 @@ struct mtk_vcodec_enc_pdata {
  *
  * @dec_irq: decoder irq resource
  * @enc_irq: h264 encoder irq resource
- * @enc_lt_irq: vp8 encoder irq resource
  *
  * @dec_mutex: decoder hardware lock
  * @enc_mutex: encoder hardware lock.
@@ -442,7 +448,6 @@ struct mtk_vcodec_dev {
 
 	int dec_irq;
 	int enc_irq;
-	int enc_lt_irq;
 
 	struct mutex dec_mutex;
 	struct mutex enc_mutex;

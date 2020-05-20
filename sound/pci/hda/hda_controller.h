@@ -72,7 +72,6 @@ struct azx_dev {
 	 *  when link position is not greater than FIFO size
 	 */
 	unsigned int insufficient:1;
-	unsigned int wc_marked:1;
 };
 
 #define azx_stream(dev)		(&(dev)->core)
@@ -84,11 +83,6 @@ struct azx;
 struct hda_controller_ops {
 	/* Disable msi if supported, PCI only */
 	int (*disable_msi_reset_irq)(struct azx *);
-	int (*substream_alloc_pages)(struct azx *chip,
-				     struct snd_pcm_substream *substream,
-				     size_t size);
-	int (*substream_free_pages)(struct azx *chip,
-				    struct snd_pcm_substream *substream);
 	void (*pcm_mmap_prepare)(struct snd_pcm_substream *substream,
 				 struct vm_area_struct *area);
 	/* Check if current position is acceptable */
@@ -170,11 +164,10 @@ struct azx {
 #define azx_bus(chip)	(&(chip)->bus.core)
 #define bus_to_azx(_bus)	container_of(_bus, struct azx, bus.core)
 
-#ifdef CONFIG_X86
-#define azx_snoop(chip)		((chip)->snoop)
-#else
-#define azx_snoop(chip)		true
-#endif
+static inline bool azx_snoop(struct azx *chip)
+{
+	return !IS_ENABLED(CONFIG_X86) || chip->snoop;
+}
 
 /*
  * macros for easy use
@@ -222,8 +215,7 @@ void azx_stop_chip(struct azx *chip);
 irqreturn_t azx_interrupt(int irq, void *dev_id);
 
 /* Codec interface */
-int azx_bus_init(struct azx *chip, const char *model,
-		 const struct hdac_io_ops *io_ops);
+int azx_bus_init(struct azx *chip, const char *model);
 int azx_probe_codecs(struct azx *chip, unsigned int max_slots);
 int azx_codec_configure(struct azx *chip);
 int azx_init_streams(struct azx *chip);

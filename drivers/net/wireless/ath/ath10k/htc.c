@@ -119,7 +119,7 @@ static int ath10k_htc_consume_credit(struct ath10k_htc_ep *ep,
 	if (consume) {
 		ep->tx_credits -= credits;
 		ath10k_dbg(ar, ATH10K_DBG_HTC,
-			   "htc ep %d consumed %d credits (total %d)\n",
+			   "htc ep %d consumed %d credits total %d\n",
 			   eid, credits, ep->tx_credits);
 	}
 
@@ -142,7 +142,7 @@ static void ath10k_htc_release_credit(struct ath10k_htc_ep *ep, unsigned int len
 	spin_lock_bh(&htc->tx_lock);
 	ep->tx_credits += credits;
 	ath10k_dbg(ar, ATH10K_DBG_HTC,
-		   "htc ep %d reverted %d credits back (total %d)\n",
+		   "htc ep %d reverted %d credits back total %d\n",
 		   eid, credits, ep->tx_credits);
 	spin_unlock_bh(&htc->tx_lock);
 
@@ -311,7 +311,7 @@ ath10k_htc_process_lookahead_bundle(struct ath10k_htc *htc,
 	struct ath10k *ar = htc->ar;
 	int bundle_cnt = len / sizeof(*report);
 
-	if (!bundle_cnt || (bundle_cnt > HTC_HOST_MAX_MSG_PER_RX_BUNDLE)) {
+	if (!bundle_cnt || (bundle_cnt > htc->max_msgs_per_htc_bundle)) {
 		ath10k_warn(ar, "Invalid lookahead bundle count: %d\n",
 			    bundle_cnt);
 		return -EINVAL;
@@ -633,7 +633,7 @@ static int ath10k_htc_send_bundle(struct ath10k_htc_ep *ep,
 	int ret, cn = 0;
 	unsigned int skb_len;
 
-	ath10k_dbg(ar, ATH10K_DBG_HTC, "bundle skb: len:%d\n", bundle_skb->len);
+	ath10k_dbg(ar, ATH10K_DBG_HTC, "bundle skb len %d\n", bundle_skb->len);
 	skb_len = bundle_skb->len;
 	ret = ath10k_htc_consume_credit(ep, skb_len, true);
 
@@ -664,7 +664,7 @@ static int ath10k_htc_send_bundle(struct ath10k_htc_ep *ep,
 		queue_work(ar->workqueue_tx_complete, &ar->tx_complete_work);
 
 	ath10k_dbg(ar, ATH10K_DBG_HTC,
-		   "bundle tx status:%d, eid:%d, req count:%d, count:%d, len:%d\n",
+		   "bundle tx status %d eid %d req count %d count %d len %d\n",
 		   ret, ep->eid, skb_queue_len(&ep->tx_req_head), cn, bundle_skb->len);
 	return ret;
 }
@@ -680,7 +680,7 @@ static void ath10k_htc_send_one_skb(struct ath10k_htc_ep *ep, struct sk_buff *sk
 	if (ret)
 		skb_queue_head(&ep->tx_req_head, skb);
 
-	ath10k_dbg(ar, ATH10K_DBG_HTC, "tx one status:%d, eid:%d, len:%d, pending count:%d\n",
+	ath10k_dbg(ar, ATH10K_DBG_HTC, "tx one status %d eid %d len %d pending count %d\n",
 		   ret, ep->eid, skb->len, skb_queue_len(&ep->tx_req_head));
 }
 
@@ -798,7 +798,7 @@ static void ath10k_htc_bundle_tx_work(struct work_struct *work)
 		if (!ep->bundle_tx)
 			continue;
 
-		ath10k_dbg(ar, ATH10K_DBG_HTC, "bundle tx work, eid:%d, count:%d\n",
+		ath10k_dbg(ar, ATH10K_DBG_HTC, "bundle tx work eid %d count %d\n",
 			   ep->eid, skb_queue_len(&ep->tx_req_head));
 
 		if (skb_queue_len(&ep->tx_req_head) >=
@@ -826,7 +826,7 @@ static void ath10k_htc_tx_complete_work(struct work_struct *work)
 		ep = &ar->htc.endpoint[i];
 		eid = ep->eid;
 		if (ep->bundle_tx && eid == ar->htt.eid) {
-			ath10k_dbg(ar, ATH10K_DBG_HTC, "bundle tx complete, eid:%d, pending complete count:%d\n",
+			ath10k_dbg(ar, ATH10K_DBG_HTC, "bundle tx complete eid %d pending complete count%d\n",
 				   ep->eid, skb_queue_len(&ep->tx_complete_head));
 
 			while (true) {
@@ -846,7 +846,7 @@ int ath10k_htc_send_hl(struct ath10k_htc *htc,
 	struct ath10k_htc_ep *ep = &htc->endpoint[eid];
 	struct ath10k *ar = htc->ar;
 
-	ath10k_dbg(ar, ATH10K_DBG_HTC, "htc send hl: eid:%d, bundle:%d, tx count:%d, len:%d\n",
+	ath10k_dbg(ar, ATH10K_DBG_HTC, "htc send hl eid %d bundle %d tx count %d len %d\n",
 		   eid, ep->bundle_tx, skb_queue_len(&ep->tx_req_head), skb->len);
 
 	if (ep->bundle_tx) {
@@ -865,6 +865,27 @@ void ath10k_htc_setup_tx_req(struct ath10k_htc_ep *ep)
 		ep->bundle_tx = true;
 		skb_queue_head_init(&ep->tx_req_head);
 		skb_queue_head_init(&ep->tx_complete_head);
+	}
+}
+
+void ath10k_htc_stop_hl(struct ath10k *ar)
+{
+	struct ath10k_htc_ep *ep;
+	int i;
+
+	cancel_work_sync(&ar->bundle_tx_work);
+	cancel_work_sync(&ar->tx_complete_work);
+
+	for (i = 0; i < ARRAY_SIZE(ar->htc.endpoint); i++) {
+		ep = &ar->htc.endpoint[i];
+
+		if (!ep->bundle_tx)
+			continue;
+
+		ath10k_dbg(ar, ATH10K_DBG_HTC, "stop tx work eid %d count %d\n",
+			   ep->eid, skb_queue_len(&ep->tx_req_head));
+
+		skb_queue_purge(&ep->tx_req_head);
 	}
 }
 
@@ -943,7 +964,7 @@ int ath10k_htc_wait_target(struct ath10k_htc *htc)
 			min_t(u8, msg->ready_ext.max_msgs_per_htc_bundle,
 			      HTC_HOST_MAX_MSG_PER_RX_BUNDLE);
 		ath10k_dbg(ar, ATH10K_DBG_HTC,
-			   "Extended ready message. RX bundle size: %d, alt size:%d\n",
+			   "Extended ready message RX bundle size %d alt size %d\n",
 			   htc->max_msgs_per_htc_bundle,
 			   htc->alt_data_credit_size);
 	}

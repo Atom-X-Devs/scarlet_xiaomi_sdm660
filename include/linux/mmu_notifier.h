@@ -188,6 +188,8 @@ struct mmu_notifier_ops {
 	 */
 	void (*invalidate_range)(struct mmu_notifier *mn, struct mm_struct *mm,
 				 unsigned long start, unsigned long end);
+
+	int (*update_ages)(struct mmu_notifier *mn);
 };
 
 /*
@@ -239,7 +241,15 @@ extern void __mmu_notifier_invalidate_range_end(struct mm_struct *mm,
 				  bool only_end);
 extern void __mmu_notifier_invalidate_range(struct mm_struct *mm,
 				  unsigned long start, unsigned long end);
+extern int __mmu_notifier_update_ages(struct mm_struct *mm);
 extern bool mm_has_blockable_invalidate_notifiers(struct mm_struct *mm);
+
+static inline int mmu_notifier_update_ages(struct mm_struct *mm)
+{
+	if (mm_has_notifiers(mm))
+		return __mmu_notifier_update_ages(mm);
+	return 0;
+}
 
 static inline void mmu_notifier_release(struct mm_struct *mm)
 {
@@ -447,6 +457,11 @@ static inline int mm_has_notifiers(struct mm_struct *mm)
 
 static inline void mmu_notifier_release(struct mm_struct *mm)
 {
+}
+
+static inline int mmu_notifier_update_ages(struct mm_struct *mm)
+{
+	return 0;
 }
 
 static inline int mmu_notifier_clear_flush_young(struct mm_struct *mm,

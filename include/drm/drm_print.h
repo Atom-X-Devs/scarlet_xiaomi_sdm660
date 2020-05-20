@@ -80,6 +80,7 @@ void __drm_printfn_seq_file(struct drm_printer *p, struct va_format *vaf);
 void __drm_puts_seq_file(struct drm_printer *p, const char *str);
 void __drm_printfn_info(struct drm_printer *p, struct va_format *vaf);
 void __drm_printfn_debug(struct drm_printer *p, struct va_format *vaf);
+void __drm_printfn_trace(struct drm_printer *p, struct va_format *vaf);
 
 __printf(2, 3)
 void drm_printf(struct drm_printer *p, const char *f, ...);
@@ -222,6 +223,61 @@ static inline struct drm_printer drm_debug_printer(const char *prefix)
 	};
 	return p;
 }
+
+/**
+ * drm_trace_printer - construct a &drm_printer that outputs to drm_trace
+ * @prefix: debug output prefix
+ *
+ * RETURNS:
+ * The &drm_printer object
+ */
+static inline struct drm_printer drm_trace_printer(const char *prefix)
+{
+	struct drm_printer p = {
+		.printfn = __drm_printfn_trace,
+		.prefix = prefix
+	};
+	return p;
+}
+
+#ifdef CONFIG_DEBUG_FS
+
+int drm_trace_init(struct dentry *debugfs_root);
+bool drm_trace_enabled(u32 category);
+__printf(1, 2)
+void drm_trace_printf(const char *format, ...);
+__printf(2, 3)
+void drm_dev_trace_printf(const struct device *dev, const char *format, ...);
+void drm_trace_cleanup(void);
+
+#else
+
+static inline int drm_trace_init(struct dentry *debugfs_root)
+{
+	return 0;
+}
+
+static inline bool drm_trace_enabled(u32 category)
+{
+	return false;
+}
+
+__printf(1, 2)
+static inline void drm_trace_printf(const char *format, ...)
+{
+}
+
+__printf(2, 3)
+static inline void drm_dev_trace_printf(const struct device *dev,
+					const char *format, ...)
+{
+}
+
+static inline void drm_trace_cleanup(void)
+{
+}
+
+#endif
 
 /*
  * The following categories are defined:

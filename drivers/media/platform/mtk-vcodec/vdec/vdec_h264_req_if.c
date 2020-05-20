@@ -200,7 +200,8 @@ struct vdec_h264_vsi {
  * @pred_buf : HW working predication buffer
  * @mv_buf   : HW working motion vector buffer
  * @vpu      : VPU instance
- * @vsi      : VPU shared information
+ * @vsi      : VPU area shared with VPU
+ * @vsi_ctx  : Local VSI data for this decoding context
  */
 struct vdec_h264_slice_inst {
 	unsigned int num_nalu;
@@ -209,6 +210,7 @@ struct vdec_h264_slice_inst {
 	struct mtk_vcodec_mem mv_buf[H264_MAX_MV_NUM];
 	struct vdec_vpu_inst vpu;
 	struct vdec_h264_vsi *vsi;
+	struct vdec_h264_vsi vsi_ctx;
 	struct mtk_h264_dec_slice_param h264_slice_param;
 
 	struct v4l2_h264_dpb_entry dpb[16];
@@ -497,8 +499,8 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 	get_h264_decode_parameters(&slice_param->decode_params, &fixed_params);
 	get_h264_dpb_list(inst, slice_param);
 
-	memcpy(&inst->vsi->h264_slice_params, slice_param,
-	       sizeof(struct mtk_h264_dec_slice_param));
+	memcpy(&inst->vsi_ctx.h264_slice_params, slice_param,
+	       sizeof(inst->vsi_ctx.h264_slice_params));
 }
 
 static unsigned int get_mv_buf_size(unsigned int width, unsigned int height)
@@ -519,7 +521,7 @@ static int allocate_predication_buf(struct vdec_h264_slice_inst *inst)
 		return err;
 	}
 
-	inst->vsi->pred_buf_dma = inst->pred_buf.dma_addr;
+	inst->vsi_ctx.pred_buf_dma = inst->pred_buf.dma_addr;
 	return 0;
 }
 
@@ -529,7 +531,7 @@ static void free_predication_buf(struct vdec_h264_slice_inst *inst)
 
 	mtk_vcodec_debug_enter(inst);
 
-	inst->vsi->pred_buf_dma = 0;
+	inst->vsi_ctx.pred_buf_dma = 0;
 	mem = &inst->pred_buf;
 	if (mem->va)
 		mtk_vcodec_mem_free(inst->ctx, mem);
@@ -554,7 +556,7 @@ static int alloc_mv_buf(struct vdec_h264_slice_inst *inst,
 			mtk_vcodec_err(inst, "failed to allocate mv buf");
 			return err;
 		}
-		inst->vsi->mv_buf_dma[i] = mem->dma_addr;
+		inst->vsi_ctx.mv_buf_dma[i] = mem->dma_addr;
 	}
 
 	return 0;
@@ -566,7 +568,7 @@ static void free_mv_buf(struct vdec_h264_slice_inst *inst)
 	struct mtk_vcodec_mem *mem = NULL;
 
 	for (i = 0; i < H264_MAX_MV_NUM; i++) {
-		inst->vsi->mv_buf_dma[i] = 0;
+		inst->vsi_ctx.mv_buf_dma[i] = 0;
 		mem = &inst->mv_buf[i];
 		if (mem->va)
 			mtk_vcodec_mem_free(inst->ctx, mem);
@@ -582,7 +584,7 @@ static void get_pic_info(struct vdec_h264_slice_inst *inst,
 	ctx->picinfo.buf_h = (ctx->picinfo.pic_h + 31) & 0xFFFFFFE0;
 	ctx->picinfo.fb_sz[0] = ctx->picinfo.buf_w * ctx->picinfo.buf_h;
 	ctx->picinfo.fb_sz[1] = ctx->picinfo.fb_sz[0] >> 1;
-	inst->vsi->dec.cap_num_planes =
+	inst->vsi_ctx.dec.cap_num_planes =
 		ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes;
 
 	pic = &ctx->picinfo;
@@ -594,15 +596,14 @@ static void get_pic_info(struct vdec_h264_slice_inst *inst,
 
 	if ((ctx->last_decoded_picinfo.pic_w != ctx->picinfo.pic_w) ||
 		(ctx->last_decoded_picinfo.pic_h != ctx->picinfo.pic_h)) {
-
-		inst->vsi->dec.resolution_changed = true;
+		inst->vsi_ctx.dec.resolution_changed = true;
 		if ((ctx->last_decoded_picinfo.buf_w != ctx->picinfo.buf_w) ||
 			(ctx->last_decoded_picinfo.buf_h != ctx->picinfo.buf_h))
-			inst->vsi->dec.realloc_mv_buf = true;
+			inst->vsi_ctx.dec.realloc_mv_buf = true;
 
 		mtk_v4l2_debug(1, "ResChg: (%d %d) : old(%d, %d) -> new(%d, %d)",
-			inst->vsi->dec.resolution_changed,
-			inst->vsi->dec.realloc_mv_buf,
+			inst->vsi_ctx.dec.resolution_changed,
+			inst->vsi_ctx.dec.realloc_mv_buf,
 			ctx->last_decoded_picinfo.pic_w,
 			ctx->last_decoded_picinfo.pic_h,
 			ctx->picinfo.pic_w, ctx->picinfo.pic_h);
@@ -612,10 +613,10 @@ static void get_pic_info(struct vdec_h264_slice_inst *inst,
 static void get_crop_info(struct vdec_h264_slice_inst *inst,
 	struct v4l2_rect *cr)
 {
-	cr->left = inst->vsi->crop.left;
-	cr->top = inst->vsi->crop.top;
-	cr->width = inst->vsi->crop.width;
-	cr->height = inst->vsi->crop.height;
+	cr->left = inst->vsi_ctx.crop.left;
+	cr->top = inst->vsi_ctx.crop.top;
+	cr->width = inst->vsi_ctx.crop.width;
+	cr->height = inst->vsi_ctx.crop.height;
 
 	mtk_vcodec_debug(inst, "l=%d, t=%d, w=%d, h=%d",
 			 cr->left, cr->top, cr->width, cr->height);
@@ -624,7 +625,7 @@ static void get_crop_info(struct vdec_h264_slice_inst *inst,
 static void get_dpb_size(struct vdec_h264_slice_inst *inst,
 	unsigned int *dpb_sz)
 {
-	*dpb_sz = inst->vsi->dec.dpb_sz;
+	*dpb_sz = inst->vsi_ctx.dec.dpb_sz;
 	mtk_vcodec_debug(inst, "sz=%d", *dpb_sz);
 }
 
@@ -649,6 +650,10 @@ static int vdec_h264_slice_init(struct mtk_vcodec_ctx *ctx)
 	}
 
 	inst->vsi = (struct vdec_h264_vsi *)inst->vpu.vsi;
+	memcpy(&inst->vsi_ctx, inst->vsi, sizeof(inst->vsi_ctx));
+	inst->vsi_ctx.dec.resolution_changed = true;
+	inst->vsi_ctx.dec.realloc_mv_buf = true;
+
 	err = allocate_predication_buf(inst);
 	if (err)
 		goto error_deinit;
@@ -738,24 +743,25 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 	mtk_vcodec_debug(inst, "\n + NALU[%d] type %d +\n", inst->num_nalu,
 			 nal_type);
 
-	inst->vsi->dec.bs_dma = (uint64_t)bs->dma_addr;
-	inst->vsi->dec.y_fb_dma = y_fb_dma;
-	inst->vsi->dec.c_fb_dma = c_fb_dma;
-	inst->vsi->dec.vdec_fb_va = vdec_fb_va;
+	inst->vsi_ctx.dec.bs_dma = (uint64_t)bs->dma_addr;
+	inst->vsi_ctx.dec.y_fb_dma = y_fb_dma;
+	inst->vsi_ctx.dec.c_fb_dma = c_fb_dma;
+	inst->vsi_ctx.dec.vdec_fb_va = vdec_fb_va;
 
 	get_vdec_decode_parameters(inst);
-	*res_chg = inst->vsi->dec.resolution_changed;
+	*res_chg = inst->vsi_ctx.dec.resolution_changed;
 	if (*res_chg) {
 		mtk_vcodec_debug(inst, "- resolution changed -");
-		if (inst->vsi->dec.realloc_mv_buf) {
+		if (inst->vsi_ctx.dec.realloc_mv_buf) {
 			err = alloc_mv_buf(inst, &(inst->ctx->picinfo));
-			inst->vsi->dec.realloc_mv_buf = false;
+			inst->vsi_ctx.dec.realloc_mv_buf = false;
 			if (err)
 				goto err_free_fb_out;
 		}
 		*res_chg = false;
 	}
 
+	memcpy(inst->vsi, &inst->vsi_ctx, sizeof(*inst->vsi));
 	err = vpu_dec_start(vpu, data, 2);
 	if (err)
 		goto err_free_fb_out;
@@ -771,6 +777,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		vpu_dec_end(vpu);
 	}
 
+	memcpy(&inst->vsi_ctx, inst->vsi, sizeof(inst->vsi_ctx));
 	mtk_vcodec_debug(inst, "\n - NALU[%d] type=%d -\n", inst->num_nalu,
 			 nal_type);
 	return 0;

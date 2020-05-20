@@ -1254,7 +1254,9 @@ static const struct dpcd_quirk dpcd_quirk_list[] = {
 	/* LG LP140WF6-SPM1 eDP panel */
 	{ OUI(0x00, 0x22, 0xb9), DEVICE_ID('s', 'i', 'v', 'a', 'r', 'T'), false, BIT(DP_DPCD_QUIRK_CONSTANT_N) },
 	/* Apple panels need some additional handling to support PSR */
-	{ OUI(0x00, 0x10, 0xfa), DEVICE_ID_ANY, false, BIT(DP_DPCD_QUIRK_NO_PSR) }
+	{ OUI(0x00, 0x10, 0xfa), DEVICE_ID_ANY, false, BIT(DP_DPCD_QUIRK_NO_PSR) },
+	/* AUO PSR2 panels need some more DP synchronization latency */
+	{ OUI(0x00, 0x1c, 0xf8), DEVICE_ID_ANY, false, BIT(DP_DPCD_QUIRK_SYNCHRONIZATION_LATENCY) }
 };
 
 #undef OUI

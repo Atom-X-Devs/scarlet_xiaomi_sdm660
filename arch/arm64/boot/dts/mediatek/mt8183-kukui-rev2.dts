@@ -5,6 +5,7 @@
 
 /dts-v1/;
 #include "mt8183-kukui.dtsi"
+#include "mt8183-kukui-audio-ts3a227e.dtsi"
 
 / {
 	model = "MediaTek kukui rev2 board";
@@ -404,10 +405,6 @@
 	};
 };
 
-&sound {
-	mediatek,headset-codec = <&ts3a227e>;
-};
-
 &tboard_thermistor1 {
 	temperature-lookup-table = <	(-5000) 2690
 					0 2348
@@ -466,8 +463,4 @@
 					115000 41
 					120000 35
 					125000 33>;
-};
-
-&ts3a227e {
-	status = "okay";
 };

@@ -1061,6 +1061,12 @@ static int mtk_thermal_probe(struct platform_device *pdev)
 				&mtk_thermal_ops : &mtk_thermal_sensor_ops);
 
 		if (IS_ERR(tzdev)) {
+			if (PTR_ERR(tzdev) == -ENODEV) {
+				dev_warn(&pdev->dev,
+					"sensor %d not registered in thermal zone in dt\n",
+					i);
+				continue;
+			}
 			if (PTR_ERR(tzdev) != -EACCES) {
 				ret = PTR_ERR(tzdev);
 				goto err_disable_clk_peri_therm;

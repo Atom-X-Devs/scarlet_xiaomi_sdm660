@@ -50,7 +50,7 @@ struct mdp_config_pool {
 struct mdp_vpu_dev {
 	/* synchronization protect for accessing vpu working buffer info */
 	struct mutex		*lock;
-	struct platform_device	*pdev;
+	struct mtk_scp		*scp;
 	struct completion	ipi_acked;
 	void			*work;
 	dma_addr_t		work_addr;
@@ -67,9 +67,7 @@ struct mdp_vpu_ctx {
 };
 
 void mdp_vpu_shared_mem_free(struct mdp_vpu_dev *vpu);
-int mdp_vpu_register(struct platform_device *pdev);
-void mdp_vpu_unregister(struct platform_device *pdev);
-int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct platform_device *pdev,
+int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct mtk_scp *scp,
 		     struct mutex *lock);
 int mdp_vpu_dev_deinit(struct mdp_vpu_dev *vpu);
 int mdp_vpu_ctx_init(struct mdp_vpu_ctx *ctx, struct mdp_vpu_dev *vpu,

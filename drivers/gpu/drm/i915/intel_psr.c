@@ -308,6 +308,12 @@ void intel_psr_init_dpcd(struct intel_dp *intel_dp)
 	dev_priv->psr.sink_sync_latency =
 		intel_dp_get_sink_sync_latency(intel_dp);
 
+	if (drm_dp_has_quirk(&intel_dp->desc, DP_DPCD_QUIRK_SYNCHRONIZATION_LATENCY)) {
+		DRM_DEBUG_KMS("AUO PSR2 panel need more synchronization latency\n");
+		if (dev_priv->psr.sink_sync_latency == 0)
+			dev_priv->psr.sink_sync_latency = 8;
+	}
+
 	WARN_ON(dev_priv->psr.dp);
 	dev_priv->psr.dp = intel_dp;
 
@@ -1271,8 +1277,11 @@ void intel_psr_short_pulse(struct intel_dp *intel_dp)
 			  val & ~errors);
 	if (val & errors) {
 		intel_psr_disable_locked(intel_dp);
-		psr->sink_not_reliable = true;
+		if ((val & DP_PSR_RFB_STORAGE_ERROR) ||
+			(val & DP_PSR_VSC_SDP_UNCORRECTABLE_ERROR))
+			psr->sink_not_reliable = true;
 	}
+
 	/* clear status register */
 	drm_dp_dpcd_writeb(&intel_dp->aux, DP_PSR_ERROR_STATUS, val);
 exit:

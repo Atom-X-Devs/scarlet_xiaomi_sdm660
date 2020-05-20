@@ -66,7 +66,9 @@ static signed long i915_fence_wait(struct dma_fence *fence,
 				   bool interruptible,
 				   signed long timeout)
 {
-	return i915_request_wait(to_request(fence), interruptible, timeout);
+	return i915_request_wait(to_request(fence),
+				 interruptible | I915_WAIT_BOOST,
+				 timeout);
 }
 
 static void i915_fence_release(struct dma_fence *fence)
@@ -1349,6 +1351,21 @@ restart:
 		 * coherent check on the seqno before we sleep.
 		 */
 		goto wakeup;
+    /*
+     * This client is about to stall waiting for the GPU. In many cases
+     * this is undesirable and limits the throughput of the system, as
+     * many clients cannot continue processing user input/output whilst
+     * blocked. RPS autotuning may take tens of milliseconds to respond to
+     * the GPU load and thus incurs additional latency for the client.
+     * We can circumvent that by promoting the GPU freuency to maximum
+     * before we sleep. This makes the GPU throttle up much more quickly
+     * (good for benchmarks and user experience, e.g. window animations),
+     * but at a cost of spending more power processing the workload.
+     */
+	if (flags & I915_WAIT_BOOST && !i915_request_started(rq)) {
+		if (INTEL_GEN(rq->i915) >= 6)
+			gen6_rps_boost(rq, NULL);
+	}
 
 	if (flags & I915_WAIT_LOCKED)
 		__i915_wait_request_check_and_reset(rq);

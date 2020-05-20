@@ -811,81 +811,8 @@ static const char *dmic_mux_text[] = { "ADC", "DMIC" };
 
 static SOC_ENUM_SINGLE_VIRT_DECL(dmic_mux_enum, dmic_mux_text);
 
-/*
- * DMIC enable register can not be safely toggled when shutdown bit
- * is 1. This causes a short audio drop in playback whenever a capture
- * stream starts.
- * To overcome this problem, we can uses these routes to turn on
- * DMIC enable bit during all audio playback cases when DMIC is selected.
- * Captured audio is not sent outside of codec because SDOEN is not
- * enabled.
- * When external mic is selected, delete these routes.
- * These routes will be used in put_dmic_mux, that is, the put function
- * of "DMIC Mux" control.
- */
-static const struct snd_soc_dapm_route max98090_dapm_enable_dmic_routes[] = {
-
-	{"HPL", NULL,  "DMICL_ENA"},
-	{"HPR", NULL, "DMICR_ENA"},
-	{"SPKL", NULL, "DMICL_ENA"},
-	{"SPKR", NULL, "DMICR_ENA"},
-	{"RCVL", NULL, "DMICL_ENA"},
-	{"RCVR", NULL, "DMICR_ENA"},
-
-};
-
-/*
- * Work handler for setting DMIC enable/disable.
- */
-static void max98090_dmic_mux_work(struct work_struct *work)
-{
-	struct max98090_priv *max98090 =
-		container_of(work, struct max98090_priv, dmic_mux_work);
-	struct snd_soc_component *component = max98090->component;
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
-
-	dev_info(component->dev, "DMIC Mux: bottom half %s DMIC\n",
-		max98090->dmic_used ? "enable" : "disable");
-
-	if (max98090->dmic_used)
-		snd_soc_dapm_add_routes(dapm, max98090_dapm_enable_dmic_routes,
-			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
-	else
-		snd_soc_dapm_del_routes(dapm, max98090_dapm_enable_dmic_routes,
-			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
-
-	snd_soc_dapm_sync(dapm);
-}
-
-/*
- * Add or delete routes for max98090. Check comments for
- * max98090_dapm_enable_dmic_routes.
- */
-static int put_dmic_mux(struct snd_kcontrol *kcontrol,
-			     struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_dapm_kcontrol_component(kcontrol);
-	struct max98090_priv *max98090 = snd_soc_component_get_drvdata(component);
-	bool dmic_used = ucontrol->value.enumerated.item[0];
-
-	/* only max98090 suffers from DMIC enable register problem. */
-	if (max98090->devtype == MAX98090 && max98090->dmic_used != dmic_used) {
-		if (work_busy(&max98090->dmic_mux_work))
-			return -EBUSY;
-
-		max98090->dmic_used = dmic_used;
-		dev_info(component->dev, "DMIC Mux: put_dmic_mux %s DMIC\n",
-			max98090->dmic_used ? "enable" : "disable");
-
-		schedule_work(&max98090->dmic_mux_work);
-	}
-
-	return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
-}
-
 static const struct snd_kcontrol_new max98090_dmic_mux =
-	SOC_DAPM_ENUM_EXT("DMIC Mux", dmic_mux_enum,
-		snd_soc_dapm_get_enum_double, put_dmic_mux);
+	SOC_DAPM_ENUM("DMIC Mux", dmic_mux_enum);
 
 /* LINEA mixer switch */
 static const struct snd_kcontrol_new max98090_linea_mixer_controls[] = {
@@ -1132,15 +1059,6 @@ static SOC_ENUM_SINGLE_DECL(mixhprsel_mux_enum,
 static const struct snd_kcontrol_new max98090_mixhprsel_mux =
 	SOC_DAPM_ENUM("MIXHPRSEL Mux", mixhprsel_mux_enum);
 
-/* HP output enables. */
-static const struct snd_kcontrol_new max98090_hpl_enable =
-	SOC_DAPM_SINGLE("Switch", M98090_REG_OUTPUT_ENABLE,
-			M98090_HPLEN_SHIFT, 1, 0);
-
-static const struct snd_kcontrol_new max98090_hpr_enable =
-	SOC_DAPM_SINGLE("Switch", M98090_REG_OUTPUT_ENABLE,
-			M98090_HPREN_SHIFT, 1, 0);
-
 static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_INPUT("MIC1"),
 	SND_SOC_DAPM_INPUT("MIC2"),
@@ -1285,10 +1203,10 @@ static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_MUX("MIXHPRSEL Mux", SND_SOC_NOPM, 0, 0,
 		&max98090_mixhprsel_mux),
 
-	SND_SOC_DAPM_SWITCH("HP Left Out", SND_SOC_NOPM, 0, 0,
-			    &max98090_hpl_enable),
-	SND_SOC_DAPM_SWITCH("HP Right Out", SND_SOC_NOPM, 0, 0,
-			    &max98090_hpr_enable),
+	SND_SOC_DAPM_PGA("HP Left Out", M98090_REG_OUTPUT_ENABLE,
+		M98090_HPLEN_SHIFT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("HP Right Out", M98090_REG_OUTPUT_ENABLE,
+		M98090_HPREN_SHIFT, 0, NULL, 0),
 
 	SND_SOC_DAPM_PGA("SPK Left Out", M98090_REG_OUTPUT_ENABLE,
 		M98090_SPLEN_SHIFT, 0, NULL, 0),
@@ -1472,8 +1390,8 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	 * Disable this for lowest power if bypassing
 	 * the DAC with an analog signal
 	 */
-	{"HP Left Out", "Switch", "DACL"},
-	{"HP Left Out", "Switch", "MIXHPLSEL Mux"},
+	{"HP Left Out", NULL, "DACL"},
+	{"HP Left Out", NULL, "MIXHPLSEL Mux"},
 
 	{"MIXHPRSEL Mux", "HP Mixer", "Right Headphone Mixer"},
 
@@ -1481,8 +1399,8 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	 * Disable this for lowest power if bypassing
 	 * the DAC with an analog signal
 	 */
-	{"HP Right Out", "Switch", "DACR"},
-	{"HP Right Out", "Switch", "MIXHPRSEL Mux"},
+	{"HP Right Out", NULL, "DACR"},
+	{"HP Right Out", NULL, "MIXHPRSEL Mux"},
 
 	{"SPK Left Out", NULL, "Left Speaker Mixer"},
 	{"SPK Right Out", NULL, "Right Speaker Mixer"},
@@ -2188,16 +2106,23 @@ static void max98090_pll_det_disable_work(struct work_struct *work)
 			    M98090_IULK_MASK, 0);
 }
 
-static void max98090_pll_work(struct work_struct *work)
+static void max98090_pll_work(struct max98090_priv *max98090)
 {
-	struct max98090_priv *max98090 =
-		container_of(work, struct max98090_priv, pll_work);
 	struct snd_soc_component *component = max98090->component;
+	unsigned int pll;
+	int i;
 
 	if (!snd_soc_component_is_active(component))
 		return;
 
 	dev_info_ratelimited(component->dev, "PLL unlocked\n");
+
+	/*
+	 * As the datasheet suggested, the maximum PLL lock time should be
+	 * 7 msec.  The workaround resets the codec softly by toggling SHDN
+	 * off and on if PLL failed to lock for 10 msec.  Notably, there is
+	 * no suggested hold time for SHDN off.
+	 */
 
 	/* Toggle shutdown OFF then ON */
 	snd_soc_component_update_bits(component, M98090_REG_DEVICE_SHUTDOWN,
@@ -2205,8 +2130,16 @@ static void max98090_pll_work(struct work_struct *work)
 	snd_soc_component_update_bits(component, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, M98090_SHDNN_MASK);
 
-	/* Give PLL time to lock */
-	msleep(10);
+	for (i = 0; i < 10; ++i) {
+		/* Give PLL time to lock */
+		usleep_range(1000, 1200);
+
+		/* Check lock status */
+		pll = snd_soc_component_read32(
+				component, M98090_REG_DEVICE_STATUS);
+		if (!(pll & M98090_ULK_MASK))
+			break;
+	}
 }
 
 static void max98090_jack_work(struct work_struct *work)
@@ -2343,7 +2276,7 @@ static irqreturn_t max98090_interrupt(int irq, void *data)
 
 	if (active & M98090_ULK_MASK) {
 		dev_dbg(component->dev, "M98090_ULK_MASK\n");
-		schedule_work(&max98090->pll_work);
+		max98090_pll_work(max98090);
 	}
 
 	if (active & M98090_JDET_MASK) {
@@ -2506,8 +2439,6 @@ static int max98090_probe(struct snd_soc_component *component)
 			  max98090_pll_det_enable_work);
 	INIT_WORK(&max98090->pll_det_disable_work,
 		  max98090_pll_det_disable_work);
-	INIT_WORK(&max98090->pll_work, max98090_pll_work);
-	INIT_WORK(&max98090->dmic_mux_work, max98090_dmic_mux_work);
 
 	/* Enable jack detection */
 	snd_soc_component_write(component, M98090_REG_JACK_DETECT,
@@ -2560,9 +2491,7 @@ static void max98090_remove(struct snd_soc_component *component)
 	cancel_delayed_work_sync(&max98090->jack_work);
 	cancel_delayed_work_sync(&max98090->pll_det_enable_work);
 	cancel_work_sync(&max98090->pll_det_disable_work);
-	cancel_work_sync(&max98090->pll_work);
 	max98090->component = NULL;
-	cancel_work_sync(&max98090->dmic_mux_work);
 }
 
 static void max98090_seq_notifier(struct snd_soc_component *component,
@@ -2725,17 +2654,12 @@ static int max98090_resume(struct device *dev)
 
 	return 0;
 }
-
-static int max98090_suspend(struct device *dev)
-{
-	return 0;
-}
 #endif
 
 static const struct dev_pm_ops max98090_pm = {
 	SET_RUNTIME_PM_OPS(max98090_runtime_suspend,
 		max98090_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(max98090_suspend, max98090_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(NULL, max98090_resume)
 };
 
 static const struct i2c_device_id max98090_i2c_id[] = {
