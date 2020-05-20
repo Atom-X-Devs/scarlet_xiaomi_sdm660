@@ -4647,6 +4647,7 @@ static void hci_rx_work(struct work_struct *work)
 	}
 }
 
+#ifdef CONFIG_BT_EVE_HACKS
 /* This is a conditional HCI command. The HCI command
  * would be executed only when the run-time condition
  * is met.
@@ -4711,6 +4712,7 @@ out:
 	hci_dev_unlock(hdev);
 	return ret;
 }
+#endif
 
 static void hci_cmd_work(struct work_struct *work)
 {
@@ -4731,9 +4733,11 @@ static void hci_cmd_work(struct work_struct *work)
 				hci_dev_set_flag(hdev, HCI_CMD_PENDING);
 			atomic_dec(&hdev->cmd_cnt);
 
+#ifdef CONFIG_BT_EVE_HACKS
 			/* Check if the command could be skipped. */
 			if (skip_conditional_cmd(work, skb))
 				return;
+#endif
 
 			hci_send_frame(hdev, skb);
 			if (test_bit(HCI_RESET, &hdev->flags))
