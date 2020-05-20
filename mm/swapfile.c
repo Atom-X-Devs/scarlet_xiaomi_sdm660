@@ -2895,7 +2895,9 @@ static int claim_swapfile(struct swap_info_struct *p, struct inode *inode,
 		char name[BDEVNAME_SIZE];
 		p->bdev = bdgrab(I_BDEV(inode));
 		bdevname(p->bdev, name);
-		if (strncmp(name, "zram", strlen("zram"))) {
+		if (strncmp(name, "zram", strlen("zram"))
+		    && !(allow_disk_based_swap
+			&& atomic_read(&proc_poll_event) == 0)) {
 			bdput(p->bdev);
 			p->bdev = NULL;
 			return -EINVAL;
@@ -2911,7 +2913,8 @@ static int claim_swapfile(struct swap_info_struct *p, struct inode *inode,
 		if (error < 0)
 			return error;
 		p->flags |= SWP_BLKDEV;
-	} else if (S_ISREG(inode->i_mode) && allow_disk_based_swap) {
+	} else if (S_ISREG(inode->i_mode) && allow_disk_based_swap
+		   && atomic_read(&proc_poll_event) == 0) {
 		p->bdev = inode->i_sb->s_bdev;
 		inode_lock(inode);
 		if (IS_SWAPFILE(inode))

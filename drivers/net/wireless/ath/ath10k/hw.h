@@ -606,6 +606,9 @@ struct ath10k_hw_params {
 	/* target supporting fw download via diag ce */
 	bool fw_diag_ce_download;
 
+	/* target supporting fw download via large size BMI */
+	bool bmi_large_size_download;
+
 	/* need to set uart pin if disable uart print, workaround for a
 	 * firmware bug
 	 */
@@ -613,6 +616,11 @@ struct ath10k_hw_params {
 
 	/* tx stats support over pktlog */
 	bool tx_stats_over_pktlog;
+
+	u32 start_retry;
+
+	/* provides bitrates for sta_statistics using WMI_TLV_PEER_STATS_INFO_EVENTID */
+	bool supports_peer_stats_info;
 };
 
 struct htt_rx_desc;

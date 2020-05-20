@@ -38,6 +38,8 @@
 
 #include <linux/virtio_config.h>
 
+#include <uapi/linux/virtio_ids.h>
+
 #include "tpm.h"
 
 /*
@@ -436,8 +438,6 @@ static void vtpm_remove(struct virtio_device *vdev)
 
 	kfree(dev);
 }
-
-#define VIRTIO_ID_TPM 31
 
 static struct virtio_device_id id_table[] = {
 	{

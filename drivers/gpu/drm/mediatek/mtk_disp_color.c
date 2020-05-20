@@ -129,7 +129,8 @@ static int mtk_disp_color_probe(struct platform_device *pdev)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to initialize component: %d\n",
-					ret);
+				ret);
+
 		return ret;
 	}
 

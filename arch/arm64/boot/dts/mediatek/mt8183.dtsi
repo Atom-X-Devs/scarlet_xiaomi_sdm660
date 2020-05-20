@@ -8,12 +8,12 @@
 #include <dt-bindings/clock/mt8183-clk.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gce/mt8183-gce.h>
 #include <dt-bindings/memory/mt8183-larb-port.h>
 #include <dt-bindings/phy/phy.h>
 #include <dt-bindings/power/mt8183-power.h>
 #include <dt-bindings/reset-controller/mt8183-resets.h>
 #include <dt-bindings/thermal/thermal.h>
-#include <dt-bindings/gce/mt8183-gce.h>
 #include "mt8183-pinfunc.h"
 
 / {
@@ -335,7 +335,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu1: cpu@1 {
@@ -350,7 +350,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu2: cpu@2 {
@@ -365,7 +365,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu3: cpu@3 {
@@ -380,7 +380,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER0>;
 		};
 
 		cpu4: cpu@100 {
@@ -395,7 +395,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		cpu5: cpu@101 {
@@ -410,7 +410,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		cpu6: cpu@102 {
@@ -425,7 +425,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		cpu7: cpu@103 {
@@ -440,7 +440,7 @@
 				 <&topckgen CLK_TOP_ARMPLL_DIV_PLL1>;
 			clock-names = "cpu", "intermediate";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER>;
+			cpu-idle-states = <&MCDI_CPU &MCDI_CLUSTER1>;
 		};
 
 		idle-states {
@@ -455,7 +455,16 @@
 				min-residency-us = <800>;
 			};
 
-			MCDI_CLUSTER: mcdi-cluster {
+			MCDI_CLUSTER0: mcdi-cluster@0 {
+				compatible = "arm,idle-state";
+				local-timer-stop;
+				arm,psci-suspend-param = <0x01010001>;
+				entry-latency-us = <250>;
+				exit-latency-us = <400>;
+				min-residency-us = <1300>;
+			};
+
+			MCDI_CLUSTER1: mcdi-cluster@1 {
 				compatible = "arm,idle-state";
 				local-timer-stop;
 				arm,psci-suspend-param = <0x01010001>;
@@ -505,7 +514,7 @@
 		compatible = "simple-bus";
 		ranges;
 
-		soc_data: soc_data@08000000 {
+		soc_data: soc_data@8000000 {
 			compatible = "mediatek,mt8183-efuse",
 				     "mediatek,efuse";
 			reg = <0 0x08000000 0 0x0010>;
@@ -652,7 +661,7 @@
 
 		watchdog: watchdog@10007000 {
 			compatible = "mediatek,mt8183-wdt",
-				      "mediatek,mt6589-wdt";
+				     "mediatek,mt6589-wdt";
 			reg = <0 0x10007000 0 0x100>;
 			#reset-cells = <1>;
 		};
@@ -673,7 +682,7 @@
 			clock-names = "spi", "wrap";
 		};
 
-		systimer: systimer@10017000 {
+		systimer: timer@10017000 {
 			compatible = "mediatek,mt8183-timer",
 				     "mediatek,mt6765-timer";
 			reg = <0 0x10017000 0 0x1000>;
@@ -689,6 +698,15 @@
 			mediatek,larbs = <&larb0 &larb1 &larb2 &larb3
 					  &larb4 &larb5 &larb6>;
 			#iommu-cells = <1>;
+		};
+
+		gce: mailbox@10238000 {
+			compatible = "mediatek,mt8183-gce";
+			reg = <0 0x10238000 0 0x4000>;
+			interrupts = <GIC_SPI 162 IRQ_TYPE_LEVEL_LOW>;
+			#mbox-cells = <3>;
+			clocks = <&infracfg CLK_INFRA_GCE>;
+			clock-names = "gce";
 		};
 
 		scp: scp@10500000 {
@@ -711,15 +729,6 @@
 			clock-names = "main";
 			#io-channel-cells = <1>;
 			status = "disabled";
-		};
-
-		gce: mailbox@10238000 {
-			compatible = "mediatek,mt8183-gce";
-			reg = <0 0x10238000 0 0x4000>;
-			interrupts = <GIC_SPI 162 IRQ_TYPE_LEVEL_LOW>;
-			#mbox-cells = <3>;
-			clocks = <&infracfg CLK_INFRA_GCE>;
-			clock-names = "gce";
 		};
 
 		uart0: serial@11002000 {
@@ -755,7 +764,7 @@
 		i2c6: i2c@11005000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11005000 0 0x1000>,
-				<0 0x11000600 0 0x80>;
+			      <0 0x11000600 0 0x80>;
 			interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C6>,
 				 <&infracfg CLK_INFRA_AP_DMA>;
@@ -769,7 +778,7 @@
 		i2c0: i2c@11007000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11007000 0 0x1000>,
-				<0 0x11000080 0 0x80>;
+			      <0 0x11000080 0 0x80>;
 			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C0>,
 				 <&infracfg CLK_INFRA_AP_DMA>;
@@ -782,9 +791,8 @@
 
 		i2c4: i2c@11008000 {
 			compatible = "mediatek,mt8183-i2c";
-			id = <4>;
 			reg = <0 0x11008000 0 0x1000>,
-				<0 0x11000100 0 0x80>;
+			      <0 0x11000100 0 0x80>;
 			interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C1>,
 				 <&infracfg CLK_INFRA_AP_DMA>,
@@ -799,7 +807,7 @@
 		i2c2: i2c@11009000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11009000 0 0x1000>,
-				<0 0x11000280 0 0x80>;
+			      <0 0x11000280 0 0x80>;
 			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C2>,
 				 <&infracfg CLK_INFRA_AP_DMA>,
@@ -808,6 +816,19 @@
 			clock-div = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		spi0: spi@1100a000 {
+			compatible = "mediatek,mt8183-spi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0 0x1100a000 0 0x1000>;
+			interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_LOW>;
+			clocks = <&topckgen CLK_TOP_SYSPLL_D5_D2>,
+				 <&topckgen CLK_TOP_MUX_SPI>,
+				 <&infracfg CLK_INFRA_SPI0>;
+			clock-names = "parent-clk", "sel-clk", "spi-clk";
 			status = "disabled";
 		};
 
@@ -995,7 +1016,7 @@
 		i2c3: i2c@1100f000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x1100f000 0 0x1000>,
-				<0 0x11000400 0 0x80>;
+			      <0 0x11000400 0 0x80>;
 			interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C3>,
 				 <&infracfg CLK_INFRA_AP_DMA>;
@@ -1003,19 +1024,6 @@
 			clock-div = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "disabled";
-		};
-
-		spi0: spi@1100a000 {
-			compatible = "mediatek,mt8183-spi";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <0 0x1100a000 0 0x1000>;
-			interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_LOW>;
-			clocks = <&topckgen CLK_TOP_SYSPLL_D5_D2>,
-				 <&topckgen CLK_TOP_MUX_SPI>,
-				 <&infracfg CLK_INFRA_SPI0>;
-			clock-names = "parent-clk", "sel-clk", "spi-clk";
 			status = "disabled";
 		};
 
@@ -1035,7 +1043,7 @@
 		i2c1: i2c@11011000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11011000 0 0x1000>,
-				<0 0x11000480 0 0x80>;
+			      <0 0x11000480 0 0x80>;
 			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C4>,
 				 <&infracfg CLK_INFRA_AP_DMA>;
@@ -1075,7 +1083,7 @@
 		i2c9: i2c@11014000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11014000 0 0x1000>,
-				<0 0x11000180 0 0x80>;
+			      <0 0x11000180 0 0x80>;
 			interrupts = <GIC_SPI 131 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C1_IMM>,
 				 <&infracfg CLK_INFRA_AP_DMA>,
@@ -1090,7 +1098,7 @@
 		i2c10: i2c@11015000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11015000 0 0x1000>,
-				<0 0x11000300 0 0x80>;
+			      <0 0x11000300 0 0x80>;
 			interrupts = <GIC_SPI 132 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C2_IMM>,
 				 <&infracfg CLK_INFRA_AP_DMA>,
@@ -1105,7 +1113,7 @@
 		i2c5: i2c@11016000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11016000 0 0x1000>,
-				<0 0x11000500 0 0x80>;
+			      <0 0x11000500 0 0x80>;
 			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C5>,
 				 <&infracfg CLK_INFRA_AP_DMA>,
@@ -1120,7 +1128,7 @@
 		i2c11: i2c@11017000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x11017000 0 0x1000>,
-				<0 0x11000580 0 0x80>;
+			      <0 0x11000580 0 0x80>;
 			interrupts = <GIC_SPI 133 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C5_IMM>,
 				 <&infracfg CLK_INFRA_AP_DMA>,
@@ -1161,7 +1169,7 @@
 		i2c7: i2c@1101a000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x1101a000 0 0x1000>,
-				<0 0x11000680 0 0x80>;
+			      <0 0x11000680 0 0x80>;
 			interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C7>,
 				 <&infracfg CLK_INFRA_AP_DMA>;
@@ -1175,7 +1183,7 @@
 		i2c8: i2c@1101b000 {
 			compatible = "mediatek,mt8183-i2c";
 			reg = <0 0x1101b000 0 0x1000>,
-				<0 0x11000700 0 0x80>;
+			      <0 0x11000700 0 0x80>;
 			interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_LOW>;
 			clocks = <&infracfg CLK_INFRA_I2C8>,
 				 <&infracfg CLK_INFRA_AP_DMA>;
@@ -1705,8 +1713,6 @@
 			mboxes = <&gce 0 CMDQ_THR_PRIO_HIGHEST 1>,
 				 <&gce 1 CMDQ_THR_PRIO_HIGHEST 1>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0 0x1000>;
-			mediatek,gce-events = <CMDQ_EVENT_MUTEX_STREAM_DONE0>,
-					      <CMDQ_EVENT_MUTEX_STREAM_DONE1>;
 		};
 
 		ovl0: ovl@14008000 {
@@ -1845,6 +1851,8 @@
 			mediatek,gce-client-reg = <&gce SUBSYS_1401XXXX 0x6000 0x1000>;
 			interrupts = <GIC_SPI 217 IRQ_TYPE_LEVEL_LOW>;
 			power-domains = <&scpsys MT8183_POWER_DOMAIN_DISP>;
+			mediatek,gce-events = <CMDQ_EVENT_MUTEX_STREAM_DONE0>,
+					      <CMDQ_EVENT_MUTEX_STREAM_DONE1>;
 		};
 
 		larb0: larb@14017000 {

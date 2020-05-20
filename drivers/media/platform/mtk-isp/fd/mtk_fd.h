@@ -12,13 +12,11 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/videobuf2-v4l2.h>
-#include <linux/mtk-fd-v4l2-controls.h>
 
 #define MTK_FD_OUTPUT_MIN_WIDTH			26U
 #define MTK_FD_OUTPUT_MIN_HEIGHT		26U
 #define MTK_FD_OUTPUT_MAX_WIDTH			640U
 #define MTK_FD_OUTPUT_MAX_HEIGHT		480U
-#define MTK_FD_IPI_SEND_TIMEOUT			0U
 
 #define MTK_FD_HW_FMT_VYUY			2
 #define MTK_FD_HW_FMT_UYVY			3
@@ -32,8 +30,10 @@
 #define MTK_FD_IPI_CMD_INIT_ACK			1
 #define MTK_FD_IPI_CMD_ENQUEUE			2
 #define MTK_FD_IPI_CMD_ENQ_ACK			3
-#define MTK_FD_IPI_CMD_RESET			4
-#define MTK_FD_IPI_CMD_RESET_ACK		5
+#define MTK_FD_IPI_CMD_EXIT			4
+#define MTK_FD_IPI_CMD_EXIT_ACK			5
+#define MTK_FD_IPI_CMD_RESET			6
+#define MTK_FD_IPI_CMD_RESET_ACK		7
 
 #define MTK_FD_REG_OFFSET_HW_ENABLE		0x4
 #define MTK_FD_REG_OFFSET_INT_EN		0x15c
@@ -117,7 +117,7 @@ struct mtk_fd_dev {
 	struct v4l2_m2m_dev *m2m_dev;
 	struct media_device mdev;
 	struct video_device vfd;
-	struct platform_device *scp_pdev;
+	struct mtk_scp *scp;
 	struct clk *fd_clk;
 	struct rproc *rproc_handle;
 
@@ -132,7 +132,8 @@ struct mtk_fd_dev {
 	void *scp_mem_virt_addr;
 
 	u32 fd_stream_count;
-	struct completion fd_irq_done;
+	struct completion fd_job_finished;
+	struct delayed_work job_timeout_work;
 };
 
 struct mtk_fd_ctx {

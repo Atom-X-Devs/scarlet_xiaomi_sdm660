@@ -869,6 +869,7 @@ struct wmi_cmd_map {
 	u32 vdev_spectral_scan_configure_cmdid;
 	u32 vdev_spectral_scan_enable_cmdid;
 	u32 request_stats_cmdid;
+	u32 request_peer_stats_info_cmdid;
 	u32 set_arp_ns_offload_cmdid;
 	u32 network_list_offload_config_cmdid;
 	u32 gtk_offload_cmdid;
@@ -3715,6 +3716,7 @@ struct wmi_pdev_param_map {
 	u32 arp_srcaddr;
 	u32 arp_dstaddr;
 	u32 enable_btcoex;
+	u32 peer_stats_info_enable;
 };
 
 #define WMI_PDEV_PARAM_UNSUPPORTED 0
@@ -4470,6 +4472,14 @@ enum wmi_10_4_stats_id {
 	WMI_10_4_STAT_VDEV_EXTD		= BIT(4),
 };
 
+enum wmi_tlv_stats_id {
+	WMI_TLV_STAT_PEER	= BIT(0),
+	WMI_TLV_STAT_AP		= BIT(1),
+	WMI_TLV_STAT_PDEV	= BIT(2),
+	WMI_TLV_STAT_VDEV	= BIT(3),
+	WMI_TLV_STAT_PEER_EXTD  = BIT(10),
+};
+
 struct wlan_inst_rssi_args {
 	__le16 cfg_retry_count;
 	__le16 retry_count;
@@ -4486,6 +4496,13 @@ struct wmi_request_stats_cmd {
 	/* Instantaneous RSSI arguments */
 	struct wlan_inst_rssi_args inst_rssi_args;
 } __packed;
+
+enum wmi_peer_stats_info_request_type {
+	/* request stats of one specified peer */
+	WMI_REQUEST_ONE_PEER_STATS_INFO = 0x01,
+	/* request stats of all peers belong to specified VDEV */
+	WMI_REQUEST_VDEV_ALL_PEER_STATS_INFO = 0x02,
+};
 
 /* Suspend option */
 enum {
@@ -6645,6 +6662,7 @@ struct wmi_peer_delete_resp_ev_arg {
 	struct wmi_mac_addr peer_addr;
 };
 
+#define WMI_MGMT_RX_NUM_RSSI 4
 struct wmi_mgmt_rx_ev_arg {
 	__le32 channel;
 	__le32 snr;
@@ -6653,6 +6671,7 @@ struct wmi_mgmt_rx_ev_arg {
 	__le32 buf_len;
 	__le32 status; /* %WMI_RX_STATUS_ */
 	struct wmi_mgmt_rx_ext_info ext_info;
+	__le32 rssi[WMI_MGMT_RX_NUM_RSSI];
 };
 
 struct wmi_ch_info_ev_arg {
@@ -6671,11 +6690,17 @@ struct wmi_ch_info_ev_arg {
 	__le32 mac_clk_mhz;
 };
 
+/* From 10.4 firmware, not sure all have the same values. */
+enum wmi_vdev_start_status {
+	WMI_VDEV_START_OK = 0,
+	WMI_VDEV_START_CHAN_INVALID,
+};
+
 struct wmi_vdev_start_ev_arg {
 	__le32 vdev_id;
 	__le32 req_id;
 	__le32 resp_type; /* %WMI_VDEV_RESP_ */
-	__le32 status;
+	__le32 status; /* See wmi_vdev_start_status enum above */
 };
 
 struct wmi_peer_kick_ev_arg {
@@ -7060,6 +7085,63 @@ struct wmi_pdev_set_adaptive_cca_params {
 	__le32 enable;
 	__le32 cca_detect_level;
 	__le32 cca_detect_margin;
+} __packed;
+
+#define WMI_PNO_MAX_SCHED_SCAN_PLANS      2
+#define WMI_PNO_MAX_SCHED_SCAN_PLAN_INT   7200
+#define WMI_PNO_MAX_SCHED_SCAN_PLAN_ITRNS 100
+#define WMI_PNO_MAX_NETW_CHANNELS         26
+#define WMI_PNO_MAX_NETW_CHANNELS_EX      60
+#define WMI_PNO_MAX_SUPP_NETWORKS         WLAN_SCAN_PARAMS_MAX_SSID
+#define WMI_PNO_MAX_IE_LENGTH             WLAN_SCAN_PARAMS_MAX_IE_LEN
+
+/*size based of dot11 declaration without extra IEs as we will not carry those for PNO*/
+#define WMI_PNO_MAX_PB_REQ_SIZE    450
+
+#define WMI_PNO_24G_DEFAULT_CH     1
+#define WMI_PNO_5G_DEFAULT_CH      36
+
+#define WMI_ACTIVE_MAX_CHANNEL_TIME 40
+#define WMI_PASSIVE_MAX_CHANNEL_TIME   110
+
+/* SSID broadcast type */
+enum wmi_SSID_bcast_type {
+	BCAST_UNKNOWN      = 0,
+	BCAST_NORMAL       = 1,
+	BCAST_HIDDEN       = 2,
+};
+
+struct wmi_network_type {
+	struct wmi_ssid ssid;
+	u32 authentication;
+	u32 encryption;
+	u32 bcast_nw_type;
+	u8 channel_count;
+	u16 channels[WMI_PNO_MAX_NETW_CHANNELS_EX];
+	s32 rssi_threshold;
+} __packed;
+
+struct wmi_pno_scan_req {
+	u8 enable;
+	u8 vdev_id;
+	u8 uc_networks_count;
+	struct wmi_network_type a_networks[WMI_PNO_MAX_SUPP_NETWORKS];
+	u32 fast_scan_period;
+	u32 slow_scan_period;
+	u8 fast_scan_max_cycles;
+
+	bool do_passive_scan;
+
+	u32 delay_start_time;
+	u32 active_min_time;
+	u32 active_max_time;
+	u32 passive_min_time;
+	u32 passive_max_time;
+
+	/* mac address randomization attributes */
+	u32 enable_pno_scan_randomization;
+	u8 mac_addr[ETH_ALEN];
+	u8 mac_addr_mask[ETH_ALEN];
 } __packed;
 
 enum wmi_host_platform_type {

@@ -22,9 +22,8 @@ static int mdp_vpu_shared_mem_alloc(struct mdp_vpu_dev *vpu)
 	if (vpu->work && vpu->work_addr)
 		return 0;
 
-	vpu->work = dma_alloc_coherent(&vpu->pdev->dev, vpu_alloc_size,
-				       &vpu->work_addr,
-				       GFP_KERNEL);
+	vpu->work = dma_alloc_coherent(scp_get_device(vpu->scp), vpu_alloc_size,
+				       &vpu->work_addr, GFP_KERNEL);
 
 	if (!vpu->work)
 		return -ENOMEM;
@@ -35,8 +34,8 @@ static int mdp_vpu_shared_mem_alloc(struct mdp_vpu_dev *vpu)
 void mdp_vpu_shared_mem_free(struct mdp_vpu_dev *vpu)
 {
 	if (vpu->work && vpu->work_addr)
-		dma_free_coherent(&vpu->pdev->dev, vpu_alloc_size, vpu->work,
-				  vpu->work_addr);
+		dma_free_coherent(scp_get_device(vpu->scp), vpu_alloc_size,
+				  vpu->work, vpu->work_addr);
 }
 
 static void mdp_vpu_ipi_handle_init_ack(void *data, unsigned int len,
@@ -81,44 +80,46 @@ static void mdp_vpu_ipi_handle_frame_ack(void *data, unsigned int len,
 	complete(&ctx->vpu_dev->ipi_acked);
 }
 
-int mdp_vpu_register(struct platform_device *pdev)
+int mdp_vpu_register(struct mdp_dev *mdp)
 {
 	int err;
+	struct mtk_scp *scp = mdp->scp;
+	struct device *dev = &mdp->pdev->dev;
 
-	err = scp_ipi_register(pdev, SCP_IPI_MDP_INIT,
+	err = scp_ipi_register(scp, SCP_IPI_MDP_INIT,
 			       mdp_vpu_ipi_handle_init_ack, NULL);
 	if (err) {
-		dev_err(&pdev->dev, "scp_ipi_register failed %d\n", err);
+		dev_err(dev, "scp_ipi_register failed %d\n", err);
 		goto err_ipi_init;
 	}
-	err = scp_ipi_register(pdev, SCP_IPI_MDP_DEINIT,
+	err = scp_ipi_register(scp, SCP_IPI_MDP_DEINIT,
 			       mdp_vpu_ipi_handle_deinit_ack, NULL);
 	if (err) {
-		dev_err(&pdev->dev, "scp_ipi_register failed %d\n", err);
+		dev_err(dev, "scp_ipi_register failed %d\n", err);
 		goto err_ipi_deinit;
 	}
-	err = scp_ipi_register(pdev, SCP_IPI_MDP_FRAME,
+	err = scp_ipi_register(scp, SCP_IPI_MDP_FRAME,
 			       mdp_vpu_ipi_handle_frame_ack, NULL);
 	if (err) {
-		dev_err(&pdev->dev, "scp_ipi_register failed %d\n", err);
+		dev_err(dev, "scp_ipi_register failed %d\n", err);
 		goto err_ipi_frame;
 	}
 	return 0;
 
 err_ipi_frame:
-	scp_ipi_unregister(pdev, SCP_IPI_MDP_DEINIT);
+	scp_ipi_unregister(scp, SCP_IPI_MDP_DEINIT);
 err_ipi_deinit:
-	scp_ipi_unregister(pdev, SCP_IPI_MDP_INIT);
+	scp_ipi_unregister(scp, SCP_IPI_MDP_INIT);
 err_ipi_init:
 
 	return err;
 }
 
-void mdp_vpu_unregister(struct platform_device *pdev)
+void mdp_vpu_unregister(struct mdp_dev *mdp)
 {
-	scp_ipi_unregister(pdev, SCP_IPI_MDP_INIT);
-	scp_ipi_unregister(pdev, SCP_IPI_MDP_DEINIT);
-	scp_ipi_unregister(pdev, SCP_IPI_MDP_FRAME);
+	scp_ipi_unregister(mdp->scp, SCP_IPI_MDP_INIT);
+	scp_ipi_unregister(mdp->scp, SCP_IPI_MDP_DEINIT);
+	scp_ipi_unregister(mdp->scp, SCP_IPI_MDP_FRAME);
 }
 
 static int mdp_vpu_sendmsg(struct mdp_vpu_dev *vpu, enum scp_ipi_id id,
@@ -127,19 +128,18 @@ static int mdp_vpu_sendmsg(struct mdp_vpu_dev *vpu, enum scp_ipi_id id,
 	struct mdp_dev *mdp = vpu_to_mdp(vpu);
 	int ret;
 
-	if (!vpu->pdev) {
-		dev_dbg(&mdp->pdev->dev, "vpu pdev is NULL");
+	if (!vpu->scp) {
+		dev_dbg(&mdp->pdev->dev, "vpu scp is NULL");
 		return -EINVAL;
 	}
-	ret = scp_ipi_send(vpu->pdev, id, buf, len, 2000);
+	ret = scp_ipi_send(vpu->scp, id, buf, len, 2000);
 
 	if (ret) {
 		dev_err(&mdp->pdev->dev, "scp_ipi_send failed %d\n", ret);
 		return -EPERM;
 	}
-	ret =
-	wait_for_completion_timeout(&vpu->ipi_acked,
-				    msecs_to_jiffies(MDP_VPU_MESSAGE_TIMEOUT));
+	ret = wait_for_completion_timeout(
+		&vpu->ipi_acked, msecs_to_jiffies(MDP_VPU_MESSAGE_TIMEOUT));
 	if (!ret)
 		ret = -ETIME;
 	else if (vpu->status)
@@ -149,7 +149,7 @@ static int mdp_vpu_sendmsg(struct mdp_vpu_dev *vpu, enum scp_ipi_id id,
 	return ret;
 }
 
-int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct platform_device *pdev,
+int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct mtk_scp *scp,
 		     struct mutex *lock)
 {
 	struct mdp_ipi_init_msg msg = {
@@ -162,7 +162,7 @@ int mdp_vpu_dev_init(struct mdp_vpu_dev *vpu, struct platform_device *pdev,
 	int err;
 
 	init_completion(&vpu->ipi_acked);
-	vpu->pdev = pdev;
+	vpu->scp = scp;
 	vpu->lock = lock;
 	vpu->work_size = 0;
 	err = mdp_vpu_sendmsg(vpu, SCP_IPI_MDP_INIT, &msg, sizeof(msg));

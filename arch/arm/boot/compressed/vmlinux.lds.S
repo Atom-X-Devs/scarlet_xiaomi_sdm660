@@ -39,7 +39,6 @@ SECTIONS
     *(.start)
     *(.text)
     *(.text.*)
-    *(.fixup)
     *(.gnu.warning)
     *(.glue_7t)
     *(.glue_7)

@@ -375,6 +375,52 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 	return 0;
 }
 
+/*
+ * Magic values given to simple_ondemand to make things work better.
+ *
+ * These values are loosely based on values that were added for veyron in
+ * https://crrev.com/c/223221.  That patch claimed:
+ *
+ * > the values used in this patch are temporary values.
+ * > A future patch will tune these values.
+ *
+ * ...but no future patch ever materialized and the 3.14 tree that veyron
+ * shipped with continued to use values like these.
+ *
+ * On newer kernels mali was switched to use devfreq instead of a custom
+ * dvfs and that means we used the standard thresholds to bump up and down
+ * frequencies.  For simple_ondemand this means we bump up to the max
+ * if the utilization > 90% and stay there as long as it stays > 85%.  If
+ * it drops below that we'll do some math to figure out what the frequency
+ * should be.  Specifically I believe we do:
+ *   utilPct * curFreq / (.90 - .05/2)
+ *
+ * It turns out that simple_ondemand's guidelines aren't ideal for Mali, at
+ * least for certain workloads.  At least in workloads like those produced by
+ * glmark2 on veyron with the sched cpugovernor, it appears that a fully
+ * loaded GPU only measures a utilization between 30-70% for the most part.
+ * That meant we were just sitting at the lowest GPU frequency.  Doh!
+ *
+ * This is believed to be caused by the fact that scheduling tasks to the
+ * GPU actually involves two actors: the CPU and the GPU.  Said another
+ * way there is CPU overhead involved in loading jobs to the GPU.  This
+ * CPU overhead is _not_ measured in the devfreq utilization stats.  That
+ * means that a 100% graphics path (both CPU and GPU together) will not report
+ * 100% utilization.  We need to fudge things a little bit to handle this case.
+ *
+ * Let's adjust the devfreq thresholds to make this work better.  Now:
+ * - If utilization > 35%, go to max.
+ * - If utilization > 30% stay the same.
+ * - Set freq to: utilPct * curFreq / (.35 - .05/2)
+ *
+ * NOTE: struct is static because simple_ondemand hangs outo it.  It also
+ * could be const but the normal devfreq framework doesn't declare it as such.
+ */
+static struct devfreq_simple_ondemand_data kbase_ondemand_data = {
+	.upthreshold = 35,	/* bump to max if utilization > up */
+	.downdifferential = 5,	/* recalculate if utilization <= (up-down) */
+};
+
 int kbase_devfreq_init(struct kbase_device *kbdev)
 {
 	struct devfreq_dev_profile *dp;
@@ -417,7 +463,7 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 		return err;
 
 	kbdev->devfreq = devfreq_add_device(kbdev->dev, dp,
-				"simple_ondemand", NULL);
+				"simple_ondemand", &kbase_ondemand_data);
 	if (IS_ERR(kbdev->devfreq)) {
 		kfree(dp->freq_table);
 		return PTR_ERR(kbdev->devfreq);

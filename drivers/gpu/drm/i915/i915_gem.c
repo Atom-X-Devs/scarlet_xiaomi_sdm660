@@ -197,7 +197,7 @@ void i915_gem_park(struct drm_i915_private *i915)
 		return;
 
 	/* Defer the actual call to __i915_gem_park() to prevent ping-pongs */
-	mod_delayed_work(i915->wq, &i915->gt.idle_work, msecs_to_jiffies(100));
+	mod_delayed_work(i915->wq, &i915->gt.idle_work, 1);
 }
 
 void i915_gem_unpark(struct drm_i915_private *i915)
@@ -480,28 +480,7 @@ i915_gem_object_wait_fence(struct dma_fence *fence,
 	if (i915_request_completed(rq))
 		goto out;
 
-	/*
-	 * This client is about to stall waiting for the GPU. In many cases
-	 * this is undesirable and limits the throughput of the system, as
-	 * many clients cannot continue processing user input/output whilst
-	 * blocked. RPS autotuning may take tens of milliseconds to respond
-	 * to the GPU load and thus incurs additional latency for the client.
-	 * We can circumvent that by promoting the GPU frequency to maximum
-	 * before we wait. This makes the GPU throttle up much more quickly
-	 * (good for benchmarks and user experience, e.g. window animations),
-	 * but at a cost of spending more power processing the workload
-	 * (bad for battery). Not all clients even want their results
-	 * immediately and for them we should just let the GPU select its own
-	 * frequency to maximise efficiency. To prevent a single client from
-	 * forcing the clocks too high for the whole system, we only allow
-	 * each client to waitboost once in a busy period.
-	 */
-	if (rps_client && !i915_request_started(rq)) {
-		if (INTEL_GEN(rq->i915) >= 6)
-			gen6_rps_boost(rq, rps_client);
-	}
-
-	timeout = i915_request_wait(rq, flags, timeout);
+	timeout = i915_request_wait(rq, flags | I915_WAIT_BOOST, timeout);
 
 out:
 	if (flags & I915_WAIT_LOCKED && i915_request_completed(rq))

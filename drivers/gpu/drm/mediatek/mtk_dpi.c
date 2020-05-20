@@ -82,7 +82,7 @@ struct mtk_dpi {
 	enum mtk_dpi_out_bit_num bit_num;
 	enum mtk_dpi_out_channel_swap channel_swap;
 	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_default;
+	struct pinctrl_state *pins_gpio;
 	struct pinctrl_state *pins_dpi;
 	int refcount;
 };
@@ -398,8 +398,8 @@ static void mtk_dpi_power_off(struct mtk_dpi *dpi)
 	if (--dpi->refcount != 0)
 		return;
 
-	if (dpi->conf->dpi_pin_ctrl)
-		pinctrl_select_state(dpi->pinctrl, dpi->pins_default);
+	if (dpi->pinctrl && dpi->pins_gpio)
+		pinctrl_select_state(dpi->pinctrl, dpi->pins_gpio);
 
 	mtk_dpi_disable(dpi);
 	clk_disable_unprepare(dpi->pixel_clk);
@@ -410,8 +410,12 @@ static int mtk_dpi_power_on(struct mtk_dpi *dpi)
 {
 	int ret;
 
-	if (++dpi->refcount != 1)
+	if (++dpi->refcount != 1) {
+		dev_warn(dpi->dev, "%s refcount: %d\n", __func__, dpi->refcount);
 		return 0;
+	}
+
+	DRM_DEBUG_DRIVER("%s refcount %d\n", __func__, dpi->refcount);
 
 	ret = clk_prepare_enable(dpi->engine_clk);
 	if (ret) {
@@ -425,7 +429,7 @@ static int mtk_dpi_power_on(struct mtk_dpi *dpi)
 		goto err_pixel;
 	}
 
-	if (dpi->conf->dpi_pin_ctrl)
+	if (dpi->pinctrl && dpi->pins_dpi)
 		pinctrl_select_state(dpi->pinctrl, dpi->pins_dpi);
 
 	mtk_dpi_enable(dpi);
@@ -592,14 +596,14 @@ static const struct drm_encoder_helper_funcs mtk_dpi_encoder_helper_funcs = {
 	.atomic_check = mtk_dpi_atomic_check,
 };
 
-static void mtk_dpi_start(struct mtk_ddp_comp *comp)
+static void mtk_dpi_prepare(struct mtk_ddp_comp *comp)
 {
 	struct mtk_dpi *dpi = container_of(comp, struct mtk_dpi, ddp_comp);
 
 	mtk_dpi_power_on(dpi);
 }
 
-static void mtk_dpi_stop(struct mtk_ddp_comp *comp)
+static void mtk_dpi_unprepare(struct mtk_ddp_comp *comp)
 {
 	struct mtk_dpi *dpi = container_of(comp, struct mtk_dpi, ddp_comp);
 
@@ -607,8 +611,8 @@ static void mtk_dpi_stop(struct mtk_ddp_comp *comp)
 }
 
 static const struct mtk_ddp_comp_funcs mtk_dpi_funcs = {
-	.start = mtk_dpi_start,
-	.stop = mtk_dpi_stop,
+	.prepare = mtk_dpi_prepare,
+	.unprepare = mtk_dpi_unprepare,
 };
 
 static int mtk_dpi_bind(struct device *dev, struct device *master, void *data)
@@ -737,27 +741,26 @@ static int mtk_dpi_probe(struct platform_device *pdev)
 	dpi->dev = dev;
 	dpi->conf = (struct mtk_dpi_conf *)of_device_get_match_data(dev);
 
-	if (dpi->conf->dpi_pin_ctrl) {
-		dpi->pinctrl = devm_pinctrl_get(&pdev->dev);
-		if (IS_ERR(dpi->pinctrl)) {
-			dev_err(&pdev->dev, "Cannot find pinctrl!\n");
-			return PTR_ERR(dpi->pinctrl);
+	dpi->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(dpi->pinctrl)) {
+		dpi->pinctrl = NULL;
+		dev_dbg(&pdev->dev, "Cannot find pinctrl!\n");
+	}
+	if (dpi->pinctrl) {
+		dpi->pins_gpio = pinctrl_lookup_state(dpi->pinctrl, "sleep");
+		if (IS_ERR(dpi->pins_gpio)) {
+			dpi->pins_gpio = NULL;
+			dev_dbg(&pdev->dev, "Cannot find pinctrl idle!\n");
 		}
+		if (dpi->pins_gpio)
+			pinctrl_select_state(dpi->pinctrl, dpi->pins_gpio);
 
-		dpi->pins_default = pinctrl_lookup_state(dpi->pinctrl,
-							 "default");
-		if (IS_ERR(dpi->pins_default)) {
-			dev_err(&pdev->dev, "Cannot find pinctrl default!\n");
-			return PTR_ERR(dpi->pins_default);
-		}
-
-		dpi->pins_dpi = pinctrl_lookup_state(dpi->pinctrl, "dpimode");
+		dpi->pins_dpi = pinctrl_lookup_state(dpi->pinctrl, "default");
 		if (IS_ERR(dpi->pins_dpi)) {
-			dev_err(&pdev->dev, "Cannot find pinctrl dpimode!\n");
-			return PTR_ERR(dpi->pins_dpi);
+			dpi->pins_dpi = NULL;
+			dev_dbg(&pdev->dev, "Cannot find pinctrl active!\n");
 		}
 	}
-
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dpi->regs = devm_ioremap_resource(dev, mem);
 	if (IS_ERR(dpi->regs)) {
@@ -769,21 +772,27 @@ static int mtk_dpi_probe(struct platform_device *pdev)
 	dpi->engine_clk = devm_clk_get(dev, "engine");
 	if (IS_ERR(dpi->engine_clk)) {
 		ret = PTR_ERR(dpi->engine_clk);
-		dev_err(dev, "Failed to get engine clock: %d\n", ret);
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev, "Failed to get engine clock: %d\n", ret);
+
 		return ret;
 	}
 
 	dpi->pixel_clk = devm_clk_get(dev, "pixel");
 	if (IS_ERR(dpi->pixel_clk)) {
 		ret = PTR_ERR(dpi->pixel_clk);
-		dev_err(dev, "Failed to get pixel clock: %d\n", ret);
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev, "Failed to get pixel clock: %d\n", ret);
+
 		return ret;
 	}
 
 	dpi->tvd_clk = devm_clk_get(dev, "pll");
 	if (IS_ERR(dpi->tvd_clk)) {
 		ret = PTR_ERR(dpi->tvd_clk);
-		dev_err(dev, "Failed to get tvdpll clock: %d\n", ret);
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev, "Failed to get tvdpll clock: %d\n", ret);
+
 		return ret;
 	}
 

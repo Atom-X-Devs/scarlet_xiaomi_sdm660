@@ -646,7 +646,8 @@ kbl_get_buf_trans_dp(struct drm_i915_private *dev_priv, int *n_entries)
 	if (IS_KBL_ULX(dev_priv)) {
 		*n_entries = ARRAY_SIZE(kbl_y_ddi_translations_dp);
 		return kbl_y_ddi_translations_dp;
-	} else if (IS_KBL_ULT(dev_priv) || IS_CFL_ULT(dev_priv)) {
+	} else if (IS_KBL_ULT(dev_priv) || IS_CFL_ULT(dev_priv) ||
+		   IS_CML_ULT(dev_priv)) {
 		*n_entries = ARRAY_SIZE(kbl_u_ddi_translations_dp);
 		return kbl_u_ddi_translations_dp;
 	} else {
@@ -663,7 +664,7 @@ skl_get_buf_trans_edp(struct drm_i915_private *dev_priv, int *n_entries)
 			*n_entries = ARRAY_SIZE(skl_y_ddi_translations_edp);
 			return skl_y_ddi_translations_edp;
 		} else if (IS_SKL_ULT(dev_priv) || IS_KBL_ULT(dev_priv) ||
-			   IS_CFL_ULT(dev_priv)) {
+			   IS_CFL_ULT(dev_priv) || IS_CML_ULT(dev_priv)) {
 			*n_entries = ARRAY_SIZE(skl_u_ddi_translations_edp);
 			return skl_u_ddi_translations_edp;
 		} else {
