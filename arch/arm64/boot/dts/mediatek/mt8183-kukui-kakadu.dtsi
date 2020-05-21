@@ -65,8 +65,9 @@
 	sustainable-power = <4500>; /* milliwatts */
 };
 
-&i2c0 {
+&i2c1 {
 	status = "okay";
+	clock-frequency = <400000>;
 
 	touchscreen: touchscreen@10 {
 		compatible = "hid-over-i2c";
