@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * HT handling
  *
@@ -10,6 +9,10 @@
  * Copyright 2007-2010, Intel Corporation
  * Copyright(c) 2015-2017 Intel Deutschland GmbH
  * Copyright (C) 2018 - 2019 Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/ieee80211.h>
@@ -226,7 +229,7 @@ ieee80211_agg_start_txq(struct sta_info *sta, int tid, bool enable)
 	clear_bit(IEEE80211_TXQ_STOP, &txqi->flags);
 	local_bh_disable();
 	rcu_read_lock();
-	schedule_and_wake_txq(sta->sdata->local, txqi);
+	drv_wake_tx_queue(sta->sdata->local, txqi);
 	rcu_read_unlock();
 	local_bh_enable();
 }
@@ -485,14 +488,7 @@ void ieee80211_tx_ba_session_handle_start(struct sta_info *sta, int tid)
 
 	params.ssn = sta->tid_seq[tid] >> 4;
 	ret = drv_ampdu_action(local, sdata, &params);
-	if (ret == IEEE80211_AMPDU_TX_START_IMMEDIATE) {
-		/*
-		 * We didn't send the request yet, so don't need to check
-		 * here if we already got a response, just mark as driver
-		 * ready immediately.
-		 */
-		set_bit(HT_AGG_STATE_DRV_READY, &tid_tx->state);
-	} else if (ret) {
+	if (ret) {
 		ht_dbg(sdata,
 		       "BA request denied - HW unavailable for %pM tid %d\n",
 		       sta->sta.addr, tid);
@@ -578,8 +574,7 @@ int ieee80211_start_tx_ba_session(struct ieee80211_sta *pubsta, u16 tid,
 		 "Requested to start BA session on reserved tid=%d", tid))
 		return -EINVAL;
 
-	if (!pubsta->ht_cap.ht_supported &&
-	    !nl80211_is_6ghz(sta->sdata->vif.bss_conf.chandef.chan->band))
+	if (!pubsta->ht_cap.ht_supported)
 		return -EINVAL;
 
 	if (WARN_ON_ONCE(!local->ops->ampdu_action))

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright 2002-2005, Instant802 Networks, Inc.
  * Copyright 2005-2006, Devicescape Software, Inc.
@@ -7,6 +6,10 @@
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
  * Copyright (C) 2018-2019 Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/jiffies.h>
@@ -248,7 +251,7 @@ static void ieee80211_handle_mu_mimo_mon(struct ieee80211_sub_if_data *sdata,
 		struct ieee80211_hdr_3addr hdr;
 		u8 category;
 		u8 action_code;
-	} __packed __aligned(2) action;
+	} __packed action;
 
 	if (!sdata)
 		return;
@@ -1005,43 +1008,23 @@ static int ieee80211_get_mmie_keyidx(struct sk_buff *skb)
 	return -1;
 }
 
-static int ieee80211_get_keyid(struct sk_buff *skb,
-			       const struct ieee80211_cipher_scheme *cs)
+static int ieee80211_get_cs_keyid(const struct ieee80211_cipher_scheme *cs,
+				  struct sk_buff *skb)
 {
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 	__le16 fc;
 	int hdrlen;
-	int minlen;
-	u8 key_idx_off;
-	u8 key_idx_shift;
 	u8 keyid;
 
 	fc = hdr->frame_control;
 	hdrlen = ieee80211_hdrlen(fc);
 
-	if (cs) {
-		minlen = hdrlen + cs->hdr_len;
-		key_idx_off = hdrlen + cs->key_idx_off;
-		key_idx_shift = cs->key_idx_shift;
-	} else {
-		/* WEP, TKIP, CCMP and GCMP */
-		minlen = hdrlen + IEEE80211_WEP_IV_LEN;
-		key_idx_off = hdrlen + 3;
-		key_idx_shift = 6;
-	}
-
-	if (unlikely(skb->len < minlen))
+	if (skb->len < hdrlen + cs->hdr_len)
 		return -EINVAL;
 
-	skb_copy_bits(skb, key_idx_off, &keyid, 1);
-
-	if (cs)
-		keyid &= cs->key_idx_mask;
-	keyid >>= key_idx_shift;
-
-	/* cs could use more than the usual two bits for the keyid */
-	if (unlikely(keyid >= NUM_DEFAULT_KEYS))
-		return -EINVAL;
+	skb_copy_bits(skb, hdrlen + cs->key_idx_off, &keyid, 1);
+	keyid &= cs->key_idx_mask;
+	keyid >>= cs->key_idx_shift;
 
 	return keyid;
 }
@@ -1588,15 +1571,7 @@ static void sta_ps_start(struct sta_info *sta)
 		return;
 
 	for (tid = 0; tid < IEEE80211_NUM_TIDS; tid++) {
-		struct ieee80211_txq *txq = sta->sta.txq[tid];
-		struct txq_info *txqi = to_txq_info(txq);
-
-		spin_lock(&local->active_txq_lock[txq->ac]);
-		if (!list_empty(&txqi->schedule_order))
-			list_del_init(&txqi->schedule_order);
-		spin_unlock(&local->active_txq_lock[txq->ac]);
-
-		if (txq_has_queue(txq))
+		if (txq_has_queue(sta->sta.txq[tid]))
 			set_bit(tid, &sta->txq_buffered_tids);
 		else
 			clear_bit(tid, &sta->txq_buffered_tids);
@@ -1880,9 +1855,9 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 	int keyidx;
+	int hdrlen;
 	ieee80211_rx_result result = RX_DROP_UNUSABLE;
 	struct ieee80211_key *sta_ptk = NULL;
-	struct ieee80211_key *ptk_idx = NULL;
 	int mmie_keyidx = -1;
 	__le16 fc;
 	const struct ieee80211_cipher_scheme *cs = NULL;
@@ -1920,24 +1895,21 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 
 	if (rx->sta) {
 		int keyid = rx->sta->ptk_idx;
-		sta_ptk = rcu_dereference(rx->sta->ptk[keyid]);
 
-		if (ieee80211_has_protected(fc)) {
+		if (ieee80211_has_protected(fc) && rx->sta->cipher_scheme) {
 			cs = rx->sta->cipher_scheme;
-			keyid = ieee80211_get_keyid(rx->skb, cs);
-
+			keyid = ieee80211_get_cs_keyid(cs, rx->skb);
 			if (unlikely(keyid < 0))
 				return RX_DROP_UNUSABLE;
-
-			ptk_idx = rcu_dereference(rx->sta->ptk[keyid]);
 		}
+		sta_ptk = rcu_dereference(rx->sta->ptk[keyid]);
 	}
 
 	if (!ieee80211_has_protected(fc))
 		mmie_keyidx = ieee80211_get_mmie_keyidx(rx->skb);
 
 	if (!is_multicast_ether_addr(hdr->addr1) && sta_ptk) {
-		rx->key = ptk_idx ? ptk_idx : sta_ptk;
+		rx->key = sta_ptk;
 		if ((status->flag & RX_FLAG_DECRYPTED) &&
 		    (status->flag & RX_FLAG_IV_STRIPPED))
 			return RX_CONTINUE;
@@ -1997,6 +1969,8 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 		}
 		return RX_CONTINUE;
 	} else {
+		u8 keyid;
+
 		/*
 		 * The device doesn't give us the IV so we won't be
 		 * able to look up the key. That's ok though, we
@@ -2010,10 +1984,23 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 		    (status->flag & RX_FLAG_IV_STRIPPED))
 			return RX_CONTINUE;
 
-		keyidx = ieee80211_get_keyid(rx->skb, cs);
+		hdrlen = ieee80211_hdrlen(fc);
 
-		if (unlikely(keyidx < 0))
-			return RX_DROP_UNUSABLE;
+		if (cs) {
+			keyidx = ieee80211_get_cs_keyid(cs, rx->skb);
+
+			if (unlikely(keyidx < 0))
+				return RX_DROP_UNUSABLE;
+		} else {
+			if (rx->skb->len < 8 + hdrlen)
+				return RX_DROP_UNUSABLE; /* TODO: count this? */
+			/*
+			 * no need to call ieee80211_wep_get_keyidx,
+			 * it verifies a bunch of things we've done already
+			 */
+			skb_copy_bits(rx->skb, hdrlen + 3, &keyid, 1);
+			keyidx = keyid >> 6;
+		}
 
 		/* check per-station GTK first, if multicast packet */
 		if (is_multicast_ether_addr(hdr->addr1) && rx->sta)
@@ -2694,7 +2681,6 @@ ieee80211_rx_h_mesh_fwding(struct ieee80211_rx_data *rx)
 	struct ieee80211_sub_if_data *sdata = rx->sdata;
 	struct ieee80211_if_mesh *ifmsh = &sdata->u.mesh;
 	u16 ac, q, hdrlen;
-	int tailroom = 0;
 
 	hdr = (struct ieee80211_hdr *) skb->data;
 	hdrlen = ieee80211_hdrlen(hdr->frame_control);
@@ -2774,21 +2760,15 @@ ieee80211_rx_h_mesh_fwding(struct ieee80211_rx_data *rx)
 	skb_set_queue_mapping(skb, q);
 
 	if (!--mesh_hdr->ttl) {
-		if (!is_multicast_ether_addr(hdr->addr1))
-			IEEE80211_IFSTA_MESH_CTR_INC(ifmsh,
-						     dropped_frames_ttl);
+		IEEE80211_IFSTA_MESH_CTR_INC(ifmsh, dropped_frames_ttl);
 		goto out;
 	}
 
 	if (!ifmsh->mshcfg.dot11MeshForwarding)
 		goto out;
 
-	if (sdata->crypto_tx_tailroom_needed_cnt)
-		tailroom = IEEE80211_ENCRYPT_TAILROOM;
-
 	fwd_skb = skb_copy_expand(skb, local->tx_headroom +
-				       sdata->encrypt_headroom,
-				  tailroom, GFP_ATOMIC);
+				       sdata->encrypt_headroom, 0, GFP_ATOMIC);
 	if (!fwd_skb)
 		goto out;
 
@@ -4092,8 +4072,12 @@ void ieee80211_check_fast_rx(struct sta_info *sta)
 		case WLAN_CIPHER_SUITE_GCMP_256:
 			break;
 		default:
-			/* We also don't want to deal with
-			 * WEP or cipher scheme.
+			/* we also don't want to deal with WEP or cipher scheme
+			 * since those require looking up the key idx in the
+			 * frame, rather than assuming the PTK is used
+			 * (we need to revisit this once we implement the real
+			 * PTK index, which is now valid in the spec, but we
+			 * haven't implemented that part yet)
 			 */
 			goto clear_rcu;
 		}

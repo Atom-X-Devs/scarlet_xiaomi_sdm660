@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright 2002-2005, Instant802 Networks, Inc.
  * Copyright 2005-2006, Devicescape Software, Inc.
@@ -6,7 +5,11 @@
  * Copyright 2007-2008	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright 2015-2017	Intel Deutschland GmbH
- * Copyright 2018-2019  Intel Corporation
+ * Copyright 2018	Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/if_ether.h>
@@ -138,12 +141,6 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 		 * so clear that flag now to avoid trying to remove
 		 * it again later.
 		 */
-		if (key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE &&
-		    !(key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
-					 IEEE80211_KEY_FLAG_PUT_MIC_SPACE |
-					 IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
-			increment_tailroom_need_count(sdata);
-
 		key->flags &= ~KEY_FLAG_UPLOADED_TO_HARDWARE;
 		return -EINVAL;
 	}
@@ -171,10 +168,8 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 		 * The driver doesn't know anything about VLAN interfaces.
 		 * Hence, don't send GTKs for VLAN interfaces to the driver.
 		 */
-		if (!(key->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE)) {
-			ret = 1;
+		if (!(key->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE))
 			goto out_unsupported;
-		}
 	}
 
 	ret = drv_set_key(key->local, SET_KEY, sdata,
@@ -183,9 +178,9 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 	if (!ret) {
 		key->flags |= KEY_FLAG_UPLOADED_TO_HARDWARE;
 
-		if (!(key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
-					 IEEE80211_KEY_FLAG_PUT_MIC_SPACE |
-					 IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
+		if (!((key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
+					   IEEE80211_KEY_FLAG_PUT_MIC_SPACE)) ||
+		      (key->conf.flags & IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
 			decrease_tailroom_need_count(sdata, 1);
 
 		WARN_ON((key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE) &&
@@ -219,8 +214,11 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 		/* all of these we can do in software - if driver can */
 		if (ret == 1)
 			return 0;
-		if (ieee80211_hw_check(&key->local->hw, SW_CRYPTO_CONTROL))
+		if (ieee80211_hw_check(&key->local->hw, SW_CRYPTO_CONTROL)) {
+			if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+				return 0;
 			return -EINVAL;
+		}
 		return 0;
 	default:
 		return -EINVAL;
@@ -246,9 +244,9 @@ static void ieee80211_key_disable_hw_accel(struct ieee80211_key *key)
 	sta = key->sta;
 	sdata = key->sdata;
 
-	if (!(key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
-				 IEEE80211_KEY_FLAG_PUT_MIC_SPACE |
-				 IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
+	if (!((key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
+				   IEEE80211_KEY_FLAG_PUT_MIC_SPACE)) ||
+	      (key->conf.flags & IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
 		increment_tailroom_need_count(sdata);
 
 	key->flags &= ~KEY_FLAG_UPLOADED_TO_HARDWARE;
@@ -262,22 +260,9 @@ static void ieee80211_key_disable_hw_accel(struct ieee80211_key *key)
 			  sta ? sta->sta.addr : bcast_addr, ret);
 }
 
-int ieee80211_set_tx_key(struct ieee80211_key *key)
-{
-	struct sta_info *sta = key->sta;
-	struct ieee80211_local *local = key->local;
-
-	assert_key_lock(local);
-
-	sta->ptk_idx = key->conf.keyidx;
-	ieee80211_check_fast_xmit(sta);
-
-	return 0;
-}
-
 static int ieee80211_hw_key_replace(struct ieee80211_key *old_key,
 				    struct ieee80211_key *new_key,
-				    bool pairwise)
+				    bool ptk0rekey)
 {
 	struct ieee80211_sub_if_data *sdata;
 	struct ieee80211_local *local;
@@ -294,9 +279,8 @@ static int ieee80211_hw_key_replace(struct ieee80211_key *old_key,
 	assert_key_lock(old_key->local);
 	sta = old_key->sta;
 
-	/* Unicast rekey without Extended Key ID needs special handling */
-	if (new_key && sta && pairwise &&
-	    rcu_access_pointer(sta->ptk[sta->ptk_idx]) == old_key) {
+	/* PTK only using key ID 0 needs special handling on rekey */
+	if (new_key && sta && ptk0rekey) {
 		local = old_key->local;
 		sdata = old_key->sdata;
 
@@ -412,6 +396,10 @@ static int ieee80211_key_replace(struct ieee80211_sub_if_data *sdata,
 
 	if (old) {
 		idx = old->conf.keyidx;
+		/* TODO: proper implement and test "Extended Key ID for
+		 * Individually Addressed Frames" from IEEE 802.11-2016.
+		 * Till then always assume only key ID 0 is used for
+		 * pairwise keys.*/
 		ret = ieee80211_hw_key_replace(old, new, pairwise);
 	} else {
 		/* new must be provided in case old is not */
@@ -428,20 +416,15 @@ static int ieee80211_key_replace(struct ieee80211_sub_if_data *sdata,
 	if (sta) {
 		if (pairwise) {
 			rcu_assign_pointer(sta->ptk[idx], new);
-			if (new &&
-			    !(new->conf.flags & IEEE80211_KEY_FLAG_NO_AUTO_TX)) {
-				sta->ptk_idx = idx;
+			sta->ptk_idx = idx;
+			if (new) {
 				clear_sta_flag(sta, WLAN_STA_BLOCK_BA);
 				ieee80211_check_fast_xmit(sta);
 			}
 		} else {
 			rcu_assign_pointer(sta->gtk[idx], new);
 		}
-		/* Only needed for transition from no key -> key.
-		 * Still triggers unnecessary when using Extended Key ID
-		 * and installing the second key ID the first time.
-		 */
-		if (new && !old)
+		if (new)
 			ieee80211_check_fast_rx(sta);
 	} else {
 		defunikey = old &&
@@ -757,33 +740,16 @@ int ieee80211_key_link(struct ieee80211_key *key,
 	 * can cause warnings to appear.
 	 */
 	bool delay_tailroom = sdata->vif.type == NL80211_IFTYPE_STATION;
-	int ret = -EOPNOTSUPP;
+	int ret;
 
 	mutex_lock(&sdata->local->key_mtx);
 
-	if (sta && pairwise) {
-		struct ieee80211_key *alt_key;
-
+	if (sta && pairwise)
 		old_key = key_mtx_dereference(sdata->local, sta->ptk[idx]);
-		alt_key = key_mtx_dereference(sdata->local, sta->ptk[idx ^ 1]);
-
-		/* The rekey code assumes that the old and new key are using
-		 * the same cipher. Enforce the assumption for pairwise keys.
-		 */
-		if ((alt_key && alt_key->conf.cipher != key->conf.cipher) ||
-		    (old_key && old_key->conf.cipher != key->conf.cipher))
-			goto out;
-	} else if (sta) {
+	else if (sta)
 		old_key = key_mtx_dereference(sdata->local, sta->gtk[idx]);
-	} else {
+	else
 		old_key = key_mtx_dereference(sdata->local, sdata->keys[idx]);
-	}
-
-	/* Non-pairwise keys must also not switch the cipher on rekey */
-	if (!pairwise) {
-		if (old_key && old_key->conf.cipher != key->conf.cipher)
-			goto out;
-	}
 
 	/*
 	 * Silently accept key re-installation without really installing the
@@ -1207,9 +1173,9 @@ void ieee80211_remove_key(struct ieee80211_key_conf *keyconf)
 	if (key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE) {
 		key->flags &= ~KEY_FLAG_UPLOADED_TO_HARDWARE;
 
-		if (!(key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
-					 IEEE80211_KEY_FLAG_PUT_MIC_SPACE |
-					 IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
+		if (!((key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
+					   IEEE80211_KEY_FLAG_PUT_MIC_SPACE)) ||
+		      (key->conf.flags & IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
 			increment_tailroom_need_count(key->sdata);
 	}
 

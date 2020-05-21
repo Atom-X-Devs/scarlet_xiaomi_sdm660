@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * mac80211 TDLS handling code
  *
@@ -7,6 +6,8 @@
  * Copyright 2014  Intel Mobile Communications GmbH
  * Copyright 2015 - 2016 Intel Deutschland GmbH
  * Copyright (C) 2019 Intel Corporation
+ *
+ * This file is GPLv2 as found in COPYING.
  */
 
 #include <linux/ieee80211.h>
@@ -1055,7 +1056,7 @@ ieee80211_tdls_prep_mgmt_packet(struct wiphy *wiphy, struct net_device *dev,
 
 	/* disable bottom halves when entering the Tx path */
 	local_bh_disable();
-	__ieee80211_subif_start_xmit(skb, dev, flags, 0);
+	__ieee80211_subif_start_xmit(skb, dev, flags);
 	local_bh_enable();
 
 	return ret;
