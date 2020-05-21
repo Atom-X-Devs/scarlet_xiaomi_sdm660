@@ -771,7 +771,6 @@ void vb2ops_vdec_buf_finish(struct vb2_buffer *vb)
 		buf->queued_in_v4l2 = false;
 		buf->queued_in_vb2 = false;
 	}
-	buf->used = false;
 	buf_error = buf->error;
 	mutex_unlock(&ctx->lock);
 
