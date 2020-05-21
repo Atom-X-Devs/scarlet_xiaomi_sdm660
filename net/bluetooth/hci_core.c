@@ -2479,14 +2479,23 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv)
 	INIT_WORK(&hdev->tx_work, hci_tx_work);
 	INIT_WORK(&hdev->power_on, hci_power_on);
 	INIT_WORK(&hdev->error_reset, hci_error_reset);
+#ifdef CONFIG_DEV_COREDUMP
+	INIT_WORK(&hdev->dump.dump_rx, hci_devcoredump_rx);
+#endif
 
 	hci_cmd_sync_init(hdev);
 
 	INIT_DELAYED_WORK(&hdev->power_off, hci_power_off);
+#ifdef CONFIG_DEV_COREDUMP
+	INIT_DELAYED_WORK(&hdev->dump.dump_timeout, hci_devcoredump_timeout);
+#endif
 
 	skb_queue_head_init(&hdev->rx_q);
 	skb_queue_head_init(&hdev->cmd_q);
 	skb_queue_head_init(&hdev->raw_q);
+#ifdef CONFIG_DEV_COREDUMP
+	skb_queue_head_init(&hdev->dump.dump_q);
+#endif
 
 	init_waitqueue_head(&hdev->req_wait_q);
 

@@ -32,6 +32,7 @@
 #include <net/bluetooth/hci.h>
 #include <net/bluetooth/hci_sync.h>
 #include <net/bluetooth/hci_sock.h>
+#include <net/bluetooth/coredump.h>
 
 /* HCI priority */
 #define HCI_PRIO_MAX	7
@@ -573,6 +574,10 @@ struct hci_dev {
 	const char		*hw_info;
 	const char		*fw_info;
 	struct dentry		*debugfs;
+
+#ifdef CONFIG_DEV_COREDUMP
+	struct hci_devcoredump	dump;
+#endif
 
 	struct device		dev;
 
