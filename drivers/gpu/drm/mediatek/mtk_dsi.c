@@ -158,6 +158,9 @@
 	(type == MIPI_DSI_GENERIC_READ_REQUEST_2_PARAM) || \
 	(type == MIPI_DSI_DCS_READ))
 
+#define MIN_HFP_BYTE		0x02
+#define MIN_HBP_BYTE		0x02
+
 struct mtk_phy_timing {
 	u32 lpx;
 	u32 da_hs_prepare;
@@ -472,6 +475,7 @@ static void mtk_dsi_config_vdo_timing(struct mtk_dsi *dsi)
 	u32 horizontal_sync_active_byte;
 	u32 horizontal_backporch_byte;
 	u32 horizontal_frontporch_byte;
+	s32 signed_hfp_byte, signed_hbp_byte;
 	u32 dsi_tmp_buf_bpp, data_phy_cycles;
 	struct mtk_phy_timing *timing = &dsi->phy_timing;
 
@@ -539,6 +543,20 @@ static void mtk_dsi_config_vdo_timing(struct mtk_dsi *dsi)
 			horizontal_frontporch_byte = vm->hfront_porch *
 						     dsi_tmp_buf_bpp;
 		}
+	}
+
+	signed_hfp_byte = (s32)horizontal_frontporch_byte;
+	signed_hbp_byte = (s32)horizontal_backporch_byte;
+
+	if (signed_hfp_byte + signed_hbp_byte < MIN_HFP_BYTE + MIN_HBP_BYTE) {
+		DRM_WARN("Calculated hfp_byte and hbp_byte are too small, "
+			 "panel may not work properly.\n");
+	} else if (signed_hfp_byte < MIN_HFP_BYTE) {
+		horizontal_frontporch_byte = MIN_HFP_BYTE;
+		horizontal_backporch_byte -= MIN_HFP_BYTE - signed_hfp_byte;
+	} else if (signed_hbp_byte < MIN_HBP_BYTE) {
+		horizontal_frontporch_byte -= MIN_HBP_BYTE - signed_hbp_byte;
+		horizontal_backporch_byte = MIN_HBP_BYTE;
 	}
 
 	writel(horizontal_sync_active_byte, dsi->regs + DSI_HSA_WC);
