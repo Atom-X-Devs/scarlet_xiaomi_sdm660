@@ -4474,6 +4474,8 @@ static void hci_scodata_packet(struct hci_dev *hdev, struct sk_buff *skb)
 	struct hci_conn *conn;
 	__u16 handle, flags;
 
+	skb_pull(skb, HCI_SCO_HDR_SIZE);
+
 	handle = __le16_to_cpu(hdr->handle);
 	flags  = hci_flags(handle);
 	handle = hci_handle(handle);
