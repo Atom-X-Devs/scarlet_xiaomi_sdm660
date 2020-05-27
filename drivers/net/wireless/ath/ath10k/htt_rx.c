@@ -3441,68 +3441,6 @@ out:
 	spin_unlock_bh(&ar->data_lock);
 }
 
-static void
-ath10k_htt_process_ppdu_stats(struct ath10k *ar, struct sk_buff *skb)
-{
-	struct htt_resp *resp = (struct htt_resp *)skb->data;
-	struct ath10k_per_peer_tx_stats *p_tx_stats = &ar->peer_tx_stats;
-	struct htt_tx_ppdu_stats_info *tx_stats;
-	struct ieee80211_sta *sta;
-	struct ath10k_sta *arsta;
-	struct ath10k_peer *peer;
-	u32 peer_id, i;
-	u8 num_ppdu;
-
-	num_ppdu = resp->ppdu_stats.num_ppdu;
-	tx_stats = &resp->ppdu_stats.tx_ppdu_stats[0];
-	peer_id = __le16_to_cpu(tx_stats->peer_id);
-
-	rcu_read_lock();
-	spin_lock_bh(&ar->data_lock);
-
-	peer = ath10k_peer_find_by_id(ar, peer_id);
-	if (!peer)
-		goto err;
-
-	sta = peer->sta;
-	if (!sta)
-		goto err;
-
-	for (i = 0; i < num_ppdu; i++) {
-		tx_stats = &resp->ppdu_stats.tx_ppdu_stats[i];
-		arsta = (struct ath10k_sta *)sta->drv_priv;
-
-		p_tx_stats->succ_bytes =
-			__le32_to_cpu(tx_stats->tx_success_bytes);
-		p_tx_stats->retry_bytes =
-			__le32_to_cpu(tx_stats->tx_retry_bytes);
-		p_tx_stats->failed_bytes =
-			__le32_to_cpu(tx_stats->tx_failed_bytes);
-		p_tx_stats->ratecode = tx_stats->tx_ratecode;
-		p_tx_stats->flags = tx_stats->flags;
-		p_tx_stats->succ_pkts =
-			__le16_to_cpu(tx_stats->tx_success_msdus);
-		p_tx_stats->retry_pkts =
-			__le16_to_cpu(tx_stats->tx_retry_msdus);
-		p_tx_stats->failed_pkts =
-			__le16_to_cpu(tx_stats->tx_failed_msdus);
-		p_tx_stats->duration =
-			__le16_to_cpu(tx_stats->tx_duration);
-
-		ath10k_update_per_peer_tx_stats(ar, sta, p_tx_stats);
-	}
-
-	spin_unlock_bh(&ar->data_lock);
-	rcu_read_unlock();
-
-	return;
-
-err:
-	spin_unlock_bh(&ar->data_lock);
-	rcu_read_unlock();
-	ath10k_warn(ar, "invalid ppdu stats received\n");
-}
-
 bool ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 {
 	struct ath10k_htt *htt = &ar->htt;
@@ -3720,9 +3658,6 @@ bool ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 		break;
 	case HTT_T2H_MSG_TYPE_PEER_STATS:
 		ath10k_htt_fetch_peer_stats(ar, skb);
-		break;
-	case HTT_T2H_MSG_TYPE_PPDU_STATS_IND:
-		ath10k_htt_process_ppdu_stats(ar, skb);
 		break;
 	case HTT_T2H_MSG_TYPE_EN_STATS:
 	default:
