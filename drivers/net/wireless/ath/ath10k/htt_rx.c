@@ -3167,7 +3167,7 @@ ath10k_update_per_peer_tx_stats(struct ath10k *ar,
 	struct ath10k_sta *arsta = (struct ath10k_sta *)sta->drv_priv;
 	struct ieee80211_chanctx_conf *conf = NULL;
 	u8 rate = 0, sgi;
-	s8 rate_idx = -1;
+	s8 rate_idx = 0;
 	bool skip_auto_rate;
 	struct rate_info txrate;
 
@@ -3209,12 +3209,6 @@ ath10k_update_per_peer_tx_stats(struct ath10k *ar,
 		rate_idx = ath10k_get_legacy_rate_idx(ar, rate);
 		if (rate_idx < 0)
 			return;
-
-		/* from 1Mbps to 100Kbps */
-		rate = rate * 10;
-		if (rate == 50)
-			rate = 55;
-
 		arsta->txrate.legacy = rate;
 	} else if (txrate.flags == WMI_RATE_PREAMBLE_HT) {
 		arsta->txrate.flags = RATE_INFO_FLAGS_MCS;
@@ -3447,74 +3441,6 @@ out:
 	spin_unlock_bh(&ar->data_lock);
 }
 
-static int
-ath10k_htt_update_ratecode(struct ath10k *ar, struct ath10k_sta *arsta,
-			   u8 *ratecode)
-{
-	u8 hw_rate, preamble;
-	u16 bitrate;
-	int i;
-	const struct ieee80211_rate *bitrates;
-	bool cck;
-	struct ieee80211_chanctx_conf *conf = NULL;
-	enum nl80211_band band;
-	struct ieee80211_supported_band *sband;
-
-	if (!ratecode)
-		return -EINVAL;
-
-	/* only for legacy ratecode */
-	preamble = ATH10K_HW_PREAMBLE(*ratecode);
-	if (preamble != WMI_RATE_PREAMBLE_CCK &&
-	    preamble != WMI_RATE_PREAMBLE_OFDM)
-		return 0;
-
-	if (!arsta->arvif || !arsta->arvif->vif)
-		return -EINVAL;
-
-	WARN_ON(!rcu_read_lock_held());
-	conf = rcu_dereference(arsta->arvif->vif->chanctx_conf);
-	if (!conf)
-		return -EINVAL;
-
-	band = conf->def.chan->band;
-	sband = &ar->mac.sbands[band];
-	if (!sband->bitrates)
-		return -EINVAL;
-
-	if (WARN_ON_ONCE(sband->n_bitrates > S8_MAX))
-		return -EINVAL;
-
-	cck = (preamble == WMI_RATE_PREAMBLE_CCK);
-	hw_rate = ATH10K_HW_LEGACY_RATE(*ratecode);
-	for (i = 0; i < sband->n_bitrates; i++) {
-		bitrates = &sband->bitrates[i];
-		if (ath10k_mac_bitrate_is_cck(bitrates->bitrate) != cck)
-			continue;
-
-		if (bitrates->hw_value == hw_rate ||
-		    (bitrates->flags & IEEE80211_RATE_SHORT_PREAMBLE &&
-		     bitrates->hw_value_short == hw_rate)) {
-			bitrate = bitrates->bitrate;
-
-			/* The bitrate will be recovered in
-			 * ath10k_update_per_peer_tx_stats().
-			 */
-			if (bitrate == 55)
-				bitrate = 60;
-
-			bitrate = bitrate / 10;
-
-			/* replace hw_value with bitrate in ratecode */
-			*ratecode = ATH10K_HW_RATECODE(bitrate, 0, preamble);
-			return 0;
-		}
-	}
-
-	ath10k_warn(ar, "Invalid legacy ratecode %hhd ppdu stats", *ratecode);
-	return -EINVAL;
-}
-
 static void
 ath10k_htt_process_ppdu_stats(struct ath10k *ar, struct sk_buff *skb)
 {
@@ -3526,7 +3452,6 @@ ath10k_htt_process_ppdu_stats(struct ath10k *ar, struct sk_buff *skb)
 	struct ath10k_peer *peer;
 	u32 peer_id, i;
 	u8 num_ppdu;
-	u8 ratecode;
 
 	num_ppdu = resp->ppdu_stats.num_ppdu;
 	tx_stats = &resp->ppdu_stats.tx_ppdu_stats[0];
@@ -3546,10 +3471,6 @@ ath10k_htt_process_ppdu_stats(struct ath10k *ar, struct sk_buff *skb)
 	for (i = 0; i < num_ppdu; i++) {
 		tx_stats = &resp->ppdu_stats.tx_ppdu_stats[i];
 		arsta = (struct ath10k_sta *)sta->drv_priv;
-		ratecode = tx_stats->tx_ratecode;
-
-		if (ath10k_htt_update_ratecode(ar, arsta, &ratecode))
-			goto err;
 
 		p_tx_stats->succ_bytes =
 			__le32_to_cpu(tx_stats->tx_success_bytes);
@@ -3557,7 +3478,7 @@ ath10k_htt_process_ppdu_stats(struct ath10k *ar, struct sk_buff *skb)
 			__le32_to_cpu(tx_stats->tx_retry_bytes);
 		p_tx_stats->failed_bytes =
 			__le32_to_cpu(tx_stats->tx_failed_bytes);
-		p_tx_stats->ratecode = ratecode;
+		p_tx_stats->ratecode = tx_stats->tx_ratecode;
 		p_tx_stats->flags = tx_stats->flags;
 		p_tx_stats->succ_pkts =
 			__le16_to_cpu(tx_stats->tx_success_msdus);
