@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/platform_data/cros_ec_commands.h>
 #include <linux/platform_data/cros_ec_proto.h>
+#include <linux/platform_data/cros_ec_sensorhub.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
@@ -306,6 +307,64 @@ static int cros_ec_light_prox_write(struct iio_dev *indio_dev,
 	return ret;
 }
 
+static int cros_ec_light_push_data(
+		struct iio_dev *indio_dev,
+		s16 *data,
+		s64 timestamp)
+{
+	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
+	unsigned long scan_mask;
+
+	if (!st || !indio_dev->active_scan_mask)
+		return 0;
+
+	scan_mask = *(indio_dev->active_scan_mask);
+	if (scan_mask & ((1 << indio_dev->num_channels) - 2)) {
+		/*
+		 * Only one channel at most is used.
+		 * Use regular push function.
+		 */
+		return cros_ec_sensors_push_data(indio_dev, data, timestamp);
+	}
+
+	if (test_bit(0, indio_dev->active_scan_mask)) {
+		/*
+		 * Save clear channel, will be used when RGB data arrives.
+		 */
+		st->samples[0] = data[0];
+	}
+	return 0;
+}
+
+static int cros_ec_light_push_data_rgb(
+		struct iio_dev *indio_dev,
+		s16 *data,
+		s64 timestamp)
+{
+	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
+	s16 *out;
+	unsigned long scan_mask;
+	unsigned int i;
+
+	if (!st || !indio_dev->active_scan_mask)
+		return 0;
+
+	scan_mask = *(indio_dev->active_scan_mask);
+	/*
+	 * Send all data needed.
+	 */
+	out = (s16 *)st->samples;
+	for_each_set_bit(i,
+			 indio_dev->active_scan_mask,
+			 indio_dev->masklength) {
+		if (i > 0)
+			*out = data[i - 1];
+		out++;
+	}
+	iio_push_to_buffers_with_timestamp(indio_dev, st->samples, timestamp);
+	return 0;
+}
+
 static irqreturn_t cros_ec_light_capture(int irq, void *p)
 {
 	struct iio_poll_func *pf = p;
@@ -364,6 +423,7 @@ static const struct iio_info cros_ec_light_prox_info = {
 static int cros_ec_light_prox_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct cros_ec_sensorhub *sensor_hub = dev_get_drvdata(dev->parent);
 	struct iio_dev *indio_dev;
 	struct cros_ec_light_prox_state *state;
 	struct iio_chan_spec *channel;
@@ -374,8 +434,8 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	ret = cros_ec_sensors_core_init(pdev, indio_dev, true,
-					cros_ec_light_capture
-					cros_ec_sensors_push_data);
+					cros_ec_light_capture,
+					cros_ec_light_push_data);
 	if (ret)
 		return ret;
 
@@ -430,6 +490,8 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 	channel++;
 
 	if (num_channels > CROS_EC_LIGHT_PROX_MIN_CHANNELS) {
+		u8 sensor_num = state->core.param.info.sensor_num;
+
 		for (i = CROS_EC_SENSOR_X; i < CROS_EC_SENSOR_MAX_AXIS;
 				i++, channel++) {
 			cros_ec_light_channel_common(channel);
@@ -438,6 +500,10 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 			channel->channel2 = IIO_MOD_LIGHT_RED + i;
 			channel->type = IIO_LIGHT;
 		}
+		cros_ec_sensorhub_register_push_data(
+				sensor_hub, sensor_num + 1,
+				indio_dev,
+				cros_ec_light_push_data_rgb);
 	}
 
 	/* Timestamp */
