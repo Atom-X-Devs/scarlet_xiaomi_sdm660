@@ -177,11 +177,6 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 	struct mfg_base *mfg = kbdev->platform_context;
 	int error, i;
 
-	if(mfg->reg_is_powered) {
-                dev_dbg(kbdev->dev,"GPU regulators are already power on\n");
-                return 1;
-        }
-
 	for (i = 0; i < kbdev->regulator_num; i++) {
 		error = regulator_enable(kbdev->regulator[i]);
 		if (error < 0) {
@@ -215,8 +210,6 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 		return error;
 	}
 
-	mfg->reg_is_powered = true;
-
 	return 0;
 }
 
@@ -224,11 +217,6 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
 	struct mfg_base *mfg = kbdev->platform_context;
 	int error, i;
-
-	if(!mfg->reg_is_powered) {
-		dev_dbg(kbdev->dev,"GPU regulators are already power off\n");
-		return;
-	}
 
 	clk_unprepare(mfg->subsys_mfg_cg);
 
@@ -244,20 +232,16 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 				i, error);
 		}
 	}
-
-	mfg->reg_is_powered = false;
 }
 
 static void pm_callback_resume(struct kbase_device *kbdev)
 {
-	pm_callback_runtime_on(kbdev);
 	pm_callback_power_on(kbdev);
 }
 
 static void pm_callback_suspend(struct kbase_device *kbdev)
 {
 	pm_callback_power_off(kbdev);
-	pm_callback_runtime_off(kbdev);
 }
 
 struct kbase_pm_callback_conf pm_callbacks = {
@@ -336,7 +320,6 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 	}
 
 	mfg->is_powered = false;
-	mfg->reg_is_powered = false;
 
 	return 0;
 }
