@@ -335,16 +335,4 @@ u32 cros_ec_get_host_event(struct cros_ec_device *ec_dev);
  */
 s64 cros_ec_get_time_ns(void);
 
-
-/**
- * cros_ec_handle_event - process and forward pending events on EC
- *
- * Call this function in a loop when the kernel is notified that the EC has
- * pending events.
- *
- * Returns true if more events are still pending and this function should be
- * called again.
- */
-bool cros_ec_handle_event(struct cros_ec_device *ec_dev);
-
 #endif /* __LINUX_CROS_EC_PROTO_H */
