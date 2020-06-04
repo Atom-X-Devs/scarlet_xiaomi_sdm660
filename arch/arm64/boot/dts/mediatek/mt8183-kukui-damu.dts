@@ -16,6 +16,10 @@
 	sustainable-power = <4500>; /* milliwatts */
 };
 
+&mt6358codec {
+	mediatek,dmic-mode = <1>; /* one-wire */
+};
+
 &touchscreen {
 	status = "okay";
 
