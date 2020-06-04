@@ -18,7 +18,7 @@
 
 #include "zcomp.h"
 
-static const char * const backends[] = { CONFIG_ZRAM_DEFAULT_COMP_ALGORITHM, NULL };
+static const char * const backends[] = { CONFIG_ZRAM_DEFAULT_COMP_ALGORITHM };
 
 static void zcomp_strm_free(struct zcomp_strm *zstrm)
 {
@@ -52,7 +52,7 @@ bool zcomp_available_algorithm(const char *comp)
 {
 	int i;
 
-	i = __sysfs_match_string(backends, -1, comp);
+	i = sysfs_match_string(backends, comp);
 	if (i >= 0)
 		return true;
 
@@ -71,9 +71,9 @@ ssize_t zcomp_available_show(const char *comp, char *buf)
 {
 	bool known_algorithm = false;
 	ssize_t sz = 0;
-	int i = 0;
+	int i;
 
-	for (; backends[i]; i++) {
+	for (i = 0; i < ARRAY_SIZE(backends); i++) {
 		if (!strcmp(comp, backends[i])) {
 			known_algorithm = true;
 			sz += scnprintf(buf + sz, PAGE_SIZE - sz - 2,
