@@ -1498,7 +1498,6 @@ static int mtk_svs_bank_init(struct mtk_svs_bank *svs)
 	}
 
 	/* Assume CPU DVFS OPP table is already initialized by cpufreq driver*/
-	rcu_read_lock();
 	count = dev_pm_opp_get_opp_count(svs->dev);
 	if (count > MT8173_NUM_SVS_OPP)
 		dev_warn(svs->dev, "%d OPP entries found.\n"
@@ -1510,18 +1509,16 @@ static int mtk_svs_bank_init(struct mtk_svs_bank *svs)
 		opp = dev_pm_opp_find_freq_floor(svs->dev, &rate);
 		if (IS_ERR(opp)) {
 			dev_err(svs->dev, "error opp entry!!\n");
-			rcu_read_unlock();
 			ret = PTR_ERR(opp);
 			goto out;
 		}
 
 		svs->freq_table[i] = rate;
 		svs->volt_table[i] = dev_pm_opp_get_voltage(opp);
+		dev_pm_opp_put(opp);
 	}
 
 out:
-	rcu_read_unlock();
-
 	return ret;
 }
 
