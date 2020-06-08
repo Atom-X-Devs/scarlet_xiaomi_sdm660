@@ -1735,6 +1735,11 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 	struct page *page;
 	int isolated = 0;
 	struct vm_area_struct *vma = walk->vma;
+	struct mm_struct *mm = vma->vm_mm;
+
+	/* Abort operation if there any any process want to act on the mm */
+	if (rwsem_is_contended(&mm->mmap_sem))
+		return -EINTR;
 
 	orig_pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 	for (pte = orig_pte; addr < end; pte++, addr += PAGE_SIZE) {
@@ -1794,6 +1799,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	struct vm_area_struct *vma;
 	enum reclaim_type type;
 	char *type_buf;
+	int err;
 
 	if (!capable(CAP_SYS_NICE))
 		return -EPERM;
@@ -1852,8 +1858,10 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			}
 
 
-			walk_page_range(mm, vma->vm_start, vma->vm_end,
+			err = walk_page_range(mm, vma->vm_start, vma->vm_end,
 					&reclaim_walk_ops, vma);
+			if (err)
+				break;
 		}
 		flush_tlb_mm(mm);
 		up_read(&mm->mmap_sem);
