@@ -2572,6 +2572,9 @@ done:
 	 */
 	btintel_read_debug_features(hdev, &features);
 
+	/* Set DDC mask for available debug features */
+	btintel_set_debug_features(hdev, &features);
+
 	/* All Intel controllers that support the Microsoft vendor
 	 * extension are using 0xFC1E for VsMsftOpCode.
 	 */
