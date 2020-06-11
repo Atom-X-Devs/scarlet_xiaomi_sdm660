@@ -52,6 +52,12 @@ struct mgmt_hdr {
 	__le16	len;
 } __packed;
 
+struct mgmt_tlv {
+	__le16 type;
+	__u8   length;
+	__u8   value[];
+} __packed;
+
 struct mgmt_addr_info {
 	bdaddr_t	bdaddr;
 	__u8		type;
@@ -684,6 +690,18 @@ struct mgmt_rp_read_security_info {
 	__le16   sec_len;
 	__u8     sec[0];
 } __packed;
+
+#define MGMT_OP_READ_DEF_SYSTEM_CONFIG	0x004b
+#define MGMT_READ_DEF_SYSTEM_CONFIG_SIZE	0
+
+#define MGMT_OP_SET_DEF_SYSTEM_CONFIG	0x004c
+#define MGMT_SET_DEF_SYSTEM_CONFIG_SIZE		0
+
+#define MGMT_OP_READ_DEF_RUNTIME_CONFIG	0x004d
+#define MGMT_READ_DEF_RUNTIME_CONFIG_SIZE	0
+
+#define MGMT_OP_SET_DEF_RUNTIME_CONFIG	0x004e
+#define MGMT_SET_DEF_RUNTIME_CONFIG_SIZE	0
 
 /*
  * Begin chromium only op_codes
