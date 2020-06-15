@@ -59,7 +59,7 @@ static void cmdq_client_timeout(struct timer_list *t)
 {
 	struct cmdq_client *client = from_timer(client, t, timer);
 
-	WARN_ONCE(1, "cmdq timeout!\n", client->client.dev);
+	WARN_ONCE(1, "cmdq timeout!\n");
 #ifdef CONFIG_MTK_CMDQ_DEBUG
 	mbox_free_channel(client->chan);
 #endif
