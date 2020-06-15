@@ -2711,8 +2711,9 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 	if (err < 0)
 		own_addr_type = ADDR_LE_DEV_PUBLIC;
 
-	hci_req_start_scan(req, LE_SCAN_ACTIVE, interval, DISCOV_LE_SCAN_WIN,
-			   own_addr_type, 0);
+	hci_req_start_scan(req, LE_SCAN_ACTIVE, interval,
+			   hdev->le_scan_window_discovery, own_addr_type, 0);
+
 	return 0;
 }
 
@@ -2759,18 +2760,18 @@ static void start_discovery(struct hci_dev *hdev, u8 *status)
 			 * to do BR/EDR inquiry.
 			 */
 			hci_req_sync(hdev, interleaved_discov,
-				     DISCOV_LE_SCAN_INT * 2, HCI_CMD_TIMEOUT,
-				     status);
+				     hdev->le_scan_int_discovery * 2,
+				     HCI_CMD_TIMEOUT, status);
 			break;
 		}
 
 		timeout = msecs_to_jiffies(hdev->discov_interleaved_timeout);
-		hci_req_sync(hdev, active_scan, DISCOV_LE_SCAN_INT,
+		hci_req_sync(hdev, active_scan, hdev->le_scan_int_discovery,
 			     HCI_CMD_TIMEOUT, status);
 		break;
 	case DISCOV_TYPE_LE:
 		timeout = msecs_to_jiffies(DISCOV_LE_TIMEOUT);
-		hci_req_sync(hdev, active_scan, DISCOV_LE_SCAN_INT,
+		hci_req_sync(hdev, active_scan, hdev->le_scan_int_discovery,
 			     HCI_CMD_TIMEOUT, status);
 		break;
 	default:
