@@ -526,6 +526,7 @@ static void update_core_cfs_rq_min_vruntime(struct cfs_rq *cfs_rq)
 }
 #endif
 
+#ifdef CONFIG_FAIR_GROUP_SCHED
 bool cfs_prio_less(struct task_struct *a, struct task_struct *b)
 {
 	struct sched_entity *sea = &a->se;
@@ -565,6 +566,7 @@ out:
 
 	return delta > 0;
 }
+#endif /* CONFIG_FAIR_GROUP_SCHED */
 
 static __always_inline
 void account_cfs_rq_runtime(struct cfs_rq *cfs_rq, u64 delta_exec);
