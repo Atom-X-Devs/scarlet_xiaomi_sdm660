@@ -310,7 +310,7 @@ static void __sched_core_disable(void)
 	static_branch_disable(&__sched_core_enabled);
 }
 
-void sched_core_get(void)
+static void sched_core_get(void)
 {
 	mutex_lock(&sched_core_mutex);
 	if (!sched_core_count++)
@@ -318,7 +318,7 @@ void sched_core_get(void)
 	mutex_unlock(&sched_core_mutex);
 }
 
-void sched_core_put(void)
+static void sched_core_put(void)
 {
 	mutex_lock(&sched_core_mutex);
 	if (!--sched_core_count)
