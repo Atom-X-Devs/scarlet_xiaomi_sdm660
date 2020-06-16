@@ -62,4 +62,4 @@ config PREEMPT_COUNT
 config SCHED_CORE
 	bool
 	default y
-	depends on SCHED_SMT && FAIR_GROUP_SCHED
+	depends on SCHED_SMT && FAIR_GROUP_SCHED && CGROUP_SCHED
