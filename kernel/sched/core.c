@@ -60,6 +60,11 @@ __read_mostly int scheduler_running;
  */
 int sysctl_sched_rt_runtime = 950000;
 
+enum cpu_action {
+	CPU_ACTIVATE = 1,
+	CPU_DEACTIVATE = 2
+};
+
 #ifdef CONFIG_SCHED_CORE
 
 struct core_sched_cpu_work {
@@ -326,11 +331,6 @@ static void sched_core_put(void)
 	mutex_unlock(&sched_core_mutex);
 }
 
-enum cpu_action {
-	CPU_ACTIVATE = 1,
-	CPU_DEACTIVATE = 2
-};
-
 static int __activate_cpu_core_sched(void *data);
 static int __deactivate_cpu_core_sched(void *data);
 static void core_sched_cpu_update(unsigned int cpu, enum cpu_action action);
@@ -451,7 +451,7 @@ static int __deactivate_cpu_core_sched(void *data)
 
 static inline void sched_core_enqueue(struct rq *rq, struct task_struct *p) { }
 static inline void sched_core_dequeue(struct rq *rq, struct task_struct *p) { }
-static bool sched_core_enqueued(struct task_struct *task) { return false; }
+static bool __maybe_unused sched_core_enqueued(struct task_struct *task) { return false; }
 static inline void core_sched_cpu_update(unsigned int cpu, int action) { }
 
 #endif /* CONFIG_SCHED_CORE */
