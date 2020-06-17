@@ -1580,8 +1580,8 @@ static void for_each_rt_task(struct rq *rq,
 	struct rt_prio_array *array;
 	struct list_head *queue;
 	int i;
-	struct rt_rq *rt_rq = &rq->rt;
-	struct sched_rt_entity *rt_se = NULL;
+	struct rt_rq *rt_rq;
+	struct sched_rt_entity *rt_se;
 	struct task_struct *task;
 
 	for_each_rt_rq(rt_rq, iter, rq) {
