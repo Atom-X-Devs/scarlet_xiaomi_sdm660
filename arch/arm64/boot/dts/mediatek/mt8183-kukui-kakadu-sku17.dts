@@ -5,11 +5,11 @@
 
 /dts-v1/;
 #include "mt8183-kukui-kakadu.dtsi"
-#include "mt8183-kukui-audio-ts3a227e.dtsi"
+#include "mt8183-kukui-audio-da7219.dtsi"
 
 / {
-	model = "MediaTek kakadu sku16 board";
-	compatible = "google,kakadu-sku16", "google,kakadu", "mediatek,mt8183";
+	model = "MediaTek kakadu sku17 board";
+	compatible = "google,kakadu-sku17", "google,kakadu", "mediatek,mt8183";
 
 };
 
