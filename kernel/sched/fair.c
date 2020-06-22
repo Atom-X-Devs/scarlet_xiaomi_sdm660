@@ -560,9 +560,6 @@ bool cfs_prio_less(struct task_struct *a, struct task_struct *b)
 
 out:
 	p = delta > 0 ? b : a;
-	trace_printk("picked %s/%d %s: %Ld %Ld %Ld\n", p->comm, p->pid,
-			samecpu ? "samecpu" : "crosscpu",
-			sea->vruntime, seb->vruntime, delta);
 
 	return delta > 0;
 }
