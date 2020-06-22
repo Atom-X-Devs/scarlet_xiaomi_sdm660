@@ -532,7 +532,6 @@ bool cfs_prio_less(struct task_struct *a, struct task_struct *b)
 	struct sched_entity *sea = &a->se;
 	struct sched_entity *seb = &b->se;
 	bool samecpu = task_cpu(a) == task_cpu(b);
-	struct task_struct *p;
 	s64 delta;
 
 	if (samecpu) {
@@ -559,8 +558,6 @@ bool cfs_prio_less(struct task_struct *a, struct task_struct *b)
 	delta = (s64)(sea->vruntime - seb->vruntime);
 
 out:
-	p = delta > 0 ? b : a;
-
 	return delta > 0;
 }
 #endif /* CONFIG_FAIR_GROUP_SCHED */
@@ -7479,6 +7476,35 @@ balance_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 
 	return newidle_balance(rq, rf) != 0;
 }
+
+static struct task_struct *
+pick_task_fair(struct rq *rq)
+{
+	struct cfs_rq *cfs_rq = &rq->cfs;
+	struct sched_entity *se;
+
+	if (!cfs_rq->nr_running)
+		return NULL;
+
+	do {
+		struct sched_entity *curr = cfs_rq->curr;
+
+		se = pick_next_entity(cfs_rq, NULL);
+
+		if (curr) {
+			if (se && curr->on_rq)
+				update_curr(cfs_rq);
+
+			if (!se || entity_before(curr, se))
+				se = curr;
+		}
+
+		cfs_rq = group_cfs_rq(se);
+	} while (cfs_rq);
+
+	return task_of(se);
+}
+
 #endif /* CONFIG_SMP */
 
 static unsigned long wakeup_gran(struct sched_entity *se)
@@ -7644,34 +7670,6 @@ preempt:
 
 	if (sched_feat(LAST_BUDDY) && scale && entity_is_task(se))
 		set_last_buddy(se);
-}
-
-static struct task_struct *
-pick_task_fair(struct rq *rq)
-{
-	struct cfs_rq *cfs_rq = &rq->cfs;
-	struct sched_entity *se;
-
-	if (!cfs_rq->nr_running)
-		return NULL;
-
-	do {
-		struct sched_entity *curr = cfs_rq->curr;
-
-		se = pick_next_entity(cfs_rq, NULL);
-
-		if (curr) {
-			if (se && curr->on_rq)
-				update_curr(cfs_rq);
-
-			if (!se || entity_before(curr, se))
-				se = curr;
-		}
-
-		cfs_rq = group_cfs_rq(se);
-	} while (cfs_rq);
-
-	return task_of(se);
 }
 
 static struct task_struct *
