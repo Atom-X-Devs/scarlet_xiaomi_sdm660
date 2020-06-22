@@ -2313,4 +2313,12 @@ static inline struct hci_sco_hdr *hci_sco_hdr(const struct sk_buff *skb)
 #define hci_handle(h)		(h & 0x0fff)
 #define hci_flags(h)		(h >> 12)
 
+/* le24 support */
+static inline void hci_cpu_to_le24(__u32 val, __u8 dst[3])
+{
+	dst[0] = val & 0xff;
+	dst[1] = (val & 0xff00) >> 8;
+	dst[2] = (val & 0xff0000) >> 16;
+}
+
 #endif /* __HCI_H */
