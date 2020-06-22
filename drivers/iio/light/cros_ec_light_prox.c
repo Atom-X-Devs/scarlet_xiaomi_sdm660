@@ -343,13 +343,11 @@ static int cros_ec_light_push_data_rgb(
 {
 	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
 	s16 *out;
-	unsigned long scan_mask;
 	unsigned int i;
 
 	if (!st || !indio_dev->active_scan_mask)
 		return 0;
 
-	scan_mask = *(indio_dev->active_scan_mask);
 	/*
 	 * Send all data needed.
 	 */
