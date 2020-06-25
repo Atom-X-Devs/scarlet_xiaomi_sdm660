@@ -1613,6 +1613,18 @@ static void btmrvl_sdio_remove(struct sdio_func *func)
 			card->priv->surprise_removed = true;
 			btmrvl_sdio_unregister_dev(card);
 			btmrvl_remove_card(card->priv);
+
+			/* Cancel any pending reset work. If a work item is
+			 * pending and runs after removal has finished, the work
+			 * item would cause a use-after-free on the
+			 * btmrvl_sdio_card which has been deallocated.
+			 *
+			 * btmrvl_sdio_card_reset() is called from either the
+			 * main thread or the interrupt handler. At this point,
+			 * neither should occur and cause more reset work, so
+			 * it's safe to cancel any pending reset work.
+			 */
+			cancel_work_sync(&card->reset_work);
 		}
 	}
 }
