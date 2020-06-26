@@ -7262,6 +7262,18 @@ EXPORT_SYMBOL(___might_sleep);
 /* Ensure that all siblings have rescheduled once */
 static int task_set_core_sched_stopper(void *data)
 {
+	struct task_struct *p = (struct task_struct *)data;
+
+	if (sched_core_enqueued(p)) {
+		sched_core_dequeue(task_rq(p), p);
+		if (!p->core_cookie)
+			return 0;
+	}
+
+	if (sched_core_enabled(task_rq(p)) &&
+			p->core_cookie && task_on_rq_queued(p))
+		sched_core_enqueue(task_rq(p), p);
+
 	return 0;
 }
 
@@ -7270,18 +7282,17 @@ int task_set_core_sched(int set, struct task_struct *tsk)
 	if (!tsk)
 		tsk = current;
 
-	// if (!capable(CAP_SYS_ADMIN))
-	//	return -EPERM;
-
-	if (set > 1)
+	if (set != 0 && set != 1)
 		return -ERANGE;
 
 	if (!static_branch_likely(&sched_smt_present))
 		return -EINVAL;
 
-	if (!sched_feat(CORE_PRCTL)) {
-		return 0;
-	}
+	if (!sched_feat(CORE_PRCTL))
+		return -ENOSYS;
+
+	if (set == 0 && !capable(CAP_SYS_ADMIN))
+		return -EPERM;
 
 	/*
 	 * If cookie was set previously, return -EBUSY if either of the
@@ -7305,7 +7316,7 @@ int task_set_core_sched(int set, struct task_struct *tsk)
 
 	tsk->core_cookie = set ? (unsigned long)tsk : 0;
 
-	stop_machine(task_set_core_sched_stopper, NULL, NULL);
+	stop_machine(task_set_core_sched_stopper, (void *)tsk, NULL);
 
 	if (!set)
 		sched_core_put();
