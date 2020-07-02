@@ -216,6 +216,15 @@ enum {
 	 * This quirk must be set before hci_register_dev is called.
 	 */
 	HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED,
+
+	/* When this quirk is set, the controller has validated that
+	 * LE states reported through the HCI_LE_READ_SUPPORTED_STATES are
+	 * valid.  This mechanism is necessary as many controllers have
+	 * been seen has having trouble initiating a connectable
+	 * advertisement despite the state combination being reported as
+	 * supported.
+	 */
+	HCI_QUIRK_VALID_LE_STATES,
 };
 
 /* HCI device flags */
@@ -247,6 +256,7 @@ enum {
 	HCI_MGMT_DEV_CLASS_EVENTS,
 	HCI_MGMT_LOCAL_NAME_EVENTS,
 	HCI_MGMT_OOB_DATA_EVENTS,
+	HCI_MGMT_EXP_FEATURE_EVENTS,
 };
 
 /*
@@ -269,8 +279,6 @@ enum {
 	HCI_EXT_CONFIGURED,
 	HCI_LE_ADV,
 	HCI_LE_SCAN,
-	HCI_LE_ADV_CHANGE_IN_PROGRESS,
-	HCI_LE_SCAN_CHANGE_IN_PROGRESS,
 	HCI_SSP_ENABLED,
 	HCI_SC_ENABLED,
 	HCI_SC_ONLY,
@@ -282,7 +290,6 @@ enum {
 	HCI_LE_ENABLED,
 	HCI_ADVERTISING,
 	HCI_ADVERTISING_CONNECTABLE,
-	HCI_ADVERTISING_INTERVALS,
 	HCI_CONNECTABLE,
 	HCI_DISCOVERABLE,
 	HCI_LIMITED_DISCOVERABLE,
@@ -312,8 +319,7 @@ enum {
 #define HCI_AUTO_OFF_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
 #define HCI_POWER_OFF_TIMEOUT	msecs_to_jiffies(5000)	/* 5 seconds */
 #define HCI_LE_CONN_TIMEOUT	msecs_to_jiffies(20000)	/* 20 seconds */
-#define HCI_LE_AUTOCONN_TIMEOUT	msecs_to_jiffies(5000)	/* 5 seconds */
-
+#define HCI_LE_AUTOCONN_TIMEOUT	msecs_to_jiffies(4000)	/* 4 seconds */
 
 /* HCI data types */
 #define HCI_COMMAND_PKT		0x01
@@ -931,7 +937,6 @@ struct hci_cp_sniff_subrate {
 } __packed;
 
 #define HCI_OP_SET_EVENT_MASK		0x0c01
-#define HCI_SET_EVENT_MASK_SIZE         8
 
 #define HCI_OP_RESET			0x0c03
 
@@ -1245,6 +1250,13 @@ struct hci_rp_read_data_block_size {
 } __packed;
 
 #define HCI_OP_READ_LOCAL_CODECS	0x100b
+
+#define HCI_OP_READ_LOCAL_PAIRING_OPTS	0x100c
+struct hci_rp_read_local_pairing_opts {
+	__u8     status;
+	__u8     pairing_opts;
+	__u8     max_key_size;
+} __packed;
 
 #define HCI_OP_READ_PAGE_SCAN_ACTIVITY	0x0c1b
 struct hci_rp_read_page_scan_activity {
@@ -1711,6 +1723,8 @@ struct hci_cp_le_set_ext_scan_rsp_data {
 #define LE_SET_ADV_DATA_OP_COMPLETE	0x03
 
 #define LE_SET_ADV_DATA_NO_FRAG		0x01
+
+#define HCI_OP_LE_REMOVE_ADV_SET	0x203c
 
 #define HCI_OP_LE_CLEAR_ADV_SETS	0x203d
 
@@ -2301,5 +2315,13 @@ static inline struct hci_sco_hdr *hci_sco_hdr(const struct sk_buff *skb)
 #define hci_handle_pack(h, f)	((__u16) ((h & 0x0fff)|(f << 12)))
 #define hci_handle(h)		(h & 0x0fff)
 #define hci_flags(h)		(h >> 12)
+
+/* le24 support */
+static inline void hci_cpu_to_le24(__u32 val, __u8 dst[3])
+{
+	dst[0] = val & 0xff;
+	dst[1] = (val & 0xff00) >> 8;
+	dst[2] = (val & 0xff0000) >> 16;
+}
 
 #endif /* __HCI_H */

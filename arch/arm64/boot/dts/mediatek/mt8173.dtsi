@@ -530,6 +530,9 @@
 			reg = <0 0x10206000 0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			svs_calibration: calib@100 {
+				reg = <0x100 0x8c>;
+			};
 			thermal_calibration: calib@528 {
 				reg = <0x528 0xc>;
 			};
@@ -709,14 +712,22 @@
 			#thermal-sensor-cells = <0>;
 			compatible = "mediatek,mt8173-thermal";
 			reg = <0 0x1100b000 0 0x1000>;
-			interrupts = <0 70 IRQ_TYPE_LEVEL_LOW>;
-			clocks = <&pericfg CLK_PERI_THERM>, <&pericfg CLK_PERI_AUXADC>;
-			clock-names = "therm", "auxadc";
+			interrupts = <0 70 IRQ_TYPE_LEVEL_LOW>,
+				     <0 117 IRQ_TYPE_LEVEL_LOW>;
+			clocks = <&pericfg CLK_PERI_THERM>,
+				 <&pericfg CLK_PERI_AUXADC>,
+				 <&topckgen CLK_TOP_SYSPLL1_D2>,
+				 <&topckgen CLK_TOP_AXI_SEL>;
+			clock-names = "therm", "auxadc", "svs_pll", "svs_mux";
 			resets = <&pericfg MT8173_PERI_THERM_SW_RST>;
 			mediatek,auxadc = <&auxadc>;
 			mediatek,apmixedsys = <&apmixedsys>;
-			nvmem-cells = <&thermal_calibration>;
-			nvmem-cell-names = "calibration-data";
+			nvmem-cells = <&thermal_calibration>,
+				      <&svs_calibration>;
+			mediatek,svs-little-core-id = <0>;
+			mediatek,svs-big-core-id = <2>;
+			nvmem-cell-names = "calibration-data",
+					   "svs-calibration-data";
 		};
 
 		nor_flash: spi@1100d000 {

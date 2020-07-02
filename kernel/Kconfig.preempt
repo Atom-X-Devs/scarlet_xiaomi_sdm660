@@ -58,3 +58,8 @@ endchoice
 
 config PREEMPT_COUNT
        bool
+
+config SCHED_CORE
+	bool
+	default y
+	depends on SCHED_SMT && FAIR_GROUP_SCHED && CGROUP_SCHED

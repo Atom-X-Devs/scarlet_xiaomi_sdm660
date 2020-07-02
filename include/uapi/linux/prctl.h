@@ -223,6 +223,12 @@ struct prctl_mm_map {
 # define PR_SPEC_DISABLE		(1UL << 2)
 # define PR_SPEC_FORCE_DISABLE		(1UL << 3)
 
+/*
+ * Setup core-scheduling for the task. This value is a temporary
+ * place holder till the upstream value is known.
+ */
+#define PR_SET_CORE_SCHED		0x200
+
 #define PR_SET_VMA		0x53564d41
 # define PR_SET_VMA_ANON_NAME		0
 

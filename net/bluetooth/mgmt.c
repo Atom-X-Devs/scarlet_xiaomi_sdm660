@@ -36,6 +36,7 @@
 #include "hci_request.h"
 #include "smp.h"
 #include "mgmt_util.h"
+#include "mgmt_config.h"
 
 #define MGMT_VERSION	1
 #define MGMT_REVISION	14
@@ -110,9 +111,14 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_SET_PHY_CONFIGURATION,
 	MGMT_OP_SET_BLOCKED_KEYS,
 	MGMT_OP_SET_WIDEBAND_SPEECH,
+	MGMT_OP_READ_SECURITY_INFO,
+	MGMT_OP_READ_EXP_FEATURES_INFO,
+	MGMT_OP_SET_EXP_FEATURE,
+	MGMT_OP_READ_DEF_SYSTEM_CONFIG,
+	MGMT_OP_SET_DEF_SYSTEM_CONFIG,
+	MGMT_OP_READ_DEF_RUNTIME_CONFIG,
+	MGMT_OP_SET_DEF_RUNTIME_CONFIG,
 	/* Begin Chromium only op codes*/
-	MGMT_OP_SET_ADVERTISING_INTERVALS,
-	MGMT_OP_SET_EVENT_MASK,
 	MGMT_OP_SET_KERNEL_DEBUG,
 	MGMT_OP_SET_WAKE_CAPABLE,
 	/* End Chromium only op codes*/
@@ -154,6 +160,7 @@ static const u16 mgmt_events[] = {
 	MGMT_EV_ADVERTISING_ADDED,
 	MGMT_EV_ADVERTISING_REMOVED,
 	MGMT_EV_EXT_INFO_CHANGED,
+	MGMT_EV_EXP_FEATURE_CHANGED,
 };
 
 static const u16 mgmt_untrusted_commands[] = {
@@ -163,6 +170,10 @@ static const u16 mgmt_untrusted_commands[] = {
 	MGMT_OP_READ_CONFIG_INFO,
 	MGMT_OP_READ_EXT_INDEX_LIST,
 	MGMT_OP_READ_EXT_INFO,
+	MGMT_OP_READ_SECURITY_INFO,
+	MGMT_OP_READ_EXP_FEATURES_INFO,
+	MGMT_OP_READ_DEF_SYSTEM_CONFIG,
+	MGMT_OP_READ_DEF_RUNTIME_CONFIG,
 };
 
 static const u16 mgmt_untrusted_events[] = {
@@ -177,6 +188,7 @@ static const u16 mgmt_untrusted_events[] = {
 	MGMT_EV_EXT_INDEX_ADDED,
 	MGMT_EV_EXT_INDEX_REMOVED,
 	MGMT_EV_EXT_INFO_CHANGED,
+	MGMT_EV_EXP_FEATURE_CHANGED,
 };
 
 #define CACHE_TIMEOUT	msecs_to_jiffies(2 * 1000)
@@ -785,7 +797,6 @@ static u32 get_supported_settings(struct hci_dev *hdev)
 		settings |= MGMT_SETTING_SECURE_CONN;
 		settings |= MGMT_SETTING_PRIVACY;
 		settings |= MGMT_SETTING_STATIC_ADDRESS;
-		settings |= MGMT_SETTING_ADVERTISING_INTERVALS;
 	}
 
 	if (test_bit(HCI_QUIRK_EXTERNAL_CONFIG, &hdev->quirks) ||
@@ -864,9 +875,6 @@ static u32 get_current_settings(struct hci_dev *hdev)
 
 	if (hci_dev_test_flag(hdev, HCI_WIDEBAND_SPEECH_ENABLED))
 		settings |= MGMT_SETTING_WIDEBAND_SPEECH;
-
-	if (hci_dev_test_flag(hdev, HCI_ADVERTISING_INTERVALS))
-		settings |= MGMT_SETTING_ADVERTISING_INTERVALS;
 
 	return settings;
 }
@@ -1158,7 +1166,8 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 
 	hci_req_clear_adv_instance(hdev, NULL, NULL, 0x00, false);
 
-	__hci_req_disable_advertising(&req);
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+		__hci_req_disable_advertising(&req);
 
 	discov_stopped = hci_req_stop_discovery(&req);
 
@@ -1166,22 +1175,6 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 		/* 0x15 == Terminated due to Power Off */
 		__hci_abort_conn(&req, conn, 0x15);
 	}
-
-	/* When there are no bluetooth activities, i.e., no advertising,
-	 * no scanning, and no connections, the only command built into
-	 * the request would be a conditional HCI command to disable
-	 * advertising. Since the advertising is already off, the command
-	 * is skipped at run time. This leads to an issue that there is
-	 * no command complete event and thus the clean_up_hci_complete()
-	 * callback below is not invoked. This ends up with a 5-second delay
-	 * in setting power off.
-	 * It is important to add this dummy HCI command at the end of the
-	 * request to ensure that the last command in the request would
-	 * definitely be executed. As a result, the clean_up_hci_complete()
-	 * callback would be executed which in turn starts the power off
-	 * procedure immediately.
-	 */
-	hci_req_add(&req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
 
 	err = hci_req_run(&req, clean_up_hci_complete);
 	if (!err && discov_stopped)
@@ -1998,7 +1991,9 @@ static int set_le(struct sock *sk, struct hci_dev *hdev, void *data, u16 len)
 		hci_cp.le = val;
 		hci_cp.simul = 0x00;
 	} else {
-		__hci_req_disable_advertising(&req);
+		if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+			__hci_req_disable_advertising(&req);
+
 		if (ext_adv_capable(hdev))
 			__hci_req_clear_ext_adv_sets(&req);
 	}
@@ -2940,7 +2935,7 @@ static int pair_device(struct sock *sk, struct hci_dev *hdev, void *data,
 
 	if (cp->addr.type == BDADDR_BREDR) {
 		conn = hci_connect_acl(hdev, &cp->addr.bdaddr, sec_level,
-				       auth_type);
+				       auth_type, CONN_REASON_PAIR_DEVICE);
 	} else {
 		u8 addr_type = le_addr_type(cp->addr.type);
 		struct hci_conn_params *p;
@@ -2959,9 +2954,9 @@ static int pair_device(struct sock *sk, struct hci_dev *hdev, void *data,
 		if (p->auto_connect == HCI_AUTO_CONN_EXPLICIT)
 			p->auto_connect = HCI_AUTO_CONN_DISABLED;
 
-		conn = hci_connect_le_scan(hdev, &cp->addr.bdaddr,
-					   addr_type, sec_level,
-					   HCI_LE_CONN_TIMEOUT);
+		conn = hci_connect_le_scan(hdev, &cp->addr.bdaddr, addr_type,
+					   sec_level, HCI_LE_CONN_TIMEOUT,
+					   CONN_REASON_PAIR_DEVICE);
 	}
 
 	if (IS_ERR(conn)) {
@@ -3062,6 +3057,20 @@ static int cancel_pair_device(struct sock *sk, struct hci_dev *hdev, void *data,
 
 	err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_CANCEL_PAIR_DEVICE, 0,
 				addr, sizeof(*addr));
+
+	/* Since user doesn't want to proceed with the connection, abort any
+	 * ongoing pairing and then terminate the link if it was created
+	 * because of the pair device action.
+	 */
+	if (addr->type == BDADDR_BREDR)
+		hci_remove_link_key(hdev, &addr->bdaddr);
+	else
+		smp_cancel_and_remove_pairing(hdev, &addr->bdaddr,
+					      le_addr_type(addr->type));
+
+	if (conn->conn_reason == CONN_REASON_PAIR_DEVICE)
+		hci_abort_conn(conn, HCI_ERROR_REMOTE_USER_TERM);
+
 unlock:
 	hci_dev_unlock(hdev);
 	return err;
@@ -3689,6 +3698,102 @@ static int set_wideband_speech(struct sock *sk, struct hci_dev *hdev,
 unlock:
 	hci_dev_unlock(hdev);
 	return err;
+}
+
+static int read_security_info(struct sock *sk, struct hci_dev *hdev,
+			      void *data, u16 data_len)
+{
+	char buf[16];
+	struct mgmt_rp_read_security_info *rp = (void *)buf;
+	u16 sec_len = 0;
+	u8 flags = 0;
+
+	bt_dev_dbg(hdev, "sock %p", sk);
+
+	memset(&buf, 0, sizeof(buf));
+
+	hci_dev_lock(hdev);
+
+	/* When the Read Simple Pairing Options command is supported, then
+	 * the remote public key validation is supported.
+	 */
+	if (hdev->commands[41] & 0x08)
+		flags |= 0x01;	/* Remote public key validation (BR/EDR) */
+
+	flags |= 0x02;		/* Remote public key validation (LE) */
+
+	/* When the Read Encryption Key Size command is supported, then the
+	 * encryption key size is enforced.
+	 */
+	if (hdev->commands[20] & 0x10)
+		flags |= 0x04;	/* Encryption key size enforcement (BR/EDR) */
+
+	flags |= 0x08;		/* Encryption key size enforcement (LE) */
+
+	sec_len = eir_append_data(rp->sec, sec_len, 0x01, &flags, 1);
+
+	/* When the Read Simple Pairing Options command is supported, then
+	 * also max encryption key size information is provided.
+	 */
+	if (hdev->commands[41] & 0x08)
+		sec_len = eir_append_le16(rp->sec, sec_len, 0x02,
+					  hdev->max_enc_key_size);
+
+	sec_len = eir_append_le16(rp->sec, sec_len, 0x03, SMP_MAX_ENC_KEY_SIZE);
+
+	rp->sec_len = cpu_to_le16(sec_len);
+
+	hci_dev_unlock(hdev);
+
+	return mgmt_cmd_complete(sk, hdev->id, MGMT_OP_READ_SECURITY_INFO, 0,
+				 rp, sizeof(*rp) + sec_len);
+}
+
+static int read_exp_features_info(struct sock *sk, struct hci_dev *hdev,
+				  void *data, u16 data_len)
+{
+	char buf[42];
+	struct mgmt_rp_read_exp_features_info *rp = (void *)buf;
+	u16 idx = 0;
+
+	bt_dev_dbg(hdev, "sock %p", sk);
+
+	memset(&buf, 0, sizeof(buf));
+
+	rp->feature_count = cpu_to_le16(idx);
+
+	/* After reading the experimental features information, enable
+	 * the events to update client on any future change.
+	 */
+	hci_sock_set_flag(sk, HCI_MGMT_EXP_FEATURE_EVENTS);
+
+	return mgmt_cmd_complete(sk, hdev ? hdev->id : MGMT_INDEX_NONE,
+				 MGMT_OP_READ_EXP_FEATURES_INFO,
+				 0, rp, sizeof(*rp) + (20 * idx));
+}
+
+static int set_exp_feature(struct sock *sk, struct hci_dev *hdev,
+			   void *data, u16 data_len)
+{
+	struct mgmt_cp_set_exp_feature *cp = data;
+	struct mgmt_rp_set_exp_feature rp;
+
+	bt_dev_dbg(hdev, "sock %p", sk);
+
+	if (!memcmp(cp->uuid, ZERO_KEY, 16)) {
+		memset(rp.uuid, 0, 16);
+		rp.flags = cpu_to_le32(0);
+
+		hci_sock_set_flag(sk, HCI_MGMT_EXP_FEATURE_EVENTS);
+
+		return mgmt_cmd_complete(sk, hdev ? hdev->id : MGMT_INDEX_NONE,
+					 MGMT_OP_SET_EXP_FEATURE, 0,
+					 &rp, sizeof(rp));
+	}
+
+	return mgmt_cmd_status(sk, hdev ? hdev->id : MGMT_INDEX_NONE,
+			       MGMT_OP_SET_EXP_FEATURE,
+			       MGMT_STATUS_NOT_SUPPORTED);
 }
 
 static void read_local_oob_data_complete(struct hci_dev *hdev, u8 status,
@@ -4681,14 +4786,11 @@ static int set_scan_params(struct sock *sk, struct hci_dev *hdev,
 	err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_SCAN_PARAMS, 0,
 				NULL, 0);
 
-	/* If background scan is running (and not in progress of stopping
-	 * already), restart it so new parameters are
+	/* If background scan is running, restart it so new parameters are
 	 * loaded.
 	 */
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
-	    !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS) &&
 	    hdev->discovery.state == DISCOVERY_STOPPED) {
-
 		struct hci_request req;
 
 		hci_req_init(&req, hdev);
@@ -4800,145 +4902,6 @@ static int set_fast_connectable(struct sock *sk, struct hci_dev *hdev,
 unlock:
 	hci_dev_unlock(hdev);
 
-	return err;
-}
-
-static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
-				     void *data, u16 len)
-{
-	struct mgmt_cp_set_advertising_intervals *cp = data;
-	int err;
-	u16 max_interval_ms, grace_period;
-	/* If both min_interval and max_interval are 0, use default values. */
-	bool use_default = cp->min_interval == 0 && cp->max_interval == 0;
-	struct adv_info *adv_instance;
-	int instance;
-
-	BT_DBG("%s", hdev->name);
-
-	/* This method is intended for LE devices only.*/
-	if (!hci_dev_test_flag(hdev, HCI_LE_ENABLED))
-		return mgmt_cmd_status(sk, hdev->id,
-				       MGMT_OP_SET_ADVERTISING_INTERVALS,
-				       MGMT_STATUS_REJECTED);
-
-	/* Check the validity of the intervals. */
-	if (!use_default && (cp->min_interval < HCI_VALID_LE_ADV_MIN_INTERVAL ||
-			     cp->max_interval > HCI_VALID_LE_ADV_MAX_INTERVAL ||
-			     cp->min_interval > cp->max_interval)) {
-		return mgmt_cmd_status(sk, hdev->id,
-				       MGMT_OP_SET_ADVERTISING_INTERVALS,
-				       MGMT_STATUS_INVALID_PARAMS);
-	}
-
-	hci_dev_lock(hdev);
-
-	if (use_default) {
-		hci_dev_clear_flag(hdev, HCI_ADVERTISING_INTERVALS);
-		hdev->le_adv_min_interval = HCI_DEFAULT_LE_ADV_MIN_INTERVAL;
-		hdev->le_adv_max_interval = HCI_DEFAULT_LE_ADV_MAX_INTERVAL;
-		hdev->le_adv_duration = HCI_DEFAULT_ADV_DURATION;
-	} else {
-		hci_dev_set_flag(hdev, HCI_ADVERTISING_INTERVALS);
-		hdev->le_adv_min_interval = cp->min_interval;
-		hdev->le_adv_max_interval = cp->max_interval;
-
-		max_interval_ms = CONVERT_TO_ADV_INTERVAL_MS(cp->max_interval);
-		grace_period = ADV_DURATION_GRACE_PERIOD(max_interval_ms);
-		if (grace_period < ADV_DURATION_MIN_GRACE_PERIOD)
-			grace_period = ADV_DURATION_MIN_GRACE_PERIOD;
-		hdev->le_adv_duration = max_interval_ms + grace_period;
-	}
-	hdev->le_adv_param_changed = true;
-
-	/* hdev->le_adv_duration would be copied to adv instances created
-	 * hereafter. However, for any existing adv instance of which the
-	 * individual_duration_flag is false, we should modify its duration.
-	 */
-	for (instance = 1;  instance <= HCI_MAX_ADV_INSTANCES; instance++) {
-		adv_instance = hci_find_adv_instance(hdev, instance);
-		if (adv_instance && !adv_instance->individual_duration_flag)
-			adv_instance->duration = hdev->le_adv_duration;
-	}
-
-	/* If advertising is not enabled, the new parameters will take effect
-	 * when advertising is enabled.
-	 * If advertising has been enabled, the new parameters will take effect
-	 * when next adv instance is scheduled by
-	 * __hci_req_schedule_adv_instance().
-	 * Hence, it is ok to send settings response now.
-	 */
-	err = send_settings_rsp(sk, MGMT_OP_SET_ADVERTISING_INTERVALS, hdev);
-	new_settings(hdev, sk);
-
-	hci_dev_unlock(hdev);
-
-	return err;
-}
-
-static void set_event_mask_complete(struct hci_dev *hdev, u8 status, u16 opcode)
-{
-	struct mgmt_pending_cmd *cmd;
-
-	BT_DBG("status 0x%02x", status);
-
-	hci_dev_lock(hdev);
-
-	/* Saving of the new event mask is done in  */
-	cmd = pending_find_data(MGMT_OP_SET_EVENT_MASK, hdev, NULL);
-	if (!cmd)
-		goto unlock;
-
-	cmd->cmd_complete(cmd, mgmt_status(status));
-	mgmt_pending_remove(cmd);
-
-unlock:
-	hci_dev_unlock(hdev);
-}
-
-static int set_event_mask(struct sock *sk, struct hci_dev *hdev,
-			  void *data, u16 len)
-{
-	struct mgmt_cp_set_event_mask *cp = data;
-	struct mgmt_pending_cmd *cmd;
-	struct hci_request req;
-	u8 new_events[8], i;
-	int err;
-
-	BT_DBG("request for %s", hdev->name);
-
-	hci_dev_lock(hdev);
-
-	if (pending_find(MGMT_OP_SET_EVENT_MASK, hdev)) {
-		err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_EVENT_MASK,
-					MGMT_STATUS_BUSY, NULL, 0);
-		goto failed;
-	}
-
-	cmd = mgmt_pending_add(sk, MGMT_OP_SET_EVENT_MASK, hdev, data, len);
-	if (!cmd) {
-		err = -ENOMEM;
-		goto failed;
-	}
-
-	cmd->cmd_complete = generic_cmd_complete;
-
-	hci_req_init(&req, hdev);
-	for (i = 0 ; i < HCI_SET_EVENT_MASK_SIZE; i++) {
-		/* Modify only bits that are requested by the stack */
-		new_events[i] = hdev->event_mask[i];
-		new_events[i] &= ~cp->mask[i];
-		new_events[i] |= cp->mask[i] & cp->events[i];
-	}
-
-	hci_req_add(&req, HCI_OP_SET_EVENT_MASK, sizeof(new_events),
-		    new_events);
-	err = hci_req_run(&req, set_event_mask_complete);
-	if (err < 0)
-		mgmt_pending_remove(cmd);
-
-failed:
-	hci_dev_unlock(hdev);
 	return err;
 }
 
@@ -7339,13 +7302,22 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ set_blocked_keys,	   MGMT_OP_SET_BLOCKED_KEYS_SIZE,
 						HCI_MGMT_VAR_LEN },
 	{ set_wideband_speech,	   MGMT_SETTING_SIZE },
-	{ NULL }, // 0x0048
-	{ NULL }, // 0x0049
-	{ NULL }, // 0x004A
-	{ NULL }, // 0x0048
-	{ NULL }, // 0x004C
-	{ NULL }, // 0x004D
-	{ NULL }, // 0x004E
+	{ read_security_info,      MGMT_READ_SECURITY_INFO_SIZE,
+						HCI_MGMT_UNTRUSTED },
+	{ read_exp_features_info,  MGMT_READ_EXP_FEATURES_INFO_SIZE,
+						HCI_MGMT_UNTRUSTED |
+						HCI_MGMT_HDEV_OPTIONAL },
+	{ set_exp_feature,         MGMT_SET_EXP_FEATURE_SIZE,
+						HCI_MGMT_VAR_LEN |
+						HCI_MGMT_HDEV_OPTIONAL },
+	{ read_def_system_config,  MGMT_READ_DEF_SYSTEM_CONFIG_SIZE,
+						HCI_MGMT_UNTRUSTED },
+	{ set_def_system_config,   MGMT_SET_DEF_SYSTEM_CONFIG_SIZE,
+						HCI_MGMT_VAR_LEN },
+	{ read_def_runtime_config, MGMT_READ_DEF_RUNTIME_CONFIG_SIZE,
+						HCI_MGMT_UNTRUSTED },
+	{ set_def_runtime_config,  MGMT_SET_DEF_RUNTIME_CONFIG_SIZE,
+						HCI_MGMT_VAR_LEN },
 	{ NULL }, // 0x004F
 	{ NULL }, // 0x0050
 	{ NULL }, // 0x0051
@@ -7364,8 +7336,8 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, // 0x005E
 	{ NULL }, // 0x005F
 	/* Begin Chromium only op_codes */
-	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
-	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
+	{ NULL }, // 0x0060
+	{ NULL }, // 0x0061
 	{ NULL }, // 0x0062
 	{ NULL }, // 0x0063
 	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
@@ -8266,7 +8238,6 @@ static bool is_filter_match(struct hci_dev *hdev, s8 rssi, u8 *eir,
 	 * scanning to ensure updated result with updated RSSI values.
 	 */
 	if (test_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks)) {
-		BT_DBG("BT_DBG_DG: queue le_scan_restart: mgmt:restart_le_scan:is_filter_match\n");
 		restart_le_scan(hdev);
 
 		/* Validate RSSI value against the RSSI threshold once more. */

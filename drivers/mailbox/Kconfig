@@ -205,4 +205,14 @@ config MTK_CMDQ_MBOX
 	  mailbox driver. The CMDQ is used to help read/write registers with
 	  critical time limitation, such as updating display configuration
 	  during the vblank.
+
+config MTK_CMDQ_DEBUG
+	tristate "MediaTek CMDQ Mailbox Debug"
+	depends on MTK_CMDQ_MBOX
+	help
+	  Say yes here to add support for debugging CMDQ driver when timeout
+	  or irq status error happens. It will print some useful information
+	  for location problem, such as thread id, PC value and instructions
+	  of command queue buffer.
+
 endif

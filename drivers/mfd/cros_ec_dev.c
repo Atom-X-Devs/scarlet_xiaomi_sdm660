@@ -19,7 +19,6 @@
 
 #include <linux/kconfig.h>
 #include <linux/mfd/core.h>
-#include <linux/mfd/cros_ec.h>
 #include <linux/module.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of_platform.h>
@@ -90,6 +89,10 @@ static const struct mfd_cell cros_ec_rtc_cells[] = {
 	{ .name = "cros-ec-rtc", },
 };
 
+static const struct mfd_cell cros_ec_sensorhub_cells[] = {
+	{ .name = "cros-ec-sensorhub", },
+};
+
 static const struct mfd_cell cros_usbpd_charger_cells[] = {
 	{ .name = "cros-usbpd-charger", },
 	{ .name = "cros-usbpd-logger", },
@@ -130,279 +133,9 @@ static const struct mfd_cell cros_ec_vbc_cells[] = {
 	{ .name = "cros-ec-vbc", }
 };
 
-int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
-{
-	struct cros_ec_command *msg;
-	int ret;
-
-	if (ec->features[0] == -1U && ec->features[1] == -1U) {
-		/* features bitmap not read yet */
-		msg = kzalloc(sizeof(*msg) + sizeof(ec->features), GFP_KERNEL);
-		if (!msg)
-			return -ENOMEM;
-
-		msg->command = EC_CMD_GET_FEATURES + ec->cmd_offset;
-		msg->insize = sizeof(ec->features);
-
-		ret = cros_ec_cmd_xfer_status(ec->ec_dev, msg);
-		if (ret < 0) {
-			dev_warn(ec->dev, "cannot get EC features: %d/%d\n",
-				 ret, msg->result);
-			memset(ec->features, 0, sizeof(ec->features));
-		} else {
-			memcpy(ec->features, msg->data, sizeof(ec->features));
-		}
-
-		dev_dbg(ec->dev, "EC features %08x %08x\n",
-			ec->features[0], ec->features[1]);
-
-		kfree(msg);
-	}
-
-	return !!(ec->features[feature / 32] & EC_FEATURE_MASK_0(feature));
-}
-EXPORT_SYMBOL_GPL(cros_ec_check_features);
-
 static void cros_ec_class_release(struct device *dev)
 {
 	kfree(to_cros_ec_dev(dev));
-}
-
-/*
- * Return the number of MEMS sensors supported.
- * Return < 0 in case of error.
- */
-static int cros_ec_get_sensor_count(struct cros_ec_dev *ec)
-{
-	/*
-	 * Issue a command to get the number of sensor reported.
-	 * Build an array of sensors driver and register them all.
-	 */
-	int ret, sensor_count;
-	struct ec_params_motion_sense *params;
-	struct ec_response_motion_sense *resp;
-	struct cros_ec_command *msg;
-
-	msg = kzalloc(sizeof(struct cros_ec_command) +
-			max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
-	if (msg == NULL)
-		return -ENOMEM;
-
-	msg->version = 1;
-	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
-	msg->outsize = sizeof(*params);
-	msg->insize = sizeof(*resp);
-
-	params = (struct ec_params_motion_sense *)msg->data;
-	params->cmd = MOTIONSENSE_CMD_DUMP;
-
-	ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
-	if (ret < 0) {
-		sensor_count = ret;
-	} else if (msg->result != EC_RES_SUCCESS) {
-		sensor_count = -EPROTO;
-	} else {
-		resp = (struct ec_response_motion_sense *)msg->data;
-		sensor_count = resp->dump.sensor_count;
-	}
-	kfree(msg);
-
-	return sensor_count;
-}
-
-static void cros_ec_sensors_register(struct cros_ec_dev *ec)
-{
-	/*
-	 * Issue a command to get the number of sensor reported.
-	 * Build an array of sensors driver and register them all.
-	 */
-	int ret, i, sensor_num, id = 0;
-	struct mfd_cell *sensor_cells;
-	struct cros_ec_sensor_platform *sensor_platforms;
-	int sensor_type[MOTIONSENSE_TYPE_MAX] = { 0 };
-	struct ec_params_motion_sense *params;
-	struct ec_response_motion_sense *resp;
-	struct cros_ec_command *msg;
-
-	sensor_num = cros_ec_get_sensor_count(ec);
-	if (sensor_num <= 0) {
-		dev_err(ec->dev,
-			"Unable to retrieve sensor information (err:%d)\n",
-			sensor_num);
-		return;
-	}
-
-	msg = kzalloc(sizeof(struct cros_ec_command) +
-			max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
-	if (msg == NULL)
-		return;
-
-	msg->version = 2;
-	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
-	msg->outsize = sizeof(*params);
-	msg->insize = sizeof(*resp);
-	params = (struct ec_params_motion_sense *)msg->data;
-	resp = (struct ec_response_motion_sense *)msg->data;
-
-	/*
-	 * Allocate 2 extra sensors if lid angle sensor and/or FIFO are needed.
-	 */
-	sensor_cells = kcalloc(sensor_num + 2, sizeof(struct mfd_cell),
-			       GFP_KERNEL);
-	if (sensor_cells == NULL)
-		goto error;
-
-	sensor_platforms = kcalloc(sensor_num,
-				   sizeof(struct cros_ec_sensor_platform),
-				   GFP_KERNEL);
-	if (sensor_platforms == NULL)
-		goto error_platforms;
-
-	for (i = 0; i < sensor_num; i++) {
-		params->cmd = MOTIONSENSE_CMD_INFO;
-		params->info.sensor_num = i;
-		ret = cros_ec_cmd_xfer_status(ec->ec_dev, msg);
-		if (ret < 0) {
-			dev_warn(ec->dev, "no info for EC sensor %d : %d/%d\n",
-				 i, ret, msg->result);
-			continue;
-		}
-		switch (resp->info.type) {
-		case MOTIONSENSE_TYPE_ACCEL:
-			sensor_cells[id].name = "cros-ec-accel";
-			break;
-		case MOTIONSENSE_TYPE_BARO:
-			sensor_cells[id].name = "cros-ec-baro";
-			break;
-		case MOTIONSENSE_TYPE_GYRO:
-			sensor_cells[id].name = "cros-ec-gyro";
-			break;
-		case MOTIONSENSE_TYPE_MAG:
-			sensor_cells[id].name = "cros-ec-mag";
-			break;
-		case MOTIONSENSE_TYPE_PROX:
-			sensor_cells[id].name = "cros-ec-prox";
-			break;
-		case MOTIONSENSE_TYPE_LIGHT:
-			sensor_cells[id].name = "cros-ec-light";
-			break;
-		case MOTIONSENSE_TYPE_LIGHT_RGB:
-			/* Processed with cros-ec-light. */
-			continue;
-		case MOTIONSENSE_TYPE_ACTIVITY:
-			sensor_cells[id].name = "cros-ec-activity";
-			break;
-		case MOTIONSENSE_TYPE_SYNC:
-			sensor_cells[id].name = "cros-ec-sync";
-			break;
-		default:
-			dev_warn(ec->dev, "unknown type %d\n", resp->info.type);
-			continue;
-		}
-		sensor_platforms[id].sensor_num = i;
-		sensor_cells[id].platform_data = &sensor_platforms[id];
-		sensor_cells[id].pdata_size =
-			sizeof(struct cros_ec_sensor_platform);
-
-		sensor_type[resp->info.type]++;
-		id++;
-	}
-
-	if (sensor_type[MOTIONSENSE_TYPE_ACCEL] >= 2)
-		ec->has_kb_wake_angle = true;
-
-	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE_FIFO)) {
-		sensor_cells[id].name = "cros-ec-ring";
-		id++;
-	}
-	if (cros_ec_check_features(ec,
-				EC_FEATURE_REFINED_TABLET_MODE_HYSTERESIS)) {
-		sensor_cells[id].name = "cros-ec-lid-angle";
-		id++;
-	}
-
-	ret = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO, sensor_cells, id,
-			      NULL, 0, NULL);
-	if (ret)
-		dev_err(ec->dev, "failed to add EC sensors\n");
-
-	kfree(sensor_platforms);
-error_platforms:
-	kfree(sensor_cells);
-error:
-	kfree(msg);
-}
-
-#define CROS_EC_SENSOR_LEGACY_NUM 2
-
-static struct mfd_cell cros_ec_accel_legacy_cells[CROS_EC_SENSOR_LEGACY_NUM];
-
-static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
-{
-	struct cros_ec_device *ec_dev = ec->ec_dev;
-	u8 status;
-	int i, ret;
-	struct cros_ec_sensor_platform
-		sensor_platforms[CROS_EC_SENSOR_LEGACY_NUM];
-
-	/*
-	 * EC that need legacy support are the main EC, directly connected to
-	 * the AP.
-	 */
-	if (ec->cmd_offset != 0)
-		return;
-
-	/*
-	 * Check if EC supports direct memory reads and if EC has
-	 * accelerometers.
-	 */
-	if (ec_dev->cmd_readmem) {
-		ret = ec_dev->cmd_readmem(ec_dev, EC_MEMMAP_ACC_STATUS, 1,
-					  &status);
-		if (ret < 0) {
-			dev_warn(ec->dev, "EC direct read error %d.\n", ret);
-			return;
-		}
-
-		/* Check if EC has accelerometers. */
-		if (!(status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)) {
-			dev_info(ec->dev, "EC does not have accelerometers.\n");
-			return;
-		}
-	} else {
-		ret = cros_ec_get_sensor_count(ec);
-		if (ret <= 0)
-			return;
-		if (ret != CROS_EC_SENSOR_LEGACY_NUM) {
-			/*
-			 * We expect one accelerometer in the lid, one in the
-			 * base.
-			 * If we have more than 2, one will not be an
-			 * accelerometer. If we have less, this is not a
-			 * device we support.
-			 */
-			dev_warn(ec->dev,
-				 "EC support more than %d sensors: %d.\n",
-				 CROS_EC_SENSOR_LEGACY_NUM, ret);
-			return;
-		}
-	}
-
-	/*
-	 * Register 2 accelerometers
-	 */
-	for (i = 0; i < CROS_EC_SENSOR_LEGACY_NUM; i++) {
-		cros_ec_accel_legacy_cells[i].name = "cros-ec-accel-legacy";
-		sensor_platforms[i].sensor_num = i;
-		cros_ec_accel_legacy_cells[i].platform_data =
-			&sensor_platforms[i];
-		cros_ec_accel_legacy_cells[i].pdata_size =
-			sizeof(struct cros_ec_sensor_platform);
-	}
-	ret = mfd_add_hotplug_devices(ec->dev, cros_ec_accel_legacy_cells,
-				      ARRAY_SIZE(cros_ec_accel_legacy_cells));
-	if (ret)
-		dev_err(ec_dev->dev, "failed to add EC sensors\n");
 }
 
 static int ec_device_probe(struct platform_device *pdev)
@@ -460,11 +193,14 @@ static int ec_device_probe(struct platform_device *pdev)
 		goto failed;
 
 	/* check whether this EC is a sensor hub. */
-	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE))
-		cros_ec_sensors_register(ec);
-	else
-		/* Workaroud for older EC firmware */
-		cros_ec_accel_legacy_register(ec);
+	if (cros_ec_get_sensor_count(ec) > 0) {
+		retval = mfd_add_hotplug_devices(ec->dev,
+				cros_ec_sensorhub_cells,
+				ARRAY_SIZE(cros_ec_sensorhub_cells));
+		if (retval)
+			dev_err(ec->dev, "failed to add %s subdevice: %d\n",
+				cros_ec_sensorhub_cells->name, retval);
+	}
 
 	/*
 	 * The following subdevices can be detected by sending the

@@ -31,6 +31,7 @@
 #include <drm/drm_dp_mst_helper.h>
 #include <drm/drm_print.h>
 #include <drm/drmP.h>
+#include <linux/iopoll.h>
 
 #include <drm/drm_fixed.h>
 #include <drm/drm_atomic.h>

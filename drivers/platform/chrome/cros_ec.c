@@ -39,13 +39,8 @@ static struct cros_ec_platform pd_p = {
 	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_PD_INDEX),
 };
 
-s64 cros_ec_get_time_ns(void)
+static irqreturn_t ec_irq_handler(int irq, void *data)
 {
-	return ktime_get_boot_ns();
-}
-EXPORT_SYMBOL(cros_ec_get_time_ns);
-
-static irqreturn_t ec_irq_handler(int irq, void *data) {
 	struct cros_ec_device *ec_dev = data;
 
 	ec_dev->last_event_time = cros_ec_get_time_ns();
@@ -53,27 +48,37 @@ static irqreturn_t ec_irq_handler(int irq, void *data) {
 	return IRQ_WAKE_THREAD;
 }
 
+/**
+ * cros_ec_handle_event() - process and forward pending events on EC
+ * @ec_dev: Device with events to process.
+ *
+ * Call this function in a loop when the kernel is notified that the EC has
+ * pending events.
+ *
+ * Return: true if more events are still pending and this function should be
+ * called again.
+ */
 bool cros_ec_handle_event(struct cros_ec_device *ec_dev)
 {
-	bool wake_event = true;
-	bool ec_has_more_events = false;
-	int ret = cros_ec_get_next_event(ec_dev, &wake_event);
+	bool wake_event;
+	bool ec_has_more_events;
+	int ret;
 
-	if (ec_dev->mkbp_event_supported) {
-		ec_has_more_events = (ret > 0) &&
-			(ec_dev->event_data.event_type &
-				EC_MKBP_HAS_MORE_EVENTS);
-	}
+	ret = cros_ec_get_next_event(ec_dev, &wake_event, &ec_has_more_events);
 
-	if (device_may_wakeup(ec_dev->dev) && wake_event)
+	/*
+	 * Signal only if wake host events or any interrupt if
+	 * cros_ec_get_next_event() returned an error (default value for
+	 * wake_event is true)
+	 */
+	if (wake_event && device_may_wakeup(ec_dev->dev))
 		pm_wakeup_event(ec_dev->dev, 0);
 
 	if (ret > 0)
 		blocking_notifier_call_chain(&ec_dev->event_notifier,
-					0, ec_dev);
+					     0, ec_dev);
 
 	return ec_has_more_events;
-
 }
 EXPORT_SYMBOL(cros_ec_handle_event);
 
@@ -140,6 +145,15 @@ static int cros_ec_sleep_event(struct cros_ec_device *ec_dev, u8 sleep_event)
 	return ret;
 }
 
+/**
+ * cros_ec_register() - Register a new ChromeOS EC, using the provided info.
+ * @ec_dev: Device to register.
+ *
+ * Before calling this, allocate a pointer to a new device and then fill
+ * in all the fields up to the --private-- marker.
+ *
+ * Return: 0 on success or negative error code.
+ */
 int cros_ec_register(struct cros_ec_device *ec_dev)
 {
 	struct device *dev = ec_dev->dev;
@@ -169,9 +183,10 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 
 	if (ec_dev->irq > 0) {
 		err = devm_request_threaded_irq(dev, ec_dev->irq,
-				ec_irq_handler, ec_irq_thread,
-				IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-				"chromeos-ec", ec_dev);
+						ec_irq_handler,
+						ec_irq_thread,
+						IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+						"chromeos-ec", ec_dev);
 		if (err) {
 			dev_err(dev, "Failed to request IRQ %d: %d",
 				ec_dev->irq, err);
@@ -235,6 +250,14 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 }
 EXPORT_SYMBOL(cros_ec_register);
 
+/**
+ * cros_ec_unregister() - Remove a ChromeOS EC.
+ * @ec_dev: Device to unregister.
+ *
+ * Call this to deregister a ChromeOS EC, then clean up any private data.
+ *
+ * Return: 0 on success or negative error code.
+ */
 int cros_ec_unregister(struct cros_ec_device *ec_dev)
 {
 	if (ec_dev->pd)
@@ -246,6 +269,14 @@ int cros_ec_unregister(struct cros_ec_device *ec_dev)
 EXPORT_SYMBOL(cros_ec_unregister);
 
 #ifdef CONFIG_PM_SLEEP
+/**
+ * cros_ec_suspend() - Handle a suspend operation for the ChromeOS EC device.
+ * @ec_dev: Device to suspend.
+ *
+ * This can be called by drivers to handle a suspend event.
+ *
+ * Return: 0 on success or negative error code.
+ */
 int cros_ec_suspend(struct cros_ec_device *ec_dev)
 {
 	struct device *dev = ec_dev->dev;
@@ -275,11 +306,19 @@ EXPORT_SYMBOL(cros_ec_suspend);
 static void cros_ec_report_events_during_suspend(struct cros_ec_device *ec_dev)
 {
 	while (ec_dev->mkbp_event_supported &&
-	       cros_ec_get_next_event(ec_dev, NULL) > 0)
+	       cros_ec_get_next_event(ec_dev, NULL, NULL) > 0)
 		blocking_notifier_call_chain(&ec_dev->event_notifier,
 					     1, ec_dev);
 }
 
+/**
+ * cros_ec_resume() - Handle a resume operation for the ChromeOS EC device.
+ * @ec_dev: Device to resume.
+ *
+ * This can be called by drivers to handle a resume event.
+ *
+ * Return: 0 on success or negative error code.
+ */
 int cros_ec_resume(struct cros_ec_device *ec_dev)
 {
 	int ret;

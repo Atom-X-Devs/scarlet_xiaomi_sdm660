@@ -19,6 +19,7 @@ struct mfg_base {
 	struct platform_device *gpu_core1_dev;
 	struct platform_device *gpu_core2_dev;
 	bool is_powered;
+	bool reg_is_powered;
 };
 
 /* Definition for PMIC regulators */
