@@ -369,7 +369,7 @@
 		compatible = "ite,it6505";
 		status = "okay";
 		interrupt-parent = <&pio>;
-		interrupts = <152 IRQ_TYPE_EDGE_FALLING 152 0>;
+		interrupts = <152 IRQ_TYPE_LEVEL_LOW 152 0>;
 		reg = <0x5c>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&it6505_pins>;
