@@ -284,7 +284,7 @@ SND_SOC_DAILINK_DEFS(i2s5,
 
 SND_SOC_DAILINK_DEFS(tdm,
 	DAILINK_COMP_ARRAY(COMP_CPU("TDM")),
-	DAILINK_COMP_ARRAY(COMP_CODEC(NULL, "i2s-hifi")),
+	DAILINK_COMP_ARRAY(COMP_DUMMY()),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
 static struct snd_soc_dai_link mt8183_da7219_max98357_dai_links[] = {
@@ -531,7 +531,7 @@ mt8183_da7219_max98357_headset_init(struct snd_soc_component *component)
 static int mt8183_da7219_max98357_dev_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt8183_da7219_max98357_card;
-	struct device_node *platform_node, *hdmi_codec;
+	struct device_node *platform_node;
 	struct snd_soc_dai_link *dai_link;
 	struct mt8183_da7219_max98357_priv *priv;
 	struct pinctrl *pinctrl;
@@ -546,15 +546,10 @@ static int mt8183_da7219_max98357_dev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	hdmi_codec = of_parse_phandle(pdev->dev.of_node,
-				      "mediatek,hdmi-codec", 0);
-
 	for_each_card_prelinks(card, i, dai_link) {
-		if (!dai_link->platforms->name)
-			dai_link->platforms->of_node = platform_node;
-
-		if (hdmi_codec && strcmp(dai_link->name, "TDM") == 0)
-			dai_link->codecs->of_node = hdmi_codec;
+		if (dai_link->platforms->name)
+			continue;
+		dai_link->platforms->of_node = platform_node;
 	}
 
 	mt8183_da7219_max98357_headset_dev.dlc.of_node =
