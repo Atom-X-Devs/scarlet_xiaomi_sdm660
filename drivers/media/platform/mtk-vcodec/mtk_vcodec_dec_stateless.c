@@ -358,42 +358,29 @@ static void mtk_vdec_worker(struct work_struct *work)
 static void vb2ops_vdec_stateless_buf_queue(struct vb2_buffer *vb)
 {
 	struct mtk_vcodec_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
-	struct vb2_v4l2_buffer *vb2_v4l2 = NULL;
-	struct mtk_video_dec_buf *dst_buf = NULL;
-	struct mtk_video_dec_buf *src_buf = NULL;
+	struct vb2_v4l2_buffer *vb2_v4l2 = to_vb2_v4l2_buffer(vb);
 
 	mtk_v4l2_debug(3, "[%d] (%d) id=%d, vb=%p",
 			ctx->id, vb->vb2_queue->type,
 			vb->index, vb);
 
-	/*
-	 * check if this buffer is ready to be used after decode
-	 */
-	vb2_v4l2 = to_vb2_v4l2_buffer(vb);
-	if (vb->vb2_queue->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		dst_buf = container_of(vb2_v4l2, struct mtk_video_dec_buf,
-				       m2m_buf.vb);
-		mutex_lock(&ctx->lock);
-		v4l2_m2m_buf_queue(ctx->m2m_ctx, vb2_v4l2);
-		mutex_unlock(&ctx->lock);
-		return;
-	}
-
-	src_buf = container_of(vb2_v4l2, struct mtk_video_dec_buf, m2m_buf.vb);
 	mutex_lock(&ctx->lock);
 	v4l2_m2m_buf_queue(ctx->m2m_ctx, vb2_v4l2);
 	mutex_unlock(&ctx->lock);
+	if (vb->vb2_queue->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		return;
 
 	mtk_v4l2_debug(3, "(%d) id=%d, bs=%p",
 		vb->vb2_queue->type, vb->index, src_buf);
 
+	/* If an OUTPUT buffer, we may need to update the state */
 	if (ctx->state == MTK_STATE_INIT) {
 		ctx->state = MTK_STATE_HEADER;
 		mtk_v4l2_debug(1, "Init driver from init to header.");
-	} else
+	} else {
 		mtk_v4l2_debug(3, "[%d] already init driver %d",
 				ctx->id, ctx->state);
-
+	}
 }
 
 static int mtk_vdec_flush_decoder(struct mtk_vcodec_ctx *ctx)
