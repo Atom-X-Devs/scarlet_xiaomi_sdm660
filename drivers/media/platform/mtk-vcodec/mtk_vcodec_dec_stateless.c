@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 
+#include "media/videobuf2-v4l2.h"
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-mem2mem.h>
@@ -107,83 +108,30 @@ static const struct mtk_codec_framesizes mtk_vdec_framesizes[] = {
 
 #define NUM_SUPPORTED_FRAMESIZE ARRAY_SIZE(mtk_vdec_framesizes)
 
-static void mtk_vdec_stateless_out_to_done(struct mtk_vcodec_ctx *ctx,
-					   struct mtk_vcodec_mem *bs, int error)
+static void mtk_vdec_stateless_set_dst_payload(struct mtk_vcodec_ctx *ctx,
+					       struct vdec_fb *fb)
 {
-	struct mtk_video_dec_buf *out_buf;
-	struct vb2_v4l2_buffer *vb;
-
-	if (bs == NULL) {
-		mtk_v4l2_err("Free bitstream buffer fail.");
-		return;
-	}
-	out_buf = container_of(bs, struct mtk_video_dec_buf, bs_buffer);
-	vb = &out_buf->m2m_buf.vb;
-
-	mtk_v4l2_debug(2,
-		"Free bitsteam buffer id = %d to done_list",
-		vb->vb2_buf.index);
-
-	v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
-	if (error) {
-		v4l2_m2m_buf_done(vb, VB2_BUF_STATE_ERROR);
-		if (error == -EIO)
-			out_buf->error = true;
-	} else
-		v4l2_m2m_buf_done(vb, VB2_BUF_STATE_DONE);
-}
-
-static void mtk_vdec_stateless_cap_to_disp(struct mtk_vcodec_ctx *ctx,
-					   struct vdec_fb *fb, int error)
-{
-	struct mtk_video_dec_buf *vdec_frame_buf;
-	struct vb2_v4l2_buffer *vb;
-	unsigned int cap_y_size = 0, cap_c_size = 0;
-
-	if (fb == NULL) {
-		mtk_v4l2_err("Free frame buffer fail.");
-		return;
-	}
-	vdec_frame_buf = container_of(fb, struct mtk_video_dec_buf,
-				      frame_buffer);
-	vb = &vdec_frame_buf->m2m_buf.vb;
-	if (error == 1) {
-		cap_y_size = 0;
-		cap_c_size = 0;
-	} else {
-		cap_y_size = ctx->q_data[MTK_Q_DATA_DST].sizeimage[0];
-		cap_c_size = ctx->q_data[MTK_Q_DATA_DST].sizeimage[1];
-	}
-
-	v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
+	struct mtk_video_dec_buf *vdec_frame_buf =
+		container_of(fb, struct mtk_video_dec_buf, frame_buffer);
+	struct vb2_v4l2_buffer *vb = &vdec_frame_buf->m2m_buf.vb;
+	unsigned int cap_y_size = ctx->q_data[MTK_Q_DATA_DST].sizeimage[0];
 
 	vb2_set_plane_payload(&vb->vb2_buf, 0, cap_y_size);
-	if (ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes == 2)
-		vb2_set_plane_payload(&vb->vb2_buf, 1, cap_c_size);
+	if (ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes == 2) {
+		unsigned int cap_c_size =
+			ctx->q_data[MTK_Q_DATA_DST].sizeimage[1];
 
-	mtk_v4l2_debug(2,
-		"Free frame buffer id = %d to done_list",
-		vb->vb2_buf.index);
-	if (error == 1)
-		vb->flags |= V4L2_BUF_FLAG_LAST;
-	v4l2_m2m_buf_done(vb, VB2_BUF_STATE_DONE);
+		vb2_set_plane_payload(&vb->vb2_buf, 1, cap_c_size);
+	}
 }
 
-static struct vdec_fb *vdec_get_cap_buffer(struct mtk_vcodec_ctx *ctx)
+static struct vdec_fb *vdec_get_cap_buffer(struct mtk_vcodec_ctx *ctx,
+					   struct vb2_v4l2_buffer *vb2_v4l2)
 {
-	struct mtk_video_dec_buf *framebuf;
-	struct vb2_v4l2_buffer *vb2_v4l2;
-	struct vb2_buffer *dst_buf;
-	struct vdec_fb *pfb;
-
-	vb2_v4l2 = v4l2_m2m_next_dst_buf(ctx->m2m_ctx);
-	if (vb2_v4l2 == NULL) {
-		mtk_v4l2_debug(1, "[%d] dst_buf empty!!", ctx->id);
-		return NULL;
-	}
-
-	dst_buf = &vb2_v4l2->vb2_buf;
-	framebuf = container_of(vb2_v4l2, struct mtk_video_dec_buf, m2m_buf.vb);
+	struct mtk_video_dec_buf *framebuf =
+		container_of(vb2_v4l2, struct mtk_video_dec_buf, m2m_buf.vb);
+	struct vdec_fb *pfb = &framebuf->frame_buffer;
+	struct vb2_buffer *dst_buf = &vb2_v4l2->vb2_buf;
 
 	pfb = &framebuf->frame_buffer;
 	pfb->base_y.va = vb2_plane_vaddr(dst_buf, 0);
@@ -282,77 +230,78 @@ static void mtk_vdec_worker(struct work_struct *work)
 	struct mtk_vcodec_ctx *ctx =
 		container_of(work, struct mtk_vcodec_ctx, decode_work);
 	struct mtk_vcodec_dev *dev = ctx->dev;
-	struct vb2_buffer *src_buf;
-	struct vdec_fb *dst_buf;
-	struct mtk_vcodec_mem *buf;
-	struct mtk_video_dec_buf *src_buf_info;
-	struct vb2_v4l2_buffer *src_vb2_v4l2;
+	struct vb2_v4l2_buffer *vb2_v4l2_src, *vb2_v4l2_dst;
+	struct vb2_buffer *vb2_src;
+	struct mtk_vcodec_mem *bs_src;
+	struct mtk_video_dec_buf *dec_buf_src;
 	struct media_request *src_buf_req;
+	struct vdec_fb *dst_buf;
 	bool res_chg = false;
 	int ret;
 
-	src_vb2_v4l2 = v4l2_m2m_next_src_buf(ctx->m2m_ctx);
-	if (src_vb2_v4l2 == NULL) {
+	vb2_v4l2_src = v4l2_m2m_next_src_buf(ctx->m2m_ctx);
+	if (vb2_v4l2_src == NULL) {
 		v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
-		mtk_v4l2_debug(1, "[%d] src_buf empty!!", ctx->id);
+		mtk_v4l2_debug(1, "[%d] no available source buffer", ctx->id);
 		return;
 	}
 
-	src_buf = &src_vb2_v4l2->vb2_buf;
-	src_buf_info = container_of(src_vb2_v4l2, struct mtk_video_dec_buf,
-				    m2m_buf.vb);
+	vb2_v4l2_dst = v4l2_m2m_next_dst_buf(ctx->m2m_ctx);
+	if (vb2_v4l2_dst == NULL) {
+		v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
+		mtk_v4l2_debug(1, "[%d] no available destination buffer", ctx->id);
+		return;
+	}
+
+	vb2_src = &vb2_v4l2_src->vb2_buf;
+	dec_buf_src = container_of(vb2_v4l2_src, struct mtk_video_dec_buf,
+				   m2m_buf.vb);
+	bs_src = &dec_buf_src->bs_buffer;
 
 	mtk_v4l2_debug(3, "[%d] (%d) id=%d, vb=%p buf_info = %p",
 			ctx->id, src_buf->vb2_queue->type,
 			src_buf->index, src_buf, src_buf_info);
 
-	buf = &src_buf_info->bs_buffer;
-	buf->va = vb2_plane_vaddr(src_buf, 0);
-	buf->dma_addr = vb2_dma_contig_plane_dma_addr(src_buf, 0);
-	buf->size = (size_t)src_buf->planes[0].bytesused;
-	if (!buf->va) {
+	bs_src->va = vb2_plane_vaddr(vb2_src, 0);
+	bs_src->dma_addr = vb2_dma_contig_plane_dma_addr(vb2_src, 0);
+	bs_src->size = (size_t)vb2_src->planes[0].bytesused;
+	if (!bs_src->va) {
 		v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
-		mtk_v4l2_err("[%d] id=%d src_addr is NULL!!",
-				ctx->id, src_buf->index);
+		mtk_v4l2_err("[%d] id=%d source buffer is NULL", ctx->id,
+			     vb2_src->index);
 		return;
 	}
 
 	mtk_v4l2_debug(3, "[%d] Bitstream VA=%p DMA=%pad Size=%zx vb=%p",
 			ctx->id, buf->va, &buf->dma_addr, buf->size, src_buf);
 	/* Apply request controls. */
-	src_buf_req = src_vb2_v4l2->vb2_buf.req_obj.req;
+	src_buf_req = vb2_src->req_obj.req;
 	if (src_buf_req)
 		v4l2_ctrl_request_setup(src_buf_req, &ctx->ctrl_hdl);
 	else
 		mtk_v4l2_err("vb2 buffer media request is NULL");
 
-	dst_buf = vdec_get_cap_buffer(ctx);
-
-	v4l2_m2m_buf_copy_metadata(src_vb2_v4l2,
-				   v4l2_m2m_next_dst_buf(ctx->m2m_ctx), true);
-	ret = vdec_if_decode(ctx, buf, dst_buf, &res_chg);
+	dst_buf = vdec_get_cap_buffer(ctx, vb2_v4l2_dst);
+	v4l2_m2m_buf_copy_metadata(vb2_v4l2_src, vb2_v4l2_dst, true);
+	ret = vdec_if_decode(ctx, bs_src, dst_buf, &res_chg);
 	if (ret) {
 		mtk_v4l2_err(
 			" <===[%d], src_buf[%d] sz=0x%zx pts=%llu vdec_if_decode() ret=%d res_chg=%d===>",
-			ctx->id,
-			src_buf->index,
-			buf->size,
-			src_buf->timestamp,
-			ret, res_chg);
+			ctx->id, vb2_src->index, bs_src->size,
+			vb2_src->timestamp, ret, res_chg);
 		if (ret == -EIO) {
 			mutex_lock(&ctx->lock);
-			src_buf_info->error = true;
+			dec_buf_src->error = true;
 			mutex_unlock(&ctx->lock);
 		}
 	}
 
-	mtk_vdec_stateless_out_to_done(ctx, buf, ret);
-	if (!ret)
-		mtk_vdec_stateless_cap_to_disp(ctx, dst_buf, 0);
+	mtk_vdec_stateless_set_dst_payload(ctx, dst_buf);
+
+	v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx,
+		ret ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
 
 	v4l2_ctrl_request_complete(src_buf_req, &ctx->ctrl_hdl);
-
-	v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
 }
 
 static void vb2ops_vdec_stateless_buf_queue(struct vb2_buffer *vb)
