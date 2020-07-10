@@ -215,19 +215,23 @@ static void vb2ops_vdec_buf_request_complete(struct vb2_buffer *vb)
 
 static int fops_media_request_validate(struct media_request *mreq)
 {
+	const unsigned int buffer_cnt = vb2_request_buffer_cnt(mreq);
 	struct mtk_vcodec_ctx *ctx = NULL;
 	struct media_request_object *req_obj;
 	struct v4l2_ctrl_handler *parent_hdl, *hdl;
-	struct v4l2_ctrl *ctrl_test;
-	unsigned int buffer_cnt;
+	struct v4l2_ctrl *ctrl;
 	unsigned int i;
 
-	buffer_cnt = vb2_request_buffer_cnt(mreq);
-	if (!buffer_cnt) {
-		mtk_v4l2_err("Request count is zero");
+	switch (buffer_cnt) {
+	case 1:
+		/* We expect exactly one buffer with the request */
+		break;
+	case 0:
+		mtk_v4l2_err("No buffer provided with the request");
 		return -ENOENT;
-	} else if (buffer_cnt > 1) {
-		mtk_v4l2_err("Request count is too much %d", buffer_cnt);
+	default:
+		mtk_v4l2_err("Too many buffers (%d) provided with the request",
+			     buffer_cnt);
 		return -EINVAL;
 	}
 
@@ -241,27 +245,28 @@ static int fops_media_request_validate(struct media_request *mreq)
 		}
 	}
 
-	if (!ctx)
+	if (!ctx) {
+		mtk_v4l2_err("Cannot find buffer for request");
 		return -ENOENT;
+	}
 
 	parent_hdl = &ctx->ctrl_hdl;
 
 	hdl = v4l2_ctrl_request_hdl_find(mreq, parent_hdl);
 	if (!hdl) {
-		mtk_v4l2_err("Missing codec control(s)\n");
+		mtk_v4l2_err("Cannot find control handler for request\n");
 		return -ENOENT;
 	}
 
 	for (i = 0; i < NUM_CTRLS; i++) {
 		if (mtk_stateless_controls[i].codec_type != ctx->current_codec)
 			continue;
-
 		if (!mtk_stateless_controls[i].needed_in_request)
 			continue;
 
-		ctrl_test = v4l2_ctrl_request_hdl_ctrl_find(hdl,
+		ctrl = v4l2_ctrl_request_hdl_ctrl_find(hdl,
 					  mtk_stateless_controls[i].cfg.id);
-		if (!ctrl_test) {
+		if (!ctrl) {
 			mtk_v4l2_err("Missing required codec control\n");
 			return -ENOENT;
 		}
