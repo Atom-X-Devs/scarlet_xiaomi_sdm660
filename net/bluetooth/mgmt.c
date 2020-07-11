@@ -122,8 +122,6 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_READ_ADV_MONITOR_FEATURES,
 	MGMT_OP_ADD_ADV_PATTERNS_MONITOR,
 	MGMT_OP_REMOVE_ADV_MONITOR,
-	/* Begin Chromium only op codes*/
-	/* End Chromium only op codes*/
 };
 
 static const u16 mgmt_events[] = {
@@ -7581,20 +7579,6 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ add_adv_patterns_monitor,MGMT_ADD_ADV_PATTERNS_MONITOR_SIZE,
 						HCI_MGMT_VAR_LEN },
 	{ remove_adv_monitor,      MGMT_REMOVE_ADV_MONITOR_SIZE },
-	{ NULL }, // 0x0054
-	{ NULL }, // 0x0055
-	{ NULL }, // 0x0056
-	{ NULL }, // 0x0057
-	{ NULL }, // 0x0058
-	{ NULL }, // 0x0059
-	{ NULL }, // 0x005A
-	{ NULL }, // 0x005B
-	{ NULL }, // 0x005C
-	{ NULL }, // 0x005D
-	{ NULL }, // 0x005E
-	{ NULL }, // 0x005F
-	/* Begin Chromium only op_codes */
-	/* End Chromium only op_codes */
 };
 
 void mgmt_index_added(struct hci_dev *hdev)

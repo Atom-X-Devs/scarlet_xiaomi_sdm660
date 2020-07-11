@@ -759,13 +759,6 @@ struct mgmt_rp_remove_adv_monitor {
 	__le16 monitor_handle;
 } __packed;
 
-/*
- * Begin chromium only op_codes
- */
-/*
- * End chromium only op_codes
- */
-
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
 	__le16	opcode;
