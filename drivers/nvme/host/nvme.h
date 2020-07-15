@@ -90,11 +90,6 @@ enum nvme_quirks {
 	 * Set MEDIUM priority on SQ creation
 	 */
 	NVME_QUIRK_MEDIUM_PRIO_SQ		= (1 << 7),
-
-	/*
-	 * Force simple suspend/resume path.
-	 */
-	NVME_QUIRK_SIMPLE_SUSPEND		= (1 << 10),
 };
 
 /*
