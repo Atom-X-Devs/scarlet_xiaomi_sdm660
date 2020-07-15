@@ -182,8 +182,8 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 		return 0;
 	}
 
-	for (i = 0; i < kbdev->regulator_num; i++) {
-		error = regulator_enable(kbdev->regulator[i]);
+	for (i = 0; i < kbdev->nr_regulators; i++) {
+		error = regulator_enable(kbdev->regulators[i]);
 		if (error < 0) {
 			dev_err(kbdev->dev,
 				"Power on reg %d failed error = %d\n",
@@ -236,8 +236,8 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 
 	clk_unprepare(mfg->clk_main_parent);
 
-	for (i = 0; i < kbdev->regulator_num; i++) {
-		error = regulator_disable(kbdev->regulator[i]);
+	for (i = 0; i < kbdev->nr_regulators; i++) {
+		error = regulator_disable(kbdev->regulators[i]);
 		if (error < 0) {
 			dev_err(kbdev->dev,
 				"Power off reg %d failed error = %d\n",
@@ -287,8 +287,8 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 	if (!probe_gpu_core1_dev || !probe_gpu_core2_dev)
 		return -EPROBE_DEFER;
 
-	for (i = 0; i < kbdev->regulator_num; i++)
-		if (kbdev->regulator[i] == NULL)
+	for (i = 0; i < kbdev->nr_regulators; i++)
+		if (kbdev->regulators[i] == NULL)
 			return -EINVAL;
 
 	mfg->gpu_core1_dev = probe_gpu_core1_dev;
@@ -322,9 +322,9 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 		return err;
 	}
 
-	for (i = 0; i < kbdev->regulator_num; i++) {
-		volt = (0 == i) ? VGPU_MAX_VOLT : VSRAM_GPU_MAX_VOLT;
-		err = regulator_set_voltage(kbdev->regulator[i],
+	for (i = 0; i < kbdev->nr_regulators; i++) {
+		volt = (i == 0) ? VGPU_MAX_VOLT : VSRAM_GPU_MAX_VOLT;
+		err = regulator_set_voltage(kbdev->regulators[i],
 			volt, volt + VOLT_TOL);
 		if (err < 0) {
 			dev_err(kbdev->dev,
@@ -332,7 +332,7 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 				i, err);
 			return err;
 		}
-		kbdev->current_voltage[i] = volt;
+		kbdev->current_voltages[i] = volt;
 	}
 
 	mfg->is_powered = false;
@@ -353,7 +353,7 @@ static void voltage_range_check(struct kbase_device *kbdev,
 
 #ifdef CONFIG_REGULATOR
 static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
-			  int count, bool inc)
+			  int nr_regulators, bool inc)
 {
 	unsigned long regulator_min_volt;
 	unsigned long regulator_max_volt;
@@ -369,14 +369,14 @@ static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
 		adjust_step = -MIN_VOLT_BIAS;
 	}
 
-	for (i = 0; i < count; ++i)
+	for (i = 0; i < nr_regulators; ++i)
 		if (step_volt[i] != target_volt[i])
 			break;
 
-	if (i == count)
+	if (i == nr_regulators)
 		return 0;
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < nr_regulators; i++) {
 		if (i) {
 			regulator_min_volt = VSRAM_GPU_MIN_VOLT;
 			regulator_max_volt = VSRAM_GPU_MAX_VOLT;
@@ -399,28 +399,28 @@ static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
 static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 			bool inc)
 {
-	unsigned long step_volt[KBASE_MAX_REGULATORS];
+	unsigned long step_volt[BASE_MAX_NR_CLOCKS_REGULATORS];
 	int first, step;
 	int i;
 	int err;
 
-	for (i = 0; i < kbdev->regulator_num; ++i)
-		step_volt[i] = kbdev->current_voltage[i];
+	for (i = 0; i < kbdev->nr_regulators; ++i)
+		step_volt[i] = kbdev->current_voltages[i];
 
 	if (inc) {
-		first = kbdev->regulator_num - 1;
+		first = kbdev->nr_regulators - 1;
 		step = -1;
 	} else {
 		first = 0;
 		step = 1;
 	}
 
-	while (get_step_volt(step_volt, voltages, kbdev->regulator_num, inc)) {
-		for (i = first; i >= 0 && i < kbdev->regulator_num; i += step) {
-			if (kbdev->current_voltage[i] == step_volt[i])
+	while (get_step_volt(step_volt, voltages, kbdev->nr_regulators, inc)) {
+		for (i = first; i >= 0 && i < kbdev->nr_regulators; i += step) {
+			if (kbdev->current_voltages[i] == step_volt[i])
 				continue;
 
-			err = regulator_set_voltage(kbdev->regulator[i],
+			err = regulator_set_voltage(kbdev->regulators[i],
 						    step_volt[i],
 						    step_volt[i] + VOLT_TOL);
 
@@ -439,19 +439,27 @@ static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 
 static int set_frequency(struct kbase_device *kbdev, unsigned long freq)
 {
-	int err;
+	int err, i;
 	struct mfg_base *mfg = kbdev->platform_context;
 
-	if (kbdev->current_freq != freq) {
+	if (kbdev->current_freqs[0] != freq) {
 		err = clk_set_parent(mfg->clk_mux, mfg->clk_sub_parent);
 		if (err) {
 			dev_err(kbdev->dev, "Failed to select sub clock src\n");
 			return err;
 		}
 
-		err = clk_set_rate(kbdev->clock, freq);
-		if (err)
-			return err;
+		for (i = 0; i < kbdev->nr_clocks; i++)
+			if (kbdev->clocks[i]) {
+				err = clk_set_rate(kbdev->clocks[i], freq);
+				if (err) {
+					dev_err(kbdev->dev,
+						"Failed to set clock rate: %lu (err: %d)\n",
+						freq, err);
+					return err;
+				}
+				kbdev->current_freqs[i] = freq;
+			}
 
 		err = clk_set_parent(mfg->clk_mux, mfg->clk_main_parent);
 		if (err) {
