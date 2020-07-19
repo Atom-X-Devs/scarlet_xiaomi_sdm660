@@ -198,8 +198,10 @@ static void mtk_plane_atomic_update(struct drm_plane *plane,
 	if (!crtc || WARN_ON(!fb))
 		return;
 
-	if (!plane->state->visible)
-		return mtk_plane_atomic_disable(plane, old_state);
+	if (!plane->state->visible) {
+		mtk_plane_atomic_disable(plane, old_state);
+		return;
+	}
 
 	gem = fb->obj[0];
 	mtk_gem = to_mtk_gem_obj(gem);
