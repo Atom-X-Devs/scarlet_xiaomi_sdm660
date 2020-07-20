@@ -530,6 +530,13 @@ static struct snd_soc_card mt8183_mt6358_ts3a227_max98357_card = {
 	.num_links = ARRAY_SIZE(mt8183_mt6358_ts3a227_dai_links),
 };
 
+static struct snd_soc_card mt8183_mt6358_ts3a227_max98357b_card = {
+	.name = "mt8183_mt6358_ts3a227_max98357b",
+	.owner = THIS_MODULE,
+	.dai_link = mt8183_mt6358_ts3a227_dai_links,
+	.num_links = ARRAY_SIZE(mt8183_mt6358_ts3a227_dai_links),
+};
+
 static struct snd_soc_codec_conf mt8183_mt6358_ts3a227_rt1015_amp_conf[] = {
 	{
 		.dev_name = RT1015_DEV0_NAME,
@@ -619,7 +626,8 @@ mt8183_mt6358_ts3a227_max98357_dev_probe(struct platform_device *pdev)
 		}
 
 		if (strcmp(dai_link->name, "I2S3") == 0) {
-			if (card == &mt8183_mt6358_ts3a227_max98357_card) {
+			if (card == &mt8183_mt6358_ts3a227_max98357_card ||
+			    card == &mt8183_mt6358_ts3a227_max98357b_card) {
 				dai_link->be_hw_params_fixup =
 					mt8183_i2s_hw_params_fixup;
 				dai_link->ops = &mt8183_mt6358_i2s_ops;
@@ -646,6 +654,14 @@ mt8183_mt6358_ts3a227_max98357_dev_probe(struct platform_device *pdev)
 				dai_link->num_platforms =
 					ARRAY_SIZE(i2s3_rt1015_platforms);
 			}
+		}
+
+		if (card == &mt8183_mt6358_ts3a227_max98357b_card) {
+			if (strcmp(dai_link->name, "I2S2") == 0 ||
+			    strcmp(dai_link->name, "I2S3") == 0)
+				dai_link->dai_fmt = SND_SOC_DAIFMT_LEFT_J |
+						    SND_SOC_DAIFMT_NB_NF |
+						    SND_SOC_DAIFMT_CBM_CFM;
 		}
 
 		if (hdmi_codec && strcmp(dai_link->name, "TDM") == 0)
@@ -712,6 +728,10 @@ static const struct of_device_id mt8183_mt6358_ts3a227_max98357_dt_match[] = {
 	{
 		.compatible = "mediatek,mt8183_mt6358_ts3a227_max98357",
 		.data = &mt8183_mt6358_ts3a227_max98357_card,
+	},
+	{
+		.compatible = "mediatek,mt8183_mt6358_ts3a227_max98357b",
+		.data = &mt8183_mt6358_ts3a227_max98357b_card,
 	},
 	{
 		.compatible = "mediatek,mt8183_mt6358_ts3a227_rt1015",
