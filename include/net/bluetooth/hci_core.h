@@ -217,7 +217,6 @@ struct adv_info {
 	__u16	timeout;
 	__u16	remaining_time;
 	__u16	duration;
-	__u8	individual_duration_flag;
 	__u16	adv_data_len;
 	__u8	adv_data[HCI_MAX_AD_LENGTH];
 	__u16	scan_rsp_len;
@@ -229,7 +228,7 @@ struct adv_info {
 };
 
 #define HCI_MAX_ADV_INSTANCES		5
-#define HCI_DEFAULT_ADV_DURATION	2000
+#define HCI_DEFAULT_ADV_DURATION	2
 
 struct adv_pattern {
 	struct list_head list;
@@ -322,7 +321,6 @@ struct hci_dev {
 	__u8		le_adv_channel_map;
 	__u16		le_adv_min_interval;
 	__u16		le_adv_max_interval;
-	__u16		le_adv_duration;
 	__u8		le_scan_type;
 	__u16		le_scan_interval;
 	__u16		le_scan_window;

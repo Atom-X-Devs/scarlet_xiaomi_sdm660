@@ -2960,13 +2960,10 @@ int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 	adv_instance->timeout = timeout;
 	adv_instance->remaining_time = timeout;
 
-	if (duration == 0) {
+	if (duration == 0)
 		adv_instance->duration = hdev->def_multi_adv_rotation_duration;
-		adv_instance->individual_duration_flag = 0;
-	} else {
+	else
 		adv_instance->duration = duration;
-		adv_instance->individual_duration_flag = 1;
-	}
 
 	adv_instance->tx_power = HCI_TX_POWER_INVALID;
 
