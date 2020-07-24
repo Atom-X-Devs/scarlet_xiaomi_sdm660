@@ -385,6 +385,34 @@ static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
 			regulator_max_volt = VGPU_MAX_VOLT;
 		}
 
+		/* This is tricky but step_volt[0] somehow works for MT8183 opp
+		 * table: the code combines voltage_range_check() and voltage
+		 * adjustment together so the voltage transition is always safe.
+		 *
+		 * Note that step_volt[1] (VSRAM) is passively adjusted along
+		 * with step_volt[0] (VGPU) i.e. to maintain minimum voltage
+		 * bias, step_volt[1] is only increased when step_volt[0]
+		 * aggressively increases.
+		 *
+		 * Consider an extreme case of freq 300000000 -> 800000000
+		 * in MT8183 opp table:
+		 * step_volt[0] 625000 -> 825000, step_volt[1] 850000 -> 925000
+		 * As the bias can be too large during the transition
+		 * (925000 - 625000 > 250000), step_volt[0] and step_volt[1]
+		 * will be both set to 625000 + 100000, but soon step_volt[1]
+		 * will be clamped into its valid range, resulting the first
+		 * step to be:
+		 * step_volt[0] 625000 -> 725000, step_volt[1] 850000 -> 850000
+		 *
+		 * And then the second step completes the full transition later:
+		 * step_volt[0] 725000 -> 825000, step_volt[1] 850000 -> 925000
+		 *
+		 * Similar logic works for the reversed case of freq 800000000
+		 * -> 300000000.
+		 *
+		 * The logic above may not apply to other opp tables and
+		 * refinement may be needed by the time.
+		 */
 		if (current_bias > MAX_VOLT_BIAS) {
 			step_volt[i] = clamp_val(step_volt[0] + adjust_step,
 						 regulator_min_volt,
@@ -401,8 +429,12 @@ static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 {
 	unsigned long step_volt[BASE_MAX_NR_CLOCKS_REGULATORS];
 	int first, step;
-	int i;
-	int err;
+	int i, err;
+
+	/* Nothing to do if the direction of voltage transition is incorrect. */
+	if ((inc && kbdev->current_voltages[0] > voltages[0]) ||
+	    (!inc && kbdev->current_voltages[0] < voltages[0]))
+		return 0;
 
 	for (i = 0; i < kbdev->nr_regulators; ++i)
 		step_volt[i] = kbdev->current_voltages[i];
@@ -430,6 +462,7 @@ static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 					i, err);
 				return err;
 			}
+			kbdev->current_voltages[i] = step_volt[i];
 		}
 	}
 
