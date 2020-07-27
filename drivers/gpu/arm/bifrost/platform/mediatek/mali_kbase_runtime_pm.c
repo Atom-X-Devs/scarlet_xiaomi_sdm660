@@ -355,80 +355,47 @@ static void voltage_range_check(struct kbase_device *kbdev,
 static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
 			  int nr_regulators, bool inc)
 {
-	unsigned long regulator_min_volt;
-	unsigned long regulator_max_volt;
-	unsigned long current_bias;
-	long adjust_step;
 	int i;
 
-	if (inc) {
-		current_bias = target_volt[1] - step_volt[0];
-		adjust_step = MIN_VOLT_BIAS;
-	} else {
-		current_bias = step_volt[1] - target_volt[0];
-		adjust_step = -MIN_VOLT_BIAS;
-	}
-
-	for (i = 0; i < nr_regulators; ++i)
+	for (i = 0; i < nr_regulators; i++)
 		if (step_volt[i] != target_volt[i])
 			break;
 
 	if (i == nr_regulators)
-		return 0;
+		return false;
 
-	for (i = 0; i < nr_regulators; i++) {
-		if (i) {
-			regulator_min_volt = VSRAM_GPU_MIN_VOLT;
-			regulator_max_volt = VSRAM_GPU_MAX_VOLT;
-		} else {
-			regulator_min_volt = VGPU_MIN_VOLT;
-			regulator_max_volt = VGPU_MAX_VOLT;
-		}
-
-		/* This is tricky but step_volt[0] somehow works for MT8183 opp
-		 * table: the code combines voltage_range_check() and voltage
-		 * adjustment together so the voltage transition is always safe.
-		 *
-		 * Note that step_volt[1] (VSRAM) is passively adjusted along
-		 * with step_volt[0] (VGPU) i.e. to maintain minimum voltage
-		 * bias, step_volt[1] is only increased when step_volt[0]
-		 * aggressively increases.
-		 *
-		 * Consider an extreme case of freq 300000000 -> 800000000
-		 * in MT8183 opp table:
-		 * step_volt[0] 625000 -> 825000, step_volt[1] 850000 -> 925000
-		 * As the bias can be too large during the transition
-		 * (925000 - 625000 > 250000), step_volt[0] and step_volt[1]
-		 * will be both set to 625000 + 100000, but soon step_volt[1]
-		 * will be clamped into its valid range, resulting the first
-		 * step to be:
-		 * step_volt[0] 625000 -> 725000, step_volt[1] 850000 -> 850000
-		 *
-		 * And then the second step completes the full transition later:
-		 * step_volt[0] 725000 -> 825000, step_volt[1] 850000 -> 925000
-		 *
-		 * Similar logic works for the reversed case of freq 800000000
-		 * -> 300000000.
-		 *
-		 * The logic above may not apply to other opp tables and
-		 * refinement may be needed by the time.
-		 */
-		if (current_bias > MAX_VOLT_BIAS) {
-			step_volt[i] = clamp_val(step_volt[0] + adjust_step,
-						 regulator_min_volt,
-						 regulator_max_volt);
-		} else {
-			step_volt[i] = target_volt[i];
-		}
+	/* Do one round of *caterpillar move* - shrink the tail as much to the
+	 * head as possible, and then step ahead as far as possible.
+	 * Depending on the direction of voltage transition, a reversed
+	 * sequence of extend-and-shrink may apply, which leads to the same
+	 * result in the end.
+	 */
+	if (inc) {
+		step_volt[0] = min(target_volt[0],
+				   step_volt[1] - MIN_VOLT_BIAS);
+		step_volt[1] = min(target_volt[1],
+				   step_volt[0] + MAX_VOLT_BIAS);
+	} else {
+		step_volt[0] = max(target_volt[0],
+				   step_volt[1] - MAX_VOLT_BIAS);
+		step_volt[1] = max(target_volt[1],
+				   step_volt[0] + MIN_VOLT_BIAS);
 	}
-	return 1;
+	return true;
 }
 
 static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 			bool inc)
 {
 	unsigned long step_volt[BASE_MAX_NR_CLOCKS_REGULATORS];
-	int first, step;
+	const unsigned long reg_min_volt[BASE_MAX_NR_CLOCKS_REGULATORS] = {
+		VGPU_MIN_VOLT,
+		VSRAM_GPU_MIN_VOLT,
+	};
+	const unsigned long reg_max_volt[BASE_MAX_NR_CLOCKS_REGULATORS] = {
+		VGPU_MAX_VOLT,
+		VSRAM_GPU_MAX_VOLT,
+	};
 	int i, err;
 
 	/* Nothing to do if the direction of voltage transition is incorrect. */
@@ -439,18 +406,25 @@ static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 	for (i = 0; i < kbdev->nr_regulators; ++i)
 		step_volt[i] = kbdev->current_voltages[i];
 
-	if (inc) {
-		first = kbdev->nr_regulators - 1;
-		step = -1;
-	} else {
-		first = 0;
-		step = 1;
-	}
-
 	while (get_step_volt(step_volt, voltages, kbdev->nr_regulators, inc)) {
-		for (i = first; i >= 0 && i < kbdev->nr_regulators; i += step) {
+		for (i = 0; i < kbdev->nr_regulators; i++) {
 			if (kbdev->current_voltages[i] == step_volt[i])
 				continue;
+
+			/* Assuming valid max voltages are always positive. */
+			if (reg_max_volt[i] > 0 &&
+			    (step_volt[i] < reg_min_volt[i] ||
+			     step_volt[i] > reg_max_volt[i])) {
+				dev_warn(kbdev->dev, "Clamp invalid voltage: "
+					 "%lu of regulator %d into [%lu, %lu]",
+					 step_volt[i], i,
+					 reg_min_volt[i],
+					 reg_max_volt[i]);
+
+				step_volt[i] = clamp_val(step_volt[i],
+							 reg_min_volt[i],
+							 reg_max_volt[i]);
+			}
 
 			err = regulator_set_voltage(kbdev->regulators[i],
 						    step_volt[i],
