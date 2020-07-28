@@ -93,7 +93,7 @@ static int cros_ec_light_prox_read_data(
 				&st->core, sizeof(st->core.resp->data));
 		if (ret)
 			return ret;
-		*val = st->core.resp->data.data[0];
+		*val = (u16)st->core.resp->data.data[0];
 	} else {
 		ret = cros_ec_light_extra_send_host_cmd(
 				&st->core, 1, sizeof(st->core.resp->data));
