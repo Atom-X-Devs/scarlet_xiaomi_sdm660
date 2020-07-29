@@ -3966,6 +3966,7 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 		INIT_LIST_HEAD(&port->next);
 
 		mgr->cbs->destroy_connector(mgr, port->connector);
+		port->connector = NULL;
 
 		drm_dp_port_teardown_pdt(port, port->pdt);
 		port->pdt = DP_PEER_DEVICE_NONE;
