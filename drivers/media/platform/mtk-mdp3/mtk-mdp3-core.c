@@ -13,6 +13,7 @@
 #include <linux/remoteproc/mtk_scp.h>
 #include <media/videobuf2-dma-contig.h>
 #include "mtk-mdp3-core.h"
+#include "mtk-mdp3-debug.h"
 #include "mtk-mdp3-m2m.h"
 
 /* MDP debug log level (0-3). 3 shows all the logs. */
@@ -146,6 +147,10 @@ static int mdp_probe(struct platform_device *pdev)
 	ida_init(&mdp->mdp_ida);
 	platform_set_drvdata(pdev, mdp);
 
+#ifdef MDP_DEBUG
+	mdp_debug_init(pdev);
+#endif
+
 	vb2_dma_contig_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
 	pm_runtime_enable(dev);
 
@@ -196,6 +201,10 @@ static int mdp_remove(struct platform_device *pdev)
 
 	vb2_dma_contig_clear_max_seg_size(&pdev->dev);
 	mdp_component_deinit(mdp);
+
+#ifdef MDP_DEBUG
+	mdp_debug_deinit();
+#endif
 
 	mdp_vpu_shared_mem_free(&mdp->vpu);
 
