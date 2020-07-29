@@ -1933,6 +1933,13 @@ static void drm_dp_add_port(struct drm_dp_mst_branch *mstb,
 			drm_connector_set_tile_property(port->connector);
 		}
 		(*mstb->mgr->cbs->register_connector)(port->connector);
+		if ((port->pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
+		     port->pdt == DP_PEER_DEVICE_SST_SINK)) {
+			int ret;
+
+			ret = sysfs_create_link(&port->connector->kdev->kobj,
+						&port->aux.ddc.dev.kobj, "ddc");
+		}
 	}
 
 out:
@@ -4396,6 +4403,7 @@ static int drm_dp_mst_register_i2c_bus(struct drm_dp_mst_port *port)
 {
 	struct drm_dp_aux *aux = &port->aux;
 	struct device *parent_dev = port->mgr->dev->dev;
+	int ret;
 
 	aux->ddc.algo = &drm_dp_mst_i2c_algo;
 	aux->ddc.algo_data = aux;
@@ -4410,7 +4418,17 @@ static int drm_dp_mst_register_i2c_bus(struct drm_dp_mst_port *port)
 	strlcpy(aux->ddc.name, aux->name ? aux->name : dev_name(parent_dev),
 		sizeof(aux->ddc.name));
 
-	return i2c_add_adapter(&aux->ddc);
+	ret = i2c_add_adapter(&aux->ddc);
+	if (ret)
+		return ret;
+
+	if (port->connector && port->connector->kdev) {
+		ret = sysfs_create_link(&port->connector->kdev->kobj,
+					&port->aux.ddc.dev.kobj, "ddc");
+		if (ret)
+			i2c_del_adapter(&port->aux.ddc);
+	}
+	return ret;
 }
 
 /**
@@ -4419,5 +4437,7 @@ static int drm_dp_mst_register_i2c_bus(struct drm_dp_mst_port *port)
  */
 static void drm_dp_mst_unregister_i2c_bus(struct drm_dp_mst_port *port)
 {
+	if (port->connector && port->connector->kdev)
+		sysfs_remove_link(&port->connector->kdev->kobj, "ddc");
 	i2c_del_adapter(&port->aux.ddc);
 }
