@@ -84,7 +84,7 @@ static void __iomem *mdp_alloc_reference_VA_by_name(const char *ref_name)
 
 	VA = of_iomap(node, 0);
 	of_node_put(node);
-	mdp_dbg(2, "DEV: VA ref(%s): 0x%lx\n", ref_name, VA);
+	mdp_dbg(2, "DEV: VA ref(%s): 0x%p\n", ref_name, VA);
 
 	return VA;
 }
@@ -104,7 +104,7 @@ static void mdp_init_module_base_VA(void)
 		va = of_iomap(rdma_node, 0);
 		of_node_put(rdma_node);
 		mod_base_va->MDP_RDMA0 = va;
-		mdp_dbg(2, "MDP_RDMA va: 0x%lx\n", va);
+		mdp_dbg(2, "MDP_RDMA va: 0x%p\n", va);
 	} else
 		mdp_err("%s:MDP_RDMA node missing!\n", __func__);
 
