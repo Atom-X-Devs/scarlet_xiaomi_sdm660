@@ -28,6 +28,8 @@
 
 #define MTK_JPEG_DEFAULT_SIZEIMAGE	(1 * 1024 * 1024)
 
+#define MTK_JPEG_HW_TIMEOUT_MSEC 1000
+
 enum mtk_jpeg_ctx_state {
 	MTK_JPEG_INIT = 0,
 	MTK_JPEG_RUNNING,
@@ -47,6 +49,7 @@ enum mtk_jpeg_ctx_state {
  * @dec_reg_base:	JPEG registers mapping
  * @clk_jdec:		JPEG hw working clock
  * @clk_jdec_smi:	JPEG SMI bus clock
+ * @job_timeout_work:	IRQ timeout structure
  */
 struct mtk_jpeg_dev {
 	struct mutex		lock;
@@ -60,6 +63,7 @@ struct mtk_jpeg_dev {
 	void __iomem		*dec_reg_base;
 	struct clk		*clk_jdec;
 	struct clk		*clk_jdec_smi;
+	struct delayed_work job_timeout_work;
 };
 
 /**
