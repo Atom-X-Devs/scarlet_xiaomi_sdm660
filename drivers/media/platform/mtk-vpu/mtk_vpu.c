@@ -187,6 +187,9 @@ struct share_obj {
  *			suppose a client is using VPU to decode VP8.
  *			If the other client wants to encode VP8,
  *			it has to wait until VP8 decode completes.
+ * @enc_mutex:		protect vpu_ipi_send() and ensure only
+ *			one encoder has an in-flight message to the VPU at
+ *			a time.
  * @wdt_refcnt:		WDT reference count to make sure the watchdog can be
  *			disabled if no other client is using VPU service
  * @ack_wq:		The wait queue for each codec and mdp. When sleeping
@@ -210,6 +213,7 @@ struct mtk_vpu {
 	bool fw_loaded;
 	bool enable_4GB;
 	struct mutex vpu_mutex; /* for protecting vpu data data structure */
+	struct mutex enc_mutex; /* for protecting encoder IPIs */
 	u32 wdt_refcnt;
 	wait_queue_head_t ack_wq;
 	bool ipi_id_ack[IPI_MAX];
@@ -259,6 +263,39 @@ static int vpu_clock_enable(struct mtk_vpu *vpu)
 	mutex_unlock(&vpu->vpu_mutex);
 
 	return ret;
+}
+
+/*
+ * TODO(b/159371656): Remove this once the VPU firmware is updated to support
+ * using VP8 and H264 concurrently.
+ */
+static void vpu_lock_ipi(struct mtk_vpu *vpu, enum ipi_id id)
+{
+	switch (id) {
+	case IPI_VENC_H264:
+	case IPI_VENC_VP8:
+		mutex_lock(&vpu->enc_mutex);
+		break;
+	default:
+		/*
+		 * Decoders do not need to be locked because mtk-vcodec-dec
+		 * prevents multiple decoders from trying to send messages at
+		 * the same time.
+		 */
+		break;
+	}
+}
+
+static void vpu_unlock_ipi(struct mtk_vpu *vpu, enum ipi_id id)
+{
+	switch (id) {
+	case IPI_VENC_H264:
+	case IPI_VENC_VP8:
+		mutex_unlock(&vpu->enc_mutex);
+		break;
+	default:
+		break;
+	}
 }
 
 int vpu_ipi_register(struct platform_device *pdev,
@@ -313,6 +350,7 @@ int vpu_ipi_send(struct platform_device *pdev,
 		goto clock_disable;
 	}
 
+	vpu_lock_ipi(vpu, id);
 	mutex_lock(&vpu->vpu_mutex);
 
 	 /* Wait until VPU receives the last command */
@@ -339,6 +377,8 @@ int vpu_ipi_send(struct platform_device *pdev,
 	timeout = msecs_to_jiffies(IPI_TIMEOUT_MS);
 	ret = wait_event_timeout(vpu->ack_wq, vpu->ipi_id_ack[id], timeout);
 	vpu->ipi_id_ack[id] = false;
+	vpu_unlock_ipi(vpu, id);
+
 	if (ret == 0) {
 		dev_err(vpu->dev, "vpu ipi %d ack time out !", id);
 		ret = -EIO;
@@ -350,6 +390,7 @@ int vpu_ipi_send(struct platform_device *pdev,
 
 mut_unlock:
 	mutex_unlock(&vpu->vpu_mutex);
+	vpu_unlock_ipi(vpu, id);
 clock_disable:
 	vpu_clock_disable(vpu);
 
@@ -814,6 +855,7 @@ static int mtk_vpu_probe(struct platform_device *pdev)
 	}
 	INIT_WORK(&vpu->wdt.ws, vpu_wdt_reset_func);
 	mutex_init(&vpu->vpu_mutex);
+	mutex_init(&vpu->enc_mutex);
 
 	ret = vpu_clock_enable(vpu);
 	if (ret) {
@@ -904,6 +946,7 @@ cleanup_ipi:
 #endif
 	memset(vpu->ipi_desc, 0, sizeof(struct vpu_ipi_desc) * IPI_MAX);
 vpu_mutex_destroy:
+	mutex_destroy(&vpu->enc_mutex);
 	mutex_destroy(&vpu->vpu_mutex);
 disable_vpu_clk:
 	vpu_clock_disable(vpu);
@@ -934,6 +977,7 @@ static int mtk_vpu_remove(struct platform_device *pdev)
 	}
 	vpu_free_ext_mem(vpu, P_FW);
 	vpu_free_ext_mem(vpu, D_FW);
+	mutex_destroy(&vpu->enc_mutex);
 	mutex_destroy(&vpu->vpu_mutex);
 	clk_unprepare(vpu->clk);
 
