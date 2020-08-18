@@ -193,7 +193,8 @@ int intel_dp_hdcp_toggle_signalling(struct intel_digital_port *dig_port,
 }
 
 static
-bool intel_dp_hdcp_check_link(struct intel_digital_port *dig_port)
+bool intel_dp_hdcp_check_link(struct intel_digital_port *dig_port,
+			      struct intel_connector *connector)
 {
 	ssize_t ret;
 	u8 bstatus;

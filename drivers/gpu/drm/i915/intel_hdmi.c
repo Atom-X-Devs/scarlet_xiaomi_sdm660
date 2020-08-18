@@ -1091,7 +1091,8 @@ int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
 }
 
 static
-bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port)
+bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port,
+				     struct intel_connector *connector)
 {
 	struct drm_i915_private *dev_priv =
 		intel_dig_port->base.base.dev->dev_private;
@@ -1119,12 +1120,13 @@ bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port)
 }
 
 static
-bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port)
+bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port,
+				struct intel_connector *connector)
 {
 	int retry;
 
 	for (retry = 0; retry < 3; retry++)
-		if (intel_hdmi_hdcp_check_link_once(intel_dig_port))
+		if (intel_hdmi_hdcp_check_link_once(intel_dig_port, connector))
 			return true;
 
 	DRM_ERROR("Link check failed\n");
