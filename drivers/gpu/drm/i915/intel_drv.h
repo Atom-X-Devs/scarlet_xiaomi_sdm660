@@ -1539,6 +1539,10 @@ void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
 unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
 				   int color_plane, unsigned int height);
 
+void intel_ddi_update_pipe(struct intel_encoder *encoder,
+			   const struct intel_crtc_state *crtc_state,
+			   const struct drm_connector_state *conn_state);
+
 /* intel_audio.c */
 void intel_init_audio_hooks(struct drm_i915_private *dev_priv);
 void intel_audio_codec_enable(struct intel_encoder *encoder,
