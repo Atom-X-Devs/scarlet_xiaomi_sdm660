@@ -1444,12 +1444,27 @@ intel_dp_aux_header(u8 txbuf[HEADER_SIZE],
 	txbuf[3] = msg->size - 1;
 }
 
+static u32 intel_dp_aux_xfer_flags(const struct drm_dp_aux_msg *msg)
+{
+	/*
+	 * If we're trying to send the HDCP Aksv, we need to set a the Aksv
+	 * select bit to inform the hardware to send the Aksv after our header
+	 * since we can't access that data from software.
+	 */
+	if ((msg->request & ~DP_AUX_I2C_MOT) == DP_AUX_NATIVE_WRITE &&
+	    msg->address == DP_AUX_HDCP_AKSV)
+		return DP_AUX_CH_CTL_AUX_AKSV_SELECT;
+
+	return 0;
+}
+
 static ssize_t
 intel_dp_aux_transfer(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 {
 	struct intel_dp *intel_dp = container_of(aux, struct intel_dp, aux);
 	uint8_t txbuf[20], rxbuf[20];
 	size_t txsize, rxsize;
+	u32 flags = intel_dp_aux_xfer_flags(msg);
 	int ret;
 
 	intel_dp_aux_header(txbuf, msg);
@@ -1470,7 +1485,7 @@ intel_dp_aux_transfer(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 			memcpy(txbuf + HEADER_SIZE, msg->buffer, msg->size);
 
 		ret = intel_dp_aux_xfer(intel_dp, txbuf, txsize,
-					rxbuf, rxsize, 0);
+					rxbuf, rxsize, flags);
 		if (ret > 0) {
 			msg->reply = rxbuf[0] >> 4;
 
@@ -1493,7 +1508,7 @@ intel_dp_aux_transfer(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 			return -E2BIG;
 
 		ret = intel_dp_aux_xfer(intel_dp, txbuf, txsize,
-					rxbuf, rxsize, 0);
+					rxbuf, rxsize, flags);
 		if (ret > 0) {
 			msg->reply = rxbuf[0] >> 4;
 			/*
@@ -5392,15 +5407,8 @@ static
 int intel_dp_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
 				u8 *an)
 {
-	struct intel_dp *intel_dp = enc_to_intel_dp(&intel_dig_port->base.base);
-	static const struct drm_dp_aux_msg msg = {
-		.request = DP_AUX_NATIVE_WRITE,
-		.address = DP_AUX_HDCP_AKSV,
-		.size = DRM_HDCP_KSV_LEN,
-	};
-	uint8_t txbuf[HEADER_SIZE + DRM_HDCP_KSV_LEN] = {}, rxbuf[2], reply = 0;
+	u8 aksv[DRM_HDCP_KSV_LEN] = {};
 	ssize_t dpcd_ret;
-	int ret;
 
 	/* Output An first, that's easy */
 	dpcd_ret = drm_dp_dpcd_write(&intel_dig_port->dp.aux, DP_AUX_HDCP_AN,
@@ -5412,29 +5420,18 @@ int intel_dp_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
 	}
 
 	/*
-	 * Since Aksv is Oh-So-Secret, we can't access it in software. So in
-	 * order to get it on the wire, we need to create the AUX header as if
-	 * we were writing the data, and then tickle the hardware to output the
-	 * data once the header is sent out.
+	 * Since Aksv is Oh-So-Secret, we can't access it in software. So we
+	 * send an empty buffer of the correct length through the DP helpers. On
+	 * the other side, in the transfer hook, we'll generate a flag based on
+	 * the destination address which will tickle the hardware to output the
+	 * Aksv on our behalf after the header is sent.
 	 */
-	intel_dp_aux_header(txbuf, &msg);
-
-	ret = intel_dp_aux_xfer(intel_dp, txbuf, HEADER_SIZE + msg.size,
-				rxbuf, sizeof(rxbuf),
-				DP_AUX_CH_CTL_AUX_AKSV_SELECT);
-	if (ret < 0) {
-		DRM_DEBUG_KMS("Write Aksv over DP/AUX failed (%d)\n", ret);
-		return ret;
-	} else if (ret == 0) {
-		DRM_DEBUG_KMS("Aksv write over DP/AUX was empty\n");
-		return -EIO;
-	}
-
-	reply = (rxbuf[0] >> 4) & DP_AUX_NATIVE_REPLY_MASK;
-	if (reply != DP_AUX_NATIVE_REPLY_ACK) {
-		DRM_DEBUG_KMS("Aksv write: no DP_AUX_NATIVE_REPLY_ACK %x\n",
-			      reply);
-		return -EIO;
+	dpcd_ret = drm_dp_dpcd_write(&intel_dig_port->dp.aux, DP_AUX_HDCP_AKSV,
+				     aksv, DRM_HDCP_KSV_LEN);
+	if (dpcd_ret != DRM_HDCP_KSV_LEN) {
+		DRM_DEBUG_KMS("Failed to write Aksv over DP/AUX (%zd)\n",
+			      dpcd_ret);
+		return dpcd_ret >= 0 ? -EIO : dpcd_ret;
 	}
 	return 0;
 }
