@@ -1369,7 +1369,7 @@ int intel_hdcp_init(struct intel_connector *connector,
 	INIT_DELAYED_WORK(&hdcp->check_work, intel_hdcp_check_work);
 	INIT_WORK(&hdcp->prop_work, intel_hdcp_prop_work);
 
-	if (is_hdcp2_supported(dev_priv))
+	if (is_hdcp2_supported(dev_priv) && !connector->mst_port)
 		intel_hdcp2_init(connector, port);
 
 	return 0;
