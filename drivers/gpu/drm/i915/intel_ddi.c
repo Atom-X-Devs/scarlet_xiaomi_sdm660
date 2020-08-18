@@ -1914,11 +1914,11 @@ void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state
 }
 
 int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
+				     enum transcoder cpu_transcoder,
 				     bool enable)
 {
 	struct drm_device *dev = intel_encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
-	enum pipe pipe = 0;
 	int ret = 0;
 	uint32_t tmp;
 
@@ -1926,18 +1926,12 @@ int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
 						intel_encoder->power_domain)))
 		return -ENXIO;
 
-	if (WARN_ON(!intel_encoder->get_hw_state(intel_encoder, &pipe))) {
-		ret = -EIO;
-		goto out;
-	}
-
-	tmp = I915_READ(TRANS_DDI_FUNC_CTL(pipe));
+	tmp = I915_READ(TRANS_DDI_FUNC_CTL(cpu_transcoder));
 	if (enable)
 		tmp |= TRANS_DDI_HDCP_SIGNALLING;
 	else
 		tmp &= ~TRANS_DDI_HDCP_SIGNALLING;
-	I915_WRITE(TRANS_DDI_FUNC_CTL(pipe), tmp);
-out:
+	I915_WRITE(TRANS_DDI_FUNC_CTL(cpu_transcoder), tmp);
 	intel_display_power_put(dev_priv, intel_encoder->power_domain);
 	return ret;
 }

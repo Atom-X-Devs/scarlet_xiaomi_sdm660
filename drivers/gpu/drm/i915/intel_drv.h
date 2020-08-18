@@ -392,6 +392,7 @@ struct intel_hdcp_shim {
 
 	/* Enables HDCP signalling on the port */
 	int (*toggle_signalling)(struct intel_digital_port *intel_dig_port,
+				 enum transcoder cpu_transcoder,
 				 bool enable);
 
 	/* Ensures the link is still protected */
@@ -1514,6 +1515,7 @@ u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder);
 u8 intel_ddi_dp_pre_emphasis_max(struct intel_encoder *encoder,
 				 u8 voltage_swing);
 int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
+				     enum transcoder cpu_transcoder,
 				     bool enable);
 void icl_map_plls_to_ports(struct drm_crtc *crtc,
 			   struct intel_crtc_state *crtc_state,

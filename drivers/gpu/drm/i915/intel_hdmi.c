@@ -1072,6 +1072,7 @@ int intel_hdmi_hdcp_read_v_prime_part(struct intel_digital_port *intel_dig_port,
 
 static
 int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
+				      enum transcoder cpu_transcoder,
 				      bool enable)
 {
 	int ret;
@@ -1079,7 +1080,8 @@ int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
 	if (!enable)
 		usleep_range(6, 60); /* Bspec says >= 6us */
 
-	ret = intel_ddi_toggle_hdcp_signalling(&intel_dig_port->base, enable);
+	ret = intel_ddi_toggle_hdcp_signalling(&intel_dig_port->base, cpu_transcoder,
+					       enable);
 	if (ret) {
 		DRM_ERROR("%s HDCP signalling failed (%d)\n",
 			  enable ? "Enable" : "Disable", ret);

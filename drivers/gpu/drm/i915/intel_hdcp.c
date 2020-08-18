@@ -619,7 +619,7 @@ static int intel_hdcp_auth(struct intel_connector *connector)
 		I915_WRITE(HDCP_REP_CTL,
 			   intel_hdcp_get_repeater_ctl(intel_dig_port));
 
-	ret = shim->toggle_signalling(intel_dig_port, true);
+	ret = shim->toggle_signalling(intel_dig_port, hdcp->cpu_transcoder, true);
 	if (ret)
 		return ret;
 
@@ -709,7 +709,7 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 	repeater_ctl = intel_hdcp_get_repeater_ctl(intel_dig_port);
 	I915_WRITE(HDCP_REP_CTL, I915_READ(HDCP_REP_CTL) & ~repeater_ctl);
 
-	ret = hdcp->shim->toggle_signalling(intel_dig_port, false);
+	ret = hdcp->shim->toggle_signalling(intel_dig_port, hdcp->cpu_transcoder, false);
 	if (ret) {
 		DRM_ERROR("Failed to disable HDCP signalling\n");
 		return ret;
@@ -1333,11 +1333,10 @@ int intel_hdcp_enable(struct intel_connector *connector,
 		return -ENOENT;
 
 	mutex_lock(&hdcp->mutex);
+	hdcp->cpu_transcoder = cpu_transcoder;
 
-	if (INTEL_GEN(dev_priv) >= 12) {
-		hdcp->cpu_transcoder = cpu_transcoder;
+	if (INTEL_GEN(dev_priv) >= 12)
 		hdcp->port_data.fw_tc = intel_get_mei_fw_tc(cpu_transcoder);
-	}
 
 	ret = _intel_hdcp_enable(connector);
 	if (ret)
