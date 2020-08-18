@@ -1245,6 +1245,11 @@ struct intel_digital_port {
 	enum intel_display_power_domain ddi_io_power_domain;
 	enum tc_port_type tc_type;
 
+	/* protects num_hdcp_streams reference count */
+	struct mutex hdcp_mutex;
+	/* the number of pipes using HDCP signalling out of this port */
+	unsigned int num_hdcp_streams;
+
 	void (*write_infoframe)(struct intel_encoder *encoder,
 				const struct intel_crtc_state *crtc_state,
 				unsigned int type,
