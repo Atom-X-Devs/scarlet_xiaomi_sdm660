@@ -448,6 +448,7 @@ struct mtk_thermal {
 
 	const struct mtk_thermal_data *conf;
 	struct mtk_thermal_bank banks[MAX_NUM_ZONES];
+	struct pm_qos_request qos_request;
 };
 
 /* MT8183 thermal sensor data */
@@ -1526,7 +1527,6 @@ static int mtk_svs_hw_init(struct mtk_thermal *mt)
 	unsigned long timeout;
 	struct mtk_svs_bank *svs;
 	struct cpufreq_policy policy;
-	struct pm_qos_request qos_request = {{0}};
 	int i, j, ret, vboot_uV;
 
 	parent = clk_get_parent(mt->svs_mux);
@@ -1542,7 +1542,7 @@ static int mtk_svs_hw_init(struct mtk_thermal *mt)
 	 * working at 1.0 volt. Add a pm_qos request to prevent CPUs from
 	 * entering CPU off idle state.
 	 */
-	pm_qos_add_request(&qos_request, PM_QOS_CPU_DMA_LATENCY, 1);
+	pm_qos_add_request(&mt->qos_request, PM_QOS_CPU_DMA_LATENCY, 1);
 
 	for (i = 0; i < MT8173_NUM_SVS_BANKS; i++) {
 		svs = &svs_banks[i];
@@ -1551,7 +1551,7 @@ static int mtk_svs_hw_init(struct mtk_thermal *mt)
 		ret = cpufreq_get_policy(&policy, svs->cpu_dev_id);
 		if (ret) {
 			dev_err(svs->dev, "cpufreq is not ready.\n");
-			pm_qos_remove_request(&qos_request);
+			pm_qos_remove_request(&mt->qos_request);
 			clk_set_parent(mt->svs_mux, parent);
 			return ret;
 		}
@@ -1639,7 +1639,7 @@ err_bank_init:
 			schedule_work(&svs->work);
 		}
 
-	pm_qos_remove_request(&qos_request);
+	pm_qos_remove_request(&mt->qos_request);
 
 	ret = clk_set_parent(mt->svs_mux, parent);
 	if (ret) {
