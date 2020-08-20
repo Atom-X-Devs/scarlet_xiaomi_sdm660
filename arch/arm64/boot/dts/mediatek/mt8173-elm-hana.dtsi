@@ -5,6 +5,10 @@
 
 #include "mt8173-elm.dtsi"
 
+&i2c_tunnel {
+	google,limited-passthrough;
+};
+
 &i2c0 {
 	clock-frequency = <200000>;
 };

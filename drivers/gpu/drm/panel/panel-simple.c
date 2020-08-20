@@ -661,6 +661,9 @@ static const struct panel_desc auo_b116xw03 = {
 		.width = 256,
 		.height = 144,
 	},
+	.delay = {
+		.enable = 400,
+	},
 };
 
 static const struct drm_display_mode auo_b133xtn01_mode = {

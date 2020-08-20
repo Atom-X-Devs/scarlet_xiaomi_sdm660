@@ -94,22 +94,17 @@ static void mtk_vdec_stateless_out_to_done(struct mtk_vcodec_ctx *ctx,
 	out_buf = container_of(bs, struct mtk_video_dec_buf, bs_buffer);
 	vb = &out_buf->m2m_buf.vb;
 
-	if (out_buf->used) {
-		mtk_v4l2_debug(2,
-			"Free bitsteam buffer id = %d to done_list",
-			vb->vb2_buf.index);
+	mtk_v4l2_debug(2,
+		"Free bitsteam buffer id = %d to done_list",
+		vb->vb2_buf.index);
 
-		v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
-		if (error) {
-			v4l2_m2m_buf_done(vb, VB2_BUF_STATE_ERROR);
-			if (error == -EIO)
-				out_buf->error = true;
-		} else
-			v4l2_m2m_buf_done(vb, VB2_BUF_STATE_DONE);
-		out_buf->used = false;
+	v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
+	if (error) {
+		v4l2_m2m_buf_done(vb, VB2_BUF_STATE_ERROR);
+		if (error == -EIO)
+			out_buf->error = true;
 	} else
-		mtk_v4l2_err("Free bitsteam buffer id = %d not used",
-				vb->vb2_buf.index);
+		v4l2_m2m_buf_done(vb, VB2_BUF_STATE_DONE);
 }
 
 static void mtk_vdec_stateless_cap_to_disp(struct mtk_vcodec_ctx *ctx,
@@ -134,25 +129,18 @@ static void mtk_vdec_stateless_cap_to_disp(struct mtk_vcodec_ctx *ctx,
 		cap_c_size = ctx->q_data[MTK_Q_DATA_DST].sizeimage[1];
 	}
 
-	if (vdec_frame_buf->used) {
-		v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
+	v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
 
-		vb2_set_plane_payload(&vb->vb2_buf, 0,
-			cap_y_size);
-		if (ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes == 2)
-			vb2_set_plane_payload(&vb->vb2_buf, 1,
-				cap_c_size);
+	vb2_set_plane_payload(&vb->vb2_buf, 0, cap_y_size);
+	if (ctx->q_data[MTK_Q_DATA_DST].fmt->num_planes == 2)
+		vb2_set_plane_payload(&vb->vb2_buf, 1, cap_c_size);
 
-		mtk_v4l2_debug(2,
-			"Free frame buffer id = %d to done_list",
-			vb->vb2_buf.index);
-		if (error == 1)
-			vb->flags |= V4L2_BUF_FLAG_LAST;
-		v4l2_m2m_buf_done(vb, VB2_BUF_STATE_DONE);
-		vdec_frame_buf->used = false;
-	} else
-		mtk_v4l2_err("Free frame buffer id = %d not used",
-				vb->vb2_buf.index);
+	mtk_v4l2_debug(2,
+		"Free frame buffer id = %d to done_list",
+		vb->vb2_buf.index);
+	if (error == 1)
+		vb->flags |= V4L2_BUF_FLAG_LAST;
+	v4l2_m2m_buf_done(vb, VB2_BUF_STATE_DONE);
 }
 
 static struct vdec_fb *vdec_get_cap_buffer(struct mtk_vcodec_ctx *ctx)
@@ -352,28 +340,18 @@ static void vb2ops_vdec_stateless_buf_queue(struct vb2_buffer *vb)
 		dst_buf = container_of(vb2_v4l2, struct mtk_video_dec_buf,
 				       m2m_buf.vb);
 		mutex_lock(&ctx->lock);
-		if (dst_buf->used)
-			mtk_v4l2_err("Capture buffer in used (%d).", vb->index);
-		else {
-			dst_buf->used = true;
-			v4l2_m2m_buf_queue(ctx->m2m_ctx, vb2_v4l2);
-		}
+		v4l2_m2m_buf_queue(ctx->m2m_ctx, vb2_v4l2);
 		mutex_unlock(&ctx->lock);
 		return;
 	}
 
 	src_buf = container_of(vb2_v4l2, struct mtk_video_dec_buf, m2m_buf.vb);
 	mutex_lock(&ctx->lock);
-	if (src_buf->used)
-		mtk_v4l2_err("Output buffer still in used (%d).", vb->index);
-	else {
-		src_buf->used = true;
-		v4l2_m2m_buf_queue(ctx->m2m_ctx, vb2_v4l2);
-	}
+	v4l2_m2m_buf_queue(ctx->m2m_ctx, vb2_v4l2);
 	mutex_unlock(&ctx->lock);
 
-	mtk_v4l2_debug(3, "(%d) id=%d, bs=%p used = %d",
-		vb->vb2_queue->type, vb->index, src_buf, src_buf->used);
+	mtk_v4l2_debug(3, "(%d) id=%d, bs=%p",
+		vb->vb2_queue->type, vb->index, src_buf);
 
 	if (ctx->state == MTK_STATE_INIT) {
 		ctx->state = MTK_STATE_HEADER;

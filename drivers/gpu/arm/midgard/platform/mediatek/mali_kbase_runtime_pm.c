@@ -177,6 +177,11 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 	struct mfg_base *mfg = kbdev->platform_context;
 	int error, i;
 
+	if (mfg->reg_is_powered) {
+		dev_dbg(kbdev->dev, "GPU regulators are already power on\n");
+		return 0;
+	}
+
 	for (i = 0; i < kbdev->regulator_num; i++) {
 		error = regulator_enable(kbdev->regulator[i]);
 		if (error < 0) {
@@ -210,6 +215,8 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 		return error;
 	}
 
+	mfg->reg_is_powered = true;
+
 	return 0;
 }
 
@@ -217,6 +224,11 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
 	struct mfg_base *mfg = kbdev->platform_context;
 	int error, i;
+
+	if (!mfg->reg_is_powered) {
+		dev_dbg(kbdev->dev, "GPU regulators are already power off\n");
+		return;
+	}
 
 	clk_unprepare(mfg->subsys_mfg_cg);
 
@@ -232,16 +244,20 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 				i, error);
 		}
 	}
+
+	mfg->reg_is_powered = false;
 }
 
 static void pm_callback_resume(struct kbase_device *kbdev)
 {
+	pm_callback_runtime_on(kbdev);
 	pm_callback_power_on(kbdev);
 }
 
 static void pm_callback_suspend(struct kbase_device *kbdev)
 {
 	pm_callback_power_off(kbdev);
+	pm_callback_runtime_off(kbdev);
 }
 
 struct kbase_pm_callback_conf pm_callbacks = {
@@ -320,6 +336,7 @@ int mali_mfgsys_init(struct kbase_device *kbdev, struct mfg_base *mfg)
 	}
 
 	mfg->is_powered = false;
+	mfg->reg_is_powered = false;
 
 	return 0;
 }
@@ -336,72 +353,78 @@ static void voltage_range_check(struct kbase_device *kbdev,
 
 #ifdef CONFIG_REGULATOR
 static bool get_step_volt(unsigned long *step_volt, unsigned long *target_volt,
-			  int count, bool inc)
+			  int regulator_num, bool inc)
 {
-	unsigned long regulator_min_volt;
-	unsigned long regulator_max_volt;
-	unsigned long current_bias;
-	long adjust_step;
 	int i;
 
-	if (inc) {
-		current_bias = target_volt[1] - step_volt[0];
-		adjust_step = MIN_VOLT_BIAS;
-	} else {
-		current_bias = step_volt[1] - target_volt[0];
-		adjust_step = -MIN_VOLT_BIAS;
-	}
-
-	for (i = 0; i < count; ++i)
+	for (i = 0; i < regulator_num; i++)
 		if (step_volt[i] != target_volt[i])
 			break;
 
-	if (i == count)
-		return 0;
+	if (i == regulator_num)
+		return false;
 
-	for (i = 0; i < count; i++) {
-		if (i) {
-			regulator_min_volt = VSRAM_GPU_MIN_VOLT;
-			regulator_max_volt = VSRAM_GPU_MAX_VOLT;
-		} else {
-			regulator_min_volt = VGPU_MIN_VOLT;
-			regulator_max_volt = VGPU_MAX_VOLT;
-		}
-
-		if (current_bias > MAX_VOLT_BIAS) {
-			step_volt[i] = clamp_val(step_volt[0] + adjust_step,
-						 regulator_min_volt,
-						 regulator_max_volt);
-		} else {
-			step_volt[i] = target_volt[i];
-		}
+	/* Do one round of *caterpillar move* - shrink the tail as much to the
+	 * head as possible, and then step ahead as far as possible.
+	 * Depending on the direction of voltage transition, a reversed
+	 * sequence of extend-and-shrink may apply, which leads to the same
+	 * result in the end.
+	 */
+	if (inc) {
+		step_volt[0] = min(target_volt[0],
+				   step_volt[1] - MIN_VOLT_BIAS);
+		step_volt[1] = min(target_volt[1],
+				   step_volt[0] + MAX_VOLT_BIAS);
+	} else {
+		step_volt[0] = max(target_volt[0],
+				   step_volt[1] - MAX_VOLT_BIAS);
+		step_volt[1] = max(target_volt[1],
+				   step_volt[0] + MIN_VOLT_BIAS);
 	}
-	return 1;
+	return true;
 }
 
 static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 			bool inc)
 {
 	unsigned long step_volt[KBASE_MAX_REGULATORS];
-	int first, step;
-	int i;
-	int err;
+	const unsigned long reg_min_volt[KBASE_MAX_REGULATORS] = {
+		VGPU_MIN_VOLT,
+		VSRAM_GPU_MIN_VOLT,
+	};
+	const unsigned long reg_max_volt[KBASE_MAX_REGULATORS] = {
+		VGPU_MAX_VOLT,
+		VSRAM_GPU_MAX_VOLT,
+	};
+	int i, err;
+
+	/* Nothing to do if the direction of voltage transition is incorrect. */
+	if ((inc && kbdev->current_voltage[0] > voltages[0]) ||
+	    (!inc && kbdev->current_voltage[0] < voltages[0]))
+		return 0;
 
 	for (i = 0; i < kbdev->regulator_num; ++i)
 		step_volt[i] = kbdev->current_voltage[i];
 
-	if (inc) {
-		first = kbdev->regulator_num - 1;
-		step = -1;
-	} else {
-		first = 0;
-		step = 1;
-	}
-
 	while (get_step_volt(step_volt, voltages, kbdev->regulator_num, inc)) {
-		for (i = first; i >= 0 && i < kbdev->regulator_num; i += step) {
+		for (i = 0; i < kbdev->regulator_num; i++) {
 			if (kbdev->current_voltage[i] == step_volt[i])
 				continue;
+
+			/* Assuming valid max voltages are always positive. */
+			if (reg_max_volt[i] > 0 &&
+			    (step_volt[i] < reg_min_volt[i] ||
+			     step_volt[i] > reg_max_volt[i])) {
+				dev_warn(kbdev->dev, "Clamp invalid voltage: "
+					 "%lu of regulator %d into [%lu, %lu]",
+					 step_volt[i], i,
+					 reg_min_volt[i],
+					 reg_max_volt[i]);
+
+				step_volt[i] = clamp_val(step_volt[i],
+							 reg_min_volt[i],
+							 reg_max_volt[i]);
+			}
 
 			err = regulator_set_voltage(kbdev->regulator[i],
 						    step_volt[i],
@@ -413,6 +436,7 @@ static int set_voltages(struct kbase_device *kbdev, unsigned long *voltages,
 					i, err);
 				return err;
 			}
+			kbdev->current_voltage[i] = step_volt[i];
 		}
 	}
 

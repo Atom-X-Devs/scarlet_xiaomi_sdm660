@@ -2612,11 +2612,61 @@ static void nvme_remove(struct pci_dev *pdev)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int nvme_deep_state(struct nvme_dev *dev)
+static int nvme_get_power_state(struct nvme_ctrl *ctrl, u32 *ps)
 {
-	struct pci_dev *pdev = to_pci_dev(dev->dev);
-	struct nvme_ctrl *ctrl = &dev->ctrl;
-	int ret = -EBUSY;;
+	return nvme_get_features(ctrl, NVME_FEAT_POWER_MGMT, 0, NULL, 0, ps);
+}
+
+static int nvme_set_power_state(struct nvme_ctrl *ctrl, u32 ps)
+{
+	return nvme_set_features(ctrl, NVME_FEAT_POWER_MGMT, ps, NULL, 0, NULL);
+}
+
+static int nvme_resume(struct device *dev)
+{
+	struct nvme_dev *ndev = pci_get_drvdata(to_pci_dev(dev));
+	struct nvme_ctrl *ctrl = &ndev->ctrl;
+
+	if (ndev->last_ps == U32_MAX ||
+	    nvme_set_power_state(ctrl, ndev->last_ps) != 0)
+		nvme_reset_ctrl(ctrl);
+	return 0;
+}
+
+static int nvme_suspend(struct device *dev)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct nvme_dev *ndev = pci_get_drvdata(pdev);
+	struct nvme_ctrl *ctrl = &ndev->ctrl;
+	int ret = -EBUSY;
+
+	ndev->last_ps = U32_MAX;
+
+	/*
+	 * The platform does not remove power for a kernel managed suspend so
+	 * use host managed nvme power settings for lowest idle power if
+	 * possible. This should have quicker resume latency than a full device
+	 * shutdown.  But if the firmware is involved after the suspend or the
+	 * device does not support any non-default power states, shut down the
+	 * device fully.
+	 *
+	 * If ASPM is not enabled for the device, shut down the device and allow
+	 * the PCI bus layer to put it into D3 in order to take the PCIe link
+	 * down, so as to allow the platform to achieve its minimum low-power
+	 * state (which may not be possible if the link is up).
+	 *
+	 * If a host memory buffer is enabled, shut down the device as the NVMe
+	 * specification allows the device to access the host memory buffer in
+	 * host DRAM from all power states, but hosts will fail access to DRAM
+	 * during S3.
+	 */
+	if (pm_suspend_via_firmware() || !ctrl->npss ||
+	    !pcie_aspm_enabled(pdev) ||
+	    ndev->nr_host_mem_descs ||
+	    (ndev->ctrl.quirks & NVME_QUIRK_SIMPLE_SUSPEND)) {
+		nvme_dev_disable(ndev, true);
+		return 0;
+	}
 
 	nvme_start_freeze(ctrl);
 	nvme_wait_freeze(ctrl);
@@ -2626,23 +2676,21 @@ static int nvme_deep_state(struct nvme_dev *dev)
 	    ctrl->state != NVME_CTRL_ADMIN_ONLY)
 		goto unfreeze;
 
-	dev->last_ps = 0;
-	ret = nvme_get_features(ctrl, NVME_FEAT_POWER_MGMT, 0, NULL, 0,
-				&dev->last_ps);
+	ret = nvme_get_power_state(ctrl, &ndev->last_ps);
 	if (ret < 0)
 		goto unfreeze;
 
 	/*
-	 * A saved state prevents pci pm from generically controlling
-	 * the device's power. If we're using protocol specific
-	 * settings, we don't want pci interfering.
+	 * A saved state prevents pci pm from generically controlling the
+	 * device's power. If we're using protocol specific settings, we don't
+	 * want pci interfering.
 	 */
 	pci_save_state(pdev);
 
-	ret = nvme_set_features(ctrl, NVME_FEAT_POWER_MGMT, dev->ctrl.npss,
-				NULL, 0, NULL);
+	ret = nvme_set_power_state(ctrl, ctrl->npss);
 	if (ret < 0)
 		goto unfreeze;
+
 	if (ret) {
 		/* discard the saved state */
 		pci_load_saved_state(pdev, NULL);
@@ -2651,8 +2699,8 @@ static int nvme_deep_state(struct nvme_dev *dev)
 		 * Clearing npss forces a controller reset on resume. The
 		 * correct value will be resdicovered then.
 		 */
+		nvme_dev_disable(ndev, true);
 		ctrl->npss = 0;
-		nvme_dev_disable(dev, true);
 		ret = 0;
 	}
 unfreeze:
@@ -2660,14 +2708,11 @@ unfreeze:
 	return ret;
 }
 
-static int nvme_make_operational(struct nvme_dev *dev)
+static int nvme_simple_suspend(struct device *dev)
 {
-	struct nvme_ctrl *ctrl = &dev->ctrl;
+	struct nvme_dev *ndev = pci_get_drvdata(to_pci_dev(dev));
 
-	if (nvme_set_features(ctrl, NVME_FEAT_POWER_MGMT, dev->last_ps,
-			      NULL, 0, NULL) == 0)
-		return 0;
-	nvme_reset_ctrl(ctrl);
+	nvme_dev_disable(ndev, true);
 	return 0;
 }
 
@@ -2680,52 +2725,15 @@ static int nvme_simple_resume(struct device *dev)
 	return 0;
 }
 
-static int nvme_resume(struct device *dev)
-{
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct nvme_dev *ndev = pci_get_drvdata(pdev);
-
-	return pm_resume_via_firmware() || !ndev->ctrl.npss ||
-	       (ndev->ctrl.quirks & NVME_QUIRK_SIMPLE_SUSPEND) ?
-		nvme_simple_resume(dev) : nvme_make_operational(ndev);
-}
-
-static int nvme_simple_suspend(struct device *dev)
-{
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct nvme_dev *ndev = pci_get_drvdata(pdev);
-
-	nvme_dev_disable(ndev, true);
-	return 0;
-}
-
-static int nvme_suspend(struct device *dev)
-{
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct nvme_dev *ndev = pci_get_drvdata(pdev);
-
-	/*
-	 * The platform does not remove power for a kernel managed suspend so
-	 * use host managed nvme power settings for lowest idle power. This
-	 * should have quicker resume latency than a full device shutdown.
-	 */
-	return pm_suspend_via_firmware() || !ndev->ctrl.npss ||
-	       (ndev->ctrl.quirks & NVME_QUIRK_SIMPLE_SUSPEND) ?
-		nvme_simple_suspend(dev) : nvme_deep_state(ndev);
-}
-
 const struct dev_pm_ops nvme_dev_pm_ops = {
-	.suspend = nvme_suspend,
-	.resume = nvme_resume,
-	.freeze = nvme_simple_suspend,
-	.thaw = nvme_simple_resume,
-	.poweroff = nvme_simple_suspend,
-	.restore = nvme_simple_resume,
+	.suspend	= nvme_suspend,
+	.resume		= nvme_resume,
+	.freeze		= nvme_simple_suspend,
+	.thaw		= nvme_simple_resume,
+	.poweroff	= nvme_simple_suspend,
+	.restore	= nvme_simple_resume,
 };
-
-#else
-const struct dev_pm_ops nvme_dev_pm_ops = {};
-#endif
+#endif /* CONFIG_PM_SLEEP */
 
 static pci_ers_result_t nvme_error_detected(struct pci_dev *pdev,
 						pci_channel_state_t state)
@@ -2828,9 +2836,11 @@ static struct pci_driver nvme_driver = {
 	.probe		= nvme_probe,
 	.remove		= nvme_remove,
 	.shutdown	= nvme_shutdown,
+#ifdef CONFIG_PM_SLEEP
 	.driver		= {
 		.pm	= &nvme_dev_pm_ops,
 	},
+#endif
 	.sriov_configure = pci_sriov_configure_simple,
 	.err_handler	= &nvme_err_handler,
 };

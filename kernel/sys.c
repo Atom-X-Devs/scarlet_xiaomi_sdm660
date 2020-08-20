@@ -2645,6 +2645,9 @@ int ksys_prctl(int option, unsigned long arg2, unsigned long arg3,
 	case PR_SET_VMA:
 		error = prctl_set_vma(arg2, arg3, arg4, arg5);
 		break;
+	case PR_SET_CORE_SCHED:
+		error = task_set_core_sched(arg2, NULL);
+		break;
 	default:
 		error = -EINVAL;
 		break;

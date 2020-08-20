@@ -44,3 +44,4 @@ obj-$(CONFIG_TEGRA_HSP_MBOX)	+= tegra-hsp.o
 obj-$(CONFIG_STM32_IPCC) 	+= stm32-ipcc.o
 
 obj-$(CONFIG_MTK_CMDQ_MBOX)	+= mtk-cmdq-mailbox.o
+obj-$(CONFIG_MTK_CMDQ_DEBUG)	+= mtk-cmdq-debug.o

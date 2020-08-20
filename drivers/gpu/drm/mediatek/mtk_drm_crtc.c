@@ -465,6 +465,16 @@ static void mtk_crtc_ddp_config(struct drm_crtc *crtc,
 		}
 		mtk_crtc->pending_async_planes = false;
 	}
+
+	if (crtc->state->color_mgmt_changed) {
+		int i;
+
+		for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
+			mtk_ddp_gamma_set(mtk_crtc->ddp_comp[i], crtc->state,
+					  cmdq_handle);
+			mtk_ddp_ctm_set(mtk_crtc->ddp_comp[i], crtc->state);
+		}
+	}
 }
 
 static void mtk_drm_crtc_hw_config(struct mtk_drm_crtc *mtk_crtc)
@@ -626,15 +636,9 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 				      struct drm_crtc_state *old_crtc_state)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	int i;
 
 	if (mtk_crtc->event)
 		mtk_crtc->pending_needs_vblank = true;
-	if (crtc->state->color_mgmt_changed)
-		for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
-			mtk_ddp_gamma_set(mtk_crtc->ddp_comp[i], crtc->state);
-			mtk_ddp_ctm_set(mtk_crtc->ddp_comp[i], crtc->state);
-		}
 	mtk_drm_crtc_hw_config(mtk_crtc);
 }
 

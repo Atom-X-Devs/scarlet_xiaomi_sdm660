@@ -7,7 +7,6 @@
 
 #include <linux/acpi.h>
 #include <linux/module.h>
-#include <linux/mfd/cros_ec.h>
 #include <linux/platform_data/cros_ec_proto.h>
 #include <linux/platform_data/cros_usbpd_notify.h>
 #include <linux/platform_device.h>

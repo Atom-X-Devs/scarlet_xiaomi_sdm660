@@ -93,7 +93,7 @@ static struct ieee80211_rate ath10k_rates_rev2[] = {
 
 #define ath10k_wmi_legacy_rates ath10k_rates
 
-bool ath10k_mac_bitrate_is_cck(int bitrate)
+static bool ath10k_mac_bitrate_is_cck(int bitrate)
 {
 	switch (bitrate) {
 	case 10:
@@ -3898,6 +3898,9 @@ void ath10k_mgmt_over_wmi_tx_work(struct work_struct *work)
 			if (ret) {
 				ath10k_warn(ar, "failed to transmit management frame by ref via WMI: %d\n",
 					    ret);
+				/* remove this msdu from idr tracking */
+				ath10k_wmi_cleanup_mgmt_tx_send(ar, skb);
+
 				dma_unmap_single(ar->dev, paddr, skb->len,
 						 DMA_TO_DEVICE);
 				ieee80211_free_txskb(ar->hw, skb);
@@ -8095,19 +8098,32 @@ static void ath10k_mac_get_rate_flags_ht(struct ath10k *ar, u32 rate, u8 nss, u8
 					 u8 *flags, u8 *bw)
 {
 	struct ath10k_index_ht_data_rate_type *mcs_rate;
+	u8 index;
+	size_t len_nss1 = ARRAY_SIZE(supported_ht_mcs_rate_nss1);
+	size_t len_nss2 = ARRAY_SIZE(supported_ht_mcs_rate_nss2);
+
+	if (mcs >= (len_nss1 + len_nss2)) {
+		ath10k_warn(ar, "not supported mcs %d in current rate table", mcs);
+		return;
+	}
 
 	mcs_rate = (struct ath10k_index_ht_data_rate_type *)
 		   ((nss == 1) ? &supported_ht_mcs_rate_nss1 :
 		   &supported_ht_mcs_rate_nss2);
 
-	if (rate == mcs_rate[mcs].supported_rate[0]) {
+	if (mcs >= len_nss1)
+		index = mcs - len_nss1;
+	else
+		index = mcs;
+
+	if (rate == mcs_rate[index].supported_rate[0]) {
 		*bw = RATE_INFO_BW_20;
-	} else if (rate == mcs_rate[mcs].supported_rate[1]) {
+	} else if (rate == mcs_rate[index].supported_rate[1]) {
 		*bw |= RATE_INFO_BW_40;
-	} else if (rate == mcs_rate[mcs].supported_rate[2]) {
+	} else if (rate == mcs_rate[index].supported_rate[2]) {
 		*bw |= RATE_INFO_BW_20;
 		*flags |= RATE_INFO_FLAGS_SHORT_GI;
-	} else if (rate == mcs_rate[mcs].supported_rate[3]) {
+	} else if (rate == mcs_rate[index].supported_rate[3]) {
 		*bw |= RATE_INFO_BW_40;
 		*flags |= RATE_INFO_FLAGS_SHORT_GI;
 	} else {
@@ -8167,6 +8183,9 @@ static void ath10k_mac_parse_bitrate(struct ath10k *ar, u32 rate_code,
 	u8 nss = WMI_TLV_GET_HW_RC_NSS_V1(rate_code) + 1;
 	u8 mcs = WMI_TLV_GET_HW_RC_RATE_V1(rate_code);
 	u8 flags = 0, bw = 0;
+
+	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac parse rate code 0x%x bitrate %d kbps\n",
+		   rate_code, bitrate_kbps);
 
 	if (preamble == WMI_RATE_PREAMBLE_HT)
 		mode = ATH10K_PHY_MODE_HT;
@@ -8260,18 +8279,17 @@ static void ath10k_sta_statistics(struct ieee80211_hw *hw,
 	sinfo->rx_duration = arsta->rx_duration;
 	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_DURATION);
 
-	if (!arsta->txrate.legacy && !arsta->txrate.nss)
-		return;
-
-	if (arsta->txrate.legacy) {
-		sinfo->txrate.legacy = arsta->txrate.legacy;
-	} else {
-		sinfo->txrate.mcs = arsta->txrate.mcs;
-		sinfo->txrate.nss = arsta->txrate.nss;
-		sinfo->txrate.bw = arsta->txrate.bw;
+	if (arsta->txrate.legacy || arsta->txrate.nss) {
+		if (arsta->txrate.legacy) {
+			sinfo->txrate.legacy = arsta->txrate.legacy;
+		} else {
+			sinfo->txrate.mcs = arsta->txrate.mcs;
+			sinfo->txrate.nss = arsta->txrate.nss;
+			sinfo->txrate.bw = arsta->txrate.bw;
+		}
+		sinfo->txrate.flags = arsta->txrate.flags;
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
 	}
-	sinfo->txrate.flags = arsta->txrate.flags;
-	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
 
 	if (ar->htt.disable_tx_comp) {
 		sinfo->tx_retries = arsta->tx_retries;

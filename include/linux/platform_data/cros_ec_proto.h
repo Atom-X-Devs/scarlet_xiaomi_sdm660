@@ -115,6 +115,7 @@ struct cros_ec_command {
  *            code.
  * @pkt_xfer: Send packet to EC and get response.
  * @lock: One transaction at a time.
+ * @charger: Charger connected to the EC, if any.
  * @mkbp_event_supported: 0 if MKBP not supported. Otherwise its value is
  *                        the maximum supported version of the MKBP host event
  *                        command + 1.
@@ -158,7 +159,6 @@ struct cros_ec_device {
 			struct cros_ec_command *msg);
 	struct power_supply *charger;
 	struct mutex lock;
-	/* 0 == not supported, otherwise it supports version x - 1 */
 	u8 mkbp_event_supported;
 	bool host_sleep_v1;
 	struct blocking_notifier_head event_notifier;
@@ -167,19 +167,11 @@ struct cros_ec_device {
 	int event_size;
 	u32 host_event_wake_mask;
 	u32 last_resume_result;
-	s64 last_event_time;
+	ktime_t last_event_time;
 
 	/* The platform devices used by the mfd driver */
 	struct platform_device *ec;
 	struct platform_device *pd;
-};
-
-/**
- * struct cros_ec_sensor_platform - ChromeOS EC sensor platform information.
- * @sensor_num: Id of the sensor, as reported by the EC.
- */
-struct cros_ec_sensor_platform {
-	u8 sensor_num;
 };
 
 /**
@@ -195,156 +187,72 @@ struct cros_ec_platform {
 };
 
 /**
- * cros_ec_suspend() - Handle a suspend operation for the ChromeOS EC device.
- * @ec_dev: Device to suspend.
- *
- * This can be called by drivers to handle a suspend event.
- *
- * Return: 0 on success or negative error code.
+ * struct cros_ec_dev - ChromeOS EC device entry point.
+ * @class_dev: Device structure used in sysfs.
+ * @ec_dev: cros_ec_device structure to talk to the physical device.
+ * @dev: Pointer to the platform device.
+ * @debug_info: cros_ec_debugfs structure for debugging information.
+ * @has_kb_wake_angle: True if at least 2 accelerometer are connected to the EC.
+ * @cmd_offset: Offset to apply for each command.
+ * @features: Features supported by the EC.
  */
+struct cros_ec_dev {
+	struct device class_dev;
+	struct cros_ec_device *ec_dev;
+	struct device *dev;
+	struct cros_ec_debugfs *debug_info;
+	bool has_kb_wake_angle;
+	u16 cmd_offset;
+	u32 features[2];
+};
+
+#define to_cros_ec_dev(dev)  container_of(dev, struct cros_ec_dev, class_dev)
+
 int cros_ec_suspend(struct cros_ec_device *ec_dev);
 
-/**
- * cros_ec_resume() - Handle a resume operation for the ChromeOS EC device.
- * @ec_dev: Device to resume.
- *
- * This can be called by drivers to handle a resume event.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_resume(struct cros_ec_device *ec_dev);
 
-/**
- * cros_ec_prepare_tx() - Prepare an outgoing message in the output buffer.
- * @ec_dev: Device to register.
- * @msg: Message to write.
- *
- * This is intended to be used by all ChromeOS EC drivers, but at present
- * only SPI uses it. Once LPC uses the same protocol it can start using it.
- * I2C could use it now, with a refactor of the existing code.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_prepare_tx(struct cros_ec_device *ec_dev,
 		       struct cros_ec_command *msg);
 
-/**
- * cros_ec_check_result() - Check ec_msg->result.
- * @ec_dev: EC device.
- * @msg: Message to check.
- *
- * This is used by ChromeOS EC drivers to check the ec_msg->result for
- * errors and to warn about them.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_check_result(struct cros_ec_device *ec_dev,
 			 struct cros_ec_command *msg);
 
-/**
- * cros_ec_cmd_xfer() - Send a command to the ChromeOS EC.
- * @ec_dev: EC device.
- * @msg: Message to write.
- *
- * Call this to send a command to the ChromeOS EC.  This should be used
- * instead of calling the EC's cmd_xfer() callback directly.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 		     struct cros_ec_command *msg);
 
-/**
- * cros_ec_cmd_xfer_status() - Send a command to the ChromeOS EC.
- * @ec_dev: EC device.
- * @msg: Message to write.
- *
- * This function is identical to cros_ec_cmd_xfer, except it returns success
- * status only if both the command was transmitted successfully and the EC
- * replied with success status. It's not necessary to check msg->result when
- * using this function.
- *
- * Return: The number of bytes transferred on success or negative error code.
- */
 int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
 			    struct cros_ec_command *msg);
 
-/**
- * cros_ec_register() - Register a new ChromeOS EC, using the provided info.
- * @ec_dev: Device to register.
- *
- * Before calling this, allocate a pointer to a new device and then fill
- * in all the fields up to the --private-- marker.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_register(struct cros_ec_device *ec_dev);
 
-/**
- * cros_ec_unregister() - Remove a ChromeOS EC.
- * @ec_dev: Device to unregister.
- *
- * Call this to deregister a ChromeOS EC, then clean up any private data.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_unregister(struct cros_ec_device *ec_dev);
 
-/**
- * cros_ec_query_all() -  Query the protocol version supported by the
- *         ChromeOS EC.
- * @ec_dev: Device to register.
- *
- * Return: 0 on success or negative error code.
- */
 int cros_ec_query_all(struct cros_ec_device *ec_dev);
 
-/**
- * cros_ec_get_next_event() - Fetch next event from the ChromeOS EC.
- * @ec_dev: Device to fetch event from.
- * @wake_event: Pointer to a bool set to true upon return if the event might be
- *              treated as a wake event. Ignored if null.
- *
- * Return: negative error code on errors; 0 for no data; or else number of
- * bytes received (i.e., an event was retrieved successfully). Event types are
- * written out to @ec_dev->event_data.event_type on success.
- */
-int cros_ec_get_next_event(struct cros_ec_device *ec_dev, bool *wake_event);
+int cros_ec_get_next_event(struct cros_ec_device *ec_dev,
+			   bool *wake_event,
+			   bool *has_more_events);
 
-/**
- * cros_ec_get_host_event() - Return a mask of event set by the ChromeOS EC.
- * @ec_dev: Device to fetch event from.
- *
- * When MKBP is supported, when the EC raises an interrupt, we collect the
- * events raised and call the functions in the ec notifier. This function
- * is a helper to know which events are raised.
- *
- * Return: 0 on error or non-zero bitmask of one or more EC_HOST_EVENT_*.
- */
 u32 cros_ec_get_host_event(struct cros_ec_device *ec_dev);
 
+int cros_ec_check_features(struct cros_ec_dev *ec, int feature);
+
+int cros_ec_get_sensor_count(struct cros_ec_dev *ec);
+
+bool cros_ec_handle_event(struct cros_ec_device *ec_dev);
+
 /**
- * cros_ec_get_time_ns - Return time in ns.
+ * cros_ec_get_time_ns() - Return time in ns.
  *
  * This is the function used to record the time for last_event_time in struct
  * cros_ec_device during the hard irq.
  *
- * This function is probably implemented using ktime_get_boot_ns(), but it's
- * exposed here to make sure all cros_ec drivers use the same code path to get
- * the time.
+ * Return: ktime_t format since boot.
  */
-s64 cros_ec_get_time_ns(void);
-
-
-/**
- * cros_ec_handle_event - process and forward pending events on EC
- *
- * Call this function in a loop when the kernel is notified that the EC has
- * pending events.
- *
- * Returns true if more events are still pending and this function should be
- * called again.
- */
-bool cros_ec_handle_event(struct cros_ec_device *ec_dev);
+static inline ktime_t cros_ec_get_time_ns(void)
+{
+	return ktime_get_boot_ns();
+}
 
 #endif /* __LINUX_CROS_EC_PROTO_H */

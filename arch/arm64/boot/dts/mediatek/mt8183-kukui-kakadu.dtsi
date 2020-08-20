@@ -5,7 +5,6 @@
 
 /dts-v1/;
 #include "mt8183-kukui.dtsi"
-#include "mt8183-kukui-audio-ts3a227e.dtsi"
 
 / {
 	ppvarn_lcd: ppvarn-lcd {
@@ -65,8 +64,9 @@
 	sustainable-power = <4500>; /* milliwatts */
 };
 
-&i2c0 {
+&i2c1 {
 	status = "okay";
+	clock-frequency = <400000>;
 
 	touchscreen: touchscreen@10 {
 		compatible = "hid-over-i2c";
