@@ -71,7 +71,7 @@ module_param(bss_entries_limit, int, 0644);
 MODULE_PARM_DESC(bss_entries_limit,
                  "limit to number of scan BSS entries (per wiphy, default 1000)");
 
-#define IEEE80211_SCAN_RESULT_EXPIRE	(7 * HZ)
+#define IEEE80211_SCAN_RESULT_EXPIRE	(30 * HZ)
 
 static void bss_free(struct cfg80211_internal_bss *bss)
 {
@@ -479,6 +479,16 @@ void cfg80211_bss_expire(struct cfg80211_registered_device *rdev)
 {
 	__cfg80211_bss_expire(rdev, jiffies - IEEE80211_SCAN_RESULT_EXPIRE);
 }
+
+void cfg80211_bss_flush(struct wiphy *wiphy)
+{
+	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+
+	spin_lock_bh(&rdev->bss_lock);
+	__cfg80211_bss_expire(rdev, jiffies);
+	spin_unlock_bh(&rdev->bss_lock);
+}
+EXPORT_SYMBOL(cfg80211_bss_flush);
 
 const u8 *cfg80211_find_ie_match(u8 eid, const u8 *ies, int len,
 				 const u8 *match, int match_len,

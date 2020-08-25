@@ -133,25 +133,22 @@ config BT_DEBUGFS
 	  Provide extensive information about internal Bluetooth states
 	  in debugfs.
 
-config BT_ENFORCE_CLASSIC_SECURITY
-	bool "Enforces security requirements for Bluetooth classic"
-	depends on BT
-	default y
+config BT_FEATURE_DEBUG
+	bool "Enable runtime option for debugging statements"
+	depends on BT && !DYNAMIC_DEBUG
 	help
-	  Enforces Bluetooth classic security requirements by disallowing use of
-	  insecure Bluetooth chips, i.e. that doesn't support Read Encryption
-	  Key Size command to prevent BT classic connection with very short
-	  encryption key.
+	  This provides an option to enable/disable debugging statements
+	  at runtime via the experimental features interface.
 
-config BT_EVE_HACKS
-	bool "Enable Special kernel hacks for EVE launch (do not ask)"
-	depends on BT
+config BT_FEATURE_DEBUG_FUNC_NAMES
+	bool "Include function names in debugging statements"
+	depends on BT_FEATURE_DEBUG
 	default n
 	help
-	  Eve needed hacks. Testing them on all other devices needs time.
-	  I have no time to get to this, nor does anyone else, so...
-	  this option will be on for eve and off for every other device
-	  for now. Yes, this is beyond ugly. Accepting patches :)
+	  Provides an option to include function names in debugging
+	  statements.
 
+	  When enabled, trace statements will include the function name as a
+	  prefix which may help identify the source code references.
 
 source "drivers/bluetooth/Kconfig"

@@ -6335,6 +6335,8 @@ static void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 
 static void set_cr4_guest_host_mask(struct vcpu_vmx *vmx)
 {
+	BUILD_BUG_ON(KVM_CR4_GUEST_OWNED_BITS & ~KVM_POSSIBLE_CR4_GUEST_BITS);
+
 	vmx->vcpu.arch.cr4_guest_owned_bits = KVM_CR4_GUEST_OWNED_BITS;
 	if (enable_ept)
 		vmx->vcpu.arch.cr4_guest_owned_bits |= X86_CR4_PGE;
@@ -9683,7 +9685,7 @@ static bool nested_vmx_exit_reflected(struct kvm_vcpu *vcpu, u32 exit_reason)
 				vmcs_read32(VM_EXIT_INTR_ERROR_CODE),
 				KVM_ISA_VMX);
 
-	switch (exit_reason) {
+	switch ((u16)exit_reason) {
 	case EXIT_REASON_EXCEPTION_NMI:
 		if (is_nmi(intr_info))
 			return false;
@@ -10765,20 +10767,25 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 	evmcs_rsp = static_branch_unlikely(&enable_evmcs) ?
 		(unsigned long)&current_evmcs->host_rsp : 0;
 
+	/* VM entries need to wait if the core is not ready. */
+#ifdef CONFIG_SCHED_CORE
+	sched_core_user_enter();
+#endif
+
 	/* L1D Flush includes CPU buffer clear to mitigate MDS */
 	if (static_branch_unlikely(&vmx_l1d_should_flush))
 		vmx_l1d_flush(vcpu);
 	else if (static_branch_unlikely(&mds_user_clear))
 		mds_clear_cpu_buffers();
 
-	asm(
+	asm volatile (
 		/* Store host registers */
 		"push %%" _ASM_DX "; push %%" _ASM_BP ";"
 		"push %%" _ASM_CX " \n\t" /* placeholder for guest rcx */
 		"push %%" _ASM_CX " \n\t"
-		"cmp %%" _ASM_SP ", %c[host_rsp](%0) \n\t"
+		"cmp %%" _ASM_SP ", %c[host_rsp](%%" _ASM_CX ") \n\t"
 		"je 1f \n\t"
-		"mov %%" _ASM_SP ", %c[host_rsp](%0) \n\t"
+		"mov %%" _ASM_SP ", %c[host_rsp](%%" _ASM_CX ") \n\t"
 		/* Avoid VMWRITE when Enlightened VMCS is in use */
 		"test %%" _ASM_SI ", %%" _ASM_SI " \n\t"
 		"jz 2f \n\t"
@@ -10788,32 +10795,33 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		__ex(ASM_VMX_VMWRITE_RSP_RDX) "\n\t"
 		"1: \n\t"
 		/* Reload cr2 if changed */
-		"mov %c[cr2](%0), %%" _ASM_AX " \n\t"
+		"mov %c[cr2](%%" _ASM_CX "), %%" _ASM_AX " \n\t"
 		"mov %%cr2, %%" _ASM_DX " \n\t"
 		"cmp %%" _ASM_AX ", %%" _ASM_DX " \n\t"
 		"je 3f \n\t"
 		"mov %%" _ASM_AX", %%cr2 \n\t"
 		"3: \n\t"
 		/* Check if vmlaunch of vmresume is needed */
-		"cmpb $0, %c[launched](%0) \n\t"
+		"cmpb $0, %c[launched](%%" _ASM_CX ") \n\t"
 		/* Load guest registers.  Don't clobber flags. */
-		"mov %c[rax](%0), %%" _ASM_AX " \n\t"
-		"mov %c[rbx](%0), %%" _ASM_BX " \n\t"
-		"mov %c[rdx](%0), %%" _ASM_DX " \n\t"
-		"mov %c[rsi](%0), %%" _ASM_SI " \n\t"
-		"mov %c[rdi](%0), %%" _ASM_DI " \n\t"
-		"mov %c[rbp](%0), %%" _ASM_BP " \n\t"
+		"mov %c[rax](%%" _ASM_CX "), %%" _ASM_AX " \n\t"
+		"mov %c[rbx](%%" _ASM_CX "), %%" _ASM_BX " \n\t"
+		"mov %c[rdx](%%" _ASM_CX "), %%" _ASM_DX " \n\t"
+		"mov %c[rsi](%%" _ASM_CX "), %%" _ASM_SI " \n\t"
+		"mov %c[rdi](%%" _ASM_CX "), %%" _ASM_DI " \n\t"
+		"mov %c[rbp](%%" _ASM_CX "), %%" _ASM_BP " \n\t"
 #ifdef CONFIG_X86_64
-		"mov %c[r8](%0),  %%r8  \n\t"
-		"mov %c[r9](%0),  %%r9  \n\t"
-		"mov %c[r10](%0), %%r10 \n\t"
-		"mov %c[r11](%0), %%r11 \n\t"
-		"mov %c[r12](%0), %%r12 \n\t"
-		"mov %c[r13](%0), %%r13 \n\t"
-		"mov %c[r14](%0), %%r14 \n\t"
-		"mov %c[r15](%0), %%r15 \n\t"
+		"mov %c[r8](%%" _ASM_CX "),  %%r8  \n\t"
+		"mov %c[r9](%%" _ASM_CX "),  %%r9  \n\t"
+		"mov %c[r10](%%" _ASM_CX "), %%r10 \n\t"
+		"mov %c[r11](%%" _ASM_CX "), %%r11 \n\t"
+		"mov %c[r12](%%" _ASM_CX "), %%r12 \n\t"
+		"mov %c[r13](%%" _ASM_CX "), %%r13 \n\t"
+		"mov %c[r14](%%" _ASM_CX "), %%r14 \n\t"
+		"mov %c[r15](%%" _ASM_CX "), %%r15 \n\t"
 #endif
-		"mov %c[rcx](%0), %%" _ASM_CX " \n\t" /* kills %0 (ecx) */
+		/* Load guest RCX.  This kills the vmx_vcpu pointer! */
+		"mov %c[rcx](%%" _ASM_CX "), %%" _ASM_CX " \n\t"
 
 		/* Enter guest mode */
 		"jne 1f \n\t"
@@ -10821,26 +10829,33 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		"jmp 2f \n\t"
 		"1: " __ex(ASM_VMX_VMRESUME) "\n\t"
 		"2: "
-		/* Save guest registers, load host registers, keep flags */
-		"mov %0, %c[wordsize](%%" _ASM_SP ") \n\t"
-		"pop %0 \n\t"
-		"setbe %c[fail](%0)\n\t"
-		"mov %%" _ASM_AX ", %c[rax](%0) \n\t"
-		"mov %%" _ASM_BX ", %c[rbx](%0) \n\t"
-		__ASM_SIZE(pop) " %c[rcx](%0) \n\t"
-		"mov %%" _ASM_DX ", %c[rdx](%0) \n\t"
-		"mov %%" _ASM_SI ", %c[rsi](%0) \n\t"
-		"mov %%" _ASM_DI ", %c[rdi](%0) \n\t"
-		"mov %%" _ASM_BP ", %c[rbp](%0) \n\t"
+
+		/* Save guest's RCX to the stack placeholder (see above) */
+		"mov %%" _ASM_CX ", %c[wordsize](%%" _ASM_SP ") \n\t"
+
+		/* Load host's RCX, i.e. the vmx_vcpu pointer */
+		"pop %%" _ASM_CX " \n\t"
+
+		/* Set vmx->fail based on EFLAGS.{CF,ZF} */
+		"setbe %c[fail](%%" _ASM_CX ")\n\t"
+
+		/* Save all guest registers, including RCX from the stack */
+		"mov %%" _ASM_AX ", %c[rax](%%" _ASM_CX ") \n\t"
+		"mov %%" _ASM_BX ", %c[rbx](%%" _ASM_CX ") \n\t"
+		__ASM_SIZE(pop) " %c[rcx](%%" _ASM_CX ") \n\t"
+		"mov %%" _ASM_DX ", %c[rdx](%%" _ASM_CX ") \n\t"
+		"mov %%" _ASM_SI ", %c[rsi](%%" _ASM_CX ") \n\t"
+		"mov %%" _ASM_DI ", %c[rdi](%%" _ASM_CX ") \n\t"
+		"mov %%" _ASM_BP ", %c[rbp](%%" _ASM_CX ") \n\t"
 #ifdef CONFIG_X86_64
-		"mov %%r8,  %c[r8](%0) \n\t"
-		"mov %%r9,  %c[r9](%0) \n\t"
-		"mov %%r10, %c[r10](%0) \n\t"
-		"mov %%r11, %c[r11](%0) \n\t"
-		"mov %%r12, %c[r12](%0) \n\t"
-		"mov %%r13, %c[r13](%0) \n\t"
-		"mov %%r14, %c[r14](%0) \n\t"
-		"mov %%r15, %c[r15](%0) \n\t"
+		"mov %%r8,  %c[r8](%%" _ASM_CX ") \n\t"
+		"mov %%r9,  %c[r9](%%" _ASM_CX ") \n\t"
+		"mov %%r10, %c[r10](%%" _ASM_CX ") \n\t"
+		"mov %%r11, %c[r11](%%" _ASM_CX ") \n\t"
+		"mov %%r12, %c[r12](%%" _ASM_CX ") \n\t"
+		"mov %%r13, %c[r13](%%" _ASM_CX ") \n\t"
+		"mov %%r14, %c[r14](%%" _ASM_CX ") \n\t"
+		"mov %%r15, %c[r15](%%" _ASM_CX ") \n\t"
 
 		/*
 		 * Clear all general purpose registers (except RSP, which is loaded by
@@ -10860,7 +10875,7 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		"xor %%r15d, %%r15d \n\t"
 #endif
 		"mov %%cr2, %%" _ASM_AX "   \n\t"
-		"mov %%" _ASM_AX ", %c[cr2](%0) \n\t"
+		"mov %%" _ASM_AX ", %c[cr2](%%" _ASM_CX ") \n\t"
 
 		"xor %%eax, %%eax \n\t"
 		"xor %%ebx, %%ebx \n\t"
@@ -10874,7 +10889,8 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		".global vmx_return \n\t"
 		"vmx_return: " _ASM_PTR " 2b \n\t"
 		".popsection"
-	      : : "c"(vmx), "d"((unsigned long)HOST_RSP), "S"(evmcs_rsp),
+	      : "=c"((int){0}), "=d"((int){0}), "=S"((int){0})
+	      : "c"(vmx), "d"((unsigned long)HOST_RSP), "S"(evmcs_rsp),
 		[launched]"i"(offsetof(struct vcpu_vmx, __launched)),
 		[fail]"i"(offsetof(struct vcpu_vmx, fail)),
 		[host_rsp]"i"(offsetof(struct vcpu_vmx, host_rsp)),
@@ -13836,11 +13852,10 @@ static void vmx_flush_log_dirty(struct kvm *kvm)
 	kvm_flush_pml_buffers(kvm);
 }
 
-static int vmx_write_pml_buffer(struct kvm_vcpu *vcpu)
+static int vmx_write_pml_buffer(struct kvm_vcpu *vcpu, gpa_t gpa)
 {
 	struct vmcs12 *vmcs12;
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-	gpa_t gpa;
 	struct page *page = NULL;
 	u64 *pml_address;
 
@@ -13861,7 +13876,7 @@ static int vmx_write_pml_buffer(struct kvm_vcpu *vcpu)
 			return 1;
 		}
 
-		gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS) & ~0xFFFull;
+		gpa &= ~0xFFFull;
 
 		page = kvm_vcpu_gpa_to_page(vcpu, vmcs12->pml_address);
 		if (is_error_page(page))

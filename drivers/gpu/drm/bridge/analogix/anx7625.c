@@ -1148,8 +1148,6 @@ static void anx7625_stop_dp_work(struct anx7625_data *ctx)
 	ctx->hpd_high_cnt = 0;
 	ctx->display_timing_valid = 0;
 
-	ctx->slimport_edid_p.edid_block_num = -1;
-
 	if (ctx->pdata.low_power_mode == 0)
 		anx7625_disable_pd_protocol(ctx);
 }

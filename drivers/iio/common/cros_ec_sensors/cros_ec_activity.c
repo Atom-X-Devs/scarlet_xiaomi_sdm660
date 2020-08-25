@@ -22,7 +22,6 @@
 #include <linux/iio/common/cros_ec_sensors_core.h>
 #include <linux/iio/iio.h>
 #include <linux/kernel.h>
-#include <linux/mfd/cros_ec.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/platform_data/cros_ec_commands.h>
@@ -188,7 +187,8 @@ static int cros_ec_sensors_probe(struct platform_device *pdev)
 	if (!indio_dev)
 		return -ENOMEM;
 
-	ret = cros_ec_sensors_core_init(pdev, indio_dev, true);
+	ret = cros_ec_sensors_core_init(pdev, indio_dev, true,
+			cros_ec_sensors_capture, cros_ec_sensors_push_data);
 	if (ret)
 		return ret;
 

@@ -120,3 +120,7 @@ SCHED_FEAT(SUGOV_RT_MAX_FREQ, false)
  * RT class.
  */
 SCHED_FEAT(SCHEDTUNE_BOOST_HOLD_ALL, false)
+
+/* Test feat to mitigate IRQ pausing */
+SCHED_FEAT(CORE_PRCTL,     true)
+SCHED_FEAT(CORE_IRQ_PAUSE, true)

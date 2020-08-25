@@ -1800,10 +1800,6 @@ static struct sk_buff *ath10k_wmi_tlv_op_gen_init(struct ath10k *ar)
 	cfg->num_ocb_schedules = __cpu_to_le32(0);
 	cfg->host_capab = __cpu_to_le32(0);
 
-	if (ath10k_peer_stats_enabled(ar))
-		cfg->host_capab |=
-			__cpu_to_le32(WMI_RSRC_CFG_FLAG_TX_PPDU_STATS);
-
 	ath10k_wmi_tlv_put_host_mem_chunks(ar, chunks);
 
 	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv init\n");
@@ -2847,9 +2843,21 @@ ath10k_wmi_tlv_op_gen_request_peer_stats_info(struct ath10k *ar,
 	if (type == WMI_REQUEST_ONE_PEER_STATS_INFO)
 		ether_addr_copy(cmd->peer_macaddr.addr, addr);
 
-	cmd->reset_after_request = reset;
+	cmd->reset_after_request = __cpu_to_le32(reset);
 	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv request peer stats info\n");
 	return skb;
+}
+
+static int
+ath10k_wmi_tlv_op_cleanup_mgmt_tx_send(struct ath10k *ar,
+				       struct sk_buff *msdu)
+{
+	struct ath10k_skb_cb *cb = ATH10K_SKB_CB(msdu);
+	struct ath10k_wmi *wmi = &ar->wmi;
+
+	idr_remove(&wmi->mgmt_pending_tx, cb->msdu_id);
+
+	return 0;
 }
 
 static int
@@ -2923,6 +2931,8 @@ ath10k_wmi_tlv_op_gen_mgmt_tx_send(struct ath10k *ar, struct sk_buff *msdu,
 	desc_id = ath10k_wmi_mgmt_tx_alloc_msdu_id(ar, msdu, paddr);
 	if (desc_id < 0)
 		goto err_free_skb;
+
+	cb->msdu_id = desc_id;
 
 	ptr = (void *)skb->data;
 	tlv = ptr;
@@ -4354,6 +4364,7 @@ static const struct wmi_ops wmi_tlv_ops = {
 	.gen_force_fw_hang = ath10k_wmi_tlv_op_gen_force_fw_hang,
 	/* .gen_mgmt_tx = not implemented; HTT is used */
 	.gen_mgmt_tx_send = ath10k_wmi_tlv_op_gen_mgmt_tx_send,
+	.cleanup_mgmt_tx_send = ath10k_wmi_tlv_op_cleanup_mgmt_tx_send,
 	.gen_dbglog_cfg = ath10k_wmi_tlv_op_gen_dbglog_cfg,
 	.gen_pktlog_enable = ath10k_wmi_tlv_op_gen_pktlog_enable,
 	.gen_pktlog_disable = ath10k_wmi_tlv_op_gen_pktlog_disable,

@@ -214,6 +214,10 @@ __visible inline void prepare_exit_to_usermode(struct pt_regs *regs)
 
 	user_enter_irqoff();
 
+#ifdef CONFIG_SCHED_CORE
+	sched_core_user_enter();
+#endif
+
 	mds_user_clear_cpu_buffers();
 }
 

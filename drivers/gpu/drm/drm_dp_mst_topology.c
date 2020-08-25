@@ -31,6 +31,7 @@
 #include <drm/drm_dp_mst_helper.h>
 #include <drm/drm_print.h>
 #include <drm/drmP.h>
+#include <linux/iopoll.h>
 
 #include <drm/drm_fixed.h>
 #include <drm/drm_atomic.h>
@@ -72,8 +73,8 @@ static int drm_dp_send_enum_path_resources(struct drm_dp_mst_topology_mgr *mgr,
 static bool drm_dp_validate_guid(struct drm_dp_mst_topology_mgr *mgr,
 				 u8 *guid);
 
-static int drm_dp_mst_register_i2c_bus(struct drm_dp_aux *aux);
-static void drm_dp_mst_unregister_i2c_bus(struct drm_dp_aux *aux);
+static int drm_dp_mst_register_i2c_bus(struct drm_dp_mst_port *port);
+static void drm_dp_mst_unregister_i2c_bus(struct drm_dp_mst_port *port);
 static void drm_dp_mst_kick_tx(struct drm_dp_mst_topology_mgr *mgr);
 
 static inline bool drm_dp_dbg_enabled(void)
@@ -944,6 +945,8 @@ static bool drm_dp_sideband_parse_reply(struct drm_dp_sideband_msg_rx *raw,
 		return drm_dp_sideband_parse_remote_dpcd_write(raw, msg);
 	case DP_REMOTE_I2C_READ:
 		return drm_dp_sideband_parse_remote_i2c_read_ack(raw, msg);
+	case DP_REMOTE_I2C_WRITE:
+		return true; /* since there's nothing to parse */
 	case DP_ENUM_PATH_RESOURCES:
 		return drm_dp_sideband_parse_enum_path_resources_ack(raw, msg);
 	case DP_ALLOCATE_PAYLOAD:
@@ -1529,7 +1532,7 @@ static void drm_dp_port_teardown_pdt(struct drm_dp_mst_port *port, int old_pdt)
 	case DP_PEER_DEVICE_DP_LEGACY_CONV:
 	case DP_PEER_DEVICE_SST_SINK:
 		/* remove i2c over sideband */
-		drm_dp_mst_unregister_i2c_bus(&port->aux);
+		drm_dp_mst_unregister_i2c_bus(port);
 		break;
 	case DP_PEER_DEVICE_MST_BRANCHING:
 		mstb = port->mstb;
@@ -1768,7 +1771,7 @@ static bool drm_dp_port_setup_pdt(struct drm_dp_mst_port *port)
 	case DP_PEER_DEVICE_DP_LEGACY_CONV:
 	case DP_PEER_DEVICE_SST_SINK:
 		/* add i2c over sideband */
-		ret = drm_dp_mst_register_i2c_bus(&port->aux);
+		ret = drm_dp_mst_register_i2c_bus(port);
 		break;
 	case DP_PEER_DEVICE_MST_BRANCHING:
 		lct = drm_dp_calculate_rad(port, rad);
@@ -1930,6 +1933,13 @@ static void drm_dp_add_port(struct drm_dp_mst_branch *mstb,
 			drm_connector_set_tile_property(port->connector);
 		}
 		(*mstb->mgr->cbs->register_connector)(port->connector);
+		if ((port->pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
+		     port->pdt == DP_PEER_DEVICE_SST_SINK)) {
+			int ret;
+
+			ret = sysfs_create_link(&port->connector->kdev->kobj,
+						&port->aux.ddc.dev.kobj, "ddc");
+		}
 	}
 
 out:
@@ -3956,6 +3966,7 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 		INIT_LIST_HEAD(&port->next);
 
 		mgr->cbs->destroy_connector(mgr, port->connector);
+		port->connector = NULL;
 
 		drm_dp_port_teardown_pdt(port, port->pdt);
 		port->pdt = DP_PEER_DEVICE_NONE;
@@ -4214,34 +4225,45 @@ void drm_dp_mst_topology_mgr_destroy(struct drm_dp_mst_topology_mgr *mgr)
 }
 EXPORT_SYMBOL(drm_dp_mst_topology_mgr_destroy);
 
-/* I2C device */
-static int drm_dp_mst_i2c_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs,
-			       int num)
+static bool remote_i2c_read_ok(const struct i2c_msg msgs[], int num)
 {
-	struct drm_dp_aux *aux = adapter->algo_data;
-	struct drm_dp_mst_port *port = container_of(aux, struct drm_dp_mst_port, aux);
-	struct drm_dp_mst_branch *mstb;
+	int i;
+
+	if (num - 1 > DP_REMOTE_I2C_READ_MAX_TRANSACTIONS)
+		return false;
+
+	for (i = 0; i < num - 1; i++) {
+		if (msgs[i].flags & I2C_M_RD ||
+		    msgs[i].len > 0xff)
+			return false;
+	}
+
+	return msgs[num - 1].flags & I2C_M_RD &&
+		msgs[num - 1].len <= 0xff;
+}
+
+static bool remote_i2c_write_ok(const struct i2c_msg msgs[], int num)
+{
+	int i;
+
+	for (i = 0; i < num - 1; i++) {
+		if (msgs[i].flags & I2C_M_RD || !(msgs[i].flags & I2C_M_STOP) ||
+		    msgs[i].len > 0xff)
+			return false;
+	}
+
+	return !(msgs[num - 1].flags & I2C_M_RD) && msgs[num - 1].len <= 0xff;
+}
+
+static int drm_dp_mst_i2c_read(struct drm_dp_mst_branch *mstb,
+			       struct drm_dp_mst_port *port,
+			       struct i2c_msg *msgs, int num)
+{
 	struct drm_dp_mst_topology_mgr *mgr = port->mgr;
 	unsigned int i;
-	bool reading = false;
 	struct drm_dp_sideband_msg_req_body msg;
 	struct drm_dp_sideband_msg_tx *txmsg = NULL;
 	int ret;
-
-	mstb = drm_dp_mst_topology_get_mstb_validated(mgr, port->parent);
-	if (!mstb)
-		return -EREMOTEIO;
-
-	/* construct i2c msg */
-	/* see if last msg is a read */
-	if (msgs[num - 1].flags & I2C_M_RD)
-		reading = true;
-
-	if (!reading || (num - 1 > DP_REMOTE_I2C_READ_MAX_TRANSACTIONS)) {
-		DRM_DEBUG_KMS("Unsupported I2C transaction for MST device\n");
-		ret = -EIO;
-		goto out;
-	}
 
 	memset(&msg, 0, sizeof(msg));
 	msg.req_type = DP_REMOTE_I2C_READ;
@@ -4283,6 +4305,78 @@ static int drm_dp_mst_i2c_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs
 	}
 out:
 	kfree(txmsg);
+	return ret;
+}
+
+static int drm_dp_mst_i2c_write(struct drm_dp_mst_branch *mstb,
+				struct drm_dp_mst_port *port,
+				struct i2c_msg *msgs, int num)
+{
+	struct drm_dp_mst_topology_mgr *mgr = port->mgr;
+	unsigned int i;
+	struct drm_dp_sideband_msg_req_body msg;
+	struct drm_dp_sideband_msg_tx *txmsg = NULL;
+	int ret;
+
+	txmsg = kzalloc(sizeof(*txmsg), GFP_KERNEL);
+	if (!txmsg) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	for (i = 0; i < num; i++) {
+		memset(&msg, 0, sizeof(msg));
+		msg.req_type = DP_REMOTE_I2C_WRITE;
+		msg.u.i2c_write.port_number = port->port_num;
+		msg.u.i2c_write.write_i2c_device_id = msgs[i].addr;
+		msg.u.i2c_write.num_bytes = msgs[i].len;
+		msg.u.i2c_write.bytes = msgs[i].buf;
+
+		memset(txmsg, 0, sizeof(*txmsg));
+		txmsg->dst = mstb;
+
+		drm_dp_encode_sideband_req(&msg, txmsg);
+		drm_dp_queue_down_tx(mgr, txmsg);
+
+		ret = drm_dp_mst_wait_tx_reply(mstb, txmsg);
+		if (ret > 0) {
+			if (txmsg->reply.reply_type == DP_SIDEBAND_REPLY_NAK) {
+				ret = -EREMOTEIO;
+				goto out;
+			}
+		} else {
+			goto out;
+		}
+	}
+	ret = num;
+out:
+	kfree(txmsg);
+	return ret;
+}
+
+/* I2C device */
+static int drm_dp_mst_i2c_xfer(struct i2c_adapter *adapter,
+			       struct i2c_msg *msgs, int num)
+{
+	struct drm_dp_aux *aux = adapter->algo_data;
+	struct drm_dp_mst_port *port =
+		container_of(aux, struct drm_dp_mst_port, aux);
+	struct drm_dp_mst_branch *mstb;
+	struct drm_dp_mst_topology_mgr *mgr = port->mgr;
+	int ret;
+
+	mstb = drm_dp_mst_topology_get_mstb_validated(mgr, port->parent);
+	if (!mstb)
+		return -EREMOTEIO;
+
+	if (remote_i2c_read_ok(msgs, num)) {
+		ret = drm_dp_mst_i2c_read(mstb, port, msgs, num);
+	} else if (remote_i2c_write_ok(msgs, num)) {
+		ret = drm_dp_mst_i2c_write(mstb, port, msgs, num);
+	} else {
+		DRM_DEBUG_KMS("Unsupported I2C transaction for MST device\n");
+		ret = -EIO;
+	}
+
 	drm_dp_mst_topology_put_mstb(mstb);
 	return ret;
 }
@@ -4302,32 +4396,49 @@ static const struct i2c_algorithm drm_dp_mst_i2c_algo = {
 
 /**
  * drm_dp_mst_register_i2c_bus() - register an I2C adapter for I2C-over-AUX
- * @aux: DisplayPort AUX channel
+ * @port: The port to add the I2C bus on
  *
  * Returns 0 on success or a negative error code on failure.
  */
-static int drm_dp_mst_register_i2c_bus(struct drm_dp_aux *aux)
+static int drm_dp_mst_register_i2c_bus(struct drm_dp_mst_port *port)
 {
+	struct drm_dp_aux *aux = &port->aux;
+	struct device *parent_dev = port->mgr->dev->dev;
+	int ret;
+
 	aux->ddc.algo = &drm_dp_mst_i2c_algo;
 	aux->ddc.algo_data = aux;
 	aux->ddc.retries = 3;
 
 	aux->ddc.class = I2C_CLASS_DDC;
 	aux->ddc.owner = THIS_MODULE;
-	aux->ddc.dev.parent = aux->dev;
-	aux->ddc.dev.of_node = aux->dev->of_node;
+	/* FIXME: set the kdev of the port's connector as parent */
+	aux->ddc.dev.parent = parent_dev;
+	aux->ddc.dev.of_node = parent_dev->of_node;
 
-	strlcpy(aux->ddc.name, aux->name ? aux->name : dev_name(aux->dev),
+	strlcpy(aux->ddc.name, aux->name ? aux->name : dev_name(parent_dev),
 		sizeof(aux->ddc.name));
 
-	return i2c_add_adapter(&aux->ddc);
+	ret = i2c_add_adapter(&aux->ddc);
+	if (ret)
+		return ret;
+
+	if (port->connector && port->connector->kdev) {
+		ret = sysfs_create_link(&port->connector->kdev->kobj,
+					&port->aux.ddc.dev.kobj, "ddc");
+		if (ret)
+			i2c_del_adapter(&port->aux.ddc);
+	}
+	return ret;
 }
 
 /**
  * drm_dp_mst_unregister_i2c_bus() - unregister an I2C-over-AUX adapter
- * @aux: DisplayPort AUX channel
+ * @port: The port to remove the I2C bus from
  */
-static void drm_dp_mst_unregister_i2c_bus(struct drm_dp_aux *aux)
+static void drm_dp_mst_unregister_i2c_bus(struct drm_dp_mst_port *port)
 {
-	i2c_del_adapter(&aux->ddc);
+	if (port->connector && port->connector->kdev)
+		sysfs_remove_link(&port->connector->kdev->kobj, "ddc");
+	i2c_del_adapter(&port->aux.ddc);
 }

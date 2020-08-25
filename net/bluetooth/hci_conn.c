@@ -772,11 +772,8 @@ static void set_ext_conn_params(struct hci_conn *conn,
 
 	memset(p, 0, sizeof(*p));
 
-	/* Set window to be the same value as the interval to
-	 * enable continuous scanning.
-	 */
-	p->scan_interval = cpu_to_le16(hdev->le_scan_interval);
-	p->scan_window = p->scan_interval;
+	p->scan_interval = cpu_to_le16(hdev->le_scan_int_connect);
+	p->scan_window = cpu_to_le16(hdev->le_scan_window_connect);
 	p->conn_interval_min = cpu_to_le16(conn->le_conn_min_interval);
 	p->conn_interval_max = cpu_to_le16(conn->le_conn_max_interval);
 	p->conn_latency = cpu_to_le16(conn->le_conn_latency);
@@ -858,11 +855,8 @@ static void hci_req_add_le_create_conn(struct hci_request *req,
 
 		memset(&cp, 0, sizeof(cp));
 
-		/* Set window to be the same value as the interval to enable
-		 * continuous scanning.
-		 */
-		cp.scan_interval = cpu_to_le16(hdev->le_scan_interval);
-		cp.scan_window = cp.scan_interval;
+		cp.scan_interval = cpu_to_le16(hdev->le_scan_int_connect);
+		cp.scan_window = cpu_to_le16(hdev->le_scan_window_connect);
 
 		bacpy(&cp.peer_addr, &conn->dst);
 		cp.peer_addr_type = conn->dst_type;
@@ -912,6 +906,16 @@ static void hci_req_directed_advertising(struct hci_request *req,
 		cp.peer_addr_type = conn->dst_type;
 		bacpy(&cp.peer_addr, &conn->dst);
 
+		/* As per Core Spec 5.2 Vol 2, PART E, Sec 7.8.53, for
+		 * advertising_event_property LE_LEGACY_ADV_DIRECT_IND
+		 * does not supports advertising data when the advertising set already
+		 * contains some, the controller shall return erroc code 'Invalid
+		 * HCI Command Parameters(0x12).
+		 * So it is required to remove adv set for handle 0x00. since we use
+		 * instance 0 for directed adv.
+		 */
+		__hci_req_remove_ext_adv_instance(req, cp.handle);
+
 		hci_req_add(req, HCI_OP_LE_SET_EXT_ADV_PARAMS, sizeof(cp), &cp);
 
 		if (own_addr_type == ADDR_LE_DEV_RANDOM &&
@@ -929,7 +933,7 @@ static void hci_req_directed_advertising(struct hci_request *req,
 				    sizeof(cp), &cp);
 		}
 
-		__hci_req_enable_ext_advertising(req);
+		__hci_req_enable_ext_advertising(req, 0x00);
 	} else {
 		struct hci_cp_le_set_adv_param cp;
 
@@ -1043,11 +1047,8 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 	 * anyway have to disable it in order to start directed
 	 * advertising.
 	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
-		u8 enable = 0x00;
-		hci_req_add(&req, HCI_OP_LE_SET_ADV_ENABLE, sizeof(enable),
-			    &enable);
-	}
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+		 __hci_req_disable_advertising(&req);
 
 	/* If requested to connect as slave use directed advertising */
 	if (conn->role == HCI_ROLE_SLAVE) {
@@ -1078,14 +1079,13 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 		conn->le_supv_timeout = hdev->le_supv_timeout;
 	}
 
-	/* If controller is scanning (or about to start it), we stop it
-	 * since some controllers are
+	/* If controller is scanning, we stop it since some controllers are
 	 * not able to scan and connect at the same time. Also set the
 	 * HCI_LE_SCAN_INTERRUPTED flag so that the command complete
 	 * handler for scan disabling knows to set the correct discovery
 	 * state.
 	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) || hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
+	if (hci_dev_test_flag(hdev, HCI_LE_SCAN)) {
 		hci_req_add_le_scan_disable(&req);
 		hci_dev_set_flag(hdev, HCI_LE_SCAN_INTERRUPTED);
 	}
@@ -1157,7 +1157,8 @@ static int hci_explicit_conn_params_set(struct hci_dev *hdev,
 /* This function requires the caller holds hdev->lock */
 struct hci_conn *hci_connect_le_scan(struct hci_dev *hdev, bdaddr_t *dst,
 				     u8 dst_type, u8 sec_level,
-				     u16 conn_timeout)
+				     u16 conn_timeout,
+				     enum conn_reasons conn_reason)
 {
 	struct hci_conn *conn;
 
@@ -1202,6 +1203,7 @@ struct hci_conn *hci_connect_le_scan(struct hci_dev *hdev, bdaddr_t *dst,
 	conn->sec_level = BT_SECURITY_LOW;
 	conn->pending_sec_level = sec_level;
 	conn->conn_timeout = conn_timeout;
+	conn->conn_reason = conn_reason;
 
 	hci_update_background_scan(hdev);
 
@@ -1211,7 +1213,8 @@ done:
 }
 
 struct hci_conn *hci_connect_acl(struct hci_dev *hdev, bdaddr_t *dst,
-				 u8 sec_level, u8 auth_type)
+				 u8 sec_level, u8 auth_type,
+				 enum conn_reasons conn_reason)
 {
 	struct hci_conn *acl;
 
@@ -1231,6 +1234,7 @@ struct hci_conn *hci_connect_acl(struct hci_dev *hdev, bdaddr_t *dst,
 
 	hci_conn_hold(acl);
 
+	acl->conn_reason = conn_reason;
 	if (acl->state == BT_OPEN || acl->state == BT_CLOSED) {
 		acl->sec_level = BT_SECURITY_LOW;
 		acl->pending_sec_level = sec_level;
@@ -1247,7 +1251,8 @@ struct hci_conn *hci_connect_sco(struct hci_dev *hdev, int type, bdaddr_t *dst,
 	struct hci_conn *acl;
 	struct hci_conn *sco;
 
-	acl = hci_connect_acl(hdev, dst, BT_SECURITY_LOW, HCI_AT_NO_BONDING);
+	acl = hci_connect_acl(hdev, dst, BT_SECURITY_LOW, HCI_AT_NO_BONDING,
+			      CONN_REASON_SCO_CONNECT);
 	if (IS_ERR(acl))
 		return acl;
 

@@ -46,6 +46,8 @@ struct pipe_inode_info;
 struct rcu_node;
 struct reclaim_state;
 struct robust_list_head;
+struct root_domain;
+struct rq;
 struct sched_attr;
 struct sched_param;
 struct seq_file;
@@ -216,6 +218,7 @@ extern long schedule_timeout_uninterruptible(long timeout);
 extern long schedule_timeout_idle(long timeout);
 asmlinkage void schedule(void);
 extern void schedule_preempt_disabled(void);
+extern void sched_core_user_enter(void);
 
 extern int __must_check io_schedule_prepare(void);
 extern void io_schedule_finish(int token);
@@ -637,10 +640,17 @@ struct task_struct {
 	const struct sched_class	*sched_class;
 	struct sched_entity		se;
 	struct sched_rt_entity		rt;
+	struct sched_dl_entity		dl;
+
+#ifdef CONFIG_SCHED_CORE
+	struct rb_node			core_node;
+	unsigned long			core_cookie;
+	unsigned int			core_occupation;
+#endif
+
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
 #endif
-	struct sched_dl_entity		dl;
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */
@@ -1906,6 +1916,28 @@ static inline void rseq_syscall(struct pt_regs *regs)
 {
 }
 
+#endif
+
+const struct sched_avg *sched_trace_cfs_rq_avg(struct cfs_rq *cfs_rq);
+char *sched_trace_cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len);
+int sched_trace_cfs_rq_cpu(struct cfs_rq *cfs_rq);
+
+const struct sched_avg *sched_trace_rq_avg_rt(struct rq *rq);
+const struct sched_avg *sched_trace_rq_avg_dl(struct rq *rq);
+const struct sched_avg *sched_trace_rq_avg_irq(struct rq *rq);
+
+int sched_trace_rq_cpu(struct rq *rq);
+
+const struct cpumask *sched_trace_rd_span(struct root_domain *rd);
+
+#ifdef CONFIG_SCHED_CORE
+int task_set_core_sched(int set, struct task_struct *tsk);
+void sched_core_irq_enter(void);
+void sched_core_irq_exit(void);
+#else
+#define task_set_core_sched(set, tsk) (-EINVAL)
+#define sched_core_irq_enter(void) do { } while (0)
+#define sched_core_irq_exit(void) do { } while (0)
 #endif
 
 #endif

@@ -8,6 +8,7 @@
 #include "mtk-mdp3-cmdq.h"
 #include "mtk-mdp3-comp.h"
 #include "mtk-mdp3-core.h"
+#include "mtk-mdp3-debug.h"
 #include "mtk-mdp3-m2m.h"
 
 #include "mdp-platform.h"
@@ -378,6 +379,14 @@ static void mdp_handle_cmdq_callback(struct cmdq_cb_data data)
 
 	if (cb_param->mdp_ctx)
 		mdp_m2m_job_finish(cb_param->mdp_ctx);
+#ifdef MDP_DEBUG
+	if (data.sta == CMDQ_CB_ERROR) {
+		struct mdp_func_struct *p_func = mdp_get_func();
+
+		p_func->mdp_dump_mmsys_config();
+		mdp_dump_info(~0, 1);
+	}
+#endif
 
 	if (cb_param->user_cmdq_cb) {
 		struct cmdq_cb_data user_cb_data;
