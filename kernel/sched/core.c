@@ -7303,9 +7303,6 @@ int task_set_core_sched(int set, struct task_struct *tsk)
 
 	if (!set)
 		sched_core_put();
-
-	pr_alert("coresched: prctl success: %s/%d %lx (fork: %d)\n", tsk->comm,
-		 tsk->pid, tsk->core_cookie, tsk != current);
 	return 0;
 }
 #endif
