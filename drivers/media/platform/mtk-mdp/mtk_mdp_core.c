@@ -156,7 +156,7 @@ static const struct component_master_ops mtk_mdp_com_ops = {
 void mtk_mdp_register_component(struct mtk_mdp_dev *mdp,
 				struct mtk_mdp_comp *comp)
 {
-	list_add(&mdp->comp_list, &comp->node);
+	list_add(&comp->node, &mdp->comp_list);
 }
 
 void mtk_mdp_unregister_component(struct mtk_mdp_dev *mdp,
