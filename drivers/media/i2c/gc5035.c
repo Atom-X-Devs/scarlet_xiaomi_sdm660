@@ -138,7 +138,7 @@ static const char * const gc5035_supplies[] = {
 	 * "iovdd",	 * Power supply for I/O circuits *
 	 */
 	"dvdd12",	/* Digital core power */
-	"avdd21",	/* Analog power */
+	"avdd28",	/* Analog power */
 };
 
 struct gc5035_regval {
@@ -1556,7 +1556,8 @@ static int gc5035_set_digital_gain(struct gc5035 *gc5035, int val)
 		return ret;
 
 	ret = gc5035_write_reg(gc5035, GC5035_REG_DIGI_GAIN_H,
-			       (val >> 8) & GC5035_DGAIN_H_MASK);
+			       (val >> (8 - GC5035_DGAIN_L_SHIFT))
+			       & GC5035_DGAIN_H_MASK);
 	if (ret)
 		return ret;
 
@@ -1851,7 +1852,7 @@ static int gc5035_probe(struct i2c_client *client)
 		dev_warn(dev, "mclk rate set to %lu instead of requested %u\n",
 			 gc5035->mclk_rate, freq);
 
-	gc5035->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_HIGH);
+	gc5035->pwdn_gpio = devm_gpiod_get_optional(dev, "pwdn", GPIOD_OUT_HIGH);
 	if (IS_ERR(gc5035->pwdn_gpio))
 		return dev_err_probe(dev, PTR_ERR(gc5035->pwdn_gpio),
 				     "Failed to get pwdn-gpios\n");
