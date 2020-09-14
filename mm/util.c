@@ -4,6 +4,7 @@
 #include <linux/compiler.h>
 #include <linux/export.h>
 #include <linux/err.h>
+#include <linux/file.h>
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/task_stack.h>
@@ -296,6 +297,18 @@ int vma_is_stack_for_current(struct vm_area_struct *vma)
 
 	return (vma->vm_start <= KSTK_ESP(t) && vma->vm_end >= KSTK_ESP(t));
 }
+
+/*
+ * Change backing file, only valid to use during initial VMA setup.
+ */
+void vma_set_file(struct vm_area_struct *vma, struct file *file)
+{
+	/* Changing an anonymous vma with this is illegal */
+	get_file(file);
+	swap(vma->vm_file, file);
+	fput(file);
+}
+EXPORT_SYMBOL(vma_set_file);
 
 /**
  * randomize_page - Generate a random, page aligned address
