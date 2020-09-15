@@ -132,7 +132,6 @@
 	};
 
 	sound: mt8183-sound {
-		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
 		mediatek,hdmi-codec = <&it6505dptx>;
 		pinctrl-names = "default",

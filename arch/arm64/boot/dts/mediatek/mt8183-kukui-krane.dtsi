@@ -475,3 +475,7 @@
 		output-low;
 	};
 };
+
+&sound {
+	compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
+};
