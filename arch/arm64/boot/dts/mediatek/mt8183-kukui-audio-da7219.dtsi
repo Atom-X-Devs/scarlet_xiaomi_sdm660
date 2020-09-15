@@ -5,6 +5,8 @@
  * Copyright 2019 Google LLC.
  */
 
+#include "mt8183-kukui-audio-max98357a.dtsi"
+
 &i2c5 {
 	da7219: da7219@1a {
 		pinctrl-names = "default";

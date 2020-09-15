@@ -122,11 +122,6 @@
 		};
 	};
 
-	max98357a: max98357a {
-		compatible = "maxim,max98357a";
-		sdmode-gpios = <&pio 175 0>;
-	};
-
 	btsco: bt-sco {
 		compatible = "linux,bt-sco";
 	};
