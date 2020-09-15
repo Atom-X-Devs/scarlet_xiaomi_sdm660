@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Google Kukui (and derivatives) audio fragment for da7219.
+ * Google Kukui (and derivatives) da7219-max98357a sound card.
  *
  * Copyright 2019 Google LLC.
  */
