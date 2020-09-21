@@ -1266,7 +1266,7 @@ static int gc5035_set_fmt(struct v4l2_subdev *sd,
 		vblank_def = round_up(mode->vts_def, 4) - mode->height;
 		__v4l2_ctrl_modify_range(gc5035->vblank, vblank_def,
 					 GC5035_VTS_MAX - mode->height,
-					 1, vblank_def);
+					 4, vblank_def);
 	}
 	mutex_unlock(&gc5035->mutex);
 
