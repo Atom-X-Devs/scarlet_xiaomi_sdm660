@@ -4167,8 +4167,15 @@ again:
 				/*
 				 * If there weren't no cookies; we don't need
 				 * to bother with the other siblings.
+				 * If the rest of the core is not running a
+				 * tagged task, i.e.  need_sync == 0, and the
+				 * current CPU which called into the schedule()
+				 * loop does not have any tasks for this class,
+				 * skip selecting for other siblings since
+				 * there's no point. We don't skip for RT/DL
+				 * because that could make CFS force-idle RT.
 				 */
-				if (i == cpu && !need_sync)
+				if (i == cpu && !need_sync && class == &fair_sched_class)
 					goto next_class;
 
 				continue;
