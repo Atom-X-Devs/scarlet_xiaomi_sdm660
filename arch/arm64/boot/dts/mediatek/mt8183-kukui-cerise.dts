@@ -5,11 +5,11 @@
 
 /dts-v1/;
 #include "mt8183-kukui-jacuzzi.dtsi"
-#include "mt8183-kukui-audio-da7219-max98357a.dtsi"
+#include "mt8183-kukui-audio-da7219-rt1015p.dtsi"
 
 / {
 	model = "Google cerise board";
-	compatible = "google,cerise", "mediatek,mt8183";
+	compatible = "google,cerise-sku0", "google,cerise", "mediatek,mt8183";
 };
 
 &cpu_thermal {
