@@ -2803,8 +2803,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * If task is using prctl(2) for tagging, do the prctl(2)-style tagging
 	 * for the child as well.
 	 */
-	if (current->core_cookie && ((unsigned long)current == current->core_cookie))
-		task_set_core_sched(1, p);
+	if (current->core_cookie)
+		task_set_core_sched(1, p, (clone_flags & CLONE_THREAD) ?
+						current->core_cookie : 0);
 #endif
 	return 0;
 }
@@ -7287,7 +7288,8 @@ static int task_set_core_sched_stopper(void *data)
 	return 0;
 }
 
-int task_set_core_sched(int set, struct task_struct *tsk)
+int task_set_core_sched(int set, struct task_struct *tsk,
+			unsigned long cookie)
 {
 	if (!tsk)
 		tsk = current;
@@ -7324,7 +7326,10 @@ int task_set_core_sched(int set, struct task_struct *tsk)
 	if (set)
 		sched_core_get();
 
-	tsk->core_cookie = set ? (unsigned long)tsk : 0;
+	if (cookie)
+		tsk->core_cookie = cookie;
+	else
+		tsk->core_cookie = set ? (unsigned long)tsk : 0;
 
 	stop_machine(task_set_core_sched_stopper, (void *)tsk, NULL);
 
