@@ -998,7 +998,10 @@ static void update_mds_branch_idle(void)
 	if (!boot_cpu_has_bug(X86_BUG_MSBDS_ONLY))
 		return;
 
-	if (sched_smt_active())
+	/*
+	 * If core-scheduling is enabled, MSBDS is already protected.
+	 */
+	if (sched_smt_active() && !IS_ENABLED(CONFIG_SCHED_CORE))
 		static_branch_enable(&mds_idle_clear);
 	else
 		static_branch_disable(&mds_idle_clear);

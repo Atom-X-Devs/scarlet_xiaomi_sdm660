@@ -10771,6 +10771,9 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 	/* VM entries need to wait if the core is not ready. */
 #ifdef CONFIG_SCHED_CORE
 	sched_core_user_enter();
+
+	/* Don't need to flush if VM is trusted. */
+	if (current && current->core_cookie) {
 #endif
 
 	/* L1D Flush includes CPU buffer clear to mitigate MDS */
@@ -10778,6 +10781,10 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		vmx_l1d_flush(vcpu);
 	else if (static_branch_unlikely(&mds_user_clear))
 		mds_clear_cpu_buffers();
+
+#ifdef CONFIG_SCHED_CORE
+	}
+#endif
 
 	asm volatile (
 		/* Store host registers */

@@ -364,8 +364,14 @@ static inline void mds_user_clear_cpu_buffers(void)
  */
 static inline void mds_idle_clear_cpu_buffers(void)
 {
+	/*
+	 * Core-scheduling already protects from cross-HT MDS.
+	 * Clearing CPU buffers on idle is not needed.
+	 */
+#ifndef CONFIG_SCHED_CORE
 	if (static_branch_likely(&mds_idle_clear))
 		mds_clear_cpu_buffers();
+#endif
 }
 
 #endif /* __ASSEMBLY__ */
