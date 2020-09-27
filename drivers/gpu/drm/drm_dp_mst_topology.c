@@ -2162,6 +2162,11 @@ drm_dp_mst_handle_link_address_port(struct drm_dp_mst_branch *mstb,
 	else if (!port->input) {
 		drm_dp_mst_port_add_connector(mstb, port);
 
+		if (!port->connector) {
+			ret = -ENOMEM;
+			goto fail;
+		}
+
 		if ((port->pdt == DP_PEER_DEVICE_DP_LEGACY_CONV ||
 		     port->pdt == DP_PEER_DEVICE_SST_SINK)) {
 			int ret;
