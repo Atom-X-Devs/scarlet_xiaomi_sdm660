@@ -4185,10 +4185,12 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 }
 
 static inline bool
-__entity_slice_used(struct sched_entity *se)
+__entity_slice_used(struct sched_entity *se, int min_nr_tasks)
 {
-	return (se->sum_exec_runtime - se->prev_sum_exec_runtime) >
-		sched_slice(cfs_rq_of(se), se);
+	u64 slice = sched_slice(cfs_rq_of(se), se);
+	u64 rtime = se->sum_exec_runtime - se->prev_sum_exec_runtime;
+
+	return (rtime * min_nr_tasks > slice);
 }
 
 /*
@@ -10919,6 +10921,7 @@ static void core_sched_deactivate_fair(struct rq *rq)
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_SCHED_CORE
+#define MIN_NR_TASKS_DURING_FORCEIDLE	2
 /*
  * If runqueue has only one task which used up its slice and
  * if the sibling is forced idle, then trigger schedule
@@ -10927,7 +10930,22 @@ static void core_sched_deactivate_fair(struct rq *rq)
 static void resched_forceidle_sibling(struct rq *rq, struct sched_entity *se)
 {
 	int cpu = cpu_of(rq), sibling_cpu;
-	if (rq->cfs.nr_running > 1 || !__entity_slice_used(se))
+
+	/*
+	 * If runqueue has only one task which used up its slice and if the
+	 * sibling is forced idle, then trigger schedule to give forced idle
+	 * task a chance.
+	 *
+	 * sched_slice() considers only this active rq and it gets the whole
+	 * slice. But during force idle, we have siblings acting like a single
+	 * runqueue and hence we need to consider runnable tasks on this cpu
+	 * and the forced idle cpu. Ideally, we should go through the forced
+	 * idle rq, but that would be a perf hit.  We can assume that the
+	 * forced idle cpu has atleast MIN_NR_TASKS_DURING_FORCEIDLE - 1 tasks
+	 * and use that to check if we need to give up the cpu.
+	 */
+	if (rq->cfs.nr_running > 1 ||
+	    !__entity_slice_used(se, MIN_NR_TASKS_DURING_FORCEIDLE))
 		return;
 
 	for_each_cpu(sibling_cpu, cpu_smt_mask(cpu)) {
@@ -10939,7 +10957,8 @@ static void resched_forceidle_sibling(struct rq *rq, struct sched_entity *se)
 
 		sibling_rq = cpu_rq(sibling_cpu);
 		if (sibling_rq->core_forceidle) {
-			resched_curr(sibling_rq);
+			resched_curr(rq);
+			break;
 		}
 	}
 }
