@@ -17,7 +17,7 @@
 };
 
 &mt6358codec {
-	mediatek,dmic-mode = <1>; /* one-wire */
+	mediatek,dmic-mode = <0>; /* two-wire */
 };
 
 &touchscreen {
