@@ -38,6 +38,21 @@
 
 		gpio = <&pio 36 GPIO_ACTIVE_HIGH>;
 	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pen_eject>;
+
+		pen-insert {
+				label = "Pen Insert";
+				/* Insert = low, eject = high */
+				gpios = <&pio 6 GPIO_ACTIVE_LOW>;
+				linux,code = <SW_PEN_INSERTED>;
+				linux,input-type = <EV_SW>;
+				wakeup-source;
+		};
+	};
 };
 
 &bluetooth {
@@ -426,6 +441,15 @@
 			 * "output-high" here.
 			 */
 			output-high;
+		};
+	};
+
+	pen_eject: peneject {
+		pen_eject {
+			pinmux = <PINMUX_GPIO6__FUNC_GPIO6>;
+			input-enable;
+			/* External pull-up. */
+			bias-disable;
 		};
 	};
 };
