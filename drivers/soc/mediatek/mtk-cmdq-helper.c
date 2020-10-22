@@ -315,7 +315,8 @@ static void cmdq_pkt_flush_async_cb(struct cmdq_cb_data data)
 			del_timer(&client->timer);
 		else
 			mod_timer(&client->timer, jiffies +
-				  msecs_to_jiffies(client->timeout_ms));
+				  msecs_to_jiffies(client->timeout_ms *
+						   client->pkt_cnt));
 		spin_unlock_irqrestore(&client->lock, flags);
 	}
 
@@ -348,9 +349,7 @@ int cmdq_pkt_flush_async(struct cmdq_pkt *pkt, cmdq_async_flush_cb cb,
 
 	if (client->timeout_ms != CMDQ_NO_TIMEOUT) {
 		spin_lock_irqsave(&client->lock, flags);
-		if (client->pkt_cnt++ == 0)
-			mod_timer(&client->timer, jiffies +
-				  msecs_to_jiffies(client->timeout_ms));
+		client->pkt_cnt++;
 		spin_unlock_irqrestore(&client->lock, flags);
 	}
 
@@ -359,6 +358,21 @@ int cmdq_pkt_flush_async(struct cmdq_pkt *pkt, cmdq_async_flush_cb cb,
 	/* We can send next packet immediately, so just call txdone. */
 	mbox_client_txdone(client->chan, 0);
 	mutex_unlock(&client->mutex);
+
+	if (client->timeout_ms != CMDQ_NO_TIMEOUT) {
+		spin_lock_irqsave(&client->lock, flags);
+		/*
+		 * GCE HW maybe execute too quickly and the callback function
+		 * may be invoked earlier. If this happens, pkt_cnt is reduced
+		 * by 1 in cmdq_pkt_flush_async_cb(). The timer is set only if
+		 * pkt_cnt is greater than 0.
+		 */
+		if (client->pkt_cnt > 0)
+			mod_timer(&client->timer, jiffies +
+				  msecs_to_jiffies(client->timeout_ms *
+						   client->pkt_cnt));
+		spin_unlock_irqrestore(&client->lock, flags);
+	}
 
 	return 0;
 }
