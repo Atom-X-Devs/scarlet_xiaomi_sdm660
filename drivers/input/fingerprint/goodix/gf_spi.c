@@ -42,7 +42,6 @@
 #include <linux/fb.h>
 #include <linux/pm_qos.h>
 #include <linux/cpufreq.h>
-#include <linux/mdss_io_util.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
@@ -54,7 +53,6 @@
 #include "gf_spi.h"
 
 #define WAKELOCK_HOLD_TIME		1000	/* in ms */
-#define FP_UNLOCK_REJECTION_TIMEOUT	(WAKELOCK_HOLD_TIME - 500)
 #define GF_SPIDEV_NAME			"goodix,fingerprint"
 #define GF_DEV_NAME			"goodix_fp"
 #define GF_INPUT_NAME			"uinput-goodix"
@@ -424,11 +422,6 @@ static inline long gf_compat_ioctl(struct file *filp, unsigned int cmd, unsigned
 }
 #endif /*CONFIG_COMPAT*/
 
-static inline void notification_work(struct work_struct *work)
-{
-	mdss_prim_panel_fb_unblank(FP_UNLOCK_REJECTION_TIMEOUT);
-}
-
 static inline int gf_open(struct inode *inode, struct file *filp)
 {
 	struct gf_dev *gf_dev = &gf;
@@ -598,7 +591,6 @@ static int gf_probe(struct platform_device *pdev)
 	gf_dev->device_available = 0;
 	gf_dev->fb_black = 0;
 	gf_dev->wait_finger_down = false;
-	INIT_WORK(&gf_dev->work, notification_work);
 
 #if defined(CONFIG_MACH_XIAOMI_LAVENDER) || defined(CONFIG_MACH_XIAOMI_WAYNE)
 	vreg = regulator_get(&gf_dev->spi->dev, "vcc_ana");

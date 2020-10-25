@@ -120,7 +120,6 @@ struct gf_dev {
 	char device_available;
 	char fb_black;
 	char wait_finger_down;
-	struct work_struct work;
 	bool proximity_state; /* 0:far 1:near */
 };
 
