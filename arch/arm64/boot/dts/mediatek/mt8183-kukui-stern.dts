@@ -20,6 +20,12 @@
 	mediatek,dmic-mode = <0>; /* two-wire */
 };
 
+&mmc1_pins_uhs {
+	pins_clk {
+		drive-strength = <MTK_DRIVE_6mA>;
+	};
+};
+
 &touchscreen {
 	status = "okay";
 
