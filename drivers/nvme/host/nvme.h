@@ -95,6 +95,10 @@ enum nvme_quirks {
 	 * Force simple suspend/resume path.
 	 */
 	NVME_QUIRK_SIMPLE_SUSPEND		= (1 << 10),
+	/*
+	 * Force noraml suspend/resume path for HMB enabled devices.
+	 */
+	NVME_QUIRK_NORMAL_SUSPEND_HMB		= (1 << 16),
 };
 
 /*
