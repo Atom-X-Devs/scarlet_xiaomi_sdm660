@@ -205,6 +205,7 @@ static int tas2557_dev_bulk_read(struct tas2557_priv *pTAS2557,
 				 unsigned int nLength)
 {
 	int nResult = 0;
+	int i;
 
 	mutex_lock(&pTAS2557->dev_lock);
 	if (pTAS2557->mbTILoadActive) {
@@ -221,19 +222,37 @@ static int tas2557_dev_bulk_read(struct tas2557_priv *pTAS2557,
 	nResult = tas2557_change_book_page(pTAS2557, TAS2557_BOOK_ID(nRegister),
 					   TAS2557_PAGE_ID(nRegister));
 	if (nResult >= 0) {
-		nResult = regmap_bulk_read(pTAS2557->mpRegmap,
-					   TAS2557_PAGE_REG(nRegister), pData,
-					   nLength);
-		if (nResult < 0) {
-			dev_err(pTAS2557->dev, "%s, %d, I2C error %d\n",
-				__func__, __LINE__, nResult);
-			pTAS2557->mnErrCode |= ERROR_DEVA_I2C_COMM;
-		} else
-			pTAS2557->mnErrCode &= ~ERROR_DEVA_I2C_COMM;
+		#define STRIDE 4
+		/* Read chunk bytes defined by STRIDE */
+		for (i = 0; i < (nLength / STRIDE); i++) {
+			nResult = regmap_bulk_read(
+				pTAS2557->mpRegmap,
+				TAS2557_PAGE_REG((nRegister + i * STRIDE)),
+				&pData[i * STRIDE], STRIDE);
+			if (nResult < 0) {
+				dev_err(pTAS2557->dev, "%s, %d, I2C error %d\n",
+					__func__, __LINE__, nResult);
+				pTAS2557->mnErrCode |= ERROR_DEVA_I2C_COMM;
+			} else
+				pTAS2557->mnErrCode &= ~ERROR_DEVA_I2C_COMM;
+		}
+
+		/* Read remaining bytes */
+		if ((nLength % STRIDE) != 0) {
+			nResult = regmap_bulk_read(
+				pTAS2557->mpRegmap,
+				TAS2557_PAGE_REG(nRegister + i * STRIDE),
+				&pData[i * STRIDE], (nLength % STRIDE));
+			if (nResult < 0) {
+				dev_err(pTAS2557->dev, "%s, %d, I2C error %d\n",
+					__func__, __LINE__, nResult);
+				pTAS2557->mnErrCode |= ERROR_DEVA_I2C_COMM;
+			} else
+				pTAS2557->mnErrCode &= ~ERROR_DEVA_I2C_COMM;
+		}
 	}
 
 end:
-
 	mutex_unlock(&pTAS2557->dev_lock);
 	return nResult;
 }
