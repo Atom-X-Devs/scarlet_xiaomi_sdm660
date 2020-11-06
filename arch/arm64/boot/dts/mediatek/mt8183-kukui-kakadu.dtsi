@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
 /*
- * Copyright 2020 Bitland Information Technology Co.LTD
+ * Copyright 2020 Google LLC
  */
 
-/dts-v1/;
 #include "mt8183-kukui.dtsi"
 
 / {
@@ -41,44 +40,30 @@
 	};
 };
 
-&camera_pins_cam0 {
-	pins_reset {
-		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
-		output-low;
-	};
+&bluetooth {
+	firmware-name = "nvm_00440302_i2s_eu.bin";
 };
 
-&camera_pins_cam1 {
-	pins_powerdown {
-		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
-		output-high;
-	};
-
-	pins_reset {
-		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
-		output-low;
-	};
-};
-
-&cpu_thermal {
-	sustainable-power = <4500>; /* milliwatts */
-};
-
-&i2c1 {
+&i2c0 {
 	status = "okay";
-	clock-frequency = <400000>;
 
 	touchscreen: touchscreen@10 {
 		compatible = "hid-over-i2c";
 		reg = <0x10>;
-		interrupt-parent = <&pio>;
-		interrupts = <155 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&touch_default>;
+		pinctrl-0 = <&open_touch>;
+
+		interrupt-parent = <&pio>;
+		interrupts = <155 IRQ_TYPE_EDGE_FALLING>;
 
 		post-power-on-delay-ms = <10>;
 		hid-descr-addr = <0x0001>;
 	};
+};
+
+&mt6358_vcama2_reg {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
 };
 
 &i2c2 {
@@ -146,10 +131,10 @@
 	status = "okay";
 	clock-frequency = <400000>;
 
-	at24@50 {
-		compatible = "atmel,24c64";
-		reg = <0x50>;
-		pagesize = <64>;
+	at24@54 {
+		compatible = "atmel,24c32";
+		reg = <0x54>;
+		pagesize = <32>;
 		power-supply = <&mt6358_vcn18_reg>;
 		i2c-supply = <&mt6358_vcn18_reg>;
 	};
@@ -164,7 +149,7 @@
 		clock-names = "eclk", "freq_mux";
 		clock-frequency = <24000000>;
 		rotation = <180>;
-		ovti,mipi-tx-speed = <4>;
+		ovti,mipi-tx-speed = <3>;
 
 		assigned-clocks = <&topckgen CLK_TOP_MUX_CAMTG2>,
 				  <&topckgen CLK_TOP_UNIVP_192M_D8>;
@@ -183,6 +168,7 @@
 		port {
 			ov02a10_endpoint: endpoint {
 				data-lanes = <1>;
+				clock-noncontinuous;
 				link-frequencies = /bits/ 64 <390000000>;
 				remote-endpoint = <&seninf_port1_endpoint>;
 			};
@@ -190,9 +176,8 @@
 	};
 };
 
-&mt6358_vcama2_reg {
-	regulator-min-microvolt = <2800000>;
-	regulator-max-microvolt = <2800000>;
+&it6505dptx {
+	afe-setting = <1>;
 };
 
 &pio {
@@ -416,29 +401,33 @@
 		};
 	};
 
-	touch_default: touchdefault {
-		pin_irq {
+	open_touch: open_touch {
+		irq_pin {
 			pinmux = <PINMUX_GPIO155__FUNC_GPIO155>;
 			input-enable;
 			bias-pull-up;
 		};
 
-		touch_pin_reset: pin_reset {
+		rst_pin {
 			pinmux = <PINMUX_GPIO156__FUNC_GPIO156>;
 
 			/*
-			 * The touchscreen driver doesn't currently support driving
+			 * The pen driver doesn't currently support  driving
 			 * this reset line.  By specifying output-high here
 			 * we're relying on the fact that this pin has a default
-			 * pulldown at boot (which makes sure the controller was in
+			 * pulldown at boot (which makes sure the pen was in
 			 * reset if it was powered) and then we set it high here
-			 * to take it out of reset.  Better would be if the touchscreen
+			 * to take it out of reset.  Better would be if the pen
 			 * driver could control this and we could remove
 			 * "output-high" here.
 			 */
 			output-high;
 		};
 	};
+};
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "LE_Krane";
 };
 
 &seninf {
@@ -462,17 +451,27 @@
 
 			seninf_port1_endpoint: endpoint {
 				data-lanes = <1>;
-				link-frequencies = /bits/ 64 <390000000>;
 				remote-endpoint = <&ov02a10_endpoint>;
 			};
 		};
 	};
 };
 
-&spi2 {
-	cros_ec: ec@0 {
-		i2c_tunnel: i2c-tunnel {
-			google,remote-bus = <1>;
-		};
+&camera_pins_cam0 {
+	pins_reset {
+		pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+		output-low;
+	};
+};
+
+&camera_pins_cam1 {
+	pins_powerdown {
+		pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+		output-high;
+	};
+
+	pins_reset {
+		pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+		output-low;
 	};
 };

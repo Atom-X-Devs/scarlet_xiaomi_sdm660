@@ -446,6 +446,14 @@ int mdp_cmdq_send(struct mdp_dev *mdp, struct mdp_cmdq_param *param)
 
 	if (param->wait) {
 		ret = cmdq_pkt_flush(cmd.pkt);
+#ifdef MDP_DEBUG
+		if (ret) {
+			struct mdp_func_struct *p_func = mdp_get_func();
+
+			p_func->mdp_dump_mmsys_config();
+			mdp_dump_info(~0, 1);
+		}
+#endif
 		if (param->mdp_ctx)
 			mdp_m2m_job_finish(param->mdp_ctx);
 		cmdq_pkt_destroy(cmd.pkt);

@@ -216,9 +216,13 @@ __visible inline void prepare_exit_to_usermode(struct pt_regs *regs)
 
 #ifdef CONFIG_SCHED_CORE
 	sched_core_user_enter();
-#endif
 
+	/* Only clear arch buffers for untrusted tasks. */
+	if (current && current->core_cookie)
+		mds_user_clear_cpu_buffers();
+#else
 	mds_user_clear_cpu_buffers();
+#endif
 }
 
 #define SYSCALL_EXIT_WORK_FLAGS				\

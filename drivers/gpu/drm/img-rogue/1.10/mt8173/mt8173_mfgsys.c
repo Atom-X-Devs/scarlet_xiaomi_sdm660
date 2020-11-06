@@ -171,8 +171,15 @@ err_regulator_disable:
 	return ret;
 }
 
+static void mtk_mfg_disable_hw_apm(struct mtk_mfg *mfg)
+{
+	writel(0x00, mfg->reg_base + 0xec);
+}
+
 void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
+	mtk_mfg_disable_hw_apm(mfg);
+
 	mtk_mfg_disable_clock(mfg);
 	pm_runtime_put_sync(mfg->dev);
 	regulator_disable(mfg->vgpu);

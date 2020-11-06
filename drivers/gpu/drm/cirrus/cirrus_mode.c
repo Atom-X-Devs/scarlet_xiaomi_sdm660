@@ -451,16 +451,6 @@ static int cirrus_vga_get_modes(struct drm_connector *connector)
 	return count;
 }
 
-static struct drm_encoder *cirrus_connector_best_encoder(struct drm_connector
-						  *connector)
-{
-	int enc_id = connector->encoder_ids[0];
-	/* pick the encoder ids */
-	if (enc_id)
-		return drm_encoder_find(connector->dev, NULL, enc_id);
-	return NULL;
-}
-
 static void cirrus_connector_destroy(struct drm_connector *connector)
 {
 	drm_connector_cleanup(connector);
@@ -469,7 +459,6 @@ static void cirrus_connector_destroy(struct drm_connector *connector)
 
 static const struct drm_connector_helper_funcs cirrus_vga_connector_helper_funcs = {
 	.get_modes = cirrus_vga_get_modes,
-	.best_encoder = cirrus_connector_best_encoder,
 };
 
 static const struct drm_connector_funcs cirrus_vga_connector_funcs = {

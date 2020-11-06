@@ -1595,8 +1595,10 @@ intel_hdmi_mode_valid(struct drm_connector *connector,
 			status = hdmi_port_clock_valid(hdmi, clock * 5 / 4,
 						       true, force_dvi);
 	}
+	if (status != MODE_OK)
+		return status;
 
-	return status;
+	return intel_mode_valid_max_plane_size(dev_priv, mode);
 }
 
 static bool hdmi_deep_color_possible(const struct intel_crtc_state *crtc_state,
@@ -2088,9 +2090,8 @@ static void intel_hdmi_destroy(struct drm_connector *connector)
 {
 	if (intel_attached_hdmi(connector)->cec_notifier)
 		cec_notifier_put(intel_attached_hdmi(connector)->cec_notifier);
-	kfree(to_intel_connector(connector)->detect_edid);
-	drm_connector_cleanup(connector);
-	kfree(connector);
+
+	intel_connector_destroy(connector);
 }
 
 static const struct drm_connector_funcs intel_hdmi_connector_funcs = {

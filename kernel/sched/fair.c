@@ -479,59 +479,17 @@ static inline struct cfs_rq *core_cfs_rq(struct cfs_rq *cfs_rq)
 
 static inline u64 cfs_rq_min_vruntime(struct cfs_rq *cfs_rq)
 {
-	if (!sched_core_enabled(rq_of(cfs_rq)))
-		return cfs_rq->min_vruntime;
-
-#ifdef CONFIG_SCHED_CORE
-	if (is_root_cfs_rq(cfs_rq))
-		return core_cfs_rq(cfs_rq)->min_vruntime;
-#endif
 	return cfs_rq->min_vruntime;
 }
-
-#ifdef CONFIG_SCHED_CORE
-static void coresched_adjust_vruntime(struct cfs_rq *cfs_rq, u64 delta)
-{
-	struct sched_entity *se, *next;
-
-	if (!cfs_rq)
-		return;
-
-	cfs_rq->min_vruntime -= delta;
-	rbtree_postorder_for_each_entry_safe(se, next,
-			&cfs_rq->tasks_timeline.rb_root, run_node) {
-		if (se->vruntime > delta)
-			se->vruntime -= delta;
-		if (se->my_q)
-			coresched_adjust_vruntime(se->my_q, delta);
-	}
-}
-
-static void update_core_cfs_rq_min_vruntime(struct cfs_rq *cfs_rq)
-{
-	struct cfs_rq *cfs_rq_core;
-
-	if (!sched_core_enabled(rq_of(cfs_rq)))
-		return;
-
-	if (!is_root_cfs_rq(cfs_rq))
-		return;
-
-	cfs_rq_core = core_cfs_rq(cfs_rq);
-	if (cfs_rq_core != cfs_rq &&
-	    cfs_rq->min_vruntime < cfs_rq_core->min_vruntime) {
-		u64 delta = cfs_rq_core->min_vruntime - cfs_rq->min_vruntime;
-		coresched_adjust_vruntime(cfs_rq_core, delta);
-	}
-}
-#endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 bool cfs_prio_less(struct task_struct *a, struct task_struct *b)
 {
+	bool samecpu = task_cpu(a) == task_cpu(b);
 	struct sched_entity *sea = &a->se;
 	struct sched_entity *seb = &b->se;
-	bool samecpu = task_cpu(a) == task_cpu(b);
+	struct cfs_rq *cfs_rqa;
+	struct cfs_rq *cfs_rqb;
 	s64 delta;
 
 	if (samecpu) {
@@ -555,8 +513,13 @@ bool cfs_prio_less(struct task_struct *a, struct task_struct *b)
 		sea = sea->parent;
 	while (seb->parent)
 		seb = seb->parent;
-	delta = (s64)(sea->vruntime - seb->vruntime);
 
+	cfs_rqa = sea->cfs_rq;
+	cfs_rqb = seb->cfs_rq;
+
+	/* normalize vruntime WRT their rq's base */
+	delta = (s64)(sea->vruntime - seb->vruntime) +
+		(s64)(cfs_rqb->min_vruntime_fi - cfs_rqa->min_vruntime_fi);
 out:
 	return delta > 0;
 }
@@ -619,10 +582,6 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
 
 	/* ensure we never gain time by being placed backwards. */
 	cfs_rq->min_vruntime = max_vruntime(cfs_rq_min_vruntime(cfs_rq), vruntime);
-
-#ifdef CONFIG_SCHED_CORE
-	update_core_cfs_rq_min_vruntime(cfs_rq);
-#endif
 
 #ifndef CONFIG_64BIT
 	smp_wmb();
@@ -4226,10 +4185,12 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 }
 
 static inline bool
-__entity_slice_used(struct sched_entity *se)
+__entity_slice_used(struct sched_entity *se, int min_nr_tasks)
 {
-	return (se->sum_exec_runtime - se->prev_sum_exec_runtime) >
-		sched_slice(cfs_rq_of(se), se);
+	u64 slice = sched_slice(cfs_rq_of(se), se);
+	u64 rtime = se->sum_exec_runtime - se->prev_sum_exec_runtime;
+
+	return (rtime * min_nr_tasks > slice);
 }
 
 /*
@@ -10960,6 +10921,7 @@ static void core_sched_deactivate_fair(struct rq *rq)
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_SCHED_CORE
+#define MIN_NR_TASKS_DURING_FORCEIDLE	2
 /*
  * If runqueue has only one task which used up its slice and
  * if the sibling is forced idle, then trigger schedule
@@ -10968,7 +10930,22 @@ static void core_sched_deactivate_fair(struct rq *rq)
 static void resched_forceidle_sibling(struct rq *rq, struct sched_entity *se)
 {
 	int cpu = cpu_of(rq), sibling_cpu;
-	if (rq->cfs.nr_running > 1 || !__entity_slice_used(se))
+
+	/*
+	 * If runqueue has only one task which used up its slice and if the
+	 * sibling is forced idle, then trigger schedule to give forced idle
+	 * task a chance.
+	 *
+	 * sched_slice() considers only this active rq and it gets the whole
+	 * slice. But during force idle, we have siblings acting like a single
+	 * runqueue and hence we need to consider runnable tasks on this cpu
+	 * and the forced idle cpu. Ideally, we should go through the forced
+	 * idle rq, but that would be a perf hit.  We can assume that the
+	 * forced idle cpu has atleast MIN_NR_TASKS_DURING_FORCEIDLE - 1 tasks
+	 * and use that to check if we need to give up the cpu.
+	 */
+	if (rq->cfs.nr_running > 1 ||
+	    !__entity_slice_used(se, MIN_NR_TASKS_DURING_FORCEIDLE))
 		return;
 
 	for_each_cpu(sibling_cpu, cpu_smt_mask(cpu)) {
@@ -10980,7 +10957,8 @@ static void resched_forceidle_sibling(struct rq *rq, struct sched_entity *se)
 
 		sibling_rq = cpu_rq(sibling_cpu);
 		if (sibling_rq->core_forceidle) {
-			resched_curr(sibling_rq);
+			resched_curr(rq);
+			break;
 		}
 	}
 }
