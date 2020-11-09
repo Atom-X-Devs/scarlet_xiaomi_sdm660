@@ -353,6 +353,47 @@ static int scpsys_bus_protect_disable(struct scp_domain *scpd)
 	return ret;
 }
 
+/* Support only 1 callback now... */
+static pd_onoff_cb pdcb;
+
+int mtk_scpsys_register_pd_onoff_cb(pd_onoff_cb cb)
+{
+	if (pdcb != NULL)
+		return -EEXIST;
+
+	pdcb = cb;
+
+	return 0;
+}
+EXPORT_SYMBOL(mtk_scpsys_register_pd_onoff_cb);
+
+int mtk_scpsys_unregister_pd_onoff_cb(pd_onoff_cb cb)
+{
+	if (pdcb != cb)
+		return -ENOENT;
+
+	pdcb = NULL;
+
+	return 0;
+}
+EXPORT_SYMBOL(mtk_scpsys_unregister_pd_onoff_cb);
+
+int mtk_scpsys_pd_bus_protect_enable(struct generic_pm_domain *genpd)
+{
+	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
+
+	return scpsys_bus_protect_enable(scpd);
+}
+EXPORT_SYMBOL(mtk_scpsys_pd_bus_protect_enable);
+
+int mtk_scpsys_pd_bus_protect_disable(struct generic_pm_domain *genpd)
+{
+	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
+
+	return scpsys_bus_protect_disable(scpd);
+}
+EXPORT_SYMBOL(mtk_scpsys_pd_bus_protect_disable);
+
 static int scpsys_power_on(struct generic_pm_domain *genpd)
 {
 	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
@@ -360,6 +401,9 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 	void __iomem *ctl_addr = scp->base + scpd->data->ctl_offs;
 	u32 val;
 	int ret, tmp;
+
+	if (pdcb)
+		pdcb(genpd, PD_ON_BEGIN);
 
 	ret = scpsys_regulator_enable(scpd);
 	if (ret < 0)
@@ -391,6 +435,9 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 	val |= PWR_RST_B_BIT;
 	writel(val, ctl_addr);
 
+	if (pdcb)
+		pdcb(genpd, PD_ON_MTCMOS);
+
 	ret = scpsys_clk_enable(scpd->subsys_clk, MAX_SUBSYS_CLKS);
 	if (ret < 0)
 		goto err_pwr_ack;
@@ -414,6 +461,9 @@ err_clk:
 
 	dev_err(scp->dev, "Failed to power on domain %s\n", genpd->name);
 
+	if (pdcb)
+		pdcb(genpd, PD_ON_FAIL);
+
 	return ret;
 }
 
@@ -425,12 +475,18 @@ static int scpsys_power_off(struct generic_pm_domain *genpd)
 	u32 val;
 	int ret, tmp;
 
+	if (pdcb)
+		pdcb(genpd, PD_OFF_BEGIN);
+
 	ret = scpsys_bus_protect_enable(scpd);
 	if (ret < 0) {
 		dev_err(scp->dev, "scpsys_bus_protect_enable() failed for domain %s: %d\n",
 			genpd->name, ret);
 		goto out;
 	}
+
+	if (pdcb)
+		pdcb(genpd, PD_OFF_MTCMOS);
 
 	ret = scpsys_sram_disable(scpd, ctl_addr);
 	if (ret < 0) {
@@ -475,6 +531,9 @@ static int scpsys_power_off(struct generic_pm_domain *genpd)
 
 out:
 	dev_err(scp->dev, "Failed to power off domain %s\n", genpd->name);
+
+	if (pdcb)
+		pdcb(genpd, PD_OFF_FAIL);
 
 	return ret;
 }
