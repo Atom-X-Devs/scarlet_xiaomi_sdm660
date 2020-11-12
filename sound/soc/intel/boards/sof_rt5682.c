@@ -136,19 +136,35 @@ static int sof_hdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct sof_card_private *ctx = snd_soc_card_get_drvdata(rtd->card);
 	struct snd_soc_dai *dai = rtd->codec_dai;
+	struct snd_soc_dai_link *dai_link;
 	struct sof_hdmi_pcm *pcm;
+	int hdmi_id;
+	char hdmi_name[16];
 
 	pcm = devm_kzalloc(rtd->card->dev, sizeof(*pcm), GFP_KERNEL);
 	if (!pcm)
 		return -ENOMEM;
 
+	if (sscanf(rtd->dai_link->name, "iDisp%d", &hdmi_id) != 1) {
+		dev_err(rtd->dev, "failed to get hdmi id\n");
+		return -ENODEV;
+	}
+
 	/* dai_link id is 1:1 mapped to the PCM device */
-	pcm->device = rtd->dai_link->id;
-	pcm->codec_dai = dai;
+	snprintf(hdmi_name, sizeof(hdmi_name), "HDMI%d", hdmi_id);
 
-	list_add_tail(&pcm->head, &ctx->hdmi_pcm_list);
+	for_each_card_links(rtd->card, dai_link) {
+		if (dai_link->name && !strcmp(hdmi_name, dai_link->name)) {
+			pcm->device = dai_link->id;
+			pcm->codec_dai = dai;
 
-	return 0;
+			list_add_tail(&pcm->head, &ctx->hdmi_pcm_list);
+			return 0;
+		}
+	}
+
+	dev_err(rtd->dev, "failed to find dai link of HDMI%d\n", hdmi_id);
+	return -ENODEV;
 }
 
 static int sof_rt5682_codec_init(struct snd_soc_pcm_runtime *rtd)
