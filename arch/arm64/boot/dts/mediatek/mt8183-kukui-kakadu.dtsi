@@ -180,6 +180,10 @@
 	afe-setting = <1>;
 };
 
+&mipi_tx0 {
+	drive-strength-microamp = <5800>;
+};
+
 &pio {
 	/* 192 lines */
 	gpio-line-names =
