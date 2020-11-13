@@ -81,7 +81,7 @@ build_one() {
 	fi
 
 	set -- \
-		LD="${cross}-ld" \
+		LD="ld.lld" \
 		CC="${ccompiler}" \
 		CXX="${cross}-g++"
 
