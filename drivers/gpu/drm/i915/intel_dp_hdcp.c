@@ -244,7 +244,6 @@ intel_dp_mst_hdcp_toggle_signalling(struct intel_digital_port *dig_port,
 				    enum transcoder cpu_transcoder,
 				    bool enable)
 {
-	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
 	int ret;
 
 	if (!enable)
@@ -262,7 +261,6 @@ static
 bool intel_dp_mst_hdcp_check_link(struct intel_digital_port *dig_port,
 				  struct intel_connector *connector)
 {
-	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
 	struct intel_dp *intel_dp = &dig_port->dp;
 	struct drm_dp_query_stream_enc_status_ack_reply reply;
 	int ret;
