@@ -734,7 +734,6 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 
 static int _intel_hdcp_enable(struct intel_connector *connector)
 {
-	struct intel_hdcp *hdcp = &connector->hdcp;
 	struct drm_i915_private *dev_priv = connector->base.dev->dev_private;
 	int i, ret, tries = 3;
 
@@ -782,7 +781,6 @@ struct intel_connector *intel_hdcp_to_connector(struct intel_hdcp *hdcp)
 static void intel_hdcp_update_value(struct intel_connector *connector,
 				    u64 value, bool update_property)
 {
-	struct drm_device *dev = connector->base.dev;
 	struct intel_digital_port *dig_port = conn_to_dig_port(connector);
 	struct intel_hdcp *hdcp = &connector->hdcp;
 
