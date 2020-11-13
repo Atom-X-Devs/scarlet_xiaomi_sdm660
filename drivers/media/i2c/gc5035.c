@@ -43,7 +43,7 @@
 #define GC5035_REG_EXPOSURE_L				0x04
 #define GC5035_EXPOSURE_H_MASK				0x3f
 #define GC5035_EXPOSURE_MIN				4
-#define GC5035_EXPOSURE_STEP				1
+#define GC5035_EXPOSURE_STEP				4
 
 /* Analog gain control */
 #define GC5035_REG_ANALOG_GAIN				0xb6
