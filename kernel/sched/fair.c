@@ -7451,15 +7451,10 @@ pick_task_fair(struct rq *rq)
 	do {
 		struct sched_entity *curr = cfs_rq->curr;
 
-		se = pick_next_entity(cfs_rq, NULL);
+		if (curr && curr->on_rq)
+			update_curr(cfs_rq);
 
-		if (curr) {
-			if (se && curr->on_rq)
-				update_curr(cfs_rq);
-
-			if (!se || entity_before(curr, se))
-				se = curr;
-		}
+		se = pick_next_entity(cfs_rq, curr);
 
 		cfs_rq = group_cfs_rq(se);
 	} while (cfs_rq);
