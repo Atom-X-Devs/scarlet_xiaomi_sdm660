@@ -1122,16 +1122,6 @@ static int send_settings_rsp(struct sock *sk, u16 opcode, struct hci_dev *hdev)
 				 sizeof(settings));
 }
 
-static void clean_up_hci_complete(struct hci_dev *hdev, u8 status, u16 opcode)
-{
-	BT_DBG("%s status 0x%02x", hdev->name, status);
-
-	if (hci_conn_count(hdev) == 0) {
-		cancel_delayed_work(&hdev->power_off);
-		queue_work(hdev->req_workqueue, &hdev->power_off.work);
-	}
-}
-
 void mgmt_advertising_added(struct sock *sk, struct hci_dev *hdev, u8 instance)
 {
 	struct mgmt_ev_advertising_added ev;
@@ -1157,40 +1147,6 @@ static void cancel_adv_timeout(struct hci_dev *hdev)
 		hdev->adv_instance_timeout = 0;
 		cancel_delayed_work(&hdev->adv_instance_expire);
 	}
-}
-
-static int clean_up_hci_state(struct hci_dev *hdev)
-{
-	struct hci_request req;
-	struct hci_conn *conn;
-	bool discov_stopped;
-	int err;
-
-	hci_req_init(&req, hdev);
-
-	if (test_bit(HCI_ISCAN, &hdev->flags) ||
-	    test_bit(HCI_PSCAN, &hdev->flags)) {
-		u8 scan = 0x00;
-		hci_req_add(&req, HCI_OP_WRITE_SCAN_ENABLE, 1, &scan);
-	}
-
-	hci_req_clear_adv_instance(hdev, NULL, NULL, 0x00, false);
-
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-		__hci_req_disable_advertising(&req);
-
-	discov_stopped = hci_req_stop_discovery(&req);
-
-	list_for_each_entry(conn, &hdev->conn_hash.list, list) {
-		/* 0x15 == Terminated due to Power Off */
-		__hci_abort_conn(&req, conn, 0x15);
-	}
-
-	err = hci_req_run(&req, clean_up_hci_complete);
-	if (!err && discov_stopped)
-		hci_discovery_set_state(hdev, DISCOVERY_STOPPING);
-
-	return err;
 }
 
 static int set_powered(struct sock *sk, struct hci_dev *hdev, void *data,
@@ -1230,7 +1186,7 @@ static int set_powered(struct sock *sk, struct hci_dev *hdev, void *data,
 		err = 0;
 	} else {
 		/* Disconnect connections, stop scans, etc */
-		err = clean_up_hci_state(hdev);
+		err = hci_clean_up_state(hdev);
 		if (!err)
 			queue_delayed_work(hdev->req_workqueue, &hdev->power_off,
 					   HCI_POWER_OFF_TIMEOUT);

@@ -2266,6 +2266,51 @@ static void hci_power_on(struct work_struct *work)
 	}
 }
 
+static void clean_up_hci_complete(struct hci_dev *hdev, u8 status, u16 opcode)
+{
+	BT_DBG("%s status 0x%02x", hdev->name, status);
+
+	if (hci_conn_count(hdev) == 0) {
+		cancel_delayed_work(&hdev->power_off);
+		queue_work(hdev->req_workqueue, &hdev->power_off.work);
+	}
+}
+
+/* This function requires the caller holds hdev->lock */
+int hci_clean_up_state(struct hci_dev *hdev)
+{
+	struct hci_request req;
+	struct hci_conn *conn;
+	bool discov_stopped;
+	int err;
+	u8 scan = 0x00;
+
+	hci_req_init(&req, hdev);
+
+	if (test_bit(HCI_ISCAN, &hdev->flags) ||
+	    test_bit(HCI_PSCAN, &hdev->flags)) {
+		hci_req_add(&req, HCI_OP_WRITE_SCAN_ENABLE, 1, &scan);
+	}
+
+	hci_req_clear_adv_instance(hdev, NULL, NULL, 0x00, false);
+
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+		__hci_req_disable_advertising(&req);
+
+	discov_stopped = hci_req_stop_discovery(&req);
+
+	list_for_each_entry(conn, &hdev->conn_hash.list, list) {
+		/* 0x15 == Terminated due to Power Off */
+		__hci_abort_conn(&req, conn, 0x15);
+	}
+
+	err = hci_req_run(&req, clean_up_hci_complete);
+	if (!err && discov_stopped)
+		hci_discovery_set_state(hdev, DISCOVERY_STOPPING);
+
+	return err;
+}
+
 static void hci_power_off(struct work_struct *work)
 {
 	struct hci_dev *hdev = container_of(work, struct hci_dev,
