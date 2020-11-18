@@ -35,6 +35,12 @@
 
 #define VERSION "1.0"
 
+/* Add module param to control whether the controller is powered down during
+ * suspend. Default is False.
+ */
+static bool power_down_suspend;
+module_param(power_down_suspend, bool, 0644);
+
 static struct memory_type_mapping mem_type_mapping_tbl[] = {
 	{"ITCM", NULL, 0, 0xF0},
 	{"DTCM", NULL, 0, 0xF1},
@@ -1583,6 +1589,10 @@ static int btmrvl_sdio_probe(struct sdio_func *func,
 		ret = -ENODEV;
 		goto disable_host_int;
 	}
+
+	if (power_down_suspend)
+		set_bit(HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND,
+			&priv->btmrvl_dev.hcidev->quirks);
 
 	return 0;
 
