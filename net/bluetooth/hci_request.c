@@ -1203,6 +1203,7 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 	struct hci_request req;
 	u8 page_scan;
 	int disconnect_counter;
+	int err;
 
 	if (next == hdev->suspend_state) {
 		bt_dev_dbg(hdev, "Same state before and after: %d", next);
@@ -1285,7 +1286,7 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 		/* Pause scan changes again. */
 		hdev->scanning_paused = true;
 		hci_req_run(&req, suspend_req_complete);
-	} else {
+	} else if (next == BT_RUNNING) {
 		hdev->suspended = false;
 		hdev->scanning_paused = false;
 
@@ -1319,6 +1320,29 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 		}
 
 		hci_req_run(&req, suspend_req_complete);
+	} else if (next == BT_SUSPEND_DO_POWER_DOWN) {
+		hdev->suspended = true;
+		hdev->scanning_paused = true;
+
+		err = hci_clean_up_state(hdev);
+
+		if (!err)
+			queue_delayed_work(hdev->req_workqueue,
+					   &hdev->power_off,
+					   SUSPEND_POWER_DOWN_TIMEOUT);
+
+		if (err == -ENODATA) {
+			cancel_delayed_work(&hdev->power_off);
+			queue_work(hdev->req_workqueue, &hdev->power_off.work);
+			err = 0;
+		}
+
+		set_bit(SUSPEND_POWERING_DOWN, hdev->suspend_tasks);
+	} else if (next == BT_SUSPEND_DO_POWER_UP) {
+		hdev->suspended = false;
+		hdev->scanning_paused = false;
+
+		queue_work(hdev->req_workqueue, &hdev->power_on);
 	}
 
 	hdev->suspend_state = next;

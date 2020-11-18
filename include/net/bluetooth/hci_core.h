@@ -90,6 +90,7 @@ struct discovery_state {
 };
 
 #define SUSPEND_NOTIFIER_TIMEOUT	msecs_to_jiffies(2000) /* 2 seconds */
+#define SUSPEND_POWER_DOWN_TIMEOUT	msecs_to_jiffies(1000)
 
 enum suspend_tasks {
 	SUSPEND_PAUSE_DISCOVERY,
@@ -112,6 +113,9 @@ enum suspended_state {
 	BT_RUNNING = 0,
 	BT_SUSPEND_DISCONNECT,
 	BT_SUSPEND_CONFIGURE_WAKE,
+	BT_SUSPEND_DO_POWER_DOWN,
+	BT_SUSPEND_DO_POWER_UP,
+	BT_SUSPEND_POWERED_DOWN,	/* Powered down prior to suspend */
 };
 
 struct hci_conn_hash {

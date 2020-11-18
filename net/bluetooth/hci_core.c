@@ -3499,6 +3499,7 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 		container_of(nb, struct hci_dev, suspend_notifier);
 	int ret = 0;
 	u8 state = BT_RUNNING;
+	bool powered;
 
 	/* If powering down, wait for completion. */
 	if (mgmt_powering_down(hdev)) {
@@ -3508,8 +3509,51 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 			goto done;
 	}
 
-	/* Suspend notifier should only act on events when powered. */
-	if (!hdev_is_powered(hdev))
+	powered = hdev_is_powered(hdev);
+
+	/* Update the suspend state when entering suspend if the system is
+	 * currently powered off or if it is powered on but was previously
+	 * powered off.
+	 */
+	if (action == PM_SUSPEND_PREPARE) {
+		/* Must hold dev lock when modifying suspend state. */
+		hci_dev_lock(hdev);
+		if (powered && hdev->suspend_state == BT_SUSPEND_POWERED_DOWN)
+			hdev->suspend_state = BT_RUNNING;
+		else if (!powered &&
+			 hdev->suspend_state != BT_SUSPEND_POWERED_DOWN)
+			hdev->suspend_state = BT_SUSPEND_POWERED_DOWN;
+
+		hci_dev_unlock(hdev);
+	}
+
+	/* When the power down quirk is set, we power down the adapter when
+	 * suspending and power it up when resuming. If the adapter was already
+	 * powered down before suspend, we don't do anything here.
+	 */
+	if (test_bit(HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND, &hdev->quirks) &&
+	    hdev->suspend_state != BT_SUSPEND_POWERED_DOWN) {
+		if (action == PM_SUSPEND_PREPARE && powered) {
+			state = BT_SUSPEND_DO_POWER_DOWN;
+			ret = hci_change_suspend_state(hdev, state);
+
+			/* Emit that we're powering down for suspend */
+			hci_clear_wake_reason(hdev);
+			mgmt_suspending(hdev, state);
+			goto done;
+		} else if (action == PM_POST_SUSPEND && !powered) {
+			/* Emit that we're resuming before powering up. */
+			mgmt_resuming(hdev, hdev->wake_reason, &hdev->wake_addr,
+				      hdev->wake_addr_type);
+
+			state = BT_SUSPEND_DO_POWER_UP;
+			ret = hci_change_suspend_state(hdev, state);
+			goto done;
+		}
+	}
+
+	/* Skip to end if we weren't powered. */
+	if (!powered)
 		goto done;
 
 	if (action == PM_SUSPEND_PREPARE) {
