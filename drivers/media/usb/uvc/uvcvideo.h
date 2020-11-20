@@ -660,6 +660,7 @@ struct uvc_streaming {
 struct uvc_device_info {
 	u32	quirks;
 	u32	meta_format;
+	u16	uvc_version;
 };
 
 struct uvc_device {
