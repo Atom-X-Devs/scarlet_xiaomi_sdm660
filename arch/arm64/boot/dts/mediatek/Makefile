@@ -16,7 +16,6 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-damu.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-fennel-sku1.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-fennel-sku6.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-fennel14-sku0.dtb
-dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-fennel14-sku4.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-jacuzzi-rev0.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-juniper-sku16.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-kakadu.dtb
