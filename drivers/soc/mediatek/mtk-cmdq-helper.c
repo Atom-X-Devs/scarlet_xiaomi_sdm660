@@ -399,12 +399,18 @@ int cmdq_pkt_flush(struct cmdq_pkt *pkt)
 {
 	struct cmdq_flush_completion cmplt;
 	int err;
+	struct cmdq_client *client = (struct cmdq_client *)pkt->cl;
 
 	init_completion(&cmplt.cmplt);
 	err = cmdq_pkt_flush_async(pkt, cmdq_pkt_flush_cb, &cmplt);
 	if (err < 0)
 		return err;
-	wait_for_completion(&cmplt.cmplt);
+	err = wait_for_completion_timeout(&cmplt.cmplt,
+					  msecs_to_jiffies(client->timeout_ms *
+							   client->pkt_cnt));
+	WARN(err == 0, "cmdq pkt %d %d flush timed out!\n",
+			client->pkt_cnt,
+			client->timeout_ms);
 
 	return cmplt.err ? -EFAULT : 0;
 }
