@@ -113,7 +113,7 @@ struct mdp_comp {
 	phys_addr_t			reg_base;
 	u8				subsys_id;
 	struct clk			*clks[2];
-	struct device			*larb_dev;
+	struct device			*comp_dev;
 	enum mdp_comp_type		type;
 	enum mdp_comp_id		id;
 	u32				alias_id;

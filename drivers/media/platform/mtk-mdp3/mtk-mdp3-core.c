@@ -152,7 +152,6 @@ static int mdp_probe(struct platform_device *pdev)
 #endif
 
 	vb2_dma_contig_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
-	pm_runtime_enable(dev);
 
 	ret = v4l2_device_register(dev, &mdp->v4l2_dev);
 	if (ret) {
@@ -212,7 +211,7 @@ static int mdp_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int __maybe_unused mdp_pm_suspend(struct device *dev)
+static int __maybe_unused mdp_suspend(struct device *dev)
 {
 	struct mdp_dev *mdp = dev_get_drvdata(dev);
 	int ret;
@@ -222,19 +221,19 @@ static int __maybe_unused mdp_pm_suspend(struct device *dev)
 	if (atomic_read(&mdp->job_count)) {
 		ret = wait_event_timeout(mdp->callback_wq,
 					 !atomic_read(&mdp->job_count),
-					 HZ);
-		if (ret == 0)
+					 2 * HZ);
+		if (ret == 0) {
 			dev_err(dev,
-				"%s:flushed cmdq task incomplete\n",
-				__func__);
-		else//need to remove
-			pr_err("%s:ret=%d\n", __func__, ret);
+				"%s:flushed cmdq task incomplete, count=%d\n",
+				__func__, atomic_read(&mdp->job_count));
+			return -EBUSY;
+		}
 	}
 
 	return 0;
 }
 
-static int __maybe_unused mdp_pm_resume(struct device *dev)
+static int __maybe_unused mdp_resume(struct device *dev)
 {
 	struct mdp_dev *mdp = dev_get_drvdata(dev);
 
@@ -243,25 +242,8 @@ static int __maybe_unused mdp_pm_resume(struct device *dev)
 	return 0;
 }
 
-static int __maybe_unused mdp_suspend(struct device *dev)
-{
-	if (pm_runtime_suspended(dev))
-		return 0;
-
-	return mdp_pm_suspend(dev);
-}
-
-static int __maybe_unused mdp_resume(struct device *dev)
-{
-	if (pm_runtime_suspended(dev))
-		return 0;
-
-	return mdp_pm_resume(dev);
-}
-
 static const struct dev_pm_ops mdp_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(mdp_suspend, mdp_resume)
-	SET_RUNTIME_PM_OPS(mdp_pm_suspend, mdp_pm_resume, NULL)
 };
 
 static struct platform_driver mdp_driver = {
