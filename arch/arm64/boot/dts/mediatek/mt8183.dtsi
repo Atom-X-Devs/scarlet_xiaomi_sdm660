@@ -1608,7 +1608,6 @@
 			clocks = <&mmsys CLK_MM_MDP_RDMA0>,
 				<&mmsys CLK_MM_MDP_RSZ1>;
 			iommus = <&iommu M4U_PORT_MDP_RDMA0>;
-			mediatek,larb = <&larb0>;
 			mediatek,mmsys = <&mmsys>;
 			mediatek,mm-mutex = <&mutex>;
 			mediatek,mailbox-gce = <&gce>;
@@ -1686,9 +1685,9 @@
 			mediatek,mdp-id = <0>;
 			reg = <0 0x14005000 0 0x1000>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0x5000 0x1000>;
+			power-domains = <&scpsys MT8183_POWER_DOMAIN_DISP>;
 			clocks = <&mmsys CLK_MM_MDP_WROT0>;
 			iommus = <&iommu M4U_PORT_MDP_WROT0>;
-			mediatek,larb = <&larb0>;
 		};
 
 		mdp_path0_sout@14005000 {
@@ -1701,9 +1700,9 @@
 			mediatek,mdp-id = <0>;
 			reg = <0 0x14006000 0 0x1000>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0x6000 0x1000>;
+			power-domains = <&scpsys MT8183_POWER_DOMAIN_DISP>;
 			clocks = <&mmsys CLK_MM_MDP_WDMA0>;
 			iommus = <&iommu M4U_PORT_MDP_WDMA0>;
-			mediatek,larb = <&larb0>;
 		};
 
 		mdp_path1_sout@14006000 {
