@@ -528,3 +528,16 @@
 		drive-strength = <MTK_DRIVE_10mA>;
 	};
 };
+
+&panel {
+	status = "okay";
+	compatible = "boe,tv105wum-nw0";
+	reg = <0>;
+	enable-gpios = <&pio 45 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&panel_pins_default>;
+	avdd-supply = <&ppvarn_lcd>;
+	avee-supply = <&ppvarp_lcd>;
+	pp1800-supply = <&pp1800_lcd>;
+	rotation = <270>;
+};
