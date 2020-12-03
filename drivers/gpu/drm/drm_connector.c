@@ -375,8 +375,7 @@ void drm_connector_cleanup(struct drm_connector *connector)
 	/* The connector should have been removed from userspace long before
 	 * it is finally destroyed.
 	 */
-	if (WARN_ON(connector->registration_state ==
-		    DRM_CONNECTOR_REGISTERED))
+	if (WARN_ON(connector->registered))
 		drm_connector_unregister(connector);
 
 	if (connector->tile_group) {
@@ -433,7 +432,7 @@ int drm_connector_register(struct drm_connector *connector)
 		return 0;
 
 	mutex_lock(&connector->mutex);
-	if (connector->registration_state != DRM_CONNECTOR_INITIALIZING)
+	if (connector->registered)
 		goto unlock;
 
 	ret = drm_sysfs_connector_add(connector);
@@ -453,7 +452,7 @@ int drm_connector_register(struct drm_connector *connector)
 
 	drm_mode_object_register(connector->dev, &connector->base);
 
-	connector->registration_state = DRM_CONNECTOR_REGISTERED;
+	connector->registered = true;
 	goto unlock;
 
 err_debugfs:
@@ -475,7 +474,7 @@ EXPORT_SYMBOL(drm_connector_register);
 void drm_connector_unregister(struct drm_connector *connector)
 {
 	mutex_lock(&connector->mutex);
-	if (connector->registration_state != DRM_CONNECTOR_REGISTERED) {
+	if (!connector->registered) {
 		mutex_unlock(&connector->mutex);
 		return;
 	}
@@ -486,7 +485,7 @@ void drm_connector_unregister(struct drm_connector *connector)
 	drm_sysfs_connector_remove(connector);
 	drm_debugfs_connector_remove(connector);
 
-	connector->registration_state = DRM_CONNECTOR_UNREGISTERED;
+	connector->registered = false;
 	mutex_unlock(&connector->mutex);
 }
 EXPORT_SYMBOL(drm_connector_unregister);
