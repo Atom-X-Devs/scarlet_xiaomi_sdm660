@@ -283,6 +283,16 @@ static int cros_ec_light_prox_write(struct iio_dev *indio_dev,
 		if (ret == 0)
 			st->core.range_updated = true;
 		break;
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		ret = cros_ec_sensors_core_write(&st->core, chan, val, val2,
+						 mask);
+		/* Repeat the same command to the RGB sensor. */
+		if (!ret && indio_dev->num_channels >
+			    CROS_EC_LIGHT_PROX_MIN_CHANNELS)
+			ret = cros_ec_light_extra_send_host_cmd(
+					&st->core, 1, 0);
+
+		break;
 	default:
 		ret = cros_ec_sensors_core_write(&st->core, chan, val, val2,
 						 mask);
@@ -484,6 +494,7 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 			channel->channel2 = IIO_MOD_LIGHT_RED + i;
 			channel->type = IIO_LIGHT;
 		}
+		cros_ec_sensorhub_unregister_push_data(sensor_hub, sensor_num);
 		cros_ec_sensorhub_register_push_data(
 				sensor_hub, sensor_num,
 				indio_dev,
