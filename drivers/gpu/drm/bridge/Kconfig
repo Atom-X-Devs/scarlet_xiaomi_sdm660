@@ -62,6 +62,13 @@ config DRM_GENERIC_GPIO_MUX
 	  is active, reports it as a GPIO, and the driver redirects calls to the
 	  appropriate downstream bridge (if any).
 
+config DRM_ITE_IT6505
+	tristate "ITE IT6505 DisplayPort bridge"
+	depends on OF
+	select DRM_KMS_HELPER
+	help
+	  ITE IT6505 DisplayPort bridge chip driver.
+
 config DRM_LVDS_ENCODER
 	tristate "Transparent parallel to LVDS encoder support"
 	depends on OF
