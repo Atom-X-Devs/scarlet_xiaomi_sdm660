@@ -82,6 +82,18 @@ static void btmrvl_sdio_card_reset(struct btmrvl_sdio_card *card)
 	schedule_work(&card->reset_work);
 }
 
+static void btmrvl_sdio_cmd_timeout(struct hci_dev *hdev)
+{
+	struct btmrvl_private *priv = hci_get_drvdata(hdev);
+	struct btmrvl_sdio_card *card = priv->btmrvl_dev.card;
+
+	if (++card->cmd_timeout_cnt < 5)
+		return;
+
+	bt_dev_err(hdev, "Resetting due to command timeout");
+	btmrvl_sdio_card_reset(card);
+}
+
 static irqreturn_t btmrvl_wake_irq_bt(int irq, void *priv)
 {
 	struct btmrvl_sdio_card *card = priv;
@@ -1593,6 +1605,8 @@ static int btmrvl_sdio_probe(struct sdio_func *func,
 	if (power_down_suspend)
 		set_bit(HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND,
 			&priv->btmrvl_dev.hcidev->quirks);
+
+	priv->btmrvl_dev.hcidev->cmd_timeout = btmrvl_sdio_cmd_timeout;
 
 	return 0;
 

@@ -104,6 +104,7 @@ struct btmrvl_sdio_card {
 	struct device_node *plt_of_node;
 	struct btmrvl_plt_wake_cfg *plt_wake_cfg;
 	struct work_struct reset_work;
+	int cmd_timeout_cnt;
 };
 
 struct btmrvl_sdio_device {
