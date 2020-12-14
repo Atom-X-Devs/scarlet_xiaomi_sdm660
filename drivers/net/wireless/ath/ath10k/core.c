@@ -2058,14 +2058,6 @@ static void ath10k_core_restart(struct work_struct *work)
 {
 	struct ath10k *ar = container_of(work, struct ath10k, restart_work);
 	int ret;
-	int restart_count;
-
-	restart_count = atomic_add_return(1, &ar->restart_count);
-	if (restart_count > 1) {
-		ath10k_warn(ar, "can not restart, count: %d\n", restart_count);
-		atomic_dec(&ar->restart_count);
-		return;
-	}
 
 	set_bit(ATH10K_FLAG_CRASH_FLUSH, &ar->dev_flags);
 
@@ -2097,11 +2089,6 @@ static void ath10k_core_restart(struct work_struct *work)
 	cancel_work_sync(&ar->set_coverage_class_work);
 
 	mutex_lock(&ar->conf_mutex);
-
-	if (ar->state != ATH10K_STATE_ON) {
-		ath10k_warn(ar, "state is not on: %d\n", ar->state);
-		atomic_dec(&ar->restart_count);
-	}
 
 	switch (ar->state) {
 	case ATH10K_STATE_ON:
