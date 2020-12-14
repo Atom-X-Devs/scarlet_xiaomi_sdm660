@@ -2059,11 +2059,7 @@ int __hci_req_setup_ext_adv_instance(struct hci_request *req, u8 instance)
 
 	flags = get_adv_instance_flags(hdev, instance);
 
-	/* If the "connectable" instance flag was not set, then choose between
-	 * ADV_IND and ADV_NONCONN_IND based on the global connectable setting.
-	 */
-	connectable = (flags & MGMT_ADV_FLAG_CONNECTABLE) ||
-		      mgmt_get_connectable(hdev);
+	connectable = (flags & MGMT_ADV_FLAG_CONNECTABLE);
 
 	 if (!is_advertising_allowed(hdev, connectable))
 		return -EPERM;
