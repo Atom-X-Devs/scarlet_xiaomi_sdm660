@@ -36,6 +36,7 @@
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_crtc.h>
 #include <drm/drmP.h>
+#include <drm/drm_dp_mst_helper.h>
 
 #include "drm_crtc_helper_internal.h"
 
@@ -162,6 +163,7 @@ static ssize_t auxdev_read_iter(struct kiocb *iocb, struct iov_iter *to)
 		}
 
 		res = drm_dp_dpcd_read(aux_dev->aux, pos, buf, todo);
+
 		if (res <= 0)
 			break;
 
@@ -209,6 +211,7 @@ static ssize_t auxdev_write_iter(struct kiocb *iocb, struct iov_iter *from)
 		}
 
 		res = drm_dp_dpcd_write(aux_dev->aux, pos, buf, todo);
+
 		if (res <= 0)
 			break;
 

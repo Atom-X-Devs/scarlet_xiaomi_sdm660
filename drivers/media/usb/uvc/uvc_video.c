@@ -1576,6 +1576,7 @@ static void uvc_free_urb_buffers(struct uvc_streaming *stream)
 				 uvc_urb->dma, stream->urb_size,
 				 DMA_FROM_DEVICE);
 		free_pages_exact(uvc_urb->buffer, stream->urb_size);
+		uvc_urb->buffer = NULL;
 	}
 
 	stream->urb_size = 0;

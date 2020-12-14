@@ -353,8 +353,10 @@ err_exit:
 void
 pvr_buffer_sync_context_destroy(struct pvr_buffer_sync_context *ctx)
 {
-	pvr_fence_context_destroy(ctx->fence_ctx);
-	kfree(ctx);
+	if (ctx) {
+		pvr_fence_context_destroy(ctx->fence_ctx);
+		kfree(ctx);
+	}
 }
 
 int

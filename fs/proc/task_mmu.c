@@ -957,6 +957,9 @@ static int totmaps_proc_show(struct seq_file *m, void *data)
 	seq_printf(m,
 		   "Rss:            %8lu kB\n"
 		   "Pss:            %8lu kB\n"
+		   "Pss_Anon:       %8lu kB\n"
+		   "Pss_File:       %8lu kB\n"
+		   "Pss_Shmem:      %8lu kB\n"
 		   "Shared_Clean:   %8lu kB\n"
 		   "Shared_Dirty:   %8lu kB\n"
 		   "Private_Clean:  %8lu kB\n"
@@ -967,6 +970,9 @@ static int totmaps_proc_show(struct seq_file *m, void *data)
 		   "Swap:           %8lu kB\n",
 		   mss_sum->resident >> 10,
 		   (unsigned long)(mss_sum->pss >> (10 + PSS_SHIFT)),
+		   (unsigned long)(mss_sum->pss_anon >> (10 + PSS_SHIFT)),
+		   (unsigned long)(mss_sum->pss_file >> (10 + PSS_SHIFT)),
+		   (unsigned long)(mss_sum->pss_shmem >> (10 + PSS_SHIFT)),
 		   mss_sum->shared_clean  >> 10,
 		   mss_sum->shared_dirty  >> 10,
 		   mss_sum->private_clean >> 10,
@@ -1364,7 +1370,7 @@ static ssize_t clear_refs_write(struct file *file, const char __user *buf,
 			count = -EINTR;
 			goto out_mm;
 		}
-		tlb_gather_mmu(&tlb, mm, 0, -1);
+		tlb_gather_mmu(&tlb, mm, 0, mm->highest_vm_end);
 		if (type == CLEAR_REFS_SOFT_DIRTY) {
 			for (vma = mm->mmap; vma; vma = vma->vm_next) {
 				if (!(vma->vm_flags & VM_SOFTDIRTY))
@@ -1404,7 +1410,7 @@ static ssize_t clear_refs_write(struct file *file, const char __user *buf,
 		walk_page_range(0, mm->highest_vm_end, &clear_refs_walk);
 		if (type == CLEAR_REFS_SOFT_DIRTY)
 			mmu_notifier_invalidate_range_end(mm, 0, -1);
-		tlb_finish_mmu(&tlb, 0, -1);
+		tlb_finish_mmu(&tlb, 0, mm->highest_vm_end);
 		up_read(&mm->mmap_sem);
 out_mm:
 		mmput(mm);
@@ -2049,6 +2055,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	struct vm_area_struct *vma;
 	enum reclaim_type type;
 	char *type_buf;
+	struct mmu_gather tlb;
 
 	memset(buffer, 0, sizeof(buffer));
 	if (count > sizeof(buffer) - 1)
@@ -2079,6 +2086,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		};
 
 		down_read(&mm->mmap_sem);
+		tlb_gather_mmu(&tlb, mm, 0, mm->highest_vm_end);
 		for (vma = mm->mmap; vma; vma = vma->vm_next) {
 			if (is_vm_hugetlb_page(vma))
 				continue;
@@ -2107,6 +2115,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			walk_page_range(vma->vm_start, vma->vm_end,
 					&reclaim_walk);
 		}
+		tlb_finish_mmu(&tlb, 0, mm->highest_vm_end);
 		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}

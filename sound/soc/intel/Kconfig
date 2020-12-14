@@ -108,11 +108,8 @@ config SND_SOC_INTEL_SKYLAKE
 	select SND_SOC_INTEL_SKL
 	select SND_SOC_INTEL_APL
 	select SND_SOC_INTEL_KBL
-	select SND_SOC_INTEL_GLK
 	select SND_SOC_INTEL_CNL
 	select SND_SOC_INTEL_CFL
-	select SND_SOC_INTEL_CML_H
-	select SND_SOC_INTEL_CML_LP
 	help
           This is a backwards-compatible option to select all devices
 	  supported by the Intel SST/Skylake driver. This option is no
