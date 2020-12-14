@@ -538,6 +538,46 @@ out:
 	return ret;
 }
 
+static int scpsys_mfg_power_on(struct generic_pm_domain *genpd)
+{
+	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
+	struct scp *scp = scpd->scp;
+	int ret;
+
+	ret = scpsys_power_on(&scp->domains[MT8173_POWER_DOMAIN_MFG_ASYNC].genpd);
+	if (ret)
+		return ret;
+
+	ret = scpsys_power_on(&scp->domains[MT8173_POWER_DOMAIN_MFG_2D].genpd);
+	if (ret)
+		goto failed_mfg_2d;
+
+	ret = scpsys_power_on(&scp->domains[MT8173_POWER_DOMAIN_MFG].genpd);
+	if (ret)
+		goto failed_mfg;
+
+	return 0;
+
+failed_mfg:
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_2D].genpd);
+failed_mfg_2d:
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_ASYNC].genpd);
+
+	return ret;
+}
+
+static int scpsys_mfg_power_off(struct generic_pm_domain *genpd)
+{
+	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
+	struct scp *scp = scpd->scp;
+
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG].genpd);
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_2D].genpd);
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_ASYNC].genpd);
+
+	return 0;
+}
+
 static int init_subsys_clks(struct platform_device *pdev,
 		const char *prefix, struct clk **clk)
 {
@@ -587,6 +627,8 @@ static void init_clks(struct platform_device *pdev, struct clk **clk)
 	for (i = CLK_NONE + 1; i < CLK_MAX; i++)
 		clk[i] = devm_clk_get(&pdev->dev, clk_names[i]);
 }
+
+static const struct scp_domain_data scp_domain_data_mt8173[];
 
 static struct scp *init_scp(struct platform_device *pdev,
 			const struct scp_domain_data *scp_domain_data, int num,
@@ -711,6 +753,18 @@ static struct scp *init_scp(struct platform_device *pdev,
 		genpd->power_on = scpsys_power_on;
 		if (MTK_SCPD_CAPS(scpd, MTK_SCPD_ACTIVE_WAKEUP))
 			genpd->flags |= GENPD_FLAG_ACTIVE_WAKEUP;
+
+		if (scp_domain_data == scp_domain_data_mt8173) {
+			if (i == MT8173_POWER_DOMAIN_MFG) {
+				genpd->power_off = scpsys_mfg_power_off;
+				genpd->power_on = scpsys_mfg_power_on;
+			} else if (i == MT8173_POWER_DOMAIN_MFG_2D ||
+				   i == MT8173_POWER_DOMAIN_MFG_ASYNC) {
+				genpd->power_off = NULL;
+				genpd->power_on = NULL;
+				pd_data->domains[i] = NULL;
+			}
+		}
 	}
 
 	return scp;
@@ -725,6 +779,9 @@ static void mtk_register_power_domains(struct platform_device *pdev,
 	for (i = 0; i < num; i++) {
 		struct scp_domain *scpd = &scp->domains[i];
 		struct generic_pm_domain *genpd = &scpd->genpd;
+
+		if (!genpd->power_on)
+			continue;
 
 		/*
 		 * Initially turn on all domains to make the domains usable
@@ -1206,11 +1263,6 @@ static const struct scp_domain_data scp_domain_data_mt8173[] = {
 	},
 };
 
-static const struct scp_subdomain scp_subdomain_mt8173[] = {
-	{MT8173_POWER_DOMAIN_MFG_ASYNC, MT8173_POWER_DOMAIN_MFG_2D},
-	{MT8173_POWER_DOMAIN_MFG_2D, MT8173_POWER_DOMAIN_MFG},
-};
-
 /*
  * MT8183 power domain support
  */
@@ -1479,8 +1531,6 @@ static const struct scp_soc_data mt7623a_data = {
 static const struct scp_soc_data mt8173_data = {
 	.domains = scp_domain_data_mt8173,
 	.num_domains = ARRAY_SIZE(scp_domain_data_mt8173),
-	.subdomains = scp_subdomain_mt8173,
-	.num_subdomains = ARRAY_SIZE(scp_subdomain_mt8173),
 	.regs = {
 		.pwr_sta_offs = SPM_PWR_STATUS,
 		.pwr_sta2nd_offs = SPM_PWR_STATUS_2ND
