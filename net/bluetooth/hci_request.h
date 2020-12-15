@@ -84,7 +84,7 @@ int __hci_req_schedule_adv_instance(struct hci_request *req, u8 instance,
 void hci_req_clear_adv_instance(struct hci_dev *hdev, struct sock *sk,
 				struct hci_request *req, u8 instance,
 				bool force);
-
+int hci_req_enable_paused_adv(struct hci_dev *hdev);
 int __hci_req_setup_ext_adv_instance(struct hci_request *req, u8 instance);
 int __hci_req_start_ext_adv(struct hci_request *req, u8 instance);
 int __hci_req_enable_ext_advertising(struct hci_request *req, u8 instance);
