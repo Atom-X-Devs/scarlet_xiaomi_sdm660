@@ -413,7 +413,7 @@ static void dump_range(unsigned long reg, size_t len)
 	reg &= ~3U;			/* aligned to 4-byte */
 	pa = (u32)reg & ~0xf;		/* aligned to 16-byte */
 
-	pr_info("%s: 0x%08x +0x%x\n", __func__, reg, len);
+	pr_info("%s: 0x%08lx +0x%zx\n", __func__, reg, len);
 
 	if (pa < reg)
 		pr_cont("%08x:", pa);
