@@ -190,7 +190,7 @@ int mtk_mfg_enable(struct mtk_mfg *mfg)
 	}
 
 	ret = pm_runtime_get_sync(mfg->dev);
-	if (ret)
+	if (ret < 0)
 	{
 		dev_err(mfg->dev, "pm_runtime_get_sync failed with error %d\n", ret);
  		goto err_regulator_disable;
