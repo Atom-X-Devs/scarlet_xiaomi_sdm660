@@ -28,6 +28,8 @@
 #include "mtk_drm_gem.h"
 #include "mtk_drm_plane.h"
 
+#include "mtk_drm_debug.h"
+
 /**
  * struct mtk_drm_crtc - MediaTek specific crtc structure.
  * @base: crtc object.
@@ -74,6 +76,13 @@ struct mtk_crtc_state {
 	unsigned int			pending_height;
 	unsigned int			pending_vrefresh;
 };
+
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+struct mtk_cmdq_cb_data {
+	struct cmdq_pkt			*cmdq_handle;
+	struct mtk_drm_crtc		*mtk_crtc;
+};
+#endif
 
 static inline struct mtk_drm_crtc *to_mtk_crtc(struct drm_crtc *c)
 {
@@ -250,7 +259,33 @@ struct mtk_ddp_comp *mtk_drm_ddp_comp_for_plane(struct drm_crtc *crtc,
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
 static void ddp_cmdq_cb(struct cmdq_cb_data data)
 {
-	cmdq_pkt_destroy(data.data);
+	struct mtk_cmdq_cb_data *cb_data = data.data;
+
+	if (cb_data) {
+		if (data.sta == CMDQ_CB_ERROR) {
+			struct mtk_drm_crtc *mtk_crtc = cb_data->mtk_crtc;
+
+			if (mtk_crtc) {
+				u32 pipe;
+
+				pipe = drm_crtc_index(&mtk_crtc->base);
+
+				mtk_drm_dbg("pipe %d timed out!\n", pipe);
+				mtk_drm_dbg_dump_path(pipe);
+			} else {
+				mtk_drm_err("cmdq mtk_crtc null pointer\n");
+			}
+		}
+
+		if (cb_data->cmdq_handle)
+			cmdq_pkt_destroy(cb_data->cmdq_handle);
+		else
+			mtk_drm_err("cmdq cmdq_handle null pointer\n");
+
+		kfree(cb_data);
+	} else {
+		mtk_drm_err("cmdq cb_data null pointer\n");
+	}
 }
 #endif
 
@@ -515,12 +550,19 @@ static void mtk_drm_crtc_hw_config(struct mtk_drm_crtc *mtk_crtc)
 	}
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
 	if (mtk_crtc->cmdq_client) {
+		struct mtk_cmdq_cb_data *cb_data;
+
 		cmdq_handle = cmdq_pkt_create(mtk_crtc->cmdq_client,
 					      (2 * PAGE_SIZE));
 		cmdq_pkt_clear_event(cmdq_handle, mtk_crtc->cmdq_event);
 		cmdq_pkt_wfe(cmdq_handle, mtk_crtc->cmdq_event);
 		mtk_crtc_ddp_config(crtc, cmdq_handle);
-		cmdq_pkt_flush_async(cmdq_handle, ddp_cmdq_cb, cmdq_handle);
+
+		cb_data = kmalloc(sizeof(*cb_data), GFP_KERNEL);
+		cb_data->cmdq_handle = cmdq_handle;
+		cb_data->mtk_crtc = mtk_crtc;
+
+		cmdq_pkt_flush_async(cmdq_handle, ddp_cmdq_cb, cb_data);
 	}
 #endif
 	mutex_unlock(&mtk_crtc->hw_lock);
