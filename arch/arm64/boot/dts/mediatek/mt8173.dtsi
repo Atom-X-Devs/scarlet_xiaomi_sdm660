@@ -988,6 +988,19 @@
 			mboxes = <&gce 0 CMDQ_THR_PRIO_HIGHEST>,
 				 <&gce 1 CMDQ_THR_PRIO_HIGHEST>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0 0x1000>;
+			disp_ovl0 = <&ovl0>; /* debug only */
+			disp_ovl1 = <&ovl1>; /* debug only */
+			disp_rdma0 = <&rdma0>; /* debug only */
+			disp_rdma1 = <&rdma1>; /* debug only */
+			disp_color0 = <&color0>; /* debug only */
+			disp_color1 = <&color1>; /* debug only */
+			disp_aal = <&aal>; /* debug only */
+			disp_gamma = <&gamma>; /* debug only */
+			disp_ufoe = <&ufoe>; /* debug only */
+			disp_dsi0 = <&dsi0>; /* debug only */
+			disp_dpi0 = <&dpi0>; /* debug only */
+			disp_od = <&od>; /* debug only */
+			disp_mutex = <&mutex>; /* debug only */
 		};
 
 		mdp_rdma0: rdma@14001000 {
@@ -1143,7 +1156,7 @@
 			mediatek,gce-client-reg = <&gce SUBSYS_1401XXXX 0x4000 0x1000>;
 		};
 
-		aal@14015000 {
+		aal: aal@14015000 {
 			compatible = "mediatek,mt8173-disp-aal";
 			reg = <0 0x14015000 0 0x1000>;
 			interrupts = <GIC_SPI 189 IRQ_TYPE_LEVEL_LOW>;
@@ -1152,7 +1165,7 @@
 			mediatek,gce-client-reg = <&gce SUBSYS_1401XXXX 0x5000 0x1000>;
 		};
 
-		gamma@14016000 {
+		gamma: gamma@14016000 {
 			compatible = "mediatek,mt8173-disp-gamma";
 			reg = <0 0x14016000 0 0x1000>;
 			interrupts = <GIC_SPI 190 IRQ_TYPE_LEVEL_LOW>;
@@ -1182,7 +1195,7 @@
 			clocks = <&mmsys CLK_MM_DISP_SPLIT1>;
 		};
 
-		ufoe@1401a000 {
+		ufoe: ufoe@1401a000 {
 			compatible = "mediatek,mt8173-disp-ufoe";
 			reg = <0 0x1401a000 0 0x1000>;
 			interrupts = <GIC_SPI 191 IRQ_TYPE_LEVEL_LOW>;
@@ -1288,7 +1301,7 @@
 			clock-names = "apb", "smi";
 		};
 
-		od@14023000 {
+		od: od@14023000 {
 			compatible = "mediatek,mt8173-disp-od";
 			reg = <0 0x14023000 0 0x1000>;
 			clocks = <&mmsys CLK_MM_DISP_OD>;
