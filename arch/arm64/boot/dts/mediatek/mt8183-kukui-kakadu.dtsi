@@ -4,6 +4,7 @@
  */
 
 #include "mt8183-kukui.dtsi"
+#include <dt-bindings/input/gpio-keys.h>
 
 / {
 	ppvarn_lcd: ppvarn-lcd {
@@ -39,17 +40,18 @@
 		gpio = <&pio 36 GPIO_ACTIVE_HIGH>;
 	};
 
-	gpio-keys {
+	gpio_keys: gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pen_eject>;
 
-		pen-insert {
+		pen_insert: pen-insert {
 				label = "Pen Insert";
 				/* Insert = low, eject = high */
 				gpios = <&pio 6 GPIO_ACTIVE_LOW>;
 				linux,code = <SW_PEN_INSERTED>;
 				linux,input-type = <EV_SW>;
+				wakeup-event-action = <EV_ACT_DEASSERTED>;
 				wakeup-source;
 		};
 	};
