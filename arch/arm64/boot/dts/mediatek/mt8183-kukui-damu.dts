@@ -33,3 +33,7 @@
 	post-power-on-delay-ms = <10>;
 	hid-descr-addr = <0x0001>;
 };
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_DAMU";
+};
