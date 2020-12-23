@@ -100,7 +100,7 @@ int uvc_query_ctrl(struct uvc_device *dev, u8 query, u8 unit,
 	if (ret != 1)
 		return ret < 0 ? ret : -EPIPE;
 
-	uvc_trace(UVC_TRACE_CONTROL, "Control error %u\n", error);
+	uvc_trace(dev, UVC_TRACE_CONTROL, "Control error %u\n", error);
 
 	switch (error) {
 	case 0:
@@ -742,8 +742,8 @@ void uvc_video_clock_update(struct uvc_streaming *stream,
 
 	sof = y;
 
-	uvc_trace(UVC_TRACE_CLOCK, "%s: PTS %u y %llu.%06llu SOF %u.%06llu "
-		  "(x1 %u x2 %u y1 %u y2 %u SOF offset %u)\n",
+	uvc_trace(stream->dev, UVC_TRACE_CLOCK,
+		  "%s: PTS %u y %llu.%06llu SOF %u.%06llu (x1 %u x2 %u y1 %u y2 %u SOF offset %u)\n",
 		  stream->dev->name, buf->pts,
 		  y >> 16, div_u64((y & 0xffff) * 1000000, 65536),
 		  sof >> 16, div_u64(((u64)sof & 0xffff) * 1000000LLU, 65536),
@@ -777,8 +777,8 @@ void uvc_video_clock_update(struct uvc_streaming *stream,
 
 	timestamp = ktime_to_ns(first->host_time) + y - y1;
 
-	uvc_trace(UVC_TRACE_CLOCK, "%s: SOF %u.%06llu y %llu ts %llu "
-		  "buf ts %llu (x1 %u/%u/%u x2 %u/%u/%u y1 %u y2 %u)\n",
+	uvc_trace(stream->dev, UVC_TRACE_CLOCK,
+		  "%s: SOF %u.%06llu y %llu ts %llu buf ts %llu (x1 %u/%u/%u x2 %u/%u/%u y1 %u y2 %u)\n",
 		  stream->dev->name,
 		  sof >> 16, div_u64(((u64)sof & 0xffff) * 1000000LLU, 65536),
 		  y, timestamp, vbuf->vb2_buf.timestamp,
@@ -912,9 +912,8 @@ static void uvc_video_stats_update(struct uvc_streaming *stream)
 {
 	struct uvc_stats_frame *frame = &stream->stats.frame;
 
-	uvc_trace(UVC_TRACE_STATS, "frame %u stats: %u/%u/%u packets, "
-		  "%u/%u/%u pts (%searly %sinitial), %u/%u scr, "
-		  "last pts/stc/sof %u/%u/%u\n",
+	uvc_trace(stream->dev, UVC_TRACE_STATS,
+		  "frame %u stats: %u/%u/%u packets, %u/%u/%u pts (%searly %sinitial), %u/%u scr, last pts/stc/sof %u/%u/%u\n",
 		  stream->sequence, frame->first_data,
 		  frame->nb_packets - frame->nb_empty, frame->nb_packets,
 		  frame->nb_pts_diffs, frame->last_pts_diff, frame->nb_pts,
@@ -1076,8 +1075,8 @@ static int uvc_video_decode_start(struct uvc_streaming *stream,
 
 	/* Mark the buffer as bad if the error bit is set. */
 	if (data[1] & UVC_STREAM_ERR) {
-		uvc_trace(UVC_TRACE_FRAME, "Marking buffer as bad (error bit "
-			  "set).\n");
+		uvc_trace(stream->dev, UVC_TRACE_FRAME,
+			  "Marking buffer as bad (error bit set).\n");
 		buf->error = 1;
 	}
 
@@ -1091,8 +1090,8 @@ static int uvc_video_decode_start(struct uvc_streaming *stream,
 	 */
 	if (buf->state != UVC_BUF_STATE_ACTIVE) {
 		if (fid == stream->last_fid) {
-			uvc_trace(UVC_TRACE_FRAME, "Dropping payload (out of "
-				"sync).\n");
+			uvc_trace(stream->dev, UVC_TRACE_FRAME,
+				  "Dropping payload (out of sync).\n");
 			if ((stream->dev->quirks & UVC_QUIRK_STREAM_NO_FID) &&
 			    (data[1] & UVC_STREAM_EOF))
 				stream->last_fid ^= UVC_STREAM_FID;
@@ -1123,8 +1122,8 @@ static int uvc_video_decode_start(struct uvc_streaming *stream,
 	 * previous payload had the EOF bit set.
 	 */
 	if (fid != stream->last_fid && buf->bytesused != 0) {
-		uvc_trace(UVC_TRACE_FRAME, "Frame complete (FID bit "
-				"toggled).\n");
+		uvc_trace(stream->dev, UVC_TRACE_FRAME,
+			  "Frame complete (FID bit toggled).\n");
 		buf->state = UVC_BUF_STATE_READY;
 		return -EAGAIN;
 	}
@@ -1185,7 +1184,8 @@ static void uvc_video_decode_data(struct uvc_urb *uvc_urb,
 
 	/* Complete the current frame if the buffer size was exceeded. */
 	if (len > maxlen) {
-		uvc_trace(UVC_TRACE_FRAME, "Frame complete (overflow).\n");
+		uvc_trace(uvc_urb->stream->dev, UVC_TRACE_FRAME,
+			  "Frame complete (overflow).\n");
 		buf->error = 1;
 		buf->state = UVC_BUF_STATE_READY;
 	}
@@ -1198,9 +1198,11 @@ static void uvc_video_decode_end(struct uvc_streaming *stream,
 {
 	/* Mark the buffer as done if the EOF marker is set. */
 	if (data[1] & UVC_STREAM_EOF && buf->bytesused != 0) {
-		uvc_trace(UVC_TRACE_FRAME, "Frame complete (EOF found).\n");
+		uvc_trace(stream->dev, UVC_TRACE_FRAME,
+			  "Frame complete (EOF found).\n");
 		if (data[0] == len)
-			uvc_trace(UVC_TRACE_FRAME, "EOF in empty payload.\n");
+			uvc_trace(stream->dev, UVC_TRACE_FRAME,
+				  "EOF in empty payload.\n");
 		buf->state = UVC_BUF_STATE_READY;
 		if (stream->dev->quirks & UVC_QUIRK_STREAM_NO_FID)
 			stream->last_fid ^= UVC_STREAM_FID;
@@ -1316,7 +1318,7 @@ static void uvc_video_decode_meta(struct uvc_streaming *stream,
 	memcpy(&meta->length, mem, length);
 	meta_buf->bytesused += length + sizeof(meta->ns) + sizeof(meta->sof);
 
-	uvc_trace(UVC_TRACE_FRAME,
+	uvc_trace(stream->dev, UVC_TRACE_FRAME,
 		  "%s(): t-sys %lluns, SOF %u, len %u, flags 0x%x, PTS %u, STC %u frame SOF %u\n",
 		  __func__, ktime_to_ns(time), meta->sof, meta->length,
 		  meta->flags,
@@ -1376,8 +1378,9 @@ static void uvc_video_decode_isoc(struct uvc_urb *uvc_urb,
 
 	for (i = 0; i < urb->number_of_packets; ++i) {
 		if (urb->iso_frame_desc[i].status < 0) {
-			uvc_trace(UVC_TRACE_FRAME, "USB isochronous frame "
-				"lost (%d).\n", urb->iso_frame_desc[i].status);
+			uvc_trace(stream->dev, UVC_TRACE_FRAME,
+				  "USB isochronous frame lost (%d).\n",
+				  urb->iso_frame_desc[i].status);
 			/* Mark the buffer as faulty. */
 			if (buf != NULL)
 				buf->error = 1;
@@ -1700,15 +1703,16 @@ static int uvc_alloc_urb_buffers(struct uvc_streaming *stream,
 		}
 
 		if (i == UVC_URBS) {
-			uvc_trace(UVC_TRACE_VIDEO, "Allocated %u URB buffers "
-				"of %ux%u bytes each.\n", UVC_URBS, npackets,
-				psize);
+			uvc_trace(stream->dev, UVC_TRACE_VIDEO,
+				  "Allocated %u URB buffers of %ux%u bytes each.\n",
+				  UVC_URBS, npackets, psize);
 			return npackets;
 		}
 	}
 
-	uvc_trace(UVC_TRACE_VIDEO, "Failed to allocate URB buffers (%u bytes "
-		"per packet).\n", psize);
+	uvc_trace(stream->dev, UVC_TRACE_VIDEO,
+		  "Failed to allocate URB buffers (%u bytes per packet).\n",
+		  psize);
 	return 0;
 }
 
@@ -1901,12 +1905,13 @@ static int uvc_video_start_transfer(struct uvc_streaming *stream,
 		bandwidth = stream->ctrl.dwMaxPayloadTransferSize;
 
 		if (bandwidth == 0) {
-			uvc_trace(UVC_TRACE_VIDEO, "Device requested null "
-				"bandwidth, defaulting to lowest.\n");
+			uvc_trace(stream->dev, UVC_TRACE_VIDEO,
+				  "Device requested null bandwidth, defaulting to lowest.\n");
 			bandwidth = 1;
 		} else {
-			uvc_trace(UVC_TRACE_VIDEO, "Device requested %u "
-				"B/frame bandwidth.\n", bandwidth);
+			uvc_trace(stream->dev, UVC_TRACE_VIDEO,
+				  "Device requested %u B/frame bandwidth.\n",
+				  bandwidth);
 		}
 
 		for (i = 0; i < intf->num_altsetting; ++i) {
@@ -1929,13 +1934,14 @@ static int uvc_video_start_transfer(struct uvc_streaming *stream,
 		}
 
 		if (best_ep == NULL) {
-			uvc_trace(UVC_TRACE_VIDEO, "No fast enough alt setting "
-				"for requested bandwidth.\n");
+			uvc_trace(stream->dev, UVC_TRACE_VIDEO,
+				  "No fast enough alt setting for requested bandwidth.\n");
 			return -EIO;
 		}
 
-		uvc_trace(UVC_TRACE_VIDEO, "Selecting alternate setting %u "
-			"(%u B/frame bandwidth).\n", altsetting, best_psize);
+		uvc_trace(stream->dev, UVC_TRACE_VIDEO,
+			  "Selecting alternate setting %u (%u B/frame bandwidth).\n",
+			  altsetting, best_psize);
 
 		ret = usb_set_interface(stream->dev->udev, intfnum, altsetting);
 		if (ret < 0)
