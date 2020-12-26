@@ -89,6 +89,13 @@
 			};
 		};
 	};
+
+	/delete-node/ ibat-high;
+	/delete-node/ ibat-vhigh;
+	/delete-node/ vbat_adc;
+	/delete-node/ vbat_low;
+	/delete-node/ vbat_too_low;
+	/delete-node/ soc;
 };
 
 &pm660_charger {
