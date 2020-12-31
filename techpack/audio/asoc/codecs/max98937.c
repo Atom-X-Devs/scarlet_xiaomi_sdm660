@@ -776,6 +776,7 @@ static int max989xx_calib_save(uint32_t calib_value, int ch)
 	return ret;
 }
 
+#ifdef CONFIG_DEBUG_FS
 static inline bool rdc_check_valid(uint32_t rdc, int ch)
 {
 	int rdc_min, rdc_max;
@@ -798,6 +799,12 @@ static inline bool rdc_check_valid(uint32_t rdc, int ch)
 		rdc_max);
 	return false;
 }
+#else
+static inline bool rdc_check_valid(uint32_t rdc, int ch)
+{
+	return false;
+}
+#endif
 
 #ifdef CONFIG_DEBUG_FS
 static ssize_t max989xx_dbgfs_calibrate_read(struct file *file,
