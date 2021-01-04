@@ -2228,7 +2228,8 @@ static int i915_rps_boost_info(struct seq_file *m, void *data)
 	seq_printf(m, "CPU waiting? %d\n", count_irq_waiters(dev_priv));
 	seq_printf(m, "Boosts outstanding? %d\n",
 		   atomic_read(&rps->num_waiters));
-	seq_printf(m, "Interactive? %d\n", READ_ONCE(rps->power.interactive));
+	seq_printf(m, "Interactive? %d %s\n", READ_ONCE(rps->power.interactive),
+		   i915_modparams.disable_rps_interactive ? "(disabled)" : "");
 	seq_printf(m, "Frequency requested %d\n",
 		   intel_gpu_freq(dev_priv, rps->cur_freq));
 	seq_printf(m, "  min hard:%d, soft:%d; max soft:%d, hard:%d\n",

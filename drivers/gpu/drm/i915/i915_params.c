@@ -172,6 +172,12 @@ i915_param_named(enable_dpcd_backlight, int, 0600,
 	"Enable support for DPCD backlight control"
 	"(-1=use per-VBT LFP backlight type setting, 0=disabled [default], 1=enabled)");
 
+i915_param_named(power_mode_limit, int, 0600,
+	"Limit power mode for RPS 0=LOW_POWER, 1=BETWEEN, 2=HIGH_POWER [default]");
+
+i915_param_named(disable_rps_interactive, int, 0600,
+	"Disables the interactive power mode for RPS which boost to HIGH 0=NOT_DISABLED [default], 1=DISABLED");
+
 i915_param_named(enable_gvt, bool, 0400,
 	"Enable support for Intel GVT-g graphics virtualization host support(default:false)");
 

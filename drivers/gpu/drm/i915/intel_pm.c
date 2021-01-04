@@ -6358,6 +6358,12 @@ static void rps_set_power(struct drm_i915_private *dev_priv, int new_power)
 	if (new_power == rps->power.mode)
 		return;
 
+	if (new_power > i915_modparams.power_mode_limit) {
+		DRM_INFO_ONCE("DRM i915 Limiting RPS power req:%d limit:%d\n",
+			      new_power, i915_modparams.power_mode_limit);
+		new_power = i915_modparams.power_mode_limit;
+	}
+
 	/* Note the units here are not exactly 1us, but 1280ns. */
 	switch (new_power) {
 	case LOW_POWER:
@@ -6458,18 +6464,26 @@ static void gen6_set_rps_thresholds(struct drm_i915_private *dev_priv, u8 val)
 		new_power = HIGH_POWER;
 
 	mutex_lock(&rps->power.mutex);
-	if (rps->power.interactive)
+	if (!i915_modparams.disable_rps_interactive && rps->power.interactive)
 		new_power = HIGH_POWER;
 	rps_set_power(dev_priv, new_power);
 	mutex_unlock(&rps->power.mutex);
 }
 
-void intel_rps_mark_interactive(struct drm_i915_private *i915, bool interactive)
+int intel_rps_mark_interactive(struct drm_i915_private *i915, bool interactive)
 {
 	struct intel_rps *rps = &i915->gt_pm.rps;
 
 	if (INTEL_GEN(i915) < 6)
-		return;
+		return -EPERM;
+
+	/* we need to allow for switching off the interactive mode after
+	 * changing the mod param but not allow to enabe it again
+	 */
+	if (i915_modparams.disable_rps_interactive && interactive) {
+		DRM_INFO_ONCE("DRM i915 module params prevent interactive mode to be enabled\n");
+		return -EPERM;
+	}
 
 	mutex_lock(&rps->power.mutex);
 	if (interactive) {
@@ -6480,6 +6494,8 @@ void intel_rps_mark_interactive(struct drm_i915_private *i915, bool interactive)
 		rps->power.interactive--;
 	}
 	mutex_unlock(&rps->power.mutex);
+
+	return 0;
 }
 
 static u32 gen6_rps_pm_mask(struct drm_i915_private *dev_priv, u8 val)
