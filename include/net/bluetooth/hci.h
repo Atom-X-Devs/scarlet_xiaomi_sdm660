@@ -232,6 +232,9 @@ enum {
 	 * spurious wakeups or not entering a suspend state reliably.
 	 */
 	HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND,
+
+	/* This quirk will be set when running on Intel StP controller */
+	HCI_QUIRK_INTEL_STP_CONTROLLER,
 };
 
 /* HCI device flags */
