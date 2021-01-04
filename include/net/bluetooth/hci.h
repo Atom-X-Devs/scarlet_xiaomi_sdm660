@@ -225,6 +225,9 @@ enum {
 	 * supported.
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
+
+	/* This quirk will be set when running on Intel SdP/StP controller */
+	HCI_QUIRK_RESTRICT_CONN_PARAMS,
 };
 
 /* HCI device flags */
