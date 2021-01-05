@@ -4,7 +4,7 @@
  */
 
 /dts-v1/;
-#include "mt8183-kukui-jacuzzi.dtsi"
+#include "mt8183-kukui-cerise.dtsi"
 #include "mt8183-kukui-audio-da7219-rt1015p.dtsi"
 
 / {
@@ -12,20 +12,14 @@
 	compatible = "google,cerise-sku0", "google,cerise", "mediatek,mt8183";
 };
 
-&cpu_thermal {
-	sustainable-power = <4500>; /* milliwatts */
-};
-
 &mt6358codec {
 	mediatek,dmic-mode = <1>; /* one-wire */
 };
 
-&mmc1_pins_uhs {
-	pins_clk {
-		drive-strength = <MTK_DRIVE_6mA>;
-	};
-};
-
 &touchscreen {
 	status = "disabled";
+};
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_CERISE";
 };
