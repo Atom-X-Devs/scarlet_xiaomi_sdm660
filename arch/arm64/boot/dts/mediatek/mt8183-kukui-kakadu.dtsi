@@ -455,7 +455,7 @@
 };
 
 &qca_wifi {
-	qcom,ath10k-calibration-variant = "LE_Krane";
+	qcom,ath10k-calibration-variant = "GO_KAKADU";
 };
 
 &seninf {
