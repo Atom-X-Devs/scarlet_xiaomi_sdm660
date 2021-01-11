@@ -239,6 +239,16 @@ static int vidioc_try_fmt(struct file *file, void *priv, struct v4l2_format *f,
 		/* Fill remaining fields */
 		v4l2_fill_pixfmt_mp(pix_mp, fmt->fourcc, pix_mp->width,
 				    pix_mp->height);
+		/*
+		 * The H264 decoder needs extra space on the output buffers
+		 * to store motion vectors. This is needed for reference
+		 * frames.
+		 */
+		if (ctx->vpu_src_fmt->fourcc == V4L2_PIX_FMT_H264_SLICE)
+			pix_mp->plane_fmt[0].sizeimage +=
+				128 * DIV_ROUND_UP(pix_mp->width, 16) *
+				      DIV_ROUND_UP(pix_mp->height, 16);
+
 	} else if (!pix_mp->plane_fmt[0].sizeimage) {
 		/*
 		 * For coded formats the application can specify
@@ -580,7 +590,6 @@ hantro_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
 {
 	struct hantro_ctx *ctx = vb2_get_drv_priv(vq);
 	struct v4l2_pix_format_mplane *pixfmt;
-	unsigned int extra_size0 = 0;
 	int i;
 
 	switch (vq->type) {
@@ -595,21 +604,11 @@ hantro_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
 		return -EINVAL;
 	}
 
-	/* The H264 decoder needs extra size on the output buffer. */
-	if (ctx->vpu_src_fmt->fourcc == V4L2_PIX_FMT_H264_SLICE)
-		extra_size0 = 128 * DIV_ROUND_UP(pixfmt->width, 16) *
-			      DIV_ROUND_UP(pixfmt->height, 16);
-
 	if (*num_planes) {
 		if (*num_planes != pixfmt->num_planes)
 			return -EINVAL;
-		/*
-		 * The application is not aware of the extra size needed
-		 * for some codecs, so amend it without failing.
-		 */
-		if (sizes[0] < (pixfmt->plane_fmt[0].sizeimage + extra_size0))
-			sizes[0] = pixfmt->plane_fmt[0].sizeimage + extra_size0;
-		for (i = 1; i < pixfmt->num_planes; ++i)
+
+		for (i = 0; i < pixfmt->num_planes; ++i)
 			if (sizes[i] < pixfmt->plane_fmt[i].sizeimage)
 				return -EINVAL;
 		return 0;
@@ -619,7 +618,6 @@ hantro_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
 	for (i = 0; i < pixfmt->num_planes; ++i)
 		sizes[i] = pixfmt->plane_fmt[i].sizeimage;
 
-	sizes[0] += extra_size0;
 	return 0;
 }
 
