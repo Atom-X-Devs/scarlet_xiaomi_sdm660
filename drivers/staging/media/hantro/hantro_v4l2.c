@@ -342,7 +342,7 @@ hantro_reset_raw_fmt(struct hantro_ctx *ctx)
 
 	hantro_reset_fmt(raw_fmt, raw_vpu_fmt);
 	raw_fmt->width = encoded_fmt->width;
-	raw_fmt->width = encoded_fmt->width;
+	raw_fmt->height = encoded_fmt->height;
 	if (hantro_is_encoder_ctx(ctx))
 		hantro_set_fmt_out(ctx, raw_fmt);
 	else
