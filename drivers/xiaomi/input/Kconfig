@@ -9,4 +9,6 @@ config INPUT_HALL_SENSOR
 
 source "drivers/xiaomi/input/fingerprint/Kconfig"
 
+source "drivers/xiaomi/input/touchscreen/Kconfig"
+
 endif
