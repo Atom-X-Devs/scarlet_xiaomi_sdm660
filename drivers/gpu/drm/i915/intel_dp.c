@@ -5388,6 +5388,13 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 void intel_dp_encoder_suspend(struct intel_encoder *intel_encoder)
 {
 	struct intel_dp *intel_dp = enc_to_intel_dp(&intel_encoder->base);
+	struct intel_lspcon *lspcon = dp_to_lspcon(intel_dp);
+
+	if (lspcon && lspcon->active) {
+		struct drm_dp_link link;
+		if (!drm_dp_link_probe(&intel_dp->aux, &link))
+			drm_dp_link_power_down(&intel_dp->aux, &link);
+	}
 
 	if (!intel_dp_is_edp(intel_dp))
 		return;
