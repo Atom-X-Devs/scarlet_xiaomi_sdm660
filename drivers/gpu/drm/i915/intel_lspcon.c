@@ -185,44 +185,6 @@ static void lspcon_resume_in_pcon_wa(struct intel_lspcon *lspcon)
 	DRM_DEBUG_KMS("LSPCON DP descriptor mismatch after resume\n");
 }
 
-void lspcon_standby(struct intel_digital_port *dig_port, bool connected)
-{
-	struct intel_dp *dp = &dig_port->dp;
-	u8 align_status = 0, training_pattern = 0, i;
-
-	if (connected) {
-		for (i = 0; i < 3; i++) {
-			usleep_range(10000, 11000);
-
-			if (drm_dp_dpcd_readb(&dp->aux, DP_LANE_ALIGN_STATUS_UPDATED,
-					      &align_status) <= 0) {
-				DRM_DEBUG_KMS("LSPCON failed to read align status\n");
-				return;
-			}
-
-			if (drm_dp_dpcd_readb(&dp->aux, DP_TRAINING_PATTERN_SET,
-					      &training_pattern) <= 0) {
-				DRM_DEBUG_KMS("LSPCON failed to read training pattern set\n");
-				return;
-			}
-
-			/*
-			 * If link trainig is ongoing. Or sink updated link align status.
-			 * Source driver should not set lspcon power state to D3.
-			 */
-			if (align_status || training_pattern) {
-				DRM_DEBUG_KMS("LSPCON link training or display is working\n");
-				DRM_DEBUG_KMS("LSPCON DPCD register 0102h = %x, 0204h = 0x%x\n",
-					      training_pattern, align_status);
-				return;
-			}
-		}
-	}
-
-	if (drm_dp_dpcd_writeb(&dp->aux, DP_SET_POWER, DP_SET_POWER_D3) <= 0)
-		DRM_DEBUG_KMS("LSPCON failed to write power state to D3\n");
-}
-
 void lspcon_resume(struct intel_lspcon *lspcon)
 {
 	enum drm_lspcon_mode expected_mode;

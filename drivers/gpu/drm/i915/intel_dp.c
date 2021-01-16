@@ -4554,7 +4554,6 @@ static bool
 intel_dp_short_pulse(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
-	struct intel_lspcon *lspcon = dp_to_lspcon(intel_dp);
 	u8 sink_irq_vector = 0;
 	u8 old_sink_count = intel_dp->sink_count;
 	bool ret;
@@ -4595,11 +4594,6 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 
 	/* Handle CEC interrupts, if any */
 	drm_dp_cec_irq(&intel_dp->aux);
-
-	/* If LSPCON connected, try to set lspcon power state to D3 */
-	if (lspcon && lspcon->active)
-		lspcon_standby(dp_to_dig_port(intel_dp),
-			       intel_digital_port_connected(&dp_to_dig_port(intel_dp)->base));
 
 	/* defer to the hotplug work for link retraining if needed */
 	if (intel_dp_needs_link_retrain(intel_dp))
@@ -5128,7 +5122,6 @@ intel_dp_long_pulse(struct intel_connector *connector,
 {
 	struct drm_i915_private *dev_priv = to_i915(connector->base.dev);
 	struct intel_dp *intel_dp = intel_attached_dp(&connector->base);
-	struct intel_lspcon *lspcon = dp_to_lspcon(intel_dp);
 	enum drm_connector_status status;
 	u8 sink_irq_vector = 0;
 
@@ -5245,12 +5238,8 @@ intel_dp_long_pulse(struct intel_connector *connector,
 	}
 
 out:
-	if (status != connector_status_connected && !intel_dp->is_mst) {
+	if (status != connector_status_connected && !intel_dp->is_mst)
 		intel_dp_unset_edid(intel_dp);
-
-		if (lspcon && lspcon->active)
-			lspcon_standby(dp_to_dig_port(intel_dp), false);
-	}
 
 	intel_display_power_put(dev_priv, intel_dp->aux_power_domain);
 	return status;

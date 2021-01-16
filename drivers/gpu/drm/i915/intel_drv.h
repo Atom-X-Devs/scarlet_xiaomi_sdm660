@@ -2291,7 +2291,6 @@ void intel_color_load_luts(struct drm_crtc_state *crtc_state);
 
 /* intel_lspcon.c */
 bool lspcon_init(struct intel_digital_port *intel_dig_port);
-void lspcon_standby(struct intel_digital_port *dig_port, bool connected);
 void lspcon_resume(struct intel_lspcon *lspcon);
 void lspcon_wait_pcon_mode(struct intel_lspcon *lspcon);
 int lspcon_max_rate(struct intel_lspcon *lspcon);
