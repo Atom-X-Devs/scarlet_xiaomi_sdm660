@@ -21,6 +21,18 @@
  */
 
 
+/**
+ * kbase_js_check_ctx_priority_list_at_termination - Check whether the context
+ *                                                   is in pullable/unpullable
+ *                                                   list of the device.
+ * @kctx: Context pointer
+ *
+ * This function can be called only at context termination with hwaccess_lock held.
+ * If found, the context will be removed from the pullable/unpullable lists.
+ *
+ * Return: true if context is in the list.
+ */
+bool kbase_js_check_ctx_priority_list_at_termination(struct kbase_context *kctx);
 
 /**
  * @file mali_kbase_js.h

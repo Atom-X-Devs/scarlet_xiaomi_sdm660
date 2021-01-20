@@ -1456,7 +1456,8 @@ struct kbase_sub_alloc {
  *                        for context scheduling, protected by hwaccess_lock.
  * @atoms_count:          Number of GPU atoms currently in use, per priority
  * @create_flags:         Flags used in context creation.
- *
+ * @tl_kctx_list_node:    List item into the device timeline's list of
+ * 			  contexts, for timeline summarization.
  * A kernel base context is an entity among which the GPU is scheduled.
  * Each context has its own GPU address space.
  * Up to one context can be created for each client that opens the device file
@@ -1588,6 +1589,7 @@ struct kbase_context {
 #endif
 
 	base_context_create_flags create_flags;
+	struct list_head tl_kctx_list_node;
 };
 
 #ifdef CONFIG_MALI_BIFROST_CINSTR_GWT
