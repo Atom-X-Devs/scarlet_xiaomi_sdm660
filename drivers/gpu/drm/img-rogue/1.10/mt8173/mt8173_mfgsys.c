@@ -37,6 +37,10 @@
 #define mfg_test_flags 2
 #define MFG_TOP_ADDR 0x13fff000
 #define MFG_TOP_LEN 0xf0
+#define SCPSYS_ADDR 0x10006000
+#define SCPSYS_LEN 0xF20
+#define BUS_PROT_ADDR 0x10001200
+#define BUS_PROT_LEN 0x30
 
 static struct generic_pm_domain *pd_mfg;
 static struct mtk_mfg *g_mfg;
@@ -458,7 +462,9 @@ static void dump_mfg_regs(struct generic_pm_domain *genpd, int id)
 	enable_mfg_clks();
 	mtk_scpsys_pd_bus_protect_disable(pd_mfg);
 
+	dump_range(BUS_PROT_ADDR, BUS_PROT_LEN);
 	dump_range(MFG_TOP_ADDR, MFG_TOP_LEN);
+	dump_range(SCPSYS_ADDR, SCPSYS_LEN);
 
 	mtk_scpsys_pd_bus_protect_enable(pd_mfg);
 	disable_mfg_clks();
