@@ -483,7 +483,7 @@ static int anx7625_dsi_video_timing_config(struct anx7625_data *ctx)
 			(n & 0xff));
 	/* diff */
 	ret |= anx7625_reg_write(ctx, ctx->i2c.rx_p1_client,
-			MIPI_DIGITAL_ADJ_1, 0x37);
+			MIPI_DIGITAL_ADJ_1, 0x3d);
 
 	ret |= anx7625_odfc_config(ctx, post_divider - 1);
 
