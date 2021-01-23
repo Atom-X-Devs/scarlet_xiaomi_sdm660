@@ -101,6 +101,7 @@
 
 &dsi0 {
 	status = "okay";
+	da_trail_delta = <9>;
 	/delete-node/panel@0;
 	ports {
 		port {
