@@ -1463,13 +1463,6 @@ static const struct dmi_system_id privacy_valid_during_streamon[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Jinlon"),
 		},
 	},
-	{
-		.ident = "HP Pro c640 Chromebook",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Dratini"),
-		},
-	},
 	{ } /* terminate list */
 };
 
