@@ -226,6 +226,14 @@ enum {
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
 
+	/*
+	 * When this quirk is set, then the hci_suspend_notifier is not
+	 * registered. This is intended for devices which drop completely
+	 * from the bus on system-suspend and which will show up as a new
+	 * HCI after resume.
+	 */
+	HCI_QUIRK_NO_SUSPEND_NOTIFIER,
+
 	/* This quirk will be set when running on Intel SdP/StP controller */
 	HCI_QUIRK_RESTRICT_CONN_PARAMS,
 
