@@ -225,6 +225,16 @@ enum {
 	 * supported.
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
+
+	/* When this quirk is set, the adapter will be powered down during
+	 * system suspend and powerd up on resume. This should be used on
+	 * controllers that don't behave well during suspend, either causing
+	 * spurious wakeups or not entering a suspend state reliably.
+	 */
+	HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND,
+
+	/* This quirk will be set when running on Intel StP controller */
+	HCI_QUIRK_INTEL_STP_CONTROLLER,
 };
 
 /* HCI device flags */
@@ -306,6 +316,7 @@ enum {
 	HCI_FORCE_STATIC_ADDR,
 	HCI_LL_RPA_RESOLUTION,
 	HCI_CMD_PENDING,
+	HCI_FORCE_NO_MITM,
 
 	__HCI_NUM_FLAGS,
 };
@@ -1732,6 +1743,13 @@ struct hci_cp_le_set_ext_scan_rsp_data {
 struct hci_cp_le_set_adv_set_rand_addr {
 	__u8  handle;
 	bdaddr_t  bdaddr;
+} __packed;
+
+#define HCI_OP_LE_READ_TRANSMIT_POWER	0x204b
+struct hci_rp_le_read_transmit_power {
+	__u8  status;
+	__s8  min_le_tx_power;
+	__s8  max_le_tx_power;
 } __packed;
 
 /* ---- HCI Events ---- */

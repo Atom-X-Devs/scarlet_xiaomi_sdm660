@@ -462,7 +462,6 @@ static int dm_blk_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 
 static int dm_prepare_ioctl(struct mapped_device *md, int *srcu_idx,
 			    struct block_device **bdev)
-	__acquires(md->io_barrier)
 {
 	struct dm_target *tgt;
 	struct dm_table *map;
@@ -496,7 +495,6 @@ retry:
 }
 
 static void dm_unprepare_ioctl(struct mapped_device *md, int srcu_idx)
-	__releases(md->io_barrier)
 {
 	dm_put_live_table(md, srcu_idx);
 }
@@ -517,7 +515,7 @@ static int dm_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		 * subset of the parent bdev; require extra privileges.
 		 */
 		if (!capable(CAP_SYS_RAWIO)) {
-			DMWARN_LIMIT(
+			DMDEBUG_LIMIT(
 	"%s: sending ioctl %x to DM device without required privilege.",
 				current->comm, cmd);
 			r = -ENOIOCTLCMD;
@@ -1077,15 +1075,16 @@ static bool dm_dax_supported(struct dax_device *dax_dev, struct block_device *bd
 {
 	struct mapped_device *md = dax_get_private(dax_dev);
 	struct dm_table *map;
+	bool ret = false;
 	int srcu_idx;
-	bool ret;
 
 	map = dm_get_live_table(md, &srcu_idx);
 	if (!map)
-		return false;
+		goto out;
 
 	ret = dm_table_supports_dax(map, device_supports_dax, &blocksize);
 
+out:
 	dm_put_live_table(md, srcu_idx);
 
 	return ret;

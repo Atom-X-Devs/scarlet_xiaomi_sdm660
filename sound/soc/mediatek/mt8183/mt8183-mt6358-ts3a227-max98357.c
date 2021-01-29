@@ -68,15 +68,7 @@ mt8183_mt6358_rt1015_i2s_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai;
 	int ret, i;
 
-	for (i = 0; i < rtd->num_codecs; ++i) {
-		codec_dai = rtd->codec_dais[i];
-
-		ret = snd_soc_dai_set_bclk_ratio(codec_dai, 64);
-		if (ret < 0) {
-			dev_err(card->dev, "failed to set bclk ratio\n");
-			return ret;
-		}
-
+	for_each_rtd_codec_dai(rtd, i, codec_dai) {
 		ret = snd_soc_dai_set_pll(codec_dai, 0, RT1015_PLL_S_BCLK,
 				rate * 64, rate * 256);
 		if (ret < 0) {
@@ -748,6 +740,7 @@ static struct platform_driver mt8183_mt6358_ts3a227_max98357_driver = {
 #ifdef CONFIG_OF
 		.of_match_table = mt8183_mt6358_ts3a227_max98357_dt_match,
 #endif
+		.pm = &snd_soc_pm_ops,
 	},
 	.probe = mt8183_mt6358_ts3a227_max98357_dev_probe,
 };

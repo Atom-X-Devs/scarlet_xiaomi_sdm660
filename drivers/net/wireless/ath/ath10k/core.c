@@ -723,6 +723,16 @@ static int ath10k_init_sdio(struct ath10k *ar, enum ath10k_firmware_mode mode)
 	if (ret)
 		return ret;
 
+	ret = ath10k_bmi_read32(ar, hi_option_flag2, &param);
+	if (ret)
+		return ret;
+
+	param |= HI_OPTION_SDIO_CRASH_DUMP_ENHANCEMENT_HOST;
+
+	ret = ath10k_bmi_write32(ar, hi_option_flag2, param);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
@@ -2044,18 +2054,46 @@ static int ath10k_init_hw_params(struct ath10k *ar)
 	return 0;
 }
 
+void ath10k_core_start_recovery(struct ath10k *ar)
+{
+	if (test_and_set_bit(ATH10K_FLAG_RESTARTING, &ar->dev_flags)) {
+		ath10k_warn(ar, "already restarting\n");
+		return;
+	}
+
+	queue_work(ar->workqueue, &ar->restart_work);
+}
+EXPORT_SYMBOL(ath10k_core_start_recovery);
+
+void ath10k_core_napi_enable(struct ath10k *ar)
+{
+	lockdep_assert_held(&ar->conf_mutex);
+
+	if (test_bit(ATH10K_FLAG_NAPI_ENABLED, &ar->dev_flags))
+		return;
+
+	napi_enable(&ar->napi);
+	set_bit(ATH10K_FLAG_NAPI_ENABLED, &ar->dev_flags);
+}
+EXPORT_SYMBOL(ath10k_core_napi_enable);
+
+void ath10k_core_napi_sync_disable(struct ath10k *ar)
+{
+	lockdep_assert_held(&ar->conf_mutex);
+
+	if (!test_bit(ATH10K_FLAG_NAPI_ENABLED, &ar->dev_flags))
+		return;
+
+	napi_synchronize(&ar->napi);
+	napi_disable(&ar->napi);
+	clear_bit(ATH10K_FLAG_NAPI_ENABLED, &ar->dev_flags);
+}
+EXPORT_SYMBOL(ath10k_core_napi_sync_disable);
+
 static void ath10k_core_restart(struct work_struct *work)
 {
 	struct ath10k *ar = container_of(work, struct ath10k, restart_work);
 	int ret;
-	int restart_count;
-
-	restart_count = atomic_add_return(1, &ar->restart_count);
-	if (restart_count > 1) {
-		ath10k_warn(ar, "can not restart, count: %d\n", restart_count);
-		atomic_dec(&ar->restart_count);
-		return;
-	}
 
 	set_bit(ATH10K_FLAG_CRASH_FLUSH, &ar->dev_flags);
 
@@ -2087,11 +2125,6 @@ static void ath10k_core_restart(struct work_struct *work)
 	cancel_work_sync(&ar->set_coverage_class_work);
 
 	mutex_lock(&ar->conf_mutex);
-
-	if (ar->state != ATH10K_STATE_ON) {
-		ath10k_warn(ar, "state is not on: %d\n", ar->state);
-		atomic_dec(&ar->restart_count);
-	}
 
 	switch (ar->state) {
 	case ATH10K_STATE_ON:
@@ -2402,6 +2435,13 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 	if (!test_bit(ATH10K_FW_FEATURE_NON_BMI,
 		      ar->running_fw->fw_file.fw_features)) {
 		ath10k_bmi_start(ar);
+
+		/* Enable hardware clock to speed up firmware download */
+		if (ar->hw_params.hw_ops->enable_pll_clk) {
+			status = ar->hw_params.hw_ops->enable_pll_clk(ar);
+			ath10k_dbg(ar, ATH10K_DBG_BOOT, "boot enable pll ret %d\n",
+				   status);
+		}
 
 		if (ath10k_init_configure_target(ar)) {
 			status = -EINVAL;

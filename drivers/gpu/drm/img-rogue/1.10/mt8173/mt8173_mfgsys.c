@@ -27,6 +27,20 @@
 
 #include "mt8173_mfgsys.h"
 
+#include <linux/soc/mediatek/scpsys-ext.h>
+
+/*
+ * 0: disable dump
+ * 1: dump on power on/off and error
+ * 2: dump on error
+ */
+#define mfg_test_flags 2
+#define MFG_TOP_ADDR 0x13fff000
+#define MFG_TOP_LEN 0xf0
+
+static struct generic_pm_domain *pd_mfg;
+static struct mtk_mfg *g_mfg;
+
 static const char * const top_mfg_clk_name[] = {
 	"mfg_mem_in_sel",
 	"mfg_axi_in_sel",
@@ -113,6 +127,37 @@ unwind:
 	return ret;
 }
 
+static int mtk_mfg_enable_clock_without_cg(struct mtk_mfg *mfg)
+{
+        int i;
+        int ret;
+
+        for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
+                ret = clk_enable(mfg->top_clk[i]);
+                if (ret)
+                {
+                        dev_warn(mfg->dev, "Enabling %s failed with error %d\n",
+                                __clk_get_name(mfg->top_clk[i]), ret);
+                        goto unwind;
+                }
+        }
+        ret = clk_enable(mfg->top_mfg);
+        if (ret)
+        {
+                dev_warn(mfg->dev, "Enabling %s failed with error %d\n",
+                        __clk_get_name(mfg->top_mfg), ret);
+                goto unwind;
+        }
+
+        return 0;
+unwind:
+        while (i--)
+                clk_disable(mfg->top_clk[i]);
+
+        return ret;
+}
+
+
 static void mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 {
 	int i;
@@ -145,7 +190,7 @@ int mtk_mfg_enable(struct mtk_mfg *mfg)
 	}
 
 	ret = pm_runtime_get_sync(mfg->dev);
-	if (ret)
+	if (ret < 0)
 	{
 		dev_err(mfg->dev, "pm_runtime_get_sync failed with error %d\n", ret);
  		goto err_regulator_disable;
@@ -171,8 +216,15 @@ err_regulator_disable:
 	return ret;
 }
 
+static void mtk_mfg_disable_hw_apm(struct mtk_mfg *mfg)
+{
+	writel(0x00, mfg->reg_base + 0xec);
+}
+
 void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
+	mtk_mfg_disable_hw_apm(mfg);
+
 	mtk_mfg_disable_clock(mfg);
 	pm_runtime_put_sync(mfg->dev);
 	regulator_disable(mfg->vgpu);
@@ -311,6 +363,134 @@ static void mtk_mfg_unbind_device_resource(struct mtk_mfg *mfg)
 	pm_runtime_disable(dev);
 }
 
+static void enable_mfg_clks(void)
+{
+	if (g_mfg == NULL)
+		return;
+
+	mtk_mfg_prepare_clock(g_mfg);
+	mtk_mfg_enable_clock_without_cg(g_mfg);
+}
+
+static void disable_mfg_clks(void)
+{
+	if (g_mfg == NULL)
+		return;
+
+	mtk_mfg_disable_clock(g_mfg);
+	mtk_mfg_unprepare_clock(g_mfg);
+}
+
+static void __iomem *addr_from_reg(unsigned long v)
+{
+	static phys_addr_t phys;
+	static void __iomem *virt;
+
+	if (virt != NULL && v > phys && v < phys + PAGE_SIZE)
+		return virt + v - phys;
+
+	if (virt != NULL)
+		iounmap(virt);
+
+	phys = v & PAGE_MASK;
+	virt = ioremap(phys, PAGE_SIZE);
+
+	return virt + v - phys;
+}
+
+static void dump_range(unsigned long reg, size_t len)
+{
+	void __iomem *addr = addr_from_reg(reg);
+	u32 pa;
+	size_t i;
+
+	/* prevent size over PAGE_SIZE */
+	pa = (u32)reg;
+	len = min(len, PAGE_SIZE - (pa & ~PAGE_MASK));
+
+	/* 1st line of non-16-byte aligned address */
+
+	reg &= ~3U;			/* aligned to 4-byte */
+	pa = (u32)reg & ~0xf;		/* aligned to 16-byte */
+
+	pr_info("%s: 0x%08lx +0x%zx\n", __func__, reg, len);
+
+	if (pa < reg)
+		pr_cont("%08x:", pa);
+
+	for (i = 0; (pa + i) < reg; i += 4)
+		pr_cont(" ????????");
+
+	/* other lines */
+
+	for (i = 0; i < len; i += 4) {
+		pa = (u32)reg + i;
+
+		if ((pa & 0xf) == 0) {
+			if (i > 0)
+				pr_cont("\n");
+
+			pr_cont("%08x:", pa);
+		}
+
+		pr_cont(" %08x", readl(addr + i));
+	}
+
+	pr_cont("\n");
+}
+
+static void dump_mfg_regs(struct generic_pm_domain *genpd, int id)
+{
+	static const char * const id_name[] = {
+		"PD_ON_BEGIN",
+		"PD_ON_MTCMOS",
+		"PD_ON_FAIL",
+		"PD_OFF_BEGIN",
+		"PD_OFF_MTCMOS",
+		"PD_OFF_FAIL"
+	};
+
+	if (id < 0 || id >= ARRAY_SIZE(id_name))
+		return;
+
+	pr_info("%s: %s\n", id_name[id], genpd->name);
+
+	enable_mfg_clks();
+	mtk_scpsys_pd_bus_protect_disable(pd_mfg);
+
+	dump_range(MFG_TOP_ADDR, MFG_TOP_LEN);
+
+	mtk_scpsys_pd_bus_protect_enable(pd_mfg);
+	disable_mfg_clks();
+}
+
+static void mfg_pd_onoff_cb(struct generic_pm_domain *genpd,
+				enum pd_onoff_event id)
+{
+	switch (id) {
+	case PD_ON_BEGIN:
+	case PD_OFF_BEGIN:
+		if (mfg_test_flags && !pd_mfg &&
+				strcmp(genpd->name, "mfg") == 0)
+			pd_mfg = genpd;
+		return;
+
+	case PD_ON_MTCMOS:
+	case PD_OFF_MTCMOS:
+		if ((mfg_test_flags & BIT(0)) && pd_mfg &&
+				strncmp(genpd->name, "mfg", 3) == 0)
+			dump_mfg_regs(genpd, id);
+		return;
+
+	case PD_ON_FAIL:
+	case PD_OFF_FAIL:
+		if (mfg_test_flags && pd_mfg &&
+				strncmp(genpd->name, "mfg", 3) == 0)
+			dump_mfg_regs(genpd, id);
+		return;
+	};
+}
+
 struct mtk_mfg *mtk_mfg_create(struct device *dev)
 {
 	int err;
@@ -335,6 +515,9 @@ struct mtk_mfg *mtk_mfg_create(struct device *dev)
 
 	mtk_mfg_debug("mtk_mfg_create End\n");
 
+	g_mfg = mfg;
+	mtk_scpsys_register_pd_onoff_cb(mfg_pd_onoff_cb);
+
 	return mfg;
 err_unbind_resource:
 	mtk_mfg_unbind_device_resource(mfg);
@@ -344,6 +527,9 @@ err_unbind_resource:
 
 void mtk_mfg_destroy(struct mtk_mfg *mfg)
 {
+	mtk_scpsys_unregister_pd_onoff_cb(mfg_pd_onoff_cb);
+	g_mfg = NULL;
+
 	mtk_mfg_unprepare_clock(mfg);
 
 	mtk_mfg_unbind_device_resource(mfg);

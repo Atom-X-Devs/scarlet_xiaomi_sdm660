@@ -32,6 +32,7 @@
 #include "mtk_drm_drv.h"
 #include "mtk_drm_fb.h"
 #include "mtk_drm_gem.h"
+#include "mtk_drm_debug.h"
 
 #define DRIVER_NAME "mediatek"
 #define DRIVER_DESC "Mediatek SoC DRM"
@@ -592,6 +593,8 @@ static int mtk_drm_probe(struct platform_device *pdev)
 	ret = component_master_add_with_match(dev, &mtk_drm_ops, match);
 	if (ret)
 		goto err_pm;
+
+	mtk_drm_dbg_init(pdev);
 
 	return 0;
 

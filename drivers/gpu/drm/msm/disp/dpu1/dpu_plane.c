@@ -1160,8 +1160,6 @@ static void dpu_plane_destroy(struct drm_plane *plane)
 
 		mutex_destroy(&pdpu->lock);
 
-		drm_plane_helper_disable(plane, NULL);
-
 		/* this will destroy the states as well */
 		drm_plane_cleanup(plane);
 

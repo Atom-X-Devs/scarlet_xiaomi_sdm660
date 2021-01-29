@@ -1039,8 +1039,8 @@ void mdp_comp_clock_on(struct device *dev, struct mdp_comp *comp)
 {
 	int i, err;
 
-	if (comp->larb_dev) {
-		err = pm_runtime_get_sync(comp->larb_dev);
+	if (comp->comp_dev) {
+		err = pm_runtime_get_sync(comp->comp_dev);
 		if (err < 0)
 			dev_err(dev,
 				"Failed to get larb, err %d. type:%d id:%d\n",
@@ -1068,8 +1068,8 @@ void mdp_comp_clock_off(struct device *dev, struct mdp_comp *comp)
 		clk_disable_unprepare(comp->clks[i]);
 	}
 
-	if (comp->larb_dev)
-		pm_runtime_put(comp->larb_dev);
+	if (comp->comp_dev)
+		pm_runtime_put(comp->comp_dev);
 }
 
 static int mdp_get_subsys_id(struct device *dev, struct device_node *node,
@@ -1153,8 +1153,7 @@ static int mdp_comp_init(struct device *dev, struct mdp_dev *mdp,
 			 struct device_node *node, struct mdp_comp *comp,
 			 enum mdp_comp_id id)
 {
-	struct device_node *larb_node;
-	struct platform_device *larb_pdev;
+	struct platform_device *pdev;
 	int i;
 
 	if (id < 0 || id >= MDP_MAX_COMP_COUNT) {
@@ -1176,29 +1175,22 @@ static int mdp_comp_init(struct device *dev, struct mdp_dev *mdp,
 
 	mdp_get_subsys_id(dev, node, comp);
 
-	/* Only DMA capable components need the LARB property */
-	comp->larb_dev = NULL;
+	/* Only DMA capable components need the pm control */
+	comp->comp_dev = NULL;
 	if (comp->type != MDP_COMP_TYPE_RDMA &&
 	    comp->type != MDP_COMP_TYPE_WROT &&
 		comp->type != MDP_COMP_TYPE_WDMA)
 		return 0;
 
-	larb_node = of_parse_phandle(node, "mediatek,larb", 0);
-	if (!larb_node) {
-		dev_err(dev, "Missing mediatek,larb phandle in %pOF node\n",
-			node);
-		return -EINVAL;
+	pdev = of_find_device_by_node(node);
+	if (!pdev) {
+		dev_warn(dev, "can't find platform device of node:%s\n",
+			 node->name);
+		return -ENODEV;
 	}
 
-	larb_pdev = of_find_device_by_node(larb_node);
-	if (!larb_pdev) {
-		dev_warn(dev, "Waiting for larb device %pOF\n", larb_node);
-		of_node_put(larb_node);
-		return -EPROBE_DEFER;
-	}
-	of_node_put(larb_node);
-
-	comp->larb_dev = &larb_pdev->dev;
+	comp->comp_dev = &pdev->dev;
+	pm_runtime_enable(comp->comp_dev);
 
 	return 0;
 }

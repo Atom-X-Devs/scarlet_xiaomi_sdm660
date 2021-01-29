@@ -342,18 +342,35 @@ static int hdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct card_private *ctx = snd_soc_card_get_drvdata(rtd->card);
 	struct snd_soc_dai *dai = rtd->codec_dai;
+	struct snd_soc_dai_link *dai_link;
 	struct hdmi_pcm *pcm;
+	int hdmi_id;
+	char hdmi_name[16];
 
 	pcm = devm_kzalloc(rtd->card->dev, sizeof(*pcm), GFP_KERNEL);
 	if (!pcm)
 		return -ENOMEM;
 
-	pcm->device = dai->id;
-	pcm->codec_dai = dai;
+	if (sscanf(rtd->dai_link->name, "iDisp%d", &hdmi_id) != 1) {
+		dev_err(rtd->dev, "failed to get hdmi id\n");
+		return -ENODEV;
+	}
 
-	list_add_tail(&pcm->head, &ctx->hdmi_pcm_list);
+	/* dai_link id is 1:1 mapped to the PCM device */
+	snprintf(hdmi_name, sizeof(hdmi_name), "HDMI%d", hdmi_id);
 
-	return 0;
+	for_each_card_links(rtd->card, dai_link) {
+		if (dai_link->name && !strcmp(hdmi_name, dai_link->name)) {
+			pcm->device = dai_link->id;
+			pcm->codec_dai = dai;
+
+			list_add_tail(&pcm->head, &ctx->hdmi_pcm_list);
+			return 0;
+		}
+	}
+
+	dev_err(rtd->dev, "failed to find dai link of HDMI%d\n", hdmi_id);
+	return -ENODEV;
 }
 
 /* Cometlake digital audio interface glue - connects codec <--> CPU */
