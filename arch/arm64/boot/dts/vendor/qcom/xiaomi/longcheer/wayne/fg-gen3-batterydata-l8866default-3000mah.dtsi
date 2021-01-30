@@ -2,7 +2,7 @@
 
 qcom,l8866default_3000mah {
 	qcom,max-voltage-uv = <4400000>;
-	qcom,fastchg-current-ma = <2900>;
+	qcom,fastchg-current-ma = <3300>;
 	qcom,jeita-fcc-ranges = <0   50   300000
 				 51  150  900000
 				 151 450  2900000
