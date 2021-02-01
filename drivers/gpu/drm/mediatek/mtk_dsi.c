@@ -207,6 +207,7 @@ struct mtk_dsi {
 	struct clk *hs_clk;
 
 	u32 data_rate;
+	u32 da_trail_delta;
 
 	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
@@ -252,7 +253,7 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	timing->da_hs_prepare = (80 * data_rate_mhz + 4 * 1000) / 8000;
 	timing->da_hs_zero = (170 * data_rate_mhz + 10 * 1000) / 8000 + 1 -
 			     timing->da_hs_prepare;
-	timing->da_hs_trail = timing->da_hs_prepare + 1;
+	timing->da_hs_trail = timing->da_hs_prepare + 1 + dsi->da_trail_delta;
 
 	timing->ta_go = 4 * timing->lpx - 2;
 	timing->ta_sure = timing->lpx + 2;
@@ -1311,6 +1312,13 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	}
 
 	dsi->mmsys_sw_rst_b = regmap;
+
+	ret = of_property_read_u32_index(dev->of_node, "da_trail_delta", 0,
+					 &dsi->da_trail_delta);
+	if (ret) {
+		dev_info(dev, "Can't get da_trail_delta, keep it as 0: %d\n", ret);
+		dsi->da_trail_delta = 0;
+	}
 
 	comp_id = mtk_ddp_comp_get_id(dev->of_node, MTK_DSI);
 	if (comp_id < 0) {
