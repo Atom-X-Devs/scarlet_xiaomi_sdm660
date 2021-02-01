@@ -108,7 +108,6 @@ static void mtk_drm_crtc_finish_page_flip(struct mtk_drm_crtc *mtk_crtc)
 
 static void mtk_drm_finish_page_flip(struct mtk_drm_crtc *mtk_crtc)
 {
-	drm_crtc_handle_vblank(&mtk_crtc->base);
 	if (mtk_crtc->pending_needs_vblank) {
 		mtk_drm_crtc_finish_page_flip(mtk_crtc);
 		mtk_crtc->pending_needs_vblank = false;
@@ -262,9 +261,9 @@ static void ddp_cmdq_cb(struct cmdq_cb_data data)
 	struct mtk_cmdq_cb_data *cb_data = data.data;
 
 	if (cb_data) {
-		if (data.sta == CMDQ_CB_ERROR) {
-			struct mtk_drm_crtc *mtk_crtc = cb_data->mtk_crtc;
+		struct mtk_drm_crtc *mtk_crtc = cb_data->mtk_crtc;
 
+		if (data.sta == CMDQ_CB_ERROR) {
 			if (mtk_crtc) {
 				u32 pipe;
 
@@ -276,6 +275,8 @@ static void ddp_cmdq_cb(struct cmdq_cb_data data)
 				mtk_drm_err("cmdq mtk_crtc null pointer\n");
 			}
 		}
+
+		mtk_drm_finish_page_flip(mtk_crtc);
 
 		if (cb_data->cmdq_handle)
 			cmdq_pkt_destroy(cb_data->cmdq_handle);
@@ -747,7 +748,8 @@ void mtk_crtc_ddp_irq(struct drm_crtc *crtc, struct mtk_ddp_comp *comp)
 #endif
 		mtk_crtc_ddp_config(crtc, NULL);
 
-	mtk_drm_finish_page_flip(mtk_crtc);
+
+	drm_crtc_handle_vblank(&mtk_crtc->base);
 }
 
 static int mtk_drm_crtc_num_comp_planes(struct mtk_drm_crtc *mtk_crtc,
