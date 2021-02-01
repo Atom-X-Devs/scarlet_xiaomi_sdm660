@@ -317,11 +317,6 @@ static void mdp_bound_align_image(u32 *w, unsigned int wmin, unsigned int wmax,
 
 	org_w = *w;
 	org_h = *h;
-
-	/* Coded dimensions must be a multiple of at least 16 */
-	walign = max(walign, 4u);
-	halign = max(halign, 4u);
-
 	v4l_bound_align_image(w, wmin, wmax, walign, h, hmin, hmax, halign,
 			      salign);
 
