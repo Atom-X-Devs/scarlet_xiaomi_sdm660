@@ -52,14 +52,15 @@ void *mtk_vcodec_fw_map_dm_addr(struct mtk_vcodec_fw *fw, u32 mem_addr)
 EXPORT_SYMBOL_GPL(mtk_vcodec_fw_map_dm_addr);
 
 int mtk_vcodec_fw_ipi_register(struct mtk_vcodec_fw *fw, int id,
-	mtk_vcodec_ipi_handler handler, const char *name, void *priv)
+			       mtk_vcodec_ipi_handler handler,
+			       const char *name, void *priv)
 {
 	return fw->ops->ipi_register(fw, id, handler, name, priv);
 }
 EXPORT_SYMBOL_GPL(mtk_vcodec_fw_ipi_register);
 
-int mtk_vcodec_fw_ipi_send(struct mtk_vcodec_fw *fw,
-	int id, void *buf, unsigned int len, unsigned int wait)
+int mtk_vcodec_fw_ipi_send(struct mtk_vcodec_fw *fw, int id, void *buf,
+			   unsigned int len, unsigned int wait)
 {
 	return fw->ops->ipi_send(fw, id, buf, len, wait);
 }

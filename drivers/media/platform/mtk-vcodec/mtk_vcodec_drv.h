@@ -366,7 +366,7 @@ struct mtk_vcodec_dec_pdata {
  * @num_capture_formats: number of entries in capture_formats
  * @output_formats: array of supported output formats
  * @num_output_formats: number of entries in output_formats
- * @core_id: stand for h264 or vp8 encode index
+ * @core_id: start offset of the core registers
  */
 struct mtk_vcodec_enc_pdata {
 	enum mtk_chip chip;
@@ -381,6 +381,8 @@ struct mtk_vcodec_enc_pdata {
 	size_t num_output_formats;
 	int core_id;
 };
+
+#define MTK_ENC_CTX_IS_EXT(ctx) ((ctx)->dev->venc_pdata->uses_ext)
 
 /**
  * struct mtk_vcodec_dev - driver data

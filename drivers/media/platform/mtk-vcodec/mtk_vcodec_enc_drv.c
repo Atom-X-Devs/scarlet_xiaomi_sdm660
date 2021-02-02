@@ -184,7 +184,7 @@ static int fops_vcodec_open(struct file *file)
 			goto err_load_fw;
 		}
 
-		dev->dec_capability =
+		dev->enc_capability =
 			mtk_vcodec_fw_get_venc_capa(dev->fw_handler);
 		mtk_v4l2_debug(0, "encoder capability %x", dev->enc_capability);
 	}
@@ -258,7 +258,6 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&dev->ctx_list);
 	dev->plat_dev = pdev;
 
-	dev->vdec_pdata = of_device_get_match_data(&pdev->dev);
 	if (!of_property_read_u32(pdev->dev.of_node, "mediatek,vpu",
 				  &rproc_phandle)) {
 		fw_type = VPU;
@@ -266,7 +265,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 					 &rproc_phandle)) {
 		fw_type = SCP;
 	} else {
-		mtk_v4l2_err("Could not get vdec IPI device");
+		mtk_v4l2_err("Could not get venc IPI device");
 		return -ENODEV;
 	}
 	if (!pdev->dev.dma_parms) {
@@ -276,7 +275,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		if (!pdev->dev.dma_parms)
 			return -ENOMEM;
 	}
-	dma_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
+	dma_set_max_seg_size(&pdev->dev, UINT_MAX);
 
 	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, ENCODER);
 	if (IS_ERR(dev->fw_handler))

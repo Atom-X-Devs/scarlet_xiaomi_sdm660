@@ -26,7 +26,8 @@ static void *mtk_vcodec_vpu_map_dm_addr(struct mtk_vcodec_fw *fw,
 }
 
 static int mtk_vcodec_vpu_set_ipi_register(struct mtk_vcodec_fw *fw, int id,
-		mtk_vcodec_ipi_handler handler, const char *name, void *priv)
+					   mtk_vcodec_ipi_handler handler,
+					   const char *name, void *priv)
 {
 	return vpu_ipi_register(fw->pdev, id, handler, name, priv);
 }
