@@ -188,10 +188,7 @@ static int vidioc_enum_fmt_vid_out(struct file *file, void *priv,
 static int vidioc_venc_querycap(struct file *file, void *priv,
 				struct v4l2_capability *cap)
 {
-	const struct mtk_vcodec_enc_pdata *pdata =
-		fh_to_ctx(priv)->dev->venc_pdata;
-
-	strscpy(cap->driver, pdata->name, sizeof(cap->driver));
+	strscpy(cap->driver, MTK_VCODEC_ENC_NAME, sizeof(cap->driver));
 	strscpy(cap->bus_info, MTK_PLATFORM_STR, sizeof(cap->bus_info));
 	strscpy(cap->card, MTK_PLATFORM_STR, sizeof(cap->card));
 
