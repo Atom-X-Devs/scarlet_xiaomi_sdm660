@@ -250,6 +250,7 @@ struct mtk_i2c {
 	u16 timing_reg;
 	u16 high_speed_reg;
 	u16 ltiming_reg;
+	unsigned int clock_stretch_ns;
 	unsigned char auto_restart;
 	bool ignore_restart_irq;
 	struct mtk_i2c_ac_timing ac_timing;
@@ -574,7 +575,8 @@ static int mtk_i2c_check_ac_timing(struct mtk_i2c *i2c,
 	else
 		clk_ns = sample_ns / 2;
 
-	su_sta_cnt = DIV_ROUND_UP(spec->min_su_sta_ns, clk_ns);
+	su_sta_cnt = DIV_ROUND_UP(spec->min_su_sta_ns + i2c->clock_stretch_ns,
+				  clk_ns);
 	if (su_sta_cnt > max_sta_cnt)
 		return -1;
 
@@ -1135,6 +1137,8 @@ static int mtk_i2c_parse_dt(struct device_node *np, struct mtk_i2c *i2c)
 
 	if (i2c->clk_src_div == 0)
 		return -EINVAL;
+
+	of_property_read_u32(np, "clock-stretch-ns", &i2c->clock_stretch_ns);
 
 	i2c->have_pmic = of_property_read_bool(np, "mediatek,have-pmic");
 	i2c->use_push_pull =
