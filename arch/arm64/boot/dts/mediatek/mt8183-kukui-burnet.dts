@@ -28,3 +28,7 @@
 		hid-descr-addr = <0x0020>;
 	};
 };
+
+&i2c2 {
+	clock-stretch-ns = <4100>;
+};
