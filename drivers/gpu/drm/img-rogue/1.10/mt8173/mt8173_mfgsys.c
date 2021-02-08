@@ -491,8 +491,15 @@ static void mfg_pd_onoff_cb(struct generic_pm_domain *genpd,
 	case PD_ON_FAIL:
 	case PD_OFF_FAIL:
 		if (mfg_test_flags && pd_mfg &&
-				strncmp(genpd->name, "mfg", 3) == 0)
+				strncmp(genpd->name, "mfg", 3) == 0) {
 			dump_mfg_regs(genpd, id);
+			/*
+			 * TODO(b/168839892): Remove this warning once enough
+			 * data has been captured to debug the power off
+			 * failure.
+			 */
+			WARN_ON(true);
+		}
 		return;
 	};
 }
