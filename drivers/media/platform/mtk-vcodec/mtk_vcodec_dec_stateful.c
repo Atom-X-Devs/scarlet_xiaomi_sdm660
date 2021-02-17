@@ -57,11 +57,6 @@ static const struct mtk_codec_framesizes mtk_vdec_framesizes[] = {
 		.stepwise = {  MTK_VDEC_MIN_W, MTK_VDEC_MAX_W, 16,
 				MTK_VDEC_MIN_H, MTK_VDEC_MAX_H, 16 },
 	},
-	{
-		.fourcc = V4L2_PIX_FMT_MT21C,
-		.stepwise = {  MTK_VDEC_MIN_W, MTK_VDEC_MAX_W, 16,
-				MTK_VDEC_MIN_H, MTK_VDEC_MAX_H, 16 },
-	},
 };
 
 #define NUM_SUPPORTED_FRAMESIZE ARRAY_SIZE(mtk_vdec_framesizes)
