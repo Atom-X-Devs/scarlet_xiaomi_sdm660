@@ -468,8 +468,7 @@ static struct vb2_ops mtk_vdec_request_vb2_ops = {
 	.buf_request_complete = vb2ops_vdec_buf_request_complete,
 };
 
-
-const struct mtk_vcodec_dec_pdata mtk_req_8183_pdata = {
+const struct mtk_vcodec_dec_pdata mtk_vdec_8183_pdata = {
 	.chip = MTK_MT8183,
 	.init_vdec_params = mtk_init_vdec_params,
 	.ctrls_setup = mtk_vcodec_dec_ctrls_setup,

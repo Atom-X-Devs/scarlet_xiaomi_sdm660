@@ -637,7 +637,7 @@ static struct vb2_ops mtk_vdec_frame_vb2_ops = {
 	.stop_streaming	= vb2ops_vdec_stop_streaming,
 };
 
-const struct mtk_vcodec_dec_pdata mtk_frame_8173_pdata = {
+const struct mtk_vcodec_dec_pdata mtk_vdec_8173_pdata = {
 	.chip = MTK_MT8173,
 	.init_vdec_params = mtk_init_vdec_params,
 	.ctrls_setup = mtk_vcodec_dec_ctrls_setup,
