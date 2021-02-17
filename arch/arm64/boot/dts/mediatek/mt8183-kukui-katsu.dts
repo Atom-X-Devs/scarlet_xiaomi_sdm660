@@ -28,3 +28,7 @@
 		hid-descr-addr = <0x0001>;
 	};
 };
+
+&panel {
+	compatible = "starry,2081101qfh032011-53g";
+};
