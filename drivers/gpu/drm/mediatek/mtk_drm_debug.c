@@ -288,7 +288,7 @@ static void mtk_drm_dbg_dump_comp_reg(struct mtk_drm_dbg_table *comp,
 		    comp->name, len, offset);
 
 	for (i = 0; i < len; i += 0x10) {
-		mtk_drm_dbg("0x%08lX | 0x%08X 0x%08X 0x%08X 0x%08X\n",
+		mtk_drm_dbg("0x%08X | 0x%08X 0x%08X 0x%08X 0x%08X\n",
 			    reg_pa + i + offset,
 			    readl(reg_va + offset + i),
 			    readl(reg_va + offset + i + 0x4),
@@ -353,9 +353,8 @@ void mtk_drm_dbg_init(struct platform_device *pdev)
 	mtk_drm_dbg("%s node %s\n", dev_name(dev),
 		    dev->of_node ? dev->of_node->name : "");
 
-	if (dev->of_node->parent)
-		mtk_drm_dbg("parent node %s\n", dev->of_node->parent->name,
-			    dev->of_node->parent->full_name);
+	if (dev->of_node && dev->of_node->parent)
+		mtk_drm_dbg("parent node %s\n", dev->of_node->parent->full_name);
 
 	of_id = of_match_node(mtk_drm_dbg_of_ids, dev->of_node);
 	if (!of_id) {
