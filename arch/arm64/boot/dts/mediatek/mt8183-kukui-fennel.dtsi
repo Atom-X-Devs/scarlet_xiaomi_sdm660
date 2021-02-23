@@ -30,3 +30,7 @@
 		wakeup-source;
 	};
 };
+
+&i2c2 {
+	clock-stretch-ns = <9500>;
+};

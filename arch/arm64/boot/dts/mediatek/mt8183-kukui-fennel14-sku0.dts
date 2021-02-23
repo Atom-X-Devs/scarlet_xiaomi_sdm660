@@ -14,7 +14,3 @@
 &qca_wifi {
 	qcom,ath10k-calibration-variant = "GO_FENNEL14";
 };
-
-&i2c2 {
-	clock-stretch-ns = <9500>;
-};
