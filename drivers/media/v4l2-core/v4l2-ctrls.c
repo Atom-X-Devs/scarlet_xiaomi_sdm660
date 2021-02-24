@@ -627,7 +627,7 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		return h264_fp_arrangement_type;
 	case V4L2_CID_MPEG_VIDEO_H264_FMO_MAP_TYPE:
 		return h264_fmo_map_type;
-	case V4L2_CID_MPEG_VIDEO_H264_DECODING_MODE:
+	case V4L2_CID_STATELESS_H264_DECODE_MODE:
 		return h264_decoding_mode;
 	case V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL:
 		return mpeg_mpeg4_level;
@@ -839,12 +839,6 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_MAX_QP:		return "H264 I-Frame Maximum QP Value";
 	case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_MIN_QP:		return "H264 P-Frame Minimum QP Value";
 	case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_MAX_QP:		return "H264 P-Frame Maximum QP Value";
-	case V4L2_CID_MPEG_VIDEO_H264_SPS:			return "H264 Sequence Parameter Set";
-	case V4L2_CID_MPEG_VIDEO_H264_PPS:			return "H264 Picture Parameter Set";
-	case V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX:		return "H264 Scaling Matrix";
-	case V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS:		return "H264 Slice Parameters";
-	case V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS:		return "H264 Decode Parameters";
-	case V4L2_CID_MPEG_VIDEO_H264_DECODING_MODE:		return "H264 Decoding Mode";
 	case V4L2_CID_MPEG_VIDEO_MPEG4_I_FRAME_QP:		return "MPEG4 I-Frame QP Value";
 	case V4L2_CID_MPEG_VIDEO_MPEG4_P_FRAME_QP:		return "MPEG4 P-Frame QP Value";
 	case V4L2_CID_MPEG_VIDEO_MPEG4_B_FRAME_QP:		return "MPEG4 B-Frame QP Value";
@@ -1084,6 +1078,18 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_DETECT_MD_GLOBAL_THRESHOLD: return "MD Global Threshold";
 	case V4L2_CID_DETECT_MD_THRESHOLD_GRID:	return "MD Threshold Grid";
 	case V4L2_CID_DETECT_MD_REGION_GRID:	return "MD Region Grid";
+
+	/* Stateless Codec controls */
+	/* Keep the order of the 'case's the same as in v4l2-controls.h! */
+	case V4L2_CID_CODEC_STATELESS_CLASS:	return "Stateless Codec Controls";
+	case V4L2_CID_STATELESS_H264_DECODE_MODE:		return "H264 Decode Mode";
+	case V4L2_CID_STATELESS_H264_START_CODE:		return "H264 Start Code";
+	case V4L2_CID_STATELESS_H264_SPS:			return "H264 Sequence Parameter Set";
+	case V4L2_CID_STATELESS_H264_PPS:			return "H264 Picture Parameter Set";
+	case V4L2_CID_STATELESS_H264_SCALING_MATRIX:		return "H264 Scaling Matrix";
+	case V4L2_CID_STATELESS_H264_PRED_WEIGHTS:		return "H264 Prediction Weight Table";
+	case V4L2_CID_STATELESS_H264_SLICE_PARAMS:		return "H264 Slice Parameters";
+	case V4L2_CID_STATELESS_H264_DECODE_PARAMS:		return "H264 Decode Parameters";
 	default:
 		return NULL;
 	}
@@ -1208,7 +1214,6 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC:
 	case V4L2_CID_MPEG_VIDEO_H264_SEI_FP_ARRANGEMENT_TYPE:
 	case V4L2_CID_MPEG_VIDEO_H264_FMO_MAP_TYPE:
-	case V4L2_CID_MPEG_VIDEO_H264_DECODING_MODE:
 	case V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL:
 	case V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE:
 	case V4L2_CID_JPEG_CHROMA_SUBSAMPLING:
@@ -1234,6 +1239,8 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_MPEG_VIDEO_HEVC_SIZE_OF_LENGTH_FIELD:
 	case V4L2_CID_MPEG_VIDEO_HEVC_TIER:
 	case V4L2_CID_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE:
+	case V4L2_CID_STATELESS_H264_DECODE_MODE:
+	case V4L2_CID_STATELESS_H264_START_CODE:
 		*type = V4L2_CTRL_TYPE_MENU;
 		break;
 	case V4L2_CID_LINK_FREQ:
@@ -1263,6 +1270,7 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_FM_RX_CLASS:
 	case V4L2_CID_RF_TUNER_CLASS:
 	case V4L2_CID_DETECT_CLASS:
+	case V4L2_CID_CODEC_STATELESS_CLASS:
 		*type = V4L2_CTRL_TYPE_CTRL_CLASS;
 		/* You can neither read not write these */
 		*flags |= V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_WRITE_ONLY;
@@ -1323,20 +1331,23 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_MPEG_VIDEO_MPEG2_QUANTIZATION:
 		*type = V4L2_CTRL_TYPE_MPEG2_QUANTIZATION;
 		break;
-	case V4L2_CID_MPEG_VIDEO_H264_SPS:
+	case V4L2_CID_STATELESS_H264_SPS:
 		*type = V4L2_CTRL_TYPE_H264_SPS;
 		break;
-	case V4L2_CID_MPEG_VIDEO_H264_PPS:
+	case V4L2_CID_STATELESS_H264_PPS:
 		*type = V4L2_CTRL_TYPE_H264_PPS;
 		break;
-	case V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX:
+	case V4L2_CID_STATELESS_H264_SCALING_MATRIX:
 		*type = V4L2_CTRL_TYPE_H264_SCALING_MATRIX;
 		break;
-	case V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS:
+	case V4L2_CID_STATELESS_H264_SLICE_PARAMS:
 		*type = V4L2_CTRL_TYPE_H264_SLICE_PARAMS;
 		break;
-	case V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS:
+	case V4L2_CID_STATELESS_H264_DECODE_PARAMS:
 		*type = V4L2_CTRL_TYPE_H264_DECODE_PARAMS;
+		break;
+	case V4L2_CID_STATELESS_H264_PRED_WEIGHTS:
+		*type = V4L2_CTRL_TYPE_H264_PRED_WEIGHTS;
 		break;
 	case V4L2_CID_MPEG_VIDEO_VP8_FRAME_HEADER:
 		*type = V4L2_CTRL_TYPE_VP8_FRAME_HEADER;
@@ -1602,6 +1613,24 @@ static void std_log(const struct v4l2_ctrl *ctrl)
 	case V4L2_CTRL_TYPE_U32:
 		pr_cont("%u", (unsigned)*ptr.p_u32);
 		break;
+	case V4L2_CTRL_TYPE_H264_SPS:
+		pr_cont("H264_SPS");
+		break;
+	case V4L2_CTRL_TYPE_H264_PPS:
+		pr_cont("H264_PPS");
+		break;
+	case V4L2_CTRL_TYPE_H264_SCALING_MATRIX:
+		pr_cont("H264_SCALING_MATRIX");
+		break;
+	case V4L2_CTRL_TYPE_H264_SLICE_PARAMS:
+		pr_cont("H264_SLICE_PARAMS");
+		break;
+	case V4L2_CTRL_TYPE_H264_DECODE_PARAMS:
+		pr_cont("H264_DECODE_PARAMS");
+		break;
+	case V4L2_CTRL_TYPE_H264_PRED_WEIGHTS:
+		pr_cont("H264_PRED_WEIGHTS");
+		break;
 	default:
 		pr_cont("unknown type %d", ctrl->type);
 		break;
@@ -1633,13 +1662,21 @@ static void std_log(const struct v4l2_ctrl *ctrl)
 
 #define zero_padding(s) \
 	memset(&s.padding, 0, sizeof(s.padding))
+#define zero_reserved(s) \
+	memset(&(s).reserved, 0, sizeof((s).reserved))
 
 static int std_validate_compound(const struct v4l2_ctrl *ctrl, u32 idx,
 				 union v4l2_ctrl_ptr ptr)
 {
 	struct v4l2_ctrl_mpeg2_slice_params *p_mpeg2_slice_params;
 	struct v4l2_ctrl_vp8_frame_header *p_vp8_frame_header;
+	struct v4l2_ctrl_h264_sps *p_h264_sps;
+	struct v4l2_ctrl_h264_pps *p_h264_pps;
+	struct v4l2_ctrl_h264_pred_weights *p_h264_pred_weights;
+	struct v4l2_ctrl_h264_slice_params *p_h264_slice_params;
+	struct v4l2_ctrl_h264_decode_params *p_h264_dec_params;
 	void *p = ptr.p + idx * ctrl->elem_size;
+	unsigned int i;
 
 	switch ((u32)ctrl->type) {
 	case V4L2_CTRL_TYPE_MPEG2_SLICE_PARAMS:
@@ -1688,10 +1725,158 @@ static int std_validate_compound(const struct v4l2_ctrl *ctrl, u32 idx,
 		break;
 
 	case V4L2_CTRL_TYPE_H264_SPS:
+		p_h264_sps = p;
+
+		/* Some syntax elements are only conditionally valid */
+		if (p_h264_sps->pic_order_cnt_type != 0) {
+			p_h264_sps->log2_max_pic_order_cnt_lsb_minus4 = 0;
+		} else if (p_h264_sps->pic_order_cnt_type != 1) {
+			p_h264_sps->num_ref_frames_in_pic_order_cnt_cycle = 0;
+			p_h264_sps->offset_for_non_ref_pic = 0;
+			p_h264_sps->offset_for_top_to_bottom_field = 0;
+			memset(&p_h264_sps->offset_for_ref_frame, 0,
+			       sizeof(p_h264_sps->offset_for_ref_frame));
+		}
+
+		if (!V4L2_H264_SPS_HAS_CHROMA_FORMAT(p_h264_sps)) {
+			p_h264_sps->chroma_format_idc = 1;
+			p_h264_sps->bit_depth_luma_minus8 = 0;
+			p_h264_sps->bit_depth_chroma_minus8 = 0;
+
+			p_h264_sps->flags &=
+				~V4L2_H264_SPS_FLAG_QPPRIME_Y_ZERO_TRANSFORM_BYPASS;
+
+			if (p_h264_sps->chroma_format_idc < 3)
+				p_h264_sps->flags &=
+					~V4L2_H264_SPS_FLAG_SEPARATE_COLOUR_PLANE;
+		}
+
+		if (p_h264_sps->flags & V4L2_H264_SPS_FLAG_FRAME_MBS_ONLY)
+			p_h264_sps->flags &=
+				~V4L2_H264_SPS_FLAG_MB_ADAPTIVE_FRAME_FIELD;
+
+		/*
+		 * Chroma 4:2:2 format require at least High 4:2:2 profile.
+		 *
+		 * The H264 specification and well-known parser implementations
+		 * use profile-idc values directly, as that is clearer and
+		 * less ambiguous. We do the same here.
+		 */
+		if (p_h264_sps->profile_idc < 122 &&
+		    p_h264_sps->chroma_format_idc > 1)
+			return -EINVAL;
+		/* Chroma 4:4:4 format require at least High 4:2:2 profile */
+		if (p_h264_sps->profile_idc < 244 &&
+		    p_h264_sps->chroma_format_idc > 2)
+			return -EINVAL;
+		if (p_h264_sps->chroma_format_idc > 3)
+			return -EINVAL;
+
+		if (p_h264_sps->bit_depth_luma_minus8 > 6)
+			return -EINVAL;
+		if (p_h264_sps->bit_depth_chroma_minus8 > 6)
+			return -EINVAL;
+		if (p_h264_sps->log2_max_frame_num_minus4 > 12)
+			return -EINVAL;
+		if (p_h264_sps->pic_order_cnt_type > 2)
+			return -EINVAL;
+		if (p_h264_sps->log2_max_pic_order_cnt_lsb_minus4 > 12)
+			return -EINVAL;
+		if (p_h264_sps->max_num_ref_frames > V4L2_H264_REF_LIST_LEN)
+			return -EINVAL;
+		break;
+
 	case V4L2_CTRL_TYPE_H264_PPS:
+		p_h264_pps = p;
+
+		if (p_h264_pps->num_slice_groups_minus1 > 7)
+			return -EINVAL;
+		if (p_h264_pps->num_ref_idx_l0_default_active_minus1 >
+		    (V4L2_H264_REF_LIST_LEN - 1))
+			return -EINVAL;
+		if (p_h264_pps->num_ref_idx_l1_default_active_minus1 >
+		    (V4L2_H264_REF_LIST_LEN - 1))
+			return -EINVAL;
+		if (p_h264_pps->weighted_bipred_idc > 2)
+			return -EINVAL;
+		/*
+		 * pic_init_qp_minus26 shall be in the range of
+		 * -(26 + QpBdOffset_y) to +25, inclusive,
+		 *  where QpBdOffset_y is 6 * bit_depth_luma_minus8
+		 */
+		if (p_h264_pps->pic_init_qp_minus26 < -62 ||
+		    p_h264_pps->pic_init_qp_minus26 > 25)
+			return -EINVAL;
+		if (p_h264_pps->pic_init_qs_minus26 < -26 ||
+		    p_h264_pps->pic_init_qs_minus26 > 25)
+			return -EINVAL;
+		if (p_h264_pps->chroma_qp_index_offset < -12 ||
+		    p_h264_pps->chroma_qp_index_offset > 12)
+			return -EINVAL;
+		if (p_h264_pps->second_chroma_qp_index_offset < -12 ||
+		    p_h264_pps->second_chroma_qp_index_offset > 12)
+			return -EINVAL;
+		break;
+
 	case V4L2_CTRL_TYPE_H264_SCALING_MATRIX:
+		break;
+
+	case V4L2_CTRL_TYPE_H264_PRED_WEIGHTS:
+		p_h264_pred_weights = p;
+
+		if (p_h264_pred_weights->luma_log2_weight_denom > 7)
+			return -EINVAL;
+		if (p_h264_pred_weights->chroma_log2_weight_denom > 7)
+			return -EINVAL;
+		break;
+
 	case V4L2_CTRL_TYPE_H264_SLICE_PARAMS:
+		p_h264_slice_params = p;
+
+		if (p_h264_slice_params->slice_type != V4L2_H264_SLICE_TYPE_B)
+			p_h264_slice_params->flags &=
+				~V4L2_H264_SLICE_FLAG_DIRECT_SPATIAL_MV_PRED;
+
+		if (p_h264_slice_params->colour_plane_id > 2)
+			return -EINVAL;
+		if (p_h264_slice_params->cabac_init_idc > 2)
+			return -EINVAL;
+		if (p_h264_slice_params->disable_deblocking_filter_idc > 2)
+			return -EINVAL;
+		if (p_h264_slice_params->slice_alpha_c0_offset_div2 < -6 ||
+		    p_h264_slice_params->slice_alpha_c0_offset_div2 > 6)
+			return -EINVAL;
+		if (p_h264_slice_params->slice_beta_offset_div2 < -6 ||
+		    p_h264_slice_params->slice_beta_offset_div2 > 6)
+			return -EINVAL;
+
+		if (p_h264_slice_params->slice_type == V4L2_H264_SLICE_TYPE_I ||
+		    p_h264_slice_params->slice_type == V4L2_H264_SLICE_TYPE_SI)
+			p_h264_slice_params->num_ref_idx_l0_active_minus1 = 0;
+		if (p_h264_slice_params->slice_type != V4L2_H264_SLICE_TYPE_B)
+			p_h264_slice_params->num_ref_idx_l1_active_minus1 = 0;
+
+		if (p_h264_slice_params->num_ref_idx_l0_active_minus1 >
+		    (V4L2_H264_REF_LIST_LEN - 1))
+			return -EINVAL;
+		if (p_h264_slice_params->num_ref_idx_l1_active_minus1 >
+		    (V4L2_H264_REF_LIST_LEN - 1))
+			return -EINVAL;
+		zero_reserved(*p_h264_slice_params);
+		break;
+
 	case V4L2_CTRL_TYPE_H264_DECODE_PARAMS:
+		p_h264_dec_params = p;
+
+		if (p_h264_dec_params->nal_ref_idc > 3)
+			return -EINVAL;
+		for (i = 0; i < V4L2_H264_NUM_DPB_ENTRIES; i++) {
+			struct v4l2_h264_dpb_entry *dpb_entry =
+				&p_h264_dec_params->dpb[i];
+
+			zero_reserved(*dpb_entry);
+		}
+		zero_reserved(*p_h264_dec_params);
 		break;
 
 	case V4L2_CTRL_TYPE_VP8_FRAME_HEADER:
@@ -2382,6 +2567,9 @@ static struct v4l2_ctrl *v4l2_ctrl_new(struct v4l2_ctrl_handler *hdl,
 		break;
 	case V4L2_CTRL_TYPE_H264_DECODE_PARAMS:
 		elem_size = sizeof(struct v4l2_ctrl_h264_decode_params);
+		break;
+	case V4L2_CTRL_TYPE_H264_PRED_WEIGHTS:
+		elem_size = sizeof(struct v4l2_ctrl_h264_pred_weights);
 		break;
 	case V4L2_CTRL_TYPE_VP8_FRAME_HEADER:
 		elem_size = sizeof(struct v4l2_ctrl_vp8_frame_header);

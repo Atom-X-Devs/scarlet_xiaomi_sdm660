@@ -23,7 +23,6 @@ static void set_params(struct hantro_ctx *ctx)
 {
 	const struct hantro_h264_dec_ctrls *ctrls = &ctx->h264_dec.ctrls;
 	const struct v4l2_ctrl_h264_decode_params *dec_param = ctrls->decode;
-	const struct v4l2_ctrl_h264_slice_params *slices = ctrls->slices;
 	const struct v4l2_ctrl_h264_sps *sps = ctrls->sps;
 	const struct v4l2_ctrl_h264_pps *pps = ctrls->pps;
 	struct vb2_v4l2_buffer *src_buf = hantro_get_src_buf(ctx);
@@ -40,11 +39,11 @@ static void set_params(struct hantro_ctx *ctx)
 
 	if (!(sps->flags & V4L2_H264_SPS_FLAG_FRAME_MBS_ONLY) &&
 	    (sps->flags & V4L2_H264_SPS_FLAG_MB_ADAPTIVE_FRAME_FIELD ||
-	     slices[0].flags & V4L2_H264_SLICE_FLAG_FIELD_PIC))
+	     dec_param->flags & V4L2_H264_DECODE_PARAM_FLAG_FIELD_PIC))
 		reg |= G1_REG_DEC_CTRL0_PIC_INTERLACE_E;
-	if (slices[0].flags & V4L2_H264_SLICE_FLAG_FIELD_PIC)
+	if (dec_param->flags & V4L2_H264_DECODE_PARAM_FLAG_FIELD_PIC)
 		reg |= G1_REG_DEC_CTRL0_PIC_FIELDMODE_E;
-	if (!(slices[0].flags & V4L2_H264_SLICE_FLAG_BOTTOM_FIELD))
+	if (!(dec_param->flags & V4L2_H264_DECODE_PARAM_FLAG_BOTTOM_FIELD))
 		reg |= G1_REG_DEC_CTRL0_PIC_TOPFIELD_E;
 	vdpu_write_relaxed(vpu, reg, G1_REG_DEC_CTRL0);
 
@@ -61,7 +60,7 @@ static void set_params(struct hantro_ctx *ctx)
 	/* always use the matrix sent from userspace */
 	reg |= G1_REG_DEC_CTRL2_TYPE1_QUANT_E;
 
-	if (slices[0].flags &  V4L2_H264_SLICE_FLAG_FIELD_PIC)
+	if (dec_param->flags &  V4L2_H264_DECODE_PARAM_FLAG_FIELD_PIC)
 		reg |= G1_REG_DEC_CTRL2_FIELDPIC_FLAG_E;
 	vdpu_write_relaxed(vpu, reg, G1_REG_DEC_CTRL2);
 
@@ -73,7 +72,7 @@ static void set_params(struct hantro_ctx *ctx)
 
 	/* Decoder control register 4. */
 	reg = G1_REG_DEC_CTRL4_FRAMENUM_LEN(sps->log2_max_frame_num_minus4 + 4) |
-	      G1_REG_DEC_CTRL4_FRAMENUM(slices[0].frame_num) |
+	      G1_REG_DEC_CTRL4_FRAMENUM(dec_param->frame_num) |
 	      G1_REG_DEC_CTRL4_WEIGHT_BIPR_IDC(pps->weighted_bipred_idc);
 	if (pps->flags & V4L2_H264_PPS_FLAG_ENTROPY_CODING_MODE)
 		reg |= G1_REG_DEC_CTRL4_CABAC_E;
@@ -86,8 +85,8 @@ static void set_params(struct hantro_ctx *ctx)
 	vdpu_write_relaxed(vpu, reg, G1_REG_DEC_CTRL4);
 
 	/* Decoder control register 5. */
-	reg = G1_REG_DEC_CTRL5_REFPIC_MK_LEN(slices[0].dec_ref_pic_marking_bit_size) |
-	      G1_REG_DEC_CTRL5_IDR_PIC_ID(slices[0].idr_pic_id);
+	reg = G1_REG_DEC_CTRL5_REFPIC_MK_LEN(dec_param->dec_ref_pic_marking_bit_size) |
+	      G1_REG_DEC_CTRL5_IDR_PIC_ID(dec_param->idr_pic_id);
 	if (pps->flags & V4L2_H264_PPS_FLAG_CONSTRAINED_INTRA_PRED)
 		reg |= G1_REG_DEC_CTRL5_CONST_INTRA_E;
 	if (pps->flags & V4L2_H264_PPS_FLAG_DEBLOCKING_FILTER_CONTROL_PRESENT)
@@ -101,10 +100,10 @@ static void set_params(struct hantro_ctx *ctx)
 	vdpu_write_relaxed(vpu, reg, G1_REG_DEC_CTRL5);
 
 	/* Decoder control register 6. */
-	reg = G1_REG_DEC_CTRL6_PPS_ID(slices[0].pic_parameter_set_id) |
+	reg = G1_REG_DEC_CTRL6_PPS_ID(pps->pic_parameter_set_id) |
 	      G1_REG_DEC_CTRL6_REFIDX0_ACTIVE(pps->num_ref_idx_l0_default_active_minus1 + 1) |
 	      G1_REG_DEC_CTRL6_REFIDX1_ACTIVE(pps->num_ref_idx_l1_default_active_minus1 + 1) |
-	      G1_REG_DEC_CTRL6_POC_LENGTH(slices[0].pic_order_cnt_bit_size);
+	      G1_REG_DEC_CTRL6_POC_LENGTH(dec_param->pic_order_cnt_bit_size);
 	vdpu_write_relaxed(vpu, reg, G1_REG_DEC_CTRL6);
 
 	/* Error concealment register. */
@@ -250,7 +249,7 @@ static void set_buffers(struct hantro_ctx *ctx)
 		size_t pic_size = ctx->h264_dec.pic_size;
 		size_t mv_offset = round_up(pic_size, 8);
 
-		if (ctrls->slices[0].flags & V4L2_H264_SLICE_FLAG_BOTTOM_FIELD)
+		if (ctrls->decode->flags & V4L2_H264_DECODE_PARAM_FLAG_BOTTOM_FIELD)
 			mv_offset += 32 * H264_MB_WIDTH(ctx->dst_fmt.width);
 
 		vdpu_write_relaxed(vpu, dst_dma + mv_offset,

@@ -3,7 +3,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <media/v4l2-mem2mem.h>
-#include <media/h264-ctrls.h>
 #include <media/v4l2-h264.h>
 #include <media/videobuf2-dma-contig.h>
 
@@ -323,7 +322,7 @@ static void get_h264_pps_parameters(struct mtk_h264_pps_param *dst_param,
 	GET_MTK_VDEC_FLAG(transform_8x8_mode_flag,
 		V4L2_H264_PPS_FLAG_TRANSFORM_8X8_MODE);
 	GET_MTK_VDEC_FLAG(scaling_matrix_present_flag,
-		V4L2_H264_PPS_FLAG_PIC_SCALING_MATRIX_PRESENT);
+		V4L2_H264_PPS_FLAG_SCALING_MATRIX_PRESENT);
 }
 
 static void
@@ -357,7 +356,11 @@ static void get_h264_decode_parameters(
 		dst_entry->flags = src_entry->flags;
 	}
 
-	dst_params->num_slices = src_params->num_slices;
+	/*
+	 * num_slices is a leftover from the old H.264 support and is ignored
+	 * by the firmware.
+	 */
+	dst_params->num_slices = 0;
 	dst_params->nal_ref_idc = src_params->nal_ref_idc;
 	dst_params->top_field_order_cnt = src_params->top_field_order_cnt;
 	dst_params->bottom_field_order_cnt = src_params->bottom_field_order_cnt;
@@ -479,15 +482,15 @@ fixup_ref_list(u8 *ref_list, const u8 *translation_table, size_t num_valid)
 
 static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 {
-	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
 	const struct v4l2_ctrl_h264_decode_params *dec_params =
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
-	const struct v4l2_ctrl_h264_slice_params *slice_params =
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS);
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_DECODE_PARAMS);
 	const struct v4l2_ctrl_h264_sps *sps =
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_SPS);
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_SPS);
 	const struct v4l2_ctrl_h264_pps *pps =
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_PPS);
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_PPS);
+	const struct v4l2_ctrl_h264_scaling_matrix *scaling_matrix =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_SCALING_MATRIX);
+	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
 	struct v4l2_ctrl_h264_decode_params fixed_params = *dec_params;
 	u8 translation_table[V4L2_H264_NUM_DPB_ENTRIES] = { 0x20, };
 	struct v4l2_h264_reflist_builder reflist_builder;
@@ -502,10 +505,7 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 
 	get_h264_sps_parameters(&slice_param->sps, sps);
 	get_h264_pps_parameters(&slice_param->pps, pps);
-	get_h264_scaling_matrix(
-		&slice_param->scaling_matrix,
-		get_ctrl_ptr(inst->ctx,
-			     V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX));
+	get_h264_scaling_matrix(&slice_param->scaling_matrix, scaling_matrix);
 	get_h264_decode_parameters(&slice_param->decode_params, &fixed_params);
 	get_h264_dpb_list(inst, slice_param);
 
@@ -513,9 +513,8 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 	for (i = 0; i < V4L2_H264_NUM_DPB_ENTRIES; i++)
 		dpb_fields[i] = slice_param->h264_dpb_info[i].field;
 	/* Build the reference lists */
-	v4l2_h264_init_reflist_builder(&reflist_builder, &fixed_params,
-				       slice_params, sps, dec_params->dpb,
-				       dpb_fields);
+	v4l2_h264_init_reflist_builder(&reflist_builder, &fixed_params, sps,
+				       dec_params->dpb);
 	v4l2_h264_build_p_ref_list(&reflist_builder, p0_reflist);
 	v4l2_h264_build_b_ref_lists(&reflist_builder, b0_reflist, b1_reflist);
 	/* Adapt the built lists to the firmware's expectations */

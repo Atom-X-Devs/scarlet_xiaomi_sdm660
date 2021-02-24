@@ -44,10 +44,8 @@ struct v4l2_h264_reflist_builder {
 void
 v4l2_h264_init_reflist_builder(struct v4l2_h264_reflist_builder *b,
 		const struct v4l2_ctrl_h264_decode_params *dec_params,
-		const struct v4l2_ctrl_h264_slice_params *slice_params,
 		const struct v4l2_ctrl_h264_sps *sps,
-		const struct v4l2_h264_dpb_entry dpb[V4L2_H264_NUM_DPB_ENTRIES],
-		const enum v4l2_field dpb_fields[V4L2_H264_NUM_DPB_ENTRIES]);
+		const struct v4l2_h264_dpb_entry dpb[V4L2_H264_NUM_DPB_ENTRIES]);
 
 /**
  * v4l2_h264_build_b_ref_lists() - Build the B0/B1 reference lists

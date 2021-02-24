@@ -27,7 +27,6 @@
  * This will move to the public headers once this API is fully stable.
  */
 #include <media/mpeg2-ctrls.h>
-#include <media/h264-ctrls.h>
 #include <media/vp8-ctrls.h>
 
 /* forward references */
@@ -56,6 +55,7 @@ struct poll_table_struct;
  * @p_h264_scaling_matrix:	Pointer to a struct v4l2_ctrl_h264_scaling_matrix.
  * @p_h264_slice_params:	Pointer to a struct v4l2_ctrl_h264_slice_params.
  * @p_h264_decode_params:	Pointer to a struct v4l2_ctrl_h264_decode_params.
+ * @p_h264_pred_weights:	Pointer to a struct v4l2_ctrl_h264_pred_weights.
  * @p_vp8_frame_header:		Pointer to a VP8 frame header structure.
  * @p:				Pointer to a compound value.
  */
@@ -73,6 +73,7 @@ union v4l2_ctrl_ptr {
 	struct v4l2_ctrl_h264_scaling_matrix *p_h264_scaling_matrix;
 	struct v4l2_ctrl_h264_slice_params *p_h264_slice_params;
 	struct v4l2_ctrl_h264_decode_params *p_h264_decode_params;
+	struct v4l2_ctrl_h264_pred_weights *p_h264_pred_weights;
 	struct v4l2_ctrl_vp8_frame_header *p_vp8_frame_header;
 	void *p;
 };

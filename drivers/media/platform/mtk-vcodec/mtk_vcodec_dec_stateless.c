@@ -14,44 +14,66 @@
 
 /**
  * struct mtk_stateless_control  - CID control type
- * @id: CID control id
- * @v4l2_ctrl_type: CID control type
- * @codec_type codec type (V4L2 pixel format) for CID control type
+ * @cfg: control configuration
+ * @codec_type: codec type (V4L2 pixel format) for CID control type
+ * @needed_in_request: whether the control must be present with each request
  */
 struct mtk_stateless_control {
-	u32 id;
-	enum v4l2_ctrl_type type;
+	struct v4l2_ctrl_config cfg;
 	int codec_type;
+	bool needed_in_request;
 };
 
 static const struct mtk_stateless_control mtk_stateless_controls[] = {
 	{
-		.id = V4L2_CID_MPEG_VIDEO_H264_SPS,
-		.type = V4L2_CTRL_TYPE_H264_SPS,
+		.cfg = {
+			.id = V4L2_CID_STATELESS_H264_SPS,
+		},
+		.codec_type = V4L2_PIX_FMT_H264_SLICE,
+		.needed_in_request = true,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_H264_PPS,
+		},
+		.codec_type = V4L2_PIX_FMT_H264_SLICE,
+		.needed_in_request = true,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_H264_SCALING_MATRIX,
+		},
+		.codec_type = V4L2_PIX_FMT_H264_SLICE,
+		.needed_in_request = true,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_H264_DECODE_PARAMS,
+		},
+		.codec_type = V4L2_PIX_FMT_H264_SLICE,
+		.needed_in_request = true,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+			.def = V4L2_MPEG_VIDEO_H264_PROFILE_MAIN,
+			.max = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
+			.menu_skip_mask =
+				BIT(V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
+				BIT(V4L2_MPEG_VIDEO_H264_PROFILE_EXTENDED),
+		},
 		.codec_type = V4L2_PIX_FMT_H264_SLICE,
 	},
 	{
-		.id = V4L2_CID_MPEG_VIDEO_H264_PPS,
-		.type = V4L2_CTRL_TYPE_H264_PPS,
-		.codec_type = V4L2_PIX_FMT_H264_SLICE,
-	},
-	{
-		.id = V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX,
-		.type = V4L2_CTRL_TYPE_H264_SCALING_MATRIX,
-		.codec_type = V4L2_PIX_FMT_H264_SLICE,
-	},
-	{
-		.id = V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS,
-		.type = V4L2_CTRL_TYPE_H264_SLICE_PARAMS,
-		.codec_type = V4L2_PIX_FMT_H264_SLICE,
-	},
-	{
-		.id = V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS,
-		.type = V4L2_CTRL_TYPE_H264_DECODE_PARAMS,
+		.cfg = {
+			.id = V4L2_CID_STATELESS_H264_DECODE_MODE,
+			.min = V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED,
+			.def = V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED,
+			.max = V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED,
+		},
 		.codec_type = V4L2_PIX_FMT_H264_SLICE,
 	},
 };
-
 #define NUM_CTRLS ARRAY_SIZE(mtk_stateless_controls)
 
 static const struct mtk_video_fmt mtk_video_formats[] = {
@@ -66,7 +88,6 @@ static const struct mtk_video_fmt mtk_video_formats[] = {
 		.num_planes = 2,
 	},
 };
-
 #define NUM_FORMATS ARRAY_SIZE(mtk_video_formats)
 #define DEFAULT_OUT_FMT_IDX    0
 #define DEFAULT_CAP_FMT_IDX    1
@@ -235,8 +256,11 @@ static int fops_media_request_validate(struct media_request *mreq)
 		if (mtk_stateless_controls[i].codec_type != ctx->current_codec)
 			continue;
 
+		if (!mtk_stateless_controls[i].needed_in_request)
+			continue;
+
 		ctrl_test = v4l2_ctrl_request_hdl_ctrl_find(hdl,
-					  mtk_stateless_controls[i].id);
+					  mtk_stateless_controls[i].cfg.id);
 		if (!ctrl_test) {
 			mtk_v4l2_err("Missing required codec control\n");
 			return -ENOENT;
@@ -395,33 +419,13 @@ static int mtk_vcodec_dec_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 				0, 32, 1, 1);
 	ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
-	/*
-	 * H264. Baseline / Extended decoding is not supported.
-	 */
-	v4l2_ctrl_new_std_menu(&ctx->ctrl_hdl,
-			&mtk_vcodec_dec_ctrl_ops,
-			V4L2_CID_MPEG_VIDEO_H264_PROFILE,
-			V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
-			BIT(V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
-			BIT(V4L2_MPEG_VIDEO_H264_PROFILE_EXTENDED),
-			V4L2_MPEG_VIDEO_H264_PROFILE_MAIN);
-	if (ctx->ctrl_hdl.error) {
-		mtk_v4l2_err("Adding control failed %d",
-				ctx->ctrl_hdl.error);
-		return ctx->ctrl_hdl.error;
-	}
-
 	for (i = 0; i < NUM_CTRLS; i++) {
-		struct v4l2_ctrl_config cfg = { 0 };
-
-		cfg.ops = &mtk_vcodec_dec_ctrl_ops;
-		cfg.id = mtk_stateless_controls[i].id;
-		cfg.type = mtk_stateless_controls[i].type;
+		struct v4l2_ctrl_config cfg = mtk_stateless_controls[i].cfg;
 
 		v4l2_ctrl_new_custom(&ctx->ctrl_hdl, &cfg, NULL);
 		if (ctx->ctrl_hdl.error) {
-			mtk_v4l2_err("Adding control failed %d",
-					ctx->ctrl_hdl.error);
+			mtk_v4l2_err("Adding control %d failed %d",
+					i, ctx->ctrl_hdl.error);
 			return ctx->ctrl_hdl.error;
 		}
 	}
