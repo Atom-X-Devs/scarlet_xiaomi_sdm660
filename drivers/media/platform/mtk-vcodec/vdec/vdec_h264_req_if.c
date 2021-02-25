@@ -234,7 +234,7 @@ static void get_h264_dpb_list(struct vdec_h264_slice_inst *inst,
 		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
 	for (index = 0; index < 16; index++) {
-		const struct slice_h264_dpb_entry * dpb;
+		const struct slice_h264_dpb_entry *dpb;
 		int vb2_index;
 
 		dpb = &slice_param->decode_params.dpb[index];
@@ -730,11 +730,9 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		(struct vdec_h264_slice_inst *)h_vdec;
 	struct vdec_vpu_inst *vpu = &inst->vpu;
 	struct mtk_video_dec_buf *src_buf_info;
-	struct mtk_video_dec_buf *dst_buf_info;
 	int nal_start_idx = 0, err = 0;
-	unsigned int nal_type, data[2];
+	uint32_t nal_type, data[2];
 	unsigned char *buf;
-	uint64_t vdec_fb_va;
 	uint64_t y_fb_dma;
 	uint64_t c_fb_dma;
 
@@ -746,9 +744,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		return vpu_dec_reset(vpu);
 
 	src_buf_info = container_of(bs, struct mtk_video_dec_buf, bs_buffer);
-	dst_buf_info = container_of(fb, struct mtk_video_dec_buf, frame_buffer);
 
-	vdec_fb_va = (u64)(uintptr_t)fb;
 	y_fb_dma = fb ? (u64)fb->base_y.dma_addr : 0;
 	c_fb_dma = fb ? (u64)fb->base_c.dma_addr : 0;
 
@@ -766,7 +762,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 	inst->vsi_ctx.dec.bs_dma = (uint64_t)bs->dma_addr;
 	inst->vsi_ctx.dec.y_fb_dma = y_fb_dma;
 	inst->vsi_ctx.dec.c_fb_dma = c_fb_dma;
-	inst->vsi_ctx.dec.vdec_fb_va = vdec_fb_va;
+	inst->vsi_ctx.dec.vdec_fb_va = (u64)(uintptr_t)fb;
 
 	get_vdec_decode_parameters(inst);
 	*res_chg = inst->vsi_ctx.dec.resolution_changed;
