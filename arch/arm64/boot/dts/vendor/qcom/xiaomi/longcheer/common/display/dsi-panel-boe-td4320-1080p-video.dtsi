@@ -46,6 +46,7 @@
 		qcom,mdss-brightness-max-level = <4095>;
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,ulps-enabled;
 		qcom,mdss-dsi-on-command = [
 			29 01 00 00 00 00 02 b0 04
 			29 01 00 00 00 00 02 D6 00
