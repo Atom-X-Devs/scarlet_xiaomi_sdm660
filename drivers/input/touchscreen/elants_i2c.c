@@ -25,6 +25,7 @@
  */
 
 #include <linux/bits.h>
+#include <linux/dmi.h>
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
@@ -1211,6 +1212,24 @@ static void elants_i2c_power_off(void *_data)
 	}
 }
 
+/*
+ * Relm Chromebook uses hardcoded IRQ for the touchscreen.
+ * It has been noticed that after resuming the touchscreen does not work.
+ * It seems that the interrupt line gets pulled down before the relevant IRQ
+ * is reenabled and the IRQ is not resent after.
+ * The issue can be resolved by simply using low level interrupts instead.
+ * Apply this behaviour for all Google devices.
+ */
+static const struct dmi_system_id irqflags_low_level_override[] = {
+	{
+		.ident = "Google Chrome",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+		},
+	},
+	{}
+};
+
 static int elants_i2c_probe(struct i2c_client *client,
 			    const struct i2c_device_id *id)
 {
@@ -1347,9 +1366,14 @@ static int elants_i2c_probe(struct i2c_client *client,
 	/*
 	 * Platform code (ACPI, DTS) should normally set up interrupt
 	 * for us, but in case it did not let's fall back to using falling
-	 * edge to be compatible with older Chromebooks.
+	 * edge.
+	 * However, use low level interrupts for Chromebooks as it resolves
+	 * an issue with the touchscreen stopping working after resume.
 	 */
 	irqflags = irq_get_trigger_type(client->irq);
+	if ((!irqflags || irqflags == IRQF_TRIGGER_FALLING) &&
+	    dmi_check_system(irqflags_low_level_override))
+		irqflags = IRQF_TRIGGER_LOW;
 	if (!irqflags)
 		irqflags = IRQF_TRIGGER_FALLING;
 
