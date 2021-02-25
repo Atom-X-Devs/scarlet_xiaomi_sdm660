@@ -200,7 +200,6 @@ struct vdec_h264_vsi {
  * @pred_buf : HW working predication buffer
  * @mv_buf   : HW working motion vector buffer
  * @vpu      : VPU instance
- * @vsi      : VPU area shared with VPU
  * @vsi_ctx  : Local VSI data for this decoding context
  */
 struct vdec_h264_slice_inst {
@@ -209,7 +208,6 @@ struct vdec_h264_slice_inst {
 	struct mtk_vcodec_mem pred_buf;
 	struct mtk_vcodec_mem mv_buf[H264_MAX_MV_NUM];
 	struct vdec_vpu_inst vpu;
-	struct vdec_h264_vsi *vsi;
 	struct vdec_h264_vsi vsi_ctx;
 	struct mtk_h264_dec_slice_param h264_slice_param;
 
@@ -672,8 +670,7 @@ static int vdec_h264_slice_init(struct mtk_vcodec_ctx *ctx)
 		goto error_free_inst;
 	}
 
-	inst->vsi = (struct vdec_h264_vsi *)inst->vpu.vsi;
-	memcpy(&inst->vsi_ctx, inst->vsi, sizeof(inst->vsi_ctx));
+	memcpy(&inst->vsi_ctx, inst->vpu.vsi, sizeof(inst->vsi_ctx));
 	inst->vsi_ctx.dec.resolution_changed = true;
 	inst->vsi_ctx.dec.realloc_mv_buf = true;
 
@@ -784,7 +781,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		*res_chg = false;
 	}
 
-	memcpy(inst->vsi, &inst->vsi_ctx, sizeof(*inst->vsi));
+	memcpy(inst->vpu.vsi, &inst->vsi_ctx, sizeof(inst->vsi_ctx));
 	err = vpu_dec_start(vpu, data, 2);
 	if (err)
 		goto err_free_fb_out;
@@ -800,7 +797,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		vpu_dec_end(vpu);
 	}
 
-	memcpy(&inst->vsi_ctx, inst->vsi, sizeof(inst->vsi_ctx));
+	memcpy(&inst->vsi_ctx, inst->vpu.vsi, sizeof(inst->vsi_ctx));
 	mtk_vcodec_debug(inst, "\n - NALU[%d] type=%d -\n", inst->num_nalu,
 			 nal_type);
 	return 0;
