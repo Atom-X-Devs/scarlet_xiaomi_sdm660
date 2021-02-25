@@ -278,6 +278,16 @@ static inline PVRSRV_ERROR _ValidateParams(IMG_UINT32 ui32NumPhysChunks,
 	IMG_BOOL bIsSparse = (ui32NumVirtChunks != ui32NumPhysChunks ||
 			ui32NumVirtChunks > 1) ? IMG_TRUE : IMG_FALSE;
 
+	if (ui32NumPhysChunks == 0 && ui32NumVirtChunks == 0)
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+			 "%s: Number of physical chunks and number of virtual chunks "
+			 "cannot be both 0",
+			 __func__));
+
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
 	/* Protect against ridiculous page sizes */
 	if (uiLog2AllocPageSize > RGX_HEAP_2MB_PAGE_SHIFT)
 	{
@@ -420,7 +430,8 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
 	PFN_SYS_DEV_CHECK_MEM_ALLOC_SIZE pfnCheckMemAllocSize =
 		psDevNode->psDevConfig->pfnCheckMemAllocSize;
 
-	PVR_UNREFERENCED_PARAMETER(uiAnnotationLength);
+	PVR_LOG_RETURN_IF_INVALID_PARAM(uiAnnotationLength != 0, "uiAnnotationLength");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(pszAnnotation != NULL, "pszAnnotation");
 
 	eError = _ValidateParams(ui32NumPhysChunks,
 	                         ui32NumVirtChunks,

@@ -593,6 +593,8 @@ PMRCreatePMR(PVRSRV_DEVICE_NODE *psDevNode,
 	PMR *psPMR = NULL;
 	PVRSRV_ERROR eError;
 
+	PVR_LOG_RETURN_IF_INVALID_PARAM(pszAnnotation != NULL, "pszAnnotation");
+
 	eError = _PMRCreate(uiLogicalSize,
 	                    uiChunkSize,
 	                    ui32NumPhysChunks,
