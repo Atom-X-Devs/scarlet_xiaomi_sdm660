@@ -23,9 +23,9 @@
 
 /* get used parameters for sps/pps */
 #define GET_MTK_VDEC_FLAG(cond, flag) \
-		dst_param->cond = ((src_param->flags & flag) ? (1) : (0))
+	{ dst_param->cond = ((src_param->flags & flag) ? (1) : (0)); }
 #define GET_MTK_VDEC_PARAM(param) \
-		dst_param->param = src_param->param
+	{ dst_param->param = src_param->param; }
 /* motion vector size (bytes) for every macro block */
 #define HW_MB_STORE_SZ				64
 
