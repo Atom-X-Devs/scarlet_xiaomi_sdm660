@@ -147,6 +147,8 @@ int mdp_component_init(struct mdp_dev *mdp);
 void mdp_component_deinit(struct mdp_dev *mdp);
 void mdp_comp_clock_on(struct device *dev, struct mdp_comp *comp);
 void mdp_comp_clock_off(struct device *dev, struct mdp_comp *comp);
+void mdp_comp_clocks_on(struct device *dev, struct mdp_comp *comps, int num);
+void mdp_comp_clocks_off(struct device *dev, struct mdp_comp *comps, int num);
 int mdp_comp_ctx_init(struct mdp_dev *mdp, struct mdp_comp_ctx *ctx,
 		      const struct img_compparam *param,
 	const struct img_ipi_frameparam *frame);

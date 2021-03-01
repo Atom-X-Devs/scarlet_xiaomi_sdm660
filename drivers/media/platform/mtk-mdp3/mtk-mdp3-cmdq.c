@@ -398,7 +398,17 @@ static void mdp_handle_cmdq_callback(struct cmdq_cb_data data)
 
 	cmdq_pkt_destroy(cb_param->pkt);
 	INIT_WORK(&cb_param->auto_release_work, mdp_auto_release_work);
-	queue_work(mdp->clock_wq, &cb_param->auto_release_work);
+	if (!queue_work(mdp->clock_wq, &cb_param->auto_release_work)) {
+		mdp_err("%s:queue_work fail!\n", __func__);
+		mdp_comp_clocks_off(&mdp->pdev->dev, cb_param->comps,
+				    cb_param->num_comps);
+
+		kfree(cb_param->comps);
+		kfree(cb_param);
+
+		atomic_dec(&mdp->job_count);
+		wake_up(&mdp->callback_wq);
+	}
 }
 
 int mdp_cmdq_send(struct mdp_dev *mdp, struct mdp_cmdq_param *param)
@@ -495,6 +505,8 @@ int mdp_cmdq_send(struct mdp_dev *mdp, struct mdp_cmdq_param *param)
 					   (void *)cb_param);
 		if (ret) {
 			mdp_err("%s:cmdq_pkt_flush_async fail!\n", __func__);
+			mdp_comp_clocks_off(&mdp->pdev->dev, cb_param->comps,
+					    cb_param->num_comps);
 			kfree(cb_param);
 			kfree(comps);
 		}

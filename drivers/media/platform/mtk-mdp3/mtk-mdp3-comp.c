@@ -1072,6 +1072,22 @@ void mdp_comp_clock_off(struct device *dev, struct mdp_comp *comp)
 		pm_runtime_put(comp->comp_dev);
 }
 
+void mdp_comp_clocks_on(struct device *dev, struct mdp_comp *comps, int num)
+{
+	int i;
+
+	for (i = 0; i < num; i++)
+		mdp_comp_clock_on(dev, &comps[i]);
+}
+
+void mdp_comp_clocks_off(struct device *dev, struct mdp_comp *comps, int num)
+{
+	int i;
+
+	for (i = 0; i < num; i++)
+		mdp_comp_clock_off(dev, &comps[i]);
+}
+
 static int mdp_get_subsys_id(struct device *dev, struct device_node *node,
 			     struct mdp_comp *comp)
 {
