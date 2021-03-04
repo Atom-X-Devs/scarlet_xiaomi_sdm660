@@ -27,7 +27,6 @@
  * This will move to the public headers once this API is fully stable.
  */
 #include <media/mpeg2-ctrls.h>
-#include <media/vp8-ctrls.h>
 
 /* forward references */
 struct file;
