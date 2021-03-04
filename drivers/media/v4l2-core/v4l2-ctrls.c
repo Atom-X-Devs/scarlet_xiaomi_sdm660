@@ -1632,6 +1632,9 @@ static void std_log(const struct v4l2_ctrl *ctrl)
 	case V4L2_CTRL_TYPE_H264_PRED_WEIGHTS:
 		pr_cont("H264_PRED_WEIGHTS");
 		break;
+	case V4L2_CTRL_TYPE_VP8_FRAME:
+		pr_cont("VP8_FRAME");
+		break;
 	default:
 		pr_cont("unknown type %d", ctrl->type);
 		break;
