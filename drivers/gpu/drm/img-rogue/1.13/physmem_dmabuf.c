@@ -956,7 +956,7 @@ PhysmemImportSparseDmaBuf(CONNECTION_DATA *psConnection,
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get dma-buf from fd (err=%ld)",
 				 __func__, psDmaBuf ? PTR_ERR(psDmaBuf) : -ENOMEM));
 		eError = PVRSRV_ERROR_BAD_MAPPING;
-		goto errReturn;
+		goto errUnlockReturn;
 	}
 
 	if (psDmaBuf->ops == &sPVRDmaBufOps)
@@ -1137,11 +1137,12 @@ errUnlockAndDMAPut:
 		HASH_Delete(g_psDmaBufHash);
 		g_psDmaBufHash = NULL;
 	}
-	mutex_unlock(&g_HashLock);
 	dma_buf_put(psDmaBuf);
 
+errUnlockReturn:
+	mutex_unlock(&g_HashLock);
+
 errReturn:
-	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
 }
 
