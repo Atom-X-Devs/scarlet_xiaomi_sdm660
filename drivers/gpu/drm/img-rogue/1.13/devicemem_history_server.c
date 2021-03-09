@@ -202,14 +202,24 @@ typedef struct _DEVICEMEM_HISTORY_DATA_
 
 static DEVICEMEM_HISTORY_DATA gsDevicememHistoryData;
 
+/* gsDevicememHistoryData is static, hLock is NULL unless
+ * EnablePageFaultDebug is set and DevicememHistoryInitKM()
+ * was called.
+ */
 static void DevicememHistoryLock(void)
 {
-	OSLockAcquire(gsDevicememHistoryData.hLock);
+	if (gsDevicememHistoryData.hLock)
+	{
+		OSLockAcquire(gsDevicememHistoryData.hLock);
+	}
 }
 
 static void DevicememHistoryUnlock(void)
 {
-	OSLockRelease(gsDevicememHistoryData.hLock);
+	if (gsDevicememHistoryData.hLock)
+	{
+		OSLockRelease(gsDevicememHistoryData.hLock);
+	}
 }
 
 /* given a time stamp, calculate the age in nanoseconds */
@@ -1880,6 +1890,7 @@ err_di_creation:
 	DestroyRecords();
 err_allocations:
 	OSLockDestroy(gsDevicememHistoryData.hLock);
+	gsDevicememHistoryData.hLock = NULL;
 err_lock:
 	return eError;
 }
@@ -1893,5 +1904,9 @@ void DevicememHistoryDeInitKM(void)
 
 	DestroyRecords();
 
-	OSLockDestroy(gsDevicememHistoryData.hLock);
+	if (gsDevicememHistoryData.hLock != NULL)
+	{
+		OSLockDestroy(gsDevicememHistoryData.hLock);
+		gsDevicememHistoryData.hLock = NULL;
+	}
 }
