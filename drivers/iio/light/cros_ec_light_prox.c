@@ -93,7 +93,7 @@ static int cros_ec_light_prox_read_data(
 				&st->core, sizeof(st->core.resp->data));
 		if (ret)
 			return ret;
-		*val = st->core.resp->data.data[0];
+		*val = (u16)st->core.resp->data.data[0];
 	} else {
 		ret = cros_ec_light_extra_send_host_cmd(
 				&st->core, 1, sizeof(st->core.resp->data));
@@ -277,8 +277,11 @@ static int cros_ec_light_prox_write(struct iio_dev *indio_dev,
 		/* Fall through */
 	case IIO_CHAN_INFO_SCALE:
 		st->core.param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
-		st->core.param.sensor_range.data = (val << 16) | (val2 / 100);
+		st->core.curr_range = (val << 16) | (val2 / 100);
+		st->core.param.sensor_range.data = st->core.curr_range;
 		ret = cros_ec_motion_send_host_cmd(&st->core, 0);
+		if (ret == 0)
+			st->core.range_updated = true;
 		break;
 	default:
 		ret = cros_ec_sensors_core_write(&st->core, chan, val, val2,
@@ -297,26 +300,15 @@ static int cros_ec_light_push_data(
 		s64 timestamp)
 {
 	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
-	unsigned long scan_mask;
 
 	if (!st || !indio_dev->active_scan_mask)
 		return 0;
 
-	scan_mask = *(indio_dev->active_scan_mask);
-	if (scan_mask & ((1 << indio_dev->num_channels) - 2)) {
-		/*
-		 * Only one channel at most is used.
-		 * Use regular push function.
-		 */
-		return cros_ec_sensors_push_data(indio_dev, data, timestamp);
-	}
-
-	if (test_bit(0, indio_dev->active_scan_mask)) {
-		/*
-		 * Save clear channel, will be used when RGB data arrives.
-		 */
+	/* Save clear channel, will be used when RGB data arrives. */
+	if (test_bit(0, indio_dev->active_scan_mask))
 		st->samples[0] = data[0];
-	}
+
+	/* Wait for RGB callback to send samples upstream. */
 	return 0;
 }
 
@@ -327,7 +319,8 @@ static int cros_ec_light_push_data_rgb(
 {
 	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
 	s16 *out;
-	unsigned int i;
+	s64 delta;
+	unsigned int i = 1;
 
 	if (!st || !indio_dev->active_scan_mask)
 		return 0;
@@ -336,14 +329,23 @@ static int cros_ec_light_push_data_rgb(
 	 * Send all data needed.
 	 */
 	out = (s16 *)st->samples;
-	for_each_set_bit(i,
+	if (test_bit(0, indio_dev->active_scan_mask))
+		out++;
+
+	for_each_set_bit_from(i,
 			 indio_dev->active_scan_mask,
 			 indio_dev->masklength) {
-		if (i > 0)
-			*out = data[i - 1];
+		*out = data[i - 1];
 		out++;
 	}
-	iio_push_to_buffers_with_timestamp(indio_dev, st->samples, timestamp);
+
+	if (iio_device_get_clock(indio_dev) != CLOCK_BOOTTIME)
+		delta = iio_get_time_ns(indio_dev) - cros_ec_get_time_ns();
+	else
+		delta = 0;
+
+	iio_push_to_buffers_with_timestamp(indio_dev, st->samples,
+					   timestamp + delta);
 	return 0;
 }
 
@@ -417,7 +419,7 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 
 	ret = cros_ec_sensors_core_init(pdev, indio_dev, true,
 					cros_ec_light_capture,
-					cros_ec_light_push_data);
+					cros_ec_sensors_push_data);
 	if (ret)
 		return ret;
 
@@ -483,6 +485,10 @@ static int cros_ec_light_prox_probe(struct platform_device *pdev)
 			channel->type = IIO_LIGHT;
 		}
 		cros_ec_sensorhub_register_push_data(
+				sensor_hub, sensor_num,
+				indio_dev,
+				cros_ec_light_push_data);
+		cros_ec_sensorhub_register_push_data(
 				sensor_hub, sensor_num + 1,
 				indio_dev,
 				cros_ec_light_push_data_rgb);
@@ -515,6 +521,7 @@ MODULE_DEVICE_TABLE(platform, cros_ec_light_prox_ids);
 static struct platform_driver cros_ec_light_prox_platform_driver = {
 	.driver = {
 		.name	= "cros-ec-light-prox",
+		.pm	= &cros_ec_sensors_pm_ops,
 	},
 	.probe		= cros_ec_light_prox_probe,
 	.id_table	= cros_ec_light_prox_ids,

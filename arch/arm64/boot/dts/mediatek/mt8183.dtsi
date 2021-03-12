@@ -1608,7 +1608,6 @@
 			clocks = <&mmsys CLK_MM_MDP_RDMA0>,
 				<&mmsys CLK_MM_MDP_RSZ1>;
 			iommus = <&iommu M4U_PORT_MDP_RDMA0>;
-			mediatek,larb = <&larb0>;
 			mediatek,mmsys = <&mmsys>;
 			mediatek,mm-mutex = <&mutex>;
 			mediatek,mailbox-gce = <&gce>;
@@ -1686,9 +1685,9 @@
 			mediatek,mdp-id = <0>;
 			reg = <0 0x14005000 0 0x1000>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0x5000 0x1000>;
+			power-domains = <&scpsys MT8183_POWER_DOMAIN_DISP>;
 			clocks = <&mmsys CLK_MM_MDP_WROT0>;
 			iommus = <&iommu M4U_PORT_MDP_WROT0>;
-			mediatek,larb = <&larb0>;
 		};
 
 		mdp_path0_sout@14005000 {
@@ -1701,9 +1700,9 @@
 			mediatek,mdp-id = <0>;
 			reg = <0 0x14006000 0 0x1000>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0x6000 0x1000>;
+			power-domains = <&scpsys MT8183_POWER_DOMAIN_DISP>;
 			clocks = <&mmsys CLK_MM_MDP_WDMA0>;
 			iommus = <&iommu M4U_PORT_MDP_WDMA0>;
-			mediatek,larb = <&larb0>;
 		};
 
 		mdp_path1_sout@14006000 {
@@ -1718,6 +1717,19 @@
 			mboxes = <&gce 0 CMDQ_THR_PRIO_HIGHEST 1>,
 				 <&gce 1 CMDQ_THR_PRIO_HIGHEST 1>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0 0x1000>;
+			disp_ovl0 = <&ovl0>; /* debug only */
+			disp_ovl0_2l = <&ovl_2l0>; /* debug only */
+			disp_ovl1_2l = <&ovl_2l1>; /* debug only */
+			disp_rdma0 = <&rdma0>; /* debug only */
+			disp_rdma1 = <&rdma1>; /* debug only */
+			disp_color0 = <&color0>; /* debug only */
+			disp_ccorr0 = <&ccorr0>; /* debug only */
+			disp_aal0 = <&aal0>; /* debug only */
+			disp_gamma0 = <&gamma0>; /* debug only */
+			disp_dither0 = <&dither0>; /* debug only */
+			disp_dsi0 = <&dsi0>; /* debug only */
+			disp_dpi0 = <&dpi0>; /* debug only */
+			disp_mutex = <&mutex>; /* debug only */
 		};
 
 		ovl0: ovl@14008000 {
@@ -2019,6 +2031,17 @@
 			power-domains = <&scpsys MT8183_POWER_DOMAIN_VENC>;
 			clocks = <&vencsys CLK_VENC_VENC>;
 			clock-names = "MT_CG_VENC";
+		};
+
+		venc_jpg@17030000 {
+			compatible = "mediatek,mt8183-jpgenc", "mediatek,mtk-jpgenc";
+			reg = <0 0x17030000 0 0x1000>;
+			interrupts = <GIC_SPI 249 IRQ_TYPE_LEVEL_LOW>;
+			iommus = <&iommu M4U_PORT_JPGENC_RDMA>,
+				 <&iommu M4U_PORT_JPGENC_BSDMA>;
+			power-domains = <&scpsys MT8183_POWER_DOMAIN_VENC>;
+			clocks = <&vencsys CLK_VENC_JPGENC>;
+			clock-names = "jpgenc";
 		};
 
 		ipu_conn: syscon@19000000 {

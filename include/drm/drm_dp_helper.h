@@ -909,6 +909,57 @@
 #define DP_AUX_HDCP_KSV_FIFO		0x6802C
 #define DP_AUX_HDCP_AINFO		0x6803B
 
+/* DP HDCP2.2 parameter offsets in DPCD address space */
+#define DP_HDCP_2_2_REG_RTX_OFFSET		0x69000
+#define DP_HDCP_2_2_REG_TXCAPS_OFFSET		0x69008
+#define DP_HDCP_2_2_REG_CERT_RX_OFFSET		0x6900B
+#define DP_HDCP_2_2_REG_RRX_OFFSET		0x69215
+#define DP_HDCP_2_2_REG_RX_CAPS_OFFSET		0x6921D
+#define DP_HDCP_2_2_REG_EKPUB_KM_OFFSET		0x69220
+#define DP_HDCP_2_2_REG_EKH_KM_WR_OFFSET	0x692A0
+#define DP_HDCP_2_2_REG_M_OFFSET		0x692B0
+#define DP_HDCP_2_2_REG_HPRIME_OFFSET		0x692C0
+#define DP_HDCP_2_2_REG_EKH_KM_RD_OFFSET	0x692E0
+#define DP_HDCP_2_2_REG_RN_OFFSET		0x692F0
+#define DP_HDCP_2_2_REG_LPRIME_OFFSET		0x692F8
+#define DP_HDCP_2_2_REG_EDKEY_KS_OFFSET		0x69318
+#define	DP_HDCP_2_2_REG_RIV_OFFSET		0x69328
+#define DP_HDCP_2_2_REG_RXINFO_OFFSET		0x69330
+#define DP_HDCP_2_2_REG_SEQ_NUM_V_OFFSET	0x69332
+#define DP_HDCP_2_2_REG_VPRIME_OFFSET		0x69335
+#define DP_HDCP_2_2_REG_RECV_ID_LIST_OFFSET	0x69345
+#define DP_HDCP_2_2_REG_V_OFFSET		0x693E0
+#define DP_HDCP_2_2_REG_SEQ_NUM_M_OFFSET	0x693F0
+#define DP_HDCP_2_2_REG_K_OFFSET		0x693F3
+#define DP_HDCP_2_2_REG_STREAM_ID_TYPE_OFFSET	0x693F5
+#define DP_HDCP_2_2_REG_MPRIME_OFFSET		0x69473
+#define DP_HDCP_2_2_REG_RXSTATUS_OFFSET		0x69493
+#define DP_HDCP_2_2_REG_STREAM_TYPE_OFFSET	0x69494
+#define DP_HDCP_2_2_REG_DBG_OFFSET		0x69518
+
+/* DP HDCP message start offsets in DPCD address space */
+#define DP_HDCP_2_2_AKE_INIT_OFFSET		DP_HDCP_2_2_REG_RTX_OFFSET
+#define DP_HDCP_2_2_AKE_SEND_CERT_OFFSET	DP_HDCP_2_2_REG_CERT_RX_OFFSET
+#define DP_HDCP_2_2_AKE_NO_STORED_KM_OFFSET	DP_HDCP_2_2_REG_EKPUB_KM_OFFSET
+#define DP_HDCP_2_2_AKE_STORED_KM_OFFSET	DP_HDCP_2_2_REG_EKH_KM_WR_OFFSET
+#define DP_HDCP_2_2_AKE_SEND_HPRIME_OFFSET	DP_HDCP_2_2_REG_HPRIME_OFFSET
+#define DP_HDCP_2_2_AKE_SEND_PAIRING_INFO_OFFSET \
+						DP_HDCP_2_2_REG_EKH_KM_RD_OFFSET
+#define DP_HDCP_2_2_LC_INIT_OFFSET		DP_HDCP_2_2_REG_RN_OFFSET
+#define DP_HDCP_2_2_LC_SEND_LPRIME_OFFSET	DP_HDCP_2_2_REG_LPRIME_OFFSET
+#define DP_HDCP_2_2_SKE_SEND_EKS_OFFSET		DP_HDCP_2_2_REG_EDKEY_KS_OFFSET
+#define DP_HDCP_2_2_REP_SEND_RECVID_LIST_OFFSET	DP_HDCP_2_2_REG_RXINFO_OFFSET
+#define DP_HDCP_2_2_REP_SEND_ACK_OFFSET		DP_HDCP_2_2_REG_V_OFFSET
+#define DP_HDCP_2_2_REP_STREAM_MANAGE_OFFSET	DP_HDCP_2_2_REG_SEQ_NUM_M_OFFSET
+#define DP_HDCP_2_2_REP_STREAM_READY_OFFSET	DP_HDCP_2_2_REG_MPRIME_OFFSET
+
+#define HDCP_2_2_DP_RXSTATUS_LEN		1
+#define HDCP_2_2_DP_RXSTATUS_READY(x)		((x) & BIT(0))
+#define HDCP_2_2_DP_RXSTATUS_H_PRIME(x)		((x) & BIT(1))
+#define HDCP_2_2_DP_RXSTATUS_PAIRING(x)		((x) & BIT(2))
+#define HDCP_2_2_DP_RXSTATUS_REAUTH_REQ(x)	((x) & BIT(3))
+#define HDCP_2_2_DP_RXSTATUS_LINK_FAILED(x)	((x) & BIT(4))
+
 /* DP 1.2 Sideband message defines */
 /* peer device type - DP 1.2a Table 2-92 */
 #define DP_PEER_DEVICE_NONE		0x0
@@ -934,6 +985,9 @@
 #define DP_POWER_DOWN_PHY		0x25
 #define DP_SINK_EVENT_NOTIFY		0x30
 #define DP_QUERY_STREAM_ENC_STATUS	0x38
+#define  DP_QUERY_STREAM_ENC_STATUS_STATE_NO_EXIST	0
+#define  DP_QUERY_STREAM_ENC_STATUS_STATE_INACTIVE	1
+#define  DP_QUERY_STREAM_ENC_STATUS_STATE_ACTIVE	2
 
 /* DP 1.2 MST sideband reply types */
 #define DP_SIDEBAND_REPLY_ACK		0x00
@@ -1090,21 +1144,24 @@ struct drm_dp_aux_msg {
 
 struct cec_adapter;
 struct edid;
+struct drm_connector;
 
 /**
  * struct drm_dp_aux_cec - DisplayPort CEC-Tunneling-over-AUX
  * @lock: mutex protecting this struct
  * @adap: the CEC adapter for CEC-Tunneling-over-AUX support.
- * @name: name of the CEC adapter
- * @parent: parent device of the CEC adapter
+ * @connector: the connector this CEC adapter is associated with
  * @unregister_work: unregister the CEC adapter
+ * @mst_irq_work: IRQ for CEC events on an MST branch
+ * @mst_set_edid_work: set the EDID for an MST branch
  */
 struct drm_dp_aux_cec {
 	struct mutex lock;
 	struct cec_adapter *adap;
-	const char *name;
-	struct device *parent;
+	struct drm_connector *connector;
 	struct delayed_work unregister_work;
+	struct work_struct mst_irq_work;
+	struct work_struct mst_set_edid_work;
 };
 
 /**
@@ -1169,6 +1226,10 @@ struct drm_dp_aux {
 	 * @cec: struct containing fields used for CEC-Tunneling-over-AUX.
 	 */
 	struct drm_dp_aux_cec cec;
+	/**
+	 * @is_remote: Is this AUX CH actually using sideband messaging.
+	 */
+	bool is_remote;
 };
 
 ssize_t drm_dp_dpcd_read(struct drm_dp_aux *aux, unsigned int offset,
@@ -1309,8 +1370,8 @@ drm_dp_has_quirk(const struct drm_dp_desc *desc, enum drm_dp_quirk quirk)
 
 #ifdef CONFIG_DRM_DP_CEC
 void drm_dp_cec_irq(struct drm_dp_aux *aux);
-void drm_dp_cec_register_connector(struct drm_dp_aux *aux, const char *name,
-				   struct device *parent);
+void drm_dp_cec_register_connector(struct drm_dp_aux *aux,
+				   struct drm_connector *connector);
 void drm_dp_cec_unregister_connector(struct drm_dp_aux *aux);
 void drm_dp_cec_set_edid(struct drm_dp_aux *aux, const struct edid *edid);
 void drm_dp_cec_unset_edid(struct drm_dp_aux *aux);
@@ -1319,9 +1380,9 @@ static inline void drm_dp_cec_irq(struct drm_dp_aux *aux)
 {
 }
 
-static inline void drm_dp_cec_register_connector(struct drm_dp_aux *aux,
-						 const char *name,
-						 struct device *parent)
+static inline void
+drm_dp_cec_register_connector(struct drm_dp_aux *aux,
+			      struct drm_connector *connector)
 {
 }
 

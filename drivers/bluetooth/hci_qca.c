@@ -1594,6 +1594,8 @@ static int qca_setup(struct hci_uart *hu)
 	bt_dev_info(hdev, "setting up %s",
 		qca_is_wcn399x(soc_type) ? "wcn399x" : "ROME");
 
+	qca->memdump_state = QCA_MEMDUMP_IDLE;
+
 retry:
 	ret = qca_power_on(hdev);
 	if (ret)
@@ -1724,9 +1726,6 @@ static void qca_power_shutdown(struct hci_uart *hu)
 	qca_flush(hu);
 	spin_unlock_irqrestore(&qca->hci_ibs_lock, flags);
 
-	hu->hdev->hw_error = NULL;
-	hu->hdev->cmd_timeout = NULL;
-
 	/* Non-serdev device usually is powered by external power
 	 * and don't need additional action in driver for power down
 	 */
@@ -1748,6 +1747,9 @@ static int qca_power_off(struct hci_dev *hdev)
 	struct qca_data *qca = hu->priv;
 	enum qca_btsoc_type soc_type = qca_soc_type(hu);
 
+	hu->hdev->hw_error = NULL;
+	hu->hdev->cmd_timeout = NULL;
+
 	/* Stop sending shutdown command if soc crashes. */
 	if (qca_is_wcn399x(soc_type)
 		&& qca->memdump_state == QCA_MEMDUMP_IDLE) {
@@ -1755,7 +1757,6 @@ static int qca_power_off(struct hci_dev *hdev)
 		usleep_range(8000, 10000);
 	}
 
-	qca->memdump_state = QCA_MEMDUMP_IDLE;
 	qca_power_shutdown(hu);
 	return 0;
 }

@@ -169,6 +169,7 @@ struct spi_device {
 	void			*controller_state;
 	void			*controller_data;
 	char			modalias[SPI_NAME_SIZE];
+	const char		*driver_override;
 	int			cs_gpio;	/* chip select gpio */
 
 	/* the statistics */
@@ -634,6 +635,25 @@ static inline struct spi_controller *spi_alloc_slave(struct device *host,
 		return NULL;
 
 	return __spi_alloc_controller(host, size, true);
+}
+
+struct spi_controller *__devm_spi_alloc_controller(struct device *dev,
+						   unsigned int size,
+						   bool slave);
+
+static inline struct spi_controller *devm_spi_alloc_master(struct device *dev,
+							   unsigned int size)
+{
+	return __devm_spi_alloc_controller(dev, size, false);
+}
+
+static inline struct spi_controller *devm_spi_alloc_slave(struct device *dev,
+							  unsigned int size)
+{
+	if (!IS_ENABLED(CONFIG_SPI_SLAVE))
+		return NULL;
+
+	return __devm_spi_alloc_controller(dev, size, true);
 }
 
 extern int spi_register_controller(struct spi_controller *ctlr);

@@ -38,7 +38,6 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_edid.h>
-#include <drm/drm_hdcp.h>
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
@@ -580,6 +579,15 @@ int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 {
 	int index;
 
+	/*
+	 * TODO: Enable fallback on MST links once MST link compute can handle
+	 * the fallback params.
+	 */
+	if (intel_dp->is_mst) {
+		DRM_ERROR("Link Training Unsuccessful\n");
+		return -1;
+	}
+
 	index = intel_dp_rate_index(intel_dp->common_rates,
 				    intel_dp->num_common_rates,
 				    link_rate);
@@ -615,6 +623,7 @@ static enum drm_mode_status
 intel_dp_mode_valid(struct drm_connector *connector,
 		    struct drm_display_mode *mode)
 {
+	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 	struct drm_display_mode *fixed_mode = intel_connector->panel.fixed_mode;
@@ -652,7 +661,7 @@ intel_dp_mode_valid(struct drm_connector *connector,
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		return MODE_H_ILLEGAL;
 
-	return MODE_OK;
+	return intel_mode_valid_max_plane_size(dev_priv, mode);
 }
 
 uint32_t intel_dp_pack_aux(const uint8_t *src, int src_bytes)
@@ -1434,12 +1443,27 @@ intel_dp_aux_header(u8 txbuf[HEADER_SIZE],
 	txbuf[3] = msg->size - 1;
 }
 
+static u32 intel_dp_aux_xfer_flags(const struct drm_dp_aux_msg *msg)
+{
+	/*
+	 * If we're trying to send the HDCP Aksv, we need to set a the Aksv
+	 * select bit to inform the hardware to send the Aksv after our header
+	 * since we can't access that data from software.
+	 */
+	if ((msg->request & ~DP_AUX_I2C_MOT) == DP_AUX_NATIVE_WRITE &&
+	    msg->address == DP_AUX_HDCP_AKSV)
+		return DP_AUX_CH_CTL_AUX_AKSV_SELECT;
+
+	return 0;
+}
+
 static ssize_t
 intel_dp_aux_transfer(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 {
 	struct intel_dp *intel_dp = container_of(aux, struct intel_dp, aux);
 	uint8_t txbuf[20], rxbuf[20];
 	size_t txsize, rxsize;
+	u32 flags = intel_dp_aux_xfer_flags(msg);
 	int ret;
 
 	intel_dp_aux_header(txbuf, msg);
@@ -1460,7 +1484,7 @@ intel_dp_aux_transfer(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 			memcpy(txbuf + HEADER_SIZE, msg->buffer, msg->size);
 
 		ret = intel_dp_aux_xfer(intel_dp, txbuf, txsize,
-					rxbuf, rxsize, 0);
+					rxbuf, rxsize, flags);
 		if (ret > 0) {
 			msg->reply = rxbuf[0] >> 4;
 
@@ -1483,7 +1507,7 @@ intel_dp_aux_transfer(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 			return -E2BIG;
 
 		ret = intel_dp_aux_xfer(intel_dp, txbuf, txsize,
-					rxbuf, rxsize, 0);
+					rxbuf, rxsize, flags);
 		if (ret > 0) {
 			msg->reply = rxbuf[0] >> 4;
 			/*
@@ -2035,6 +2059,29 @@ intel_dp_compute_link_config(struct intel_encoder *encoder,
 	return true;
 }
 
+bool intel_dp_limited_color_range(const struct intel_crtc_state *crtc_state,
+				  const struct drm_connector_state *conn_state)
+{
+	const struct intel_digital_connector_state *intel_conn_state =
+		to_intel_digital_connector_state(conn_state);
+	const struct drm_display_mode *adjusted_mode =
+		&crtc_state->base.adjusted_mode;
+
+	if (intel_conn_state->broadcast_rgb == INTEL_BROADCAST_RGB_AUTO) {
+		/*
+		 * See:
+		 * CEA-861-E - 5.1 Default Encoding Parameters
+		 * VESA DisplayPort Ver.1.2a - 5.1.1.1 Video Colorimetry
+		 */
+		return crtc_state->pipe_bpp != 18 &&
+			drm_default_rgb_quant_range(adjusted_mode) ==
+			HDMI_QUANTIZATION_RANGE_LIMITED;
+	} else {
+		return intel_conn_state->broadcast_rgb ==
+			INTEL_BROADCAST_RGB_LIMITED;
+	}
+}
+
 bool
 intel_dp_compute_config(struct intel_encoder *encoder,
 			struct intel_crtc_state *pipe_config,
@@ -2095,20 +2142,8 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 	if (!intel_dp_compute_link_config(encoder, pipe_config))
 		return false;
 
-	if (intel_conn_state->broadcast_rgb == INTEL_BROADCAST_RGB_AUTO) {
-		/*
-		 * See:
-		 * CEA-861-E - 5.1 Default Encoding Parameters
-		 * VESA DisplayPort Ver.1.2a - 5.1.1.1 Video Colorimetry
-		 */
-		pipe_config->limited_color_range =
-			pipe_config->pipe_bpp != 18 &&
-			drm_default_rgb_quant_range(adjusted_mode) ==
-			HDMI_QUANTIZATION_RANGE_LIMITED;
-	} else {
-		pipe_config->limited_color_range =
-			intel_conn_state->broadcast_rgb == INTEL_BROADCAST_RGB_LIMITED;
-	}
+	pipe_config->limited_color_range =
+		intel_dp_limited_color_range(pipe_config, conn_state);
 
 	intel_link_compute_m_n(pipe_config->pipe_bpp, pipe_config->lane_count,
 			       adjusted_mode->crtc_clock,
@@ -5117,7 +5152,16 @@ intel_dp_long_pulse(struct intel_connector *connector,
 		goto out;
 	}
 
-	if (intel_dp->reset_link_params) {
+	drm_dp_read_desc(&intel_dp->aux, &intel_dp->desc,
+			 drm_dp_is_branch(intel_dp->dpcd));
+
+	intel_dp_configure_mst(intel_dp);
+
+	/*
+	 * TODO: Reset link params when switching to MST mode, until MST
+	 * supports link training fallback params.
+	 */
+	if (intel_dp->reset_link_params || intel_dp->is_mst) {
 		/* Initial max link lane count */
 		intel_dp->max_link_lane_count = intel_dp_max_common_lane_count(intel_dp);
 
@@ -5128,11 +5172,6 @@ intel_dp_long_pulse(struct intel_connector *connector,
 	}
 
 	intel_dp_print_rates(intel_dp);
-
-	drm_dp_read_desc(&intel_dp->aux, &intel_dp->desc,
-			 drm_dp_is_branch(intel_dp->dpcd));
-
-	intel_dp_configure_mst(intel_dp);
 
 	if (intel_dp->is_mst) {
 		/*
@@ -5290,7 +5329,6 @@ static int
 intel_dp_connector_register(struct drm_connector *connector)
 {
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
-	struct drm_device *dev = connector->dev;
 	int ret;
 
 	ret = intel_connector_register(connector);
@@ -5305,8 +5343,7 @@ intel_dp_connector_register(struct drm_connector *connector)
 	intel_dp->aux.dev = connector->kdev;
 	ret = drm_dp_aux_register(&intel_dp->aux);
 	if (!ret)
-		drm_dp_cec_register_connector(&intel_dp->aux,
-					      connector->name, dev->dev);
+		drm_dp_cec_register_connector(&intel_dp->aux, connector);
 	return ret;
 }
 
@@ -5318,27 +5355,6 @@ intel_dp_connector_unregister(struct drm_connector *connector)
 	drm_dp_cec_unregister_connector(&intel_dp->aux);
 	drm_dp_aux_unregister(&intel_dp->aux);
 	intel_connector_unregister(connector);
-}
-
-static void
-intel_dp_connector_destroy(struct drm_connector *connector)
-{
-	struct intel_connector *intel_connector = to_intel_connector(connector);
-
-	kfree(intel_connector->detect_edid);
-
-	if (!IS_ERR_OR_NULL(intel_connector->edid))
-		kfree(intel_connector->edid);
-
-	/*
-	 * Can't call intel_dp_is_edp() since the encoder may have been
-	 * destroyed already.
-	 */
-	if (connector->connector_type == DRM_MODE_CONNECTOR_eDP)
-		intel_panel_fini(&intel_connector->panel);
-
-	drm_connector_cleanup(connector);
-	kfree(connector);
 }
 
 void intel_dp_encoder_destroy(struct drm_encoder *encoder)
@@ -5372,6 +5388,13 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 void intel_dp_encoder_suspend(struct intel_encoder *intel_encoder)
 {
 	struct intel_dp *intel_dp = enc_to_intel_dp(&intel_encoder->base);
+	struct intel_lspcon *lspcon = dp_to_lspcon(intel_dp);
+
+	if (lspcon && lspcon->active) {
+		struct drm_dp_link link;
+		if (!drm_dp_link_probe(&intel_dp->aux, &link))
+			drm_dp_link_power_down(&intel_dp->aux, &link);
+	}
 
 	if (!intel_dp_is_edp(intel_dp))
 		return;
@@ -5385,238 +5408,6 @@ void intel_dp_encoder_suspend(struct intel_encoder *intel_encoder)
 	edp_panel_vdd_off_sync(intel_dp);
 	pps_unlock(intel_dp);
 }
-
-static
-int intel_dp_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
-				u8 *an)
-{
-	struct intel_dp *intel_dp = enc_to_intel_dp(&intel_dig_port->base.base);
-	static const struct drm_dp_aux_msg msg = {
-		.request = DP_AUX_NATIVE_WRITE,
-		.address = DP_AUX_HDCP_AKSV,
-		.size = DRM_HDCP_KSV_LEN,
-	};
-	uint8_t txbuf[HEADER_SIZE + DRM_HDCP_KSV_LEN] = {}, rxbuf[2], reply = 0;
-	ssize_t dpcd_ret;
-	int ret;
-
-	/* Output An first, that's easy */
-	dpcd_ret = drm_dp_dpcd_write(&intel_dig_port->dp.aux, DP_AUX_HDCP_AN,
-				     an, DRM_HDCP_AN_LEN);
-	if (dpcd_ret != DRM_HDCP_AN_LEN) {
-		DRM_ERROR("Failed to write An over DP/AUX (%zd)\n", dpcd_ret);
-		return dpcd_ret >= 0 ? -EIO : dpcd_ret;
-	}
-
-	/*
-	 * Since Aksv is Oh-So-Secret, we can't access it in software. So in
-	 * order to get it on the wire, we need to create the AUX header as if
-	 * we were writing the data, and then tickle the hardware to output the
-	 * data once the header is sent out.
-	 */
-	intel_dp_aux_header(txbuf, &msg);
-
-	ret = intel_dp_aux_xfer(intel_dp, txbuf, HEADER_SIZE + msg.size,
-				rxbuf, sizeof(rxbuf),
-				DP_AUX_CH_CTL_AUX_AKSV_SELECT);
-	if (ret < 0) {
-		DRM_ERROR("Write Aksv over DP/AUX failed (%d)\n", ret);
-		return ret;
-	} else if (ret == 0) {
-		DRM_ERROR("Aksv write over DP/AUX was empty\n");
-		return -EIO;
-	}
-
-	reply = (rxbuf[0] >> 4) & DP_AUX_NATIVE_REPLY_MASK;
-	return reply == DP_AUX_NATIVE_REPLY_ACK ? 0 : -EIO;
-}
-
-static int intel_dp_hdcp_read_bksv(struct intel_digital_port *intel_dig_port,
-				   u8 *bksv)
-{
-	ssize_t ret;
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BKSV, bksv,
-			       DRM_HDCP_KSV_LEN);
-	if (ret != DRM_HDCP_KSV_LEN) {
-		DRM_ERROR("Read Bksv from DP/AUX failed (%zd)\n", ret);
-		return ret >= 0 ? -EIO : ret;
-	}
-	return 0;
-}
-
-static int intel_dp_hdcp_read_bstatus(struct intel_digital_port *intel_dig_port,
-				      u8 *bstatus)
-{
-	ssize_t ret;
-	/*
-	 * For some reason the HDMI and DP HDCP specs call this register
-	 * definition by different names. In the HDMI spec, it's called BSTATUS,
-	 * but in DP it's called BINFO.
-	 */
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BINFO,
-			       bstatus, DRM_HDCP_BSTATUS_LEN);
-	if (ret != DRM_HDCP_BSTATUS_LEN) {
-		DRM_ERROR("Read bstatus from DP/AUX failed (%zd)\n", ret);
-		return ret >= 0 ? -EIO : ret;
-	}
-	return 0;
-}
-
-static
-int intel_dp_hdcp_read_bcaps(struct intel_digital_port *intel_dig_port,
-			     u8 *bcaps)
-{
-	ssize_t ret;
-
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BCAPS,
-			       bcaps, 1);
-	if (ret != 1) {
-		DRM_ERROR("Read bcaps from DP/AUX failed (%zd)\n", ret);
-		return ret >= 0 ? -EIO : ret;
-	}
-
-	return 0;
-}
-
-static
-int intel_dp_hdcp_repeater_present(struct intel_digital_port *intel_dig_port,
-				   bool *repeater_present)
-{
-	ssize_t ret;
-	u8 bcaps;
-
-	ret = intel_dp_hdcp_read_bcaps(intel_dig_port, &bcaps);
-	if (ret)
-		return ret;
-
-	*repeater_present = bcaps & DP_BCAPS_REPEATER_PRESENT;
-	return 0;
-}
-
-static
-int intel_dp_hdcp_read_ri_prime(struct intel_digital_port *intel_dig_port,
-				u8 *ri_prime)
-{
-	ssize_t ret;
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_RI_PRIME,
-			       ri_prime, DRM_HDCP_RI_LEN);
-	if (ret != DRM_HDCP_RI_LEN) {
-		DRM_ERROR("Read Ri' from DP/AUX failed (%zd)\n", ret);
-		return ret >= 0 ? -EIO : ret;
-	}
-	return 0;
-}
-
-static
-int intel_dp_hdcp_read_ksv_ready(struct intel_digital_port *intel_dig_port,
-				 bool *ksv_ready)
-{
-	ssize_t ret;
-	u8 bstatus;
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BSTATUS,
-			       &bstatus, 1);
-	if (ret != 1) {
-		DRM_ERROR("Read bstatus from DP/AUX failed (%zd)\n", ret);
-		return ret >= 0 ? -EIO : ret;
-	}
-	*ksv_ready = bstatus & DP_BSTATUS_READY;
-	return 0;
-}
-
-static
-int intel_dp_hdcp_read_ksv_fifo(struct intel_digital_port *intel_dig_port,
-				int num_downstream, u8 *ksv_fifo)
-{
-	ssize_t ret;
-	int i;
-
-	/* KSV list is read via 15 byte window (3 entries @ 5 bytes each) */
-	for (i = 0; i < num_downstream; i += 3) {
-		size_t len = min(num_downstream - i, 3) * DRM_HDCP_KSV_LEN;
-		ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux,
-				       DP_AUX_HDCP_KSV_FIFO,
-				       ksv_fifo + i * DRM_HDCP_KSV_LEN,
-				       len);
-		if (ret != len) {
-			DRM_ERROR("Read ksv[%d] from DP/AUX failed (%zd)\n", i,
-				  ret);
-			return ret >= 0 ? -EIO : ret;
-		}
-	}
-	return 0;
-}
-
-static
-int intel_dp_hdcp_read_v_prime_part(struct intel_digital_port *intel_dig_port,
-				    int i, u32 *part)
-{
-	ssize_t ret;
-
-	if (i >= DRM_HDCP_V_PRIME_NUM_PARTS)
-		return -EINVAL;
-
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux,
-			       DP_AUX_HDCP_V_PRIME(i), part,
-			       DRM_HDCP_V_PRIME_PART_LEN);
-	if (ret != DRM_HDCP_V_PRIME_PART_LEN) {
-		DRM_ERROR("Read v'[%d] from DP/AUX failed (%zd)\n", i, ret);
-		return ret >= 0 ? -EIO : ret;
-	}
-	return 0;
-}
-
-static
-int intel_dp_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
-				    bool enable)
-{
-	/* Not used for single stream DisplayPort setups */
-	return 0;
-}
-
-static
-bool intel_dp_hdcp_check_link(struct intel_digital_port *intel_dig_port)
-{
-	ssize_t ret;
-	u8 bstatus;
-
-	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BSTATUS,
-			       &bstatus, 1);
-	if (ret != 1) {
-		DRM_ERROR("Read bstatus from DP/AUX failed (%zd)\n", ret);
-		return false;
-	}
-
-	return !(bstatus & (DP_BSTATUS_LINK_FAILURE | DP_BSTATUS_REAUTH_REQ));
-}
-
-static
-int intel_dp_hdcp_capable(struct intel_digital_port *intel_dig_port,
-			  bool *hdcp_capable)
-{
-	ssize_t ret;
-	u8 bcaps;
-
-	ret = intel_dp_hdcp_read_bcaps(intel_dig_port, &bcaps);
-	if (ret)
-		return ret;
-
-	*hdcp_capable = bcaps & DP_BCAPS_HDCP_CAPABLE;
-	return 0;
-}
-
-static const struct intel_hdcp_shim intel_dp_hdcp_shim = {
-	.write_an_aksv = intel_dp_hdcp_write_an_aksv,
-	.read_bksv = intel_dp_hdcp_read_bksv,
-	.read_bstatus = intel_dp_hdcp_read_bstatus,
-	.repeater_present = intel_dp_hdcp_repeater_present,
-	.read_ri_prime = intel_dp_hdcp_read_ri_prime,
-	.read_ksv_ready = intel_dp_hdcp_read_ksv_ready,
-	.read_ksv_fifo = intel_dp_hdcp_read_ksv_fifo,
-	.read_v_prime_part = intel_dp_hdcp_read_v_prime_part,
-	.toggle_signalling = intel_dp_hdcp_toggle_signalling,
-	.check_link = intel_dp_hdcp_check_link,
-	.hdcp_capable = intel_dp_hdcp_capable,
-};
 
 static void intel_edp_panel_vdd_sanitize(struct intel_dp *intel_dp)
 {
@@ -5687,7 +5478,7 @@ static const struct drm_connector_funcs intel_dp_connector_funcs = {
 	.atomic_set_property = intel_digital_connector_atomic_set_property,
 	.late_register = intel_dp_connector_register,
 	.early_unregister = intel_dp_connector_unregister,
-	.destroy = intel_dp_connector_destroy,
+	.destroy = intel_connector_destroy,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 	.atomic_duplicate_state = intel_digital_connector_duplicate_state,
 };
@@ -6714,7 +6505,7 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 	intel_dp_add_properties(intel_dp, connector);
 
 	if (is_hdcp_supported(dev_priv, port) && !intel_dp_is_edp(intel_dp)) {
-		int ret = intel_hdcp_init(intel_connector, &intel_dp_hdcp_shim);
+		int ret = intel_dp_init_hdcp(intel_dig_port, intel_connector);
 		if (ret)
 			DRM_DEBUG_KMS("HDCP init failed, skipping.\n");
 	}
@@ -6755,6 +6546,8 @@ bool intel_dp_init(struct drm_i915_private *dev_priv,
 
 	intel_encoder = &intel_dig_port->base;
 	encoder = &intel_encoder->base;
+
+	mutex_init(&intel_dig_port->hdcp_mutex);
 
 	if (drm_encoder_init(&dev_priv->drm, &intel_encoder->base,
 			     &intel_dp_enc_funcs, DRM_MODE_ENCODER_TMDS,
@@ -6857,7 +6650,8 @@ void intel_dp_mst_resume(struct drm_i915_private *dev_priv)
 		if (!intel_dp->can_mst)
 			continue;
 
-		ret = drm_dp_mst_topology_mgr_resume(&intel_dp->mst_mgr);
+		ret = drm_dp_mst_topology_mgr_resume(&intel_dp->mst_mgr,
+						     true);
 		if (ret)
 			intel_dp_check_mst_status(intel_dp);
 	}

@@ -678,7 +678,7 @@ static const struct snd_kcontrol_new max98390_dai_controls =
 
 static const struct snd_soc_dapm_widget max98390_dapm_widgets[] = {
 	SND_SOC_DAPM_DAC_E("Amp Enable", "HiFi Playback",
-		MAX98390_R203A_AMP_EN, 0, 0, max98390_dac_event,
+		SND_SOC_NOPM, 0, 0, max98390_dac_event,
 		SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_MUX("DAI Sel Mux", SND_SOC_NOPM, 0, 0,
 		&max98390_dai_controls),
@@ -784,16 +784,18 @@ static int max98390_dsm_init(struct snd_soc_component *component)
 	if (fw->size < MAX98390_DSM_PARAM_MIN_SIZE) {
 		dev_err(component->dev,
 			"param fw is invalid.\n");
+		ret = -EINVAL;
 		goto err_alloc;
 	}
 	dsm_param = (char *)fw->data;
 	param_start_addr = (dsm_param[0] & 0xff) | (dsm_param[1] & 0xff) << 8;
 	param_size = (dsm_param[2] & 0xff) | (dsm_param[3] & 0xff) << 8;
 	if (param_size > MAX98390_DSM_PARAM_MAX_SIZE ||
-		param_start_addr < DSM_STBASS_HPF_B0_BYTE0 ||
+		param_start_addr < MAX98390_IRQ_CTRL ||
 		fw->size < param_size + MAX98390_DSM_PAYLOAD_OFFSET) {
 		dev_err(component->dev,
 			"param fw is invalid.\n");
+		ret = -EINVAL;
 		goto err_alloc;
 	}
 	regmap_write(max98390->regmap, MAX98390_R203A_AMP_EN, 0x80);
@@ -864,11 +866,11 @@ static int max98390_probe(struct snd_soc_component *component)
 	regmap_write(max98390->regmap, MAX98390_SOFTWARE_RESET, 0x01);
 	/* Sleep reset settle time */
 	msleep(20);
-	/* Update dsm bin param */
-	max98390_dsm_init(component);
 
 	/* Amp init setting */
 	max98390_init_regs(component);
+	/* Update dsm bin param */
+	max98390_dsm_init(component);
 
 	/* Dsm Setting */
 	if (max98390->ref_rdc_value) {
@@ -943,14 +945,6 @@ static const struct regmap_config max98390_regmap = {
 	.volatile_reg	  = max98390_volatile_reg,
 	.cache_type       = REGCACHE_RBTREE,
 };
-
-#ifdef CONFIG_OF
-static const struct of_device_id max98390_dt_ids[] = {
-	{ .compatible = "maxim,max98390", },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, max98390_dt_ids);
-#endif
 
 static int max98390_i2c_probe(struct i2c_client *i2c,
 		const struct i2c_device_id *id)

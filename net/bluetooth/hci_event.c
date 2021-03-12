@@ -395,6 +395,29 @@ done:
 	hci_dev_unlock(hdev);
 }
 
+static void hci_cc_set_event_filter(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	__u8 status = *((__u8 *)skb->data);
+	struct hci_cp_set_event_filter *cp;
+	void *sent;
+
+	BT_DBG("%s status 0x%2.2x", hdev->name, status);
+
+	if (status)
+		return;
+
+	sent = hci_sent_cmd_data(hdev, HCI_OP_SET_EVENT_FLT);
+	if (!sent)
+		return;
+
+	cp = (struct hci_cp_set_event_filter *)sent;
+
+	if (cp->flt_type == HCI_FLT_CLEAR_ALL)
+		hci_dev_clear_flag(hdev, HCI_EVENT_FILTER_CONFIGURED);
+	else
+		hci_dev_set_flag(hdev, HCI_EVENT_FILTER_CONFIGURED);
+}
+
 static void hci_cc_read_class_of_dev(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct hci_rp_read_class_of_dev *rp = (void *) skb->data;
@@ -1157,6 +1180,20 @@ static void hci_cc_le_set_adv_set_random_addr(struct hci_dev *hdev,
 	hci_dev_unlock(hdev);
 }
 
+static void hci_cc_le_read_transmit_power(struct hci_dev *hdev,
+					  struct sk_buff *skb)
+{
+	struct hci_rp_le_read_transmit_power *rp = (void *)skb->data;
+
+	BT_DBG("%s status 0x%2.2x", hdev->name, rp->status);
+
+	if (rp->status)
+		return;
+
+	hdev->min_le_tx_power = rp->min_le_tx_power;
+	hdev->max_le_tx_power = rp->max_le_tx_power;
+}
+
 static void hci_cc_le_set_adv_enable(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	__u8 *sent, status = *((__u8 *) skb->data);
@@ -1196,6 +1233,7 @@ static void hci_cc_le_set_ext_adv_enable(struct hci_dev *hdev,
 					 struct sk_buff *skb)
 {
 	struct hci_cp_le_set_ext_adv_enable *cp;
+	struct hci_cp_ext_adv_set *adv_sets = NULL;
 	__u8 status = *((__u8 *) skb->data);
 
 	BT_DBG("%s status 0x%2.2x", hdev->name, status);
@@ -1207,10 +1245,17 @@ static void hci_cc_le_set_ext_adv_enable(struct hci_dev *hdev,
 	if (!cp)
 		return;
 
+	if (cp->num_of_sets)
+		adv_sets = (struct hci_cp_ext_adv_set *)&cp->data;
+
 	hci_dev_lock(hdev);
 
 	if (cp->enable) {
 		struct hci_conn *conn;
+
+		/* Handle 0 is reserved for directed advertisements */
+		if (adv_sets && adv_sets[0].handle == 0)
+			hdev->ext_directed_advertising = true;
 
 		hci_dev_set_flag(hdev, HCI_LE_ADV);
 
@@ -1220,7 +1265,25 @@ static void hci_cc_le_set_ext_adv_enable(struct hci_dev *hdev,
 					   &conn->le_conn_timeout,
 					   conn->conn_timeout);
 	} else {
-		hci_dev_clear_flag(hdev, HCI_LE_ADV);
+		if (!cp->num_of_sets) {
+			/* This request disabled all advertisements */
+			hdev->ext_directed_advertising = false;
+			hci_dev_clear_flag(hdev, HCI_LE_ADV);
+		} else {
+			if (adv_sets && adv_sets[0].handle == 0) {
+				/* The request disabled only directed adv */
+				hdev->ext_directed_advertising = false;
+			}
+
+			/* Clients' advertisements are removed from
+			 * hdev->adv_instances before calling disable. We just
+			 * need to check it here to update HCI_LE_ADV.
+			 */
+			if (list_empty(&hdev->adv_instances) &&
+			    !hdev->ext_directed_advertising) {
+				hci_dev_clear_flag(hdev, HCI_LE_ADV);
+			}
+		}
 	}
 
 	hci_dev_unlock(hdev);
@@ -1521,6 +1584,45 @@ static void hci_cc_le_write_def_data_len(struct hci_dev *hdev,
 	hdev->le_def_tx_time = le16_to_cpu(sent->tx_time);
 }
 
+static void hci_cc_le_add_to_resolv_list(struct hci_dev *hdev,
+					 struct sk_buff *skb)
+{
+	struct hci_cp_le_add_to_resolv_list *sent;
+	__u8 status = *((__u8 *) skb->data);
+
+	BT_DBG("%s status 0x%2.2x", hdev->name, status);
+
+	if (status)
+		return;
+
+	sent = hci_sent_cmd_data(hdev, HCI_OP_LE_ADD_TO_RESOLV_LIST);
+	if (!sent)
+		return;
+
+	hci_bdaddr_list_add_with_irk(&hdev->le_resolv_list, &sent->bdaddr,
+				sent->bdaddr_type, sent->peer_irk,
+				sent->local_irk);
+}
+
+static void hci_cc_le_del_from_resolv_list(struct hci_dev *hdev,
+					  struct sk_buff *skb)
+{
+	struct hci_cp_le_del_from_resolv_list *sent;
+	__u8 status = *((__u8 *) skb->data);
+
+	BT_DBG("%s status 0x%2.2x", hdev->name, status);
+
+	if (status)
+		return;
+
+	sent = hci_sent_cmd_data(hdev, HCI_OP_LE_DEL_FROM_RESOLV_LIST);
+	if (!sent)
+		return;
+
+	hci_bdaddr_list_del_with_irk(&hdev->le_resolv_list, &sent->bdaddr,
+			    sent->bdaddr_type);
+}
+
 static void hci_cc_le_clear_resolv_list(struct hci_dev *hdev,
 				       struct sk_buff *skb)
 {
@@ -1668,6 +1770,7 @@ static void hci_cc_set_ext_adv_param(struct hci_dev *hdev, struct sk_buff *skb)
 	}
 	/* Update adv data as tx power is known now */
 	hci_req_update_adv_data(hdev, hdev->cur_adv_instance);
+
 	hci_dev_unlock(hdev);
 }
 
@@ -2214,6 +2317,22 @@ static void cs_le_create_conn(struct hci_dev *hdev, bdaddr_t *peer_addr,
 				       peer_addr_type);
 	if (!conn)
 		return;
+
+	/* When using controller based address resolution, then the new
+	 * address types 0x02 and 0x03 are used. These types need to be
+	 * converted back into either public address or random address type
+	 */
+	if (use_ll_privacy(hdev) &&
+	    hci_dev_test_flag(hdev, HCI_LL_RPA_RESOLUTION)) {
+		switch (own_address_type) {
+		case ADDR_LE_DEV_PUBLIC_RESOLVED:
+			own_address_type = ADDR_LE_DEV_PUBLIC;
+			break;
+		case ADDR_LE_DEV_RANDOM_RESOLVED:
+			own_address_type = ADDR_LE_DEV_RANDOM;
+			break;
+		}
+	}
 
 	/* Store the initiator and responder address information which
 	 * is needed for SMP. These values will not change during the
@@ -2855,7 +2974,7 @@ static void hci_auth_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 				     &cp);
 		} else {
 			clear_bit(HCI_CONN_ENCRYPT_PEND, &conn->flags);
-			hci_encrypt_cfm(conn, ev->status, 0x00);
+			hci_encrypt_cfm(conn, ev->status);
 		}
 	}
 
@@ -2941,22 +3060,7 @@ static void read_enc_key_size_complete(struct hci_dev *hdev, u8 status,
 		conn->enc_key_size = rp->key_size;
 	}
 
-	if (conn->state == BT_CONFIG) {
-		conn->state = BT_CONNECTED;
-		hci_connect_cfm(conn, 0);
-		hci_conn_drop(conn);
-	} else {
-		u8 encrypt;
-
-		if (!test_bit(HCI_CONN_ENCRYPT, &conn->flags))
-			encrypt = 0x00;
-		else if (test_bit(HCI_CONN_AES_CCM, &conn->flags))
-			encrypt = 0x02;
-		else
-			encrypt = 0x01;
-
-		hci_encrypt_cfm(conn, 0, encrypt);
-	}
+	hci_encrypt_cfm(conn, 0);
 
 unlock:
 	hci_dev_unlock(hdev);
@@ -3005,23 +3109,19 @@ static void hci_encrypt_change_evt(struct hci_dev *hdev, struct sk_buff *skb)
 
 	clear_bit(HCI_CONN_ENCRYPT_PEND, &conn->flags);
 
+	/* Check link security requirements are met */
+	if (!hci_conn_check_link_mode(conn))
+		ev->status = HCI_ERROR_AUTH_FAILURE;
+
 	if (ev->status && conn->state == BT_CONNECTED) {
 		if (ev->status == HCI_ERROR_PIN_OR_KEY_MISSING)
 			set_bit(HCI_CONN_AUTH_FAILURE, &conn->flags);
 
+		/* Notify upper layers so they can cleanup before
+		 * disconnecting.
+		 */
+		hci_encrypt_cfm(conn, ev->status);
 		hci_disconnect(conn, HCI_ERROR_AUTH_FAILURE);
-		hci_conn_drop(conn);
-		goto unlock;
-	}
-
-	/* In Secure Connections Only mode, do not allow any connections
-	 * that are not encrypted with AES-CCM using a P-256 authenticated
-	 * combination key.
-	 */
-	if (hci_dev_test_flag(hdev, HCI_SC_ONLY) &&
-	    (!test_bit(HCI_CONN_AES_CCM, &conn->flags) ||
-	     conn->key_type != HCI_LK_AUTH_COMBINATION_P256)) {
-		hci_connect_cfm(conn, HCI_ERROR_AUTH_FAILURE);
 		hci_conn_drop(conn);
 		goto unlock;
 	}
@@ -3046,14 +3146,7 @@ static void hci_encrypt_change_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	}
 
 notify:
-	if (conn->state == BT_CONFIG) {
-		if (!ev->status)
-			conn->state = BT_CONNECTED;
-
-		hci_connect_cfm(conn, ev->status);
-		hci_conn_drop(conn);
-	} else
-		hci_encrypt_cfm(conn, ev->status, ev->encrypt);
+	hci_encrypt_cfm(conn, ev->status);
 
 unlock:
 	hci_dev_unlock(hdev);
@@ -3210,6 +3303,10 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 
 	case HCI_OP_WRITE_SCAN_ENABLE:
 		hci_cc_write_scan_enable(hdev, skb);
+		break;
+
+	case HCI_OP_SET_EVENT_FLT:
+		hci_cc_set_event_filter(hdev, skb);
 		break;
 
 	case HCI_OP_READ_CLASS_OF_DEV:
@@ -3400,6 +3497,14 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 		hci_cc_le_write_def_data_len(hdev, skb);
 		break;
 
+	case HCI_OP_LE_ADD_TO_RESOLV_LIST:
+		hci_cc_le_add_to_resolv_list(hdev, skb);
+		break;
+
+	case HCI_OP_LE_DEL_FROM_RESOLV_LIST:
+		hci_cc_le_del_from_resolv_list(hdev, skb);
+		break;
+
 	case HCI_OP_LE_CLEAR_RESOLV_LIST:
 		hci_cc_le_clear_resolv_list(hdev, skb);
 		break;
@@ -3462,6 +3567,10 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 
 	case HCI_OP_LE_SET_ADV_SET_RAND_ADDR:
 		hci_cc_le_set_adv_set_random_addr(hdev, skb);
+		break;
+
+	case HCI_OP_LE_READ_TRANSMIT_POWER:
+		hci_cc_le_read_transmit_power(hdev, skb);
 		break;
 
 	default:
@@ -4824,6 +4933,11 @@ static void hci_phy_link_complete_evt(struct hci_dev *hdev,
 		return;
 	}
 
+	if (!hcon->amp_mgr) {
+		hci_dev_unlock(hdev);
+		return;
+	}
+
 	if (ev->status) {
 		hci_conn_del(hcon);
 		hci_dev_unlock(hdev);
@@ -4943,10 +5057,12 @@ static void le_conn_complete_evt(struct hci_dev *hdev, u8 status,
 
 	hci_dev_lock(hdev);
 
-	/* All controllers implicitly stop advertising in the event of a
-	 * connection, so ensure that the state bit is cleared.
+	/* When entering a connection in the slave role, the controller will
+	 * disable advertising. To avoid a lapse in service, we restart any
+	 * previously active advertising instances.
 	 */
-	hci_dev_clear_flag(hdev, HCI_LE_ADV);
+	if (role == HCI_ROLE_SLAVE)
+		hci_req_enable_paused_adv(hdev);
 
 	conn = hci_lookup_le_connect(hdev);
 	if (!conn) {
@@ -5123,6 +5239,11 @@ static void hci_le_enh_conn_complete_evt(struct hci_dev *hdev,
 			     le16_to_cpu(ev->interval),
 			     le16_to_cpu(ev->latency),
 			     le16_to_cpu(ev->supervision_timeout));
+
+	if (use_ll_privacy(hdev) &&
+	    hci_dev_test_flag(hdev, HCI_ENABLE_LL_PRIVACY) &&
+	    hci_dev_test_flag(hdev, HCI_LL_RPA_RESOLUTION))
+		hci_req_disable_address_resolution(hdev);
 }
 
 static void hci_le_ext_adv_term_evt(struct hci_dev *hdev, struct sk_buff *skb)
@@ -5132,25 +5253,38 @@ static void hci_le_ext_adv_term_evt(struct hci_dev *hdev, struct sk_buff *skb)
 
 	BT_DBG("%s status 0x%2.2x", hdev->name, ev->status);
 
+	if (!ev->handle)
+		hdev->ext_directed_advertising = false;
+
 	if (ev->status)
-		return;
+		goto cleanup_instance;
 
 	conn = hci_conn_hash_lookup_handle(hdev, __le16_to_cpu(ev->conn_handle));
 	if (conn) {
 		struct adv_info *adv_instance;
 
 		if (hdev->adv_addr_type != ADDR_LE_DEV_RANDOM)
-			return;
+			goto cleanup_instance;
 
 		if (!hdev->cur_adv_instance) {
 			bacpy(&conn->resp_addr, &hdev->random_addr);
-			return;
+			goto cleanup_instance;
 		}
 
 		adv_instance = hci_find_adv_instance(hdev, hdev->cur_adv_instance);
 		if (adv_instance)
 			bacpy(&conn->resp_addr, &adv_instance->random_addr);
 	}
+
+cleanup_instance:
+	/* Since the controller tells us this instance is no longer active, we
+	 * remove it.
+	 */
+	hci_remove_adv_instance(hdev, ev->handle);
+
+	/* If we are no longer advertising, clear HCI_LE_ADV */
+	if (list_empty(&hdev->adv_instances) && !hdev->ext_directed_advertising)
+		hci_dev_clear_flag(hdev, HCI_LE_ADV);
 }
 
 static void hci_le_conn_update_complete_evt(struct hci_dev *hdev,
@@ -5721,6 +5855,13 @@ static void hci_le_remote_conn_param_req_evt(struct hci_dev *hdev,
 		params = hci_conn_params_lookup(hdev, &hcon->dst,
 						hcon->dst_type);
 		if (params) {
+			if (restrict_le_conn_params(hdev)) {
+				if (min == 6 && max == 9) {
+					min = 6;
+					max = 6;
+				}
+			}
+
 			params->conn_min_interval = min;
 			params->conn_max_interval = max;
 			params->conn_latency = latency;
@@ -5737,8 +5878,8 @@ static void hci_le_remote_conn_param_req_evt(struct hci_dev *hdev,
 	}
 
 	cp.handle = ev->handle;
-	cp.interval_min = ev->interval_min;
-	cp.interval_max = ev->interval_max;
+	cp.interval_min = cpu_to_le16(min);
+	cp.interval_max = cpu_to_le16(max);
 	cp.latency = ev->latency;
 	cp.timeout = ev->timeout;
 	cp.min_ce_len = 0;
@@ -5751,20 +5892,18 @@ static void hci_le_direct_adv_report_evt(struct hci_dev *hdev,
 					 struct sk_buff *skb)
 {
 	u8 num_reports = skb->data[0];
-	void *ptr = &skb->data[1];
+	struct hci_ev_le_direct_adv_info *ev = (void *)&skb->data[1];
+
+	if (!num_reports || skb->len < num_reports * sizeof(*ev) + 1)
+		return;
 
 	hci_dev_lock(hdev);
 
-	while (num_reports--) {
-		struct hci_ev_le_direct_adv_info *ev = ptr;
-
+	for (; num_reports; num_reports--, ev++)
 		process_adv_report(hdev, ev->evt_type, &ev->bdaddr,
 				   ev->bdaddr_type, &ev->direct_addr,
 				   ev->direct_addr_type, ev->rssi, NULL, 0,
 				   false);
-
-		ptr += sizeof(*ev);
-	}
 
 	hci_dev_unlock(hdev);
 }
@@ -5873,6 +6012,75 @@ static bool hci_get_cmd_complete(struct hci_dev *hdev, u16 opcode,
 	return true;
 }
 
+static void hci_store_wake_reason(struct hci_dev *hdev, u8 event,
+				  struct sk_buff *skb)
+{
+	struct hci_ev_le_advertising_info *adv;
+	struct hci_ev_le_direct_adv_info *direct_adv;
+	struct hci_ev_le_ext_adv_report *ext_adv;
+	const struct hci_ev_conn_complete *conn_complete = (void *)skb->data;
+	const struct hci_ev_conn_request *conn_request = (void *)skb->data;
+
+	hci_dev_lock(hdev);
+
+	/* If we are currently suspended and this is the first BT event seen,
+	 * save the wake reason associated with the event.
+	 */
+	if (!hdev->suspended || hdev->wake_reason)
+		goto unlock;
+
+	/* Default to remote wake. Values for wake_reason are documented in the
+	 * Bluez mgmt api docs.
+	 */
+	hdev->wake_reason = MGMT_WAKE_REASON_REMOTE_WAKE;
+
+	/* Once configured for remote wakeup, we should only wake up for
+	 * reconnections. It's useful to see which device is waking us up so
+	 * keep track of the bdaddr of the connection event that woke us up.
+	 */
+	if (event == HCI_EV_CONN_REQUEST) {
+		bacpy(&hdev->wake_addr, &conn_complete->bdaddr);
+		hdev->wake_addr_type = BDADDR_BREDR;
+	} else if (event == HCI_EV_CONN_COMPLETE) {
+		bacpy(&hdev->wake_addr, &conn_request->bdaddr);
+		hdev->wake_addr_type = BDADDR_BREDR;
+	} else if (event == HCI_EV_LE_META) {
+		struct hci_ev_le_meta *le_ev = (void *)skb->data;
+		u8 subevent = le_ev->subevent;
+		u8 *ptr = &skb->data[sizeof(*le_ev)];
+		u8 num_reports = *ptr;
+
+		if ((subevent == HCI_EV_LE_ADVERTISING_REPORT ||
+		     subevent == HCI_EV_LE_DIRECT_ADV_REPORT ||
+		     subevent == HCI_EV_LE_EXT_ADV_REPORT) &&
+		    num_reports) {
+			adv = (void *)(ptr + 1);
+			direct_adv = (void *)(ptr + 1);
+			ext_adv = (void *)(ptr + 1);
+
+			switch (subevent) {
+			case HCI_EV_LE_ADVERTISING_REPORT:
+				bacpy(&hdev->wake_addr, &adv->bdaddr);
+				hdev->wake_addr_type = adv->bdaddr_type;
+				break;
+			case HCI_EV_LE_DIRECT_ADV_REPORT:
+				bacpy(&hdev->wake_addr, &direct_adv->bdaddr);
+				hdev->wake_addr_type = direct_adv->bdaddr_type;
+				break;
+			case HCI_EV_LE_EXT_ADV_REPORT:
+				bacpy(&hdev->wake_addr, &ext_adv->bdaddr);
+				hdev->wake_addr_type = ext_adv->bdaddr_type;
+				break;
+			}
+		}
+	} else {
+		hdev->wake_reason = MGMT_WAKE_REASON_UNEXPECTED;
+	}
+
+unlock:
+	hci_dev_unlock(hdev);
+}
+
 void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct hci_event_hdr *hdr = (void *) skb->data;
@@ -5905,6 +6113,9 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 		orig_skb = skb_clone(skb, GFP_KERNEL);
 
 	skb_pull(skb, HCI_EVENT_HDR_SIZE);
+
+	/* Store wake reason if we're suspended */
+	hci_store_wake_reason(hdev, event, skb);
 
 	switch (event) {
 	case HCI_EV_INQUIRY_COMPLETE:

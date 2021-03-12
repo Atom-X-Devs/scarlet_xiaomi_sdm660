@@ -186,6 +186,7 @@ struct mtk_dsi_driver_data {
 	const u32 reg_cmdq_off;
 	bool has_shadow_ctl;
 	bool has_size_ctl;
+	const u32 data_phy_cycles_const;
 };
 
 struct mtk_dsi {
@@ -207,6 +208,7 @@ struct mtk_dsi {
 	struct clk *hs_clk;
 
 	u32 data_rate;
+	u32 da_trail_delta;
 
 	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
@@ -252,7 +254,7 @@ static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
 	timing->da_hs_prepare = (80 * data_rate_mhz + 4 * 1000) / 8000;
 	timing->da_hs_zero = (170 * data_rate_mhz + 10 * 1000) / 8000 + 1 -
 			     timing->da_hs_prepare;
-	timing->da_hs_trail = timing->da_hs_prepare + 1;
+	timing->da_hs_trail = timing->da_hs_prepare + 1 + dsi->da_trail_delta;
 
 	timing->ta_go = 4 * timing->lpx - 2;
 	timing->ta_sure = timing->lpx + 2;
@@ -505,7 +507,8 @@ static void mtk_dsi_config_vdo_timing(struct mtk_dsi *dsi)
 			dsi_tmp_buf_bpp - 10);
 
 	data_phy_cycles = timing->lpx + timing->da_hs_prepare +
-			  timing->da_hs_zero + timing->da_hs_exit + 3;
+			  timing->da_hs_zero + timing->da_hs_exit +
+			  dsi->driver_data->data_phy_cycles_const;
 
 	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
 		if ((vm->hfront_porch + vm->hback_porch) * dsi_tmp_buf_bpp >
@@ -1312,6 +1315,13 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 
 	dsi->mmsys_sw_rst_b = regmap;
 
+	ret = of_property_read_u32_index(dev->of_node, "da_trail_delta", 0,
+					 &dsi->da_trail_delta);
+	if (ret) {
+		dev_info(dev, "Can't get da_trail_delta, keep it as 0: %d\n", ret);
+		dsi->da_trail_delta = 0;
+	}
+
 	comp_id = mtk_ddp_comp_get_id(dev->of_node, MTK_DSI);
 	if (comp_id < 0) {
 		dev_err(dev, "Failed to identify by alias: %d\n", comp_id);
@@ -1371,16 +1381,19 @@ static int mtk_dsi_remove(struct platform_device *pdev)
 
 static const struct mtk_dsi_driver_data mt8173_dsi_driver_data = {
 	.reg_cmdq_off = 0x200,
+	.data_phy_cycles_const = 4,
 };
 
 static const struct mtk_dsi_driver_data mt2701_dsi_driver_data = {
 	.reg_cmdq_off = 0x180,
+	.data_phy_cycles_const = 3,
 };
 
 static const struct mtk_dsi_driver_data mt8183_dsi_driver_data = {
 	.reg_cmdq_off = 0x200,
 	.has_shadow_ctl = true,
 	.has_size_ctl = true,
+	.data_phy_cycles_const = 3,
 };
 
 static const struct of_device_id mtk_dsi_of_match[] = {

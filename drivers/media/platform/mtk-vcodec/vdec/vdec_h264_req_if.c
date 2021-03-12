@@ -4,6 +4,7 @@
 #include <linux/slab.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/h264-ctrls.h>
+#include <media/v4l2-h264.h>
 #include <media/videobuf2-dma-contig.h>
 
 #include "../vdec_drv_if.h"
@@ -358,12 +359,6 @@ static void get_h264_decode_parameters(
 
 	dst_params->num_slices = src_params->num_slices;
 	dst_params->nal_ref_idc = src_params->nal_ref_idc;
-	memcpy(dst_params->ref_pic_list_p0, src_params->ref_pic_list_p0,
-	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
-	memcpy(dst_params->ref_pic_list_b0, src_params->ref_pic_list_b0,
-	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
-	memcpy(dst_params->ref_pic_list_b1, src_params->ref_pic_list_b1,
-	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
 	dst_params->top_field_order_cnt = src_params->top_field_order_cnt;
 	dst_params->bottom_field_order_cnt = src_params->bottom_field_order_cnt;
 	dst_params->flags = src_params->flags;
@@ -454,18 +449,29 @@ static void update_dpb(const struct v4l2_ctrl_h264_decode_params *dec_param,
 }
 
 /*
- * Update reference list entries to point to the updated position in the DPB.
+ * The reflists computed by the reflist builder need to be reordered to be
+ * usable by the firmware, which also expects unused entries to have the value
+ * 0x20.
  */
 static void
-update_ref_list(u8 *ref_list, const u8 *translation_table)
+fixup_ref_list(u8 *ref_list, const u8 *translation_table, size_t num_valid)
 {
 	int i;
 
-	for (i = 0; i < 32; i++) {
+	memset(&ref_list[num_valid], 0x20, 32 - num_valid);
+
+	for (i = 0; i < num_valid; i++) {
 		const u8 dpb_index = ref_list[i];
 
-		if (dpb_index == 32)
+		/*
+		 * If this happens, then there is probably a bug in the list
+		 * construction code. Keep that check to prevent out-of-bounds
+		 * access in this case.
+		 */
+		if (dpb_index >= V4L2_H264_NUM_DPB_ENTRIES) {
+			printk(KERN_WARNING "mtk-vcodec: invalid H.264 reference list constructed\n");
 			continue;
+		}
 
 		ref_list[i] = translation_table[dpb_index];
 	}
@@ -476,28 +482,46 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
 	const struct v4l2_ctrl_h264_decode_params *dec_params =
 		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
+	const struct v4l2_ctrl_h264_slice_params *slice_params =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS);
+	const struct v4l2_ctrl_h264_sps *sps =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_SPS);
+	const struct v4l2_ctrl_h264_pps *pps =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_PPS);
 	struct v4l2_ctrl_h264_decode_params fixed_params = *dec_params;
-	u8 translation_table[ARRAY_SIZE(dec_params->dpb)] = { 32, };
+	u8 translation_table[V4L2_H264_NUM_DPB_ENTRIES] = { 0x20, };
+	struct v4l2_h264_reflist_builder reflist_builder;
+	enum v4l2_field dpb_fields[V4L2_H264_NUM_DPB_ENTRIES];
+	u8 *p0_reflist = slice_param->decode_params.ref_pic_list_p0;
+	u8 *b0_reflist = slice_param->decode_params.ref_pic_list_b0;
+	u8 *b1_reflist = slice_param->decode_params.ref_pic_list_b1;
+	int i;
 
 	update_dpb(dec_params, inst->dpb, translation_table);
 	memcpy(fixed_params.dpb, inst->dpb, sizeof(inst->dpb));
 
-	update_ref_list(fixed_params.ref_pic_list_p0, translation_table);
-	update_ref_list(fixed_params.ref_pic_list_b0, translation_table);
-	update_ref_list(fixed_params.ref_pic_list_b1, translation_table);
-
-	get_h264_sps_parameters(&slice_param->sps,
-				get_ctrl_ptr(inst->ctx,
-					     V4L2_CID_MPEG_VIDEO_H264_SPS));
-	get_h264_pps_parameters(&slice_param->pps,
-				get_ctrl_ptr(inst->ctx,
-					     V4L2_CID_MPEG_VIDEO_H264_PPS));
+	get_h264_sps_parameters(&slice_param->sps, sps);
+	get_h264_pps_parameters(&slice_param->pps, pps);
 	get_h264_scaling_matrix(
 		&slice_param->scaling_matrix,
 		get_ctrl_ptr(inst->ctx,
 			     V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX));
 	get_h264_decode_parameters(&slice_param->decode_params, &fixed_params);
 	get_h264_dpb_list(inst, slice_param);
+
+	/* Prepare the fields for our reference lists */
+	for (i = 0; i < V4L2_H264_NUM_DPB_ENTRIES; i++)
+		dpb_fields[i] = slice_param->h264_dpb_info[i].field;
+	/* Build the reference lists */
+	v4l2_h264_init_reflist_builder(&reflist_builder, &fixed_params,
+				       slice_params, sps, dec_params->dpb,
+				       dpb_fields);
+	v4l2_h264_build_p_ref_list(&reflist_builder, p0_reflist);
+	v4l2_h264_build_b_ref_lists(&reflist_builder, b0_reflist, b1_reflist);
+	/* Adapt the built lists to the firmware's expectations */
+	fixup_ref_list(p0_reflist, translation_table, reflist_builder.num_valid);
+	fixup_ref_list(b0_reflist, translation_table, reflist_builder.num_valid);
+	fixup_ref_list(b1_reflist, translation_table, reflist_builder.num_valid);
 
 	memcpy(&inst->vsi_ctx.h264_slice_params, slice_param,
 	       sizeof(inst->vsi_ctx.h264_slice_params));

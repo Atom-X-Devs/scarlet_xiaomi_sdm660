@@ -39,6 +39,7 @@
 #include <drm/drm_dp_mst_helper.h>
 #include <drm/drm_rect.h>
 #include <drm/drm_atomic.h>
+#include <drm/i915_mei_hdcp_interface.h>
 #include <media/cec-notifier.h>
 
 /**
@@ -391,14 +392,47 @@ struct intel_hdcp_shim {
 
 	/* Enables HDCP signalling on the port */
 	int (*toggle_signalling)(struct intel_digital_port *intel_dig_port,
+				 enum transcoder cpu_transcoder,
 				 bool enable);
 
 	/* Ensures the link is still protected */
-	bool (*check_link)(struct intel_digital_port *intel_dig_port);
+	bool (*check_link)(struct intel_digital_port *dig_port,
+			   struct intel_connector *connector);
 
 	/* Detects panel's hdcp capability. This is optional for HDMI. */
 	int (*hdcp_capable)(struct intel_digital_port *intel_dig_port,
 			    bool *hdcp_capable);
+
+	/* HDCP adaptation(DP/HDMI) required on the port */
+	enum hdcp_wired_protocol protocol;
+};
+
+struct intel_hdcp {
+	const struct intel_hdcp_shim *shim;
+	/* Mutex for hdcp state of the connector */
+	struct mutex mutex;
+	u64 value;
+	struct delayed_work check_work;
+	struct work_struct prop_work;
+
+	/* HDCP2.2 related definitions */
+	/* Flag indicates whether this connector supports HDCP2.2 or not. */
+	bool hdcp2_supported;
+
+	/*
+	 * Content Stream Type defined by content owner. TYPE0(0x0) content can
+	 * flow in the link protected by HDCP2.2 or HDCP1.4, where as TYPE1(0x1)
+	 * content can flow only through a link protected by HDCP2.2.
+	 */
+	u8 content_type;
+	struct hdcp_port_data port_data;
+
+	/*
+	 * HDCP register access for gen12+ need the transcoder associated.
+	 * Transcoder attached to the connector could be changed at modeset.
+	 * Hence caching the transcoder here.
+	 */
+	enum transcoder cpu_transcoder;
 };
 
 struct intel_connector {
@@ -436,11 +470,7 @@ struct intel_connector {
 	/* Work struct to schedule a uevent on link train failure */
 	struct work_struct modeset_retry_work;
 
-	const struct intel_hdcp_shim *hdcp_shim;
-	struct mutex hdcp_mutex;
-	uint64_t hdcp_value; /* protected by hdcp_mutex */
-	struct delayed_work hdcp_check_work;
-	struct work_struct hdcp_prop_work;
+	struct intel_hdcp hdcp;
 
 	/* Optional "privacy-screen" property for the connector panel */
 	struct drm_property *privacy_screen_property;
@@ -1216,6 +1246,11 @@ struct intel_digital_port {
 	enum intel_display_power_domain ddi_io_power_domain;
 	enum tc_port_type tc_type;
 
+	/* protects num_hdcp_streams reference count */
+	struct mutex hdcp_mutex;
+	/* the number of pipes using HDCP signalling out of this port */
+	unsigned int num_hdcp_streams;
+
 	void (*write_infoframe)(struct intel_encoder *encoder,
 				const struct intel_crtc_state *crtc_state,
 				unsigned int type,
@@ -1312,6 +1347,17 @@ static inline bool intel_encoder_is_dig_port(struct intel_encoder *encoder)
 	}
 }
 
+static inline bool intel_encoder_is_mst(struct intel_encoder *encoder)
+{
+	return encoder->type == INTEL_OUTPUT_DP_MST;
+}
+
+static inline struct intel_dp_mst_encoder *
+enc_to_mst(struct drm_encoder *encoder)
+{
+	return container_of(encoder, struct intel_dp_mst_encoder, base.base);
+}
+
 static inline struct intel_digital_port *
 enc_to_dig_port(struct drm_encoder *encoder)
 {
@@ -1320,14 +1366,16 @@ enc_to_dig_port(struct drm_encoder *encoder)
 	if (intel_encoder_is_dig_port(intel_encoder))
 		return container_of(encoder, struct intel_digital_port,
 				    base.base);
+	else if (intel_encoder_is_mst(intel_encoder))
+		return enc_to_mst(encoder)->primary;
 	else
 		return NULL;
 }
 
-static inline struct intel_dp_mst_encoder *
-enc_to_mst(struct drm_encoder *encoder)
+static inline struct intel_digital_port *
+conn_to_dig_port(struct intel_connector *connector)
 {
-	return container_of(encoder, struct intel_dp_mst_encoder, base.base);
+	return enc_to_dig_port(&intel_attached_encoder(&connector->base)->base);
 }
 
 static inline struct intel_dp *enc_to_intel_dp(struct drm_encoder *encoder)
@@ -1480,6 +1528,7 @@ u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder);
 u8 intel_ddi_dp_pre_emphasis_max(struct intel_encoder *encoder,
 				 u8 voltage_swing);
 int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
+				     enum transcoder cpu_transcoder,
 				     bool enable);
 void icl_map_plls_to_ports(struct drm_crtc *crtc,
 			   struct intel_crtc_state *crtc_state,
@@ -1490,6 +1539,10 @@ void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
 
 unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
 				   int color_plane, unsigned int height);
+
+void intel_ddi_update_pipe(struct intel_encoder *encoder,
+			   const struct intel_crtc_state *crtc_state,
+			   const struct drm_connector_state *conn_state);
 
 /* intel_audio.c */
 void intel_init_audio_hooks(struct drm_i915_private *dev_priv);
@@ -1555,6 +1608,7 @@ void intel_encoder_destroy(struct drm_encoder *encoder);
 int intel_connector_init(struct intel_connector *);
 struct intel_connector *intel_connector_alloc(void);
 void intel_connector_free(struct intel_connector *connector);
+void intel_connector_destroy(struct drm_connector *connector);
 bool intel_connector_get_hw_state(struct intel_connector *connector);
 void intel_connector_attach_encoder(struct intel_connector *connector,
 				    struct intel_encoder *encoder);
@@ -1721,6 +1775,8 @@ void intel_csr_ucode_suspend(struct drm_i915_private *);
 void intel_csr_ucode_resume(struct drm_i915_private *);
 
 /* intel_dp.c */
+bool intel_dp_limited_color_range(const struct intel_crtc_state *crtc_state,
+				  const struct drm_connector_state *conn_state);
 bool intel_dp_port_enabled(struct drm_i915_private *dev_priv,
 			   i915_reg_t dp_reg, enum port port,
 			   enum pipe *pipe);
@@ -1804,6 +1860,10 @@ bool intel_digital_port_connected(struct intel_encoder *encoder);
 
 /* intel_dp_aux_backlight.c */
 int intel_dp_aux_init_backlight_funcs(struct intel_connector *intel_connector);
+
+/* intel_dp_hdcp.c */
+int intel_dp_init_hdcp(struct intel_digital_port *dig_port,
+		       struct intel_connector *intel_connector);
 
 /* intel_dp_mst.c */
 int intel_dp_mst_encoder_init(struct intel_digital_port *intel_dig_port, int conn_id);
@@ -1975,12 +2035,17 @@ static inline void intel_backlight_device_unregister(struct intel_connector *con
 void intel_hdcp_atomic_check(struct drm_connector *connector,
 			     struct drm_connector_state *old_state,
 			     struct drm_connector_state *new_state);
-int intel_hdcp_init(struct intel_connector *connector,
+int intel_hdcp_init(struct intel_connector *connector, enum port port,
 		    const struct intel_hdcp_shim *hdcp_shim);
-int intel_hdcp_enable(struct intel_connector *connector);
+int intel_hdcp_enable(struct intel_connector *connector,
+		      enum transcoder cpu_transcoder);
 int intel_hdcp_disable(struct intel_connector *connector);
 int intel_hdcp_check_link(struct intel_connector *connector);
 bool is_hdcp_supported(struct drm_i915_private *dev_priv, enum port port);
+bool intel_hdcp_capable(struct intel_connector *connector);
+void intel_hdcp_component_init(struct drm_i915_private *dev_priv);
+void intel_hdcp_component_fini(struct drm_i915_private *dev_priv);
+void intel_hdcp_cleanup(struct intel_connector *connector);
 
 /* intel_runtime_pm.c */
 int intel_power_domains_init(struct drm_i915_private *);

@@ -203,12 +203,6 @@ int hibmc_fbdev_init(struct hibmc_drm_private *priv)
 		return ret;
 	}
 
-	ret = drm_fb_helper_single_add_all_connectors(&hifbdev->helper);
-	if (ret) {
-		DRM_ERROR("failed to add all connectors: %d\n", ret);
-		goto fini;
-	}
-
 	ret = drm_fb_helper_initial_config(&hifbdev->helper, 16);
 	if (ret) {
 		DRM_ERROR("failed to setup initial conn config: %d\n", ret);

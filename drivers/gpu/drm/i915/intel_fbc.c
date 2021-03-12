@@ -38,6 +38,8 @@
  * forcibly disable it to allow proper screen updates.
  */
 
+#include <linux/dmi.h>
+
 #include "intel_drv.h"
 #include "i915_drv.h"
 #include "intel_frontbuffer.h"
@@ -1277,6 +1279,24 @@ static int intel_sanitize_fbc_option(struct drm_i915_private *dev_priv)
 	return 0;
 }
 
+static int intel_fbc_vtd_callback(const struct dmi_system_id *id)
+{
+	DRM_DEBUG_KMS("Disabling FBC to prevent screen flicker on %s device\n", id->ident);
+	return 1;
+}
+
+static const struct dmi_system_id intel_fbc_vtd_detect[] = {
+	{
+		.callback = intel_fbc_vtd_callback,
+		.ident = "Google Nightfury",
+		.matches = {
+			DMI_MATCH(DMI_BOARD_VENDOR, "Google"),
+			DMI_MATCH(DMI_BOARD_NAME, "Nightfury"),
+		},
+	},
+	{ }
+};
+
 static bool need_fbc_vtd_wa(struct drm_i915_private *dev_priv)
 {
 	/* WaFbcTurnOffFbcWhenHyperVisorIsUsed:skl,bxt */
@@ -1285,6 +1305,9 @@ static bool need_fbc_vtd_wa(struct drm_i915_private *dev_priv)
 		DRM_INFO("Disabling framebuffer compression (FBC) to prevent screen flicker with VT-d enabled\n");
 		return true;
 	}
+
+	if (dmi_check_system(intel_fbc_vtd_detect))
+		return true;
 
 	return false;
 }

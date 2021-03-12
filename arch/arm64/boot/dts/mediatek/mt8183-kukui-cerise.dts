@@ -4,16 +4,12 @@
  */
 
 /dts-v1/;
-#include "mt8183-kukui-jacuzzi.dtsi"
-#include "mt8183-kukui-audio-da7219.dtsi"
+#include "mt8183-kukui-cerise.dtsi"
+#include "mt8183-kukui-audio-da7219-rt1015p.dtsi"
 
 / {
 	model = "Google cerise board";
-	compatible = "google,cerise", "mediatek,mt8183";
-};
-
-&cpu_thermal {
-	sustainable-power = <4500>; /* milliwatts */
+	compatible = "google,cerise-sku0", "google,cerise", "mediatek,mt8183";
 };
 
 &mt6358codec {
@@ -22,4 +18,8 @@
 
 &touchscreen {
 	status = "disabled";
+};
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_CERISE";
 };

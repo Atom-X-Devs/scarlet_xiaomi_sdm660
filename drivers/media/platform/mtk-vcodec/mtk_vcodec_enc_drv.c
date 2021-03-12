@@ -184,7 +184,7 @@ static int fops_vcodec_open(struct file *file)
 			goto err_load_fw;
 		}
 
-		dev->dec_capability =
+		dev->enc_capability =
 			mtk_vcodec_fw_get_venc_capa(dev->fw_handler);
 		mtk_v4l2_debug(0, "encoder capability %x", dev->enc_capability);
 	}
@@ -258,7 +258,6 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&dev->ctx_list);
 	dev->plat_dev = pdev;
 
-	dev->vdec_pdata = of_device_get_match_data(&pdev->dev);
 	if (!of_property_read_u32(pdev->dev.of_node, "mediatek,vpu",
 				  &rproc_phandle)) {
 		fw_type = VPU;
@@ -266,10 +265,12 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 					 &rproc_phandle)) {
 		fw_type = SCP;
 	} else {
-		mtk_v4l2_err("Could not get vdec IPI device");
+		mtk_v4l2_err("Could not get venc IPI device");
 		return -ENODEV;
 	}
-	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, VPU_RST_ENC);
+	dma_set_max_seg_size(&pdev->dev, UINT_MAX);
+
+	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, ENCODER);
 	if (IS_ERR(dev->fw_handler))
 		return PTR_ERR(dev->fw_handler);
 
@@ -283,7 +284,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 
 	snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name), "%s",
-			dev->venc_pdata->name);
+			MTK_VCODEC_ENC_NAME);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dev->reg_base[dev->venc_pdata->core_id] =
@@ -294,6 +295,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	}
 
 	dev->enc_irq = platform_get_irq(pdev, 0);
+	irq_set_status_flags(dev->enc_irq, IRQ_NOAUTOEN);
 	ret = devm_request_irq(&pdev->dev, dev->enc_irq,
 			       mtk_vcodec_enc_irq_handler,
 			       0, pdev->name, dev);
@@ -304,7 +306,6 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto err_res;
 	}
-	disable_irq(dev->enc_irq);
 
 	mutex_init(&dev->enc_mutex);
 	mutex_init(&dev->dev_mutex);
@@ -334,7 +335,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 					V4L2_CAP_STREAMING;
 
 	snprintf(vfd_enc->name, sizeof(vfd_enc->name), "%s",
-			dev->venc_pdata->name);
+			MTK_VCODEC_ENC_NAME);
 	video_set_drvdata(vfd_enc, dev);
 	dev->vfd_enc = vfd_enc;
 	platform_set_drvdata(pdev, dev);
@@ -385,7 +386,6 @@ err_enc_pm:
 
 static const struct mtk_vcodec_enc_pdata mt8173_avc_pdata = {
 	.chip = MTK_MT8173,
-	.name = MTK_VCODEC_ENC_NAME,
 	.capture_formats = mtk_video_formats_capture_mt8173_h264,
 	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173_h264),
 	.output_formats = mtk_video_formats_output_mt8173,
@@ -397,7 +397,6 @@ static const struct mtk_vcodec_enc_pdata mt8173_avc_pdata = {
 
 static const struct mtk_vcodec_enc_pdata mt8173_vp8_pdata = {
 	.chip = MTK_MT8173,
-	.name = MTK_VENC_VP8_NAME,
 	.capture_formats = mtk_video_formats_capture_mt8173_vp8,
 	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173_vp8),
 	.output_formats = mtk_video_formats_output_mt8173,
@@ -409,7 +408,6 @@ static const struct mtk_vcodec_enc_pdata mt8173_vp8_pdata = {
 
 static const struct mtk_vcodec_enc_pdata mt8183_pdata = {
 	.chip = MTK_MT8183,
-	.name = MTK_VCODEC_ENC_NAME,
 	.uses_ext = true,
 	.capture_formats = mtk_video_formats_capture_mt8183,
 	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8183),

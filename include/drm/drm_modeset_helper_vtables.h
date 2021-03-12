@@ -882,6 +882,48 @@ struct drm_connector_helper_funcs {
 	 */
 	enum drm_mode_status (*mode_valid)(struct drm_connector *connector,
 					   struct drm_display_mode *mode);
+
+	/**
+	 * @mode_valid_ctx:
+	 *
+	 * Callback to validate a mode for a connector, irrespective of the
+	 * specific display configuration.
+	 *
+	 * This callback is used by the probe helpers to filter the mode list
+	 * (which is usually derived from the EDID data block from the sink).
+	 * See e.g. drm_helper_probe_single_connector_modes().
+	 *
+	 * This function is optional, and is the atomic version of
+	 * &drm_connector_helper_funcs.mode_valid.
+	 *
+	 * To allow for accessing the atomic state of modesetting objects, the
+	 * helper libraries always call this with ctx set to a valid context,
+	 * and &drm_mode_config.connection_mutex will always be locked with
+	 * the ctx parameter set to @ctx. This allows for taking additional
+	 * locks as required.
+	 *
+	 * Even though additional locks may be acquired, this callback is
+	 * still expected not to take any constraints into account which would
+	 * be influenced by the currently set display state - such constraints
+	 * should be handled in the driver's atomic check. For example, if a
+	 * connector shares display bandwidth with other connectors then it
+	 * would be ok to validate the minimum bandwidth requirement of a mode
+	 * against the maximum possible bandwidth of the connector. But it
+	 * wouldn't be ok to take the current bandwidth usage of other
+	 * connectors into account, as this would change depending on the
+	 * display state.
+	 *
+	 * Returns:
+	 * 0 if &drm_connector_helper_funcs.mode_valid_ctx succeeded and wrote
+	 * the &enum drm_mode_status value to @status, or a negative error
+	 * code otherwise.
+	 *
+	 */
+	int (*mode_valid_ctx)(struct drm_connector *connector,
+			      struct drm_display_mode *mode,
+			      struct drm_modeset_acquire_ctx *ctx,
+			      enum drm_mode_status *status);
+
 	/**
 	 * @best_encoder:
 	 *
@@ -900,9 +942,8 @@ struct drm_connector_helper_funcs {
 	 * @atomic_best_encoder.
 	 *
 	 * You can leave this function to NULL if the connector is only
-	 * attached to a single encoder and you are using the atomic helpers.
-	 * In this case, the core will call drm_atomic_helper_best_encoder()
-	 * for you.
+	 * attached to a single encoder. In this case, the core will call
+	 * drm_connector_get_single_encoder() for you.
 	 *
 	 * RETURNS:
 	 *
@@ -922,7 +963,7 @@ struct drm_connector_helper_funcs {
 	 *
 	 * This function is used by drm_atomic_helper_check_modeset().
 	 * If it is not implemented, the core will fallback to @best_encoder
-	 * (or drm_atomic_helper_best_encoder() if @best_encoder is NULL).
+	 * (or drm_connector_get_single_encoder() if @best_encoder is NULL).
 	 *
 	 * NOTE:
 	 *
