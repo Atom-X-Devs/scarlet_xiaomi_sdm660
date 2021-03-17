@@ -349,13 +349,8 @@ static void mdp_auto_release_work(struct work_struct *work)
 				auto_release_work);
 	mdp = cb_param->mdp;
 
-	if (cb_param->comps && cb_param->num_comps) {
-		int i;
-
-		for (i = 0; i < cb_param->num_comps; i++)
-			mdp_comp_clock_off(&mdp->pdev->dev,
-					   &cb_param->comps[i]);
-	}
+	mdp_comp_clocks_off(&mdp->pdev->dev, cb_param->comps,
+			    cb_param->num_comps);
 
 	kfree(cb_param->comps);
 	kfree(cb_param);
