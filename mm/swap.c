@@ -49,6 +49,7 @@ static DEFINE_PER_CPU(struct pagevec, lru_rotate_pvecs);
 static DEFINE_PER_CPU(struct pagevec, lru_deactivate_file_pvecs);
 static DEFINE_PER_CPU(struct pagevec, lru_deactivate_pvecs);
 static DEFINE_PER_CPU(struct pagevec, lru_lazyfree_pvecs);
+static DEFINE_PER_CPU(struct pagevec, lru_lazyfree_movetail);
 #ifdef CONFIG_SMP
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
 #endif
@@ -622,6 +623,19 @@ static void lru_lazyfree_fn(struct page *page, struct lruvec *lruvec,
 	}
 }
 
+static void lru_lazyfree_movetail_fn(struct page *page, struct lruvec *lruvec,
+			    void *arg)
+{
+	if (PageLRU(page) && !PageUnevictable(page) && PageSwapBacked(page) &&
+		!PageSwapCache(page)) {
+
+		del_page_from_lru_list(page, lruvec);
+		ClearPageActive(page);
+		ClearPageReferenced(page);
+		add_page_to_lru_list_tail(page, lruvec);
+	}
+}
+
 /*
  * Drain pages out of the cpu's pagevecs.
  * Either "cpu" is the current CPU, and preemption has already been
@@ -655,6 +669,10 @@ void lru_add_drain_cpu(int cpu)
 	pvec = &per_cpu(lru_lazyfree_pvecs, cpu);
 	if (pagevec_count(pvec))
 		pagevec_lru_move_fn(pvec, lru_lazyfree_fn, NULL);
+
+	pvec = &per_cpu(lru_lazyfree_movetail, cpu);
+	if (pagevec_count(pvec))
+		pagevec_lru_move_fn(pvec, lru_lazyfree_movetail_fn, NULL);
 
 	activate_page_drain(cpu);
 }
@@ -722,6 +740,30 @@ void mark_page_lazyfree(struct page *page)
 		if (!pagevec_add(pvec, page) || PageCompound(page))
 			pagevec_lru_move_fn(pvec, lru_lazyfree_fn, NULL);
 		put_cpu_var(lru_lazyfree_pvecs);
+	}
+}
+
+/**
+ * mark_page_lazyfree_movetail - make a swapbacked page lazyfree
+ * @page: page to deactivate
+ *
+ * mark_page_lazyfree_movetail() moves @page to the tail of inactive file list.
+ * This is done to accelerate the reclaim of @page.
+ */
+void mark_page_lazyfree_movetail(struct page *page)
+{
+	if (PageLRU(page) && !PageUnevictable(page) && PageSwapBacked(page) &&
+		!PageSwapCache(page)) {
+		struct pagevec *pvec;
+		unsigned long flags;
+
+		local_irq_save(flags);
+		pvec = this_cpu_ptr(&lru_lazyfree_movetail);
+		get_page(page);
+		if (!pagevec_add(pvec, page) || PageCompound(page))
+			pagevec_lru_move_fn(pvec,
+					lru_lazyfree_movetail_fn, NULL);
+		local_irq_restore(flags);
 	}
 }
 
@@ -827,6 +869,7 @@ void lru_add_drain_all(void)
 		    pagevec_count(&per_cpu(lru_deactivate_file_pvecs, cpu)) ||
 		    pagevec_count(&per_cpu(lru_deactivate_pvecs, cpu)) ||
 		    pagevec_count(&per_cpu(lru_lazyfree_pvecs, cpu)) ||
+		    pagevec_count(&per_cpu(lru_lazyfree_movetail, cpu)) ||
 		    need_activate_page_drain(cpu)) {
 			INIT_WORK(work, lru_add_drain_per_cpu);
 			queue_work_on(cpu, mm_percpu_wq, work);
