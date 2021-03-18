@@ -145,13 +145,33 @@ static u64 notrace mtk_gpt_read_sched_clock(void)
 	return readl_relaxed(gpt_sched_reg);
 }
 
+static void mtk_gpt_disable_ack_interrupts(struct timer_of *to, u8 timer)
+{
+	u32 val;
+
+	/* Disable interrupts */
+	val = readl(timer_of_base(to) + GPT_IRQ_EN_REG);
+	writel(val & ~GPT_IRQ_ENABLE(timer), timer_of_base(to) +
+	       GPT_IRQ_EN_REG);
+
+	/* Ack interrupts */
+	writel(GPT_IRQ_ACK(timer), timer_of_base(to) + GPT_IRQ_ACK_REG);
+}
+
 static void mtk_gpt_clkevt_time_stop(struct timer_of *to, u8 timer)
 {
 	u32 val;
 
+	/* Disable timer */
 	val = readl(timer_of_base(to) + GPT_CTRL_REG(timer));
 	writel(val & ~GPT_CTRL_ENABLE, timer_of_base(to) +
 	       GPT_CTRL_REG(timer));
+
+	/* This may be called with interrupts disabled,
+	 * so we need to ack any interrupt that is pending
+	 * Or for example ATF will prevent a suspend from completing.
+	 */
+	mtk_gpt_disable_ack_interrupts(to, timer);
 }
 
 static void mtk_gpt_clkevt_time_setup(struct timer_of *to,
@@ -165,8 +185,10 @@ static void mtk_gpt_clkevt_time_start(struct timer_of *to,
 {
 	u32 val;
 
-	/* Acknowledge interrupt */
-	writel(GPT_IRQ_ACK(timer), timer_of_base(to) + GPT_IRQ_ACK_REG);
+	/* Enable interrupts */
+	val = readl(timer_of_base(to) + GPT_IRQ_EN_REG);
+	writel(val | GPT_IRQ_ENABLE(timer),
+	       timer_of_base(to) + GPT_IRQ_EN_REG);
 
 	val = readl(timer_of_base(to) + GPT_CTRL_REG(timer));
 
@@ -239,21 +261,6 @@ __init mtk_gpt_setup(struct timer_of *to, u8 timer, u8 option)
 	       timer_of_base(to) + GPT_CTRL_REG(timer));
 }
 
-static void mtk_gpt_enable_irq(struct timer_of *to, u8 timer)
-{
-	u32 val;
-
-	/* Disable all interrupts */
-	writel(0x0, timer_of_base(to) + GPT_IRQ_EN_REG);
-
-	/* Acknowledge all spurious pending interrupts */
-	writel(0x3f, timer_of_base(to) + GPT_IRQ_ACK_REG);
-
-	val = readl(timer_of_base(to) + GPT_IRQ_EN_REG);
-	writel(val | GPT_IRQ_ENABLE(timer),
-	       timer_of_base(to) + GPT_IRQ_EN_REG);
-}
-
 static struct timer_of to = {
 	.flags = TIMER_OF_IRQ | TIMER_OF_BASE | TIMER_OF_CLOCK,
 
@@ -305,6 +312,12 @@ static int __init mtk_gpt_init(struct device_node *node)
 	if (ret)
 		return ret;
 
+	/* In case the firmware left the interrupts enabled
+	 * disable and ack those now
+	 */
+	mtk_gpt_disable_ack_interrupts(&to, TIMER_CLK_SRC);
+	mtk_gpt_disable_ack_interrupts(&to, TIMER_CLK_EVT);
+
 	/* Configure clock source */
 	mtk_gpt_setup(&to, TIMER_CLK_SRC, GPT_CTRL_OP_FREERUN);
 	clocksource_mmio_init(timer_of_base(&to) + GPT_CNT_REG(TIMER_CLK_SRC),
@@ -317,8 +330,6 @@ static int __init mtk_gpt_init(struct device_node *node)
 	mtk_gpt_setup(&to, TIMER_CLK_EVT, GPT_CTRL_OP_REPEAT);
 	clockevents_config_and_register(&to.clkevt, timer_of_rate(&to),
 					TIMER_SYNC_TICKS, 0xffffffff);
-
-	mtk_gpt_enable_irq(&to, TIMER_CLK_EVT);
 
 	return 0;
 }
