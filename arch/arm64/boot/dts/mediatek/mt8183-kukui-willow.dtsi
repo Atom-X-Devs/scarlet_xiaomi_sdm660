@@ -21,3 +21,6 @@
 	};
 };
 
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_JUNIPER";
+};
