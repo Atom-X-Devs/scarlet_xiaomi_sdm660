@@ -313,12 +313,15 @@ static int hantro_enc_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 
 	ctx = container_of(ctrl->handler, struct hantro_ctx, ctrl_handler);
 
+	/* The only volatile ctrl is V4L2_CID_PRIVATE_HANTRO_RET_PARAMS. */
 	vpu_debug(4, "ctrl id %d\n", ctrl->id);
 
-	// Other controls are ignored.
-	if (ctrl->id == V4L2_CID_PRIVATE_HANTRO_RET_PARAMS)
-		memcpy(ctrl->p_new.p, ctx->vp8_enc.priv_dst.cpu,
-		       HANTRO_VP8_RET_PARAMS_SIZE);
+	/* Encoder not initialized yet. */
+	if (!ctx->vp8_enc.priv_dst.cpu)
+		return -EIO;
+
+	memcpy(ctrl->p_new.p, ctx->vp8_enc.priv_dst.cpu,
+	       HANTRO_VP8_RET_PARAMS_SIZE);
 
 	return 0;
 }
