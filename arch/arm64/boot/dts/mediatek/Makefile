@@ -13,6 +13,7 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8173-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-cerise.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-cerise-rev3.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-cozmo.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-damu.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-fennel-sku1.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-fennel-sku6.dtb
