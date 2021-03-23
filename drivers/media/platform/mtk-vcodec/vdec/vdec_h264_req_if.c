@@ -463,11 +463,9 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_SCALING_MATRIX);
 	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
 	struct v4l2_h264_reflist_builder reflist_builder;
-	enum v4l2_field dpb_fields[V4L2_H264_NUM_DPB_ENTRIES];
 	u8 *p0_reflist = slice_param->decode_params.ref_pic_list_p0;
 	u8 *b0_reflist = slice_param->decode_params.ref_pic_list_b0;
 	u8 *b1_reflist = slice_param->decode_params.ref_pic_list_b1;
-	int i;
 
 	update_dpb(dec_params, inst->dpb);
 
@@ -478,9 +476,6 @@ static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 				   inst->dpb);
 	get_h264_dpb_list(inst, slice_param);
 
-	/* Prepare the fields for our reference lists */
-	for (i = 0; i < V4L2_H264_NUM_DPB_ENTRIES; i++)
-		dpb_fields[i] = slice_param->h264_dpb_info[i].field;
 	/* Build the reference lists */
 	v4l2_h264_init_reflist_builder(&reflist_builder, dec_params, sps,
 				       inst->dpb);
