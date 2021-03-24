@@ -7,6 +7,8 @@
 #include "mt8183-kukui-jacuzzi.dtsi"
 
 &i2c2 {
+	clock-stretch-ns = <9500>;
+
 	trackpad@2c {
 		compatible = "hid-over-i2c";
 		reg = <0x2c>;
