@@ -226,13 +226,6 @@ enum {
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
 
-	/* When this quirk is set, the adapter will be powered down during
-	 * system suspend and powerd up on resume. This should be used on
-	 * controllers that don't behave well during suspend, either causing
-	 * spurious wakeups or not entering a suspend state reliably.
-	 */
-	HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND,
-
 	/* This quirk will be set when running on Intel StP controller */
 	HCI_QUIRK_INTEL_STP_CONTROLLER,
 };
