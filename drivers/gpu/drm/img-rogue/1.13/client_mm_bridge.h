@@ -127,8 +127,6 @@ IMG_INTERNAL PVRSRV_ERROR IMG_CALLCONV BridgePhysmemNewRamBackedPMR(IMG_HANDLE
 								    ui32Log2PageSize,
 								    PVRSRV_MEMALLOCFLAGS_T
 								    uiFlags,
-								    IMG_UINT32
-								    ui32AnnotationLength,
 								    const
 								    IMG_CHAR *
 								    puiAnnotation,
@@ -147,7 +145,6 @@ BridgePhysmemNewRamBackedLockedPMR(IMG_HANDLE hBridge, IMG_DEVMEM_SIZE_T uiSize,
 				   IMG_UINT32 * pui32MappingTable,
 				   IMG_UINT32 ui32Log2PageSize,
 				   PVRSRV_MEMALLOCFLAGS_T uiFlags,
-				   IMG_UINT32 ui32AnnotationLength,
 				   const IMG_CHAR * puiAnnotation,
 				   IMG_PID ui32PID, IMG_HANDLE * phPMRPtr,
 				   IMG_UINT32 ui32PDumpFlags);

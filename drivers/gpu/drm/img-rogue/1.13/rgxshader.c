@@ -170,7 +170,6 @@ PVRSRVTQLoadShaders(PVRSRV_DEVICE_NODE * psDeviceNode)
 									PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE
 									| PVRSRV_MEMALLOCFLAG_GPU_READABLE
 									| PVRSRV_MEMALLOCFLAG_GPU_CACHE_INCOHERENT,
-									sizeof("tquscpmr"),
 									"tquscpmr",
 									PVR_SYS_ALLOC_PID,
 									(PMR**)&psDevInfo->hTQUSCSharedMem,
@@ -218,7 +217,6 @@ PVRSRVTQLoadShaders(PVRSRV_DEVICE_NODE * psDeviceNode)
 									PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE
 									| PVRSRV_MEMALLOCFLAG_CPU_READABLE
 									| PVRSRV_MEMALLOCFLAG_CPU_CACHE_INCOHERENT,
-									sizeof("tqclipmr"),
 									"tqclipmr",
 									PVR_SYS_ALLOC_PID,
 									(PMR**)&psDevInfo->hTQCLISharedMem,

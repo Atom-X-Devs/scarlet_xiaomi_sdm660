@@ -419,7 +419,6 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
                        IMG_UINT32 *pui32MappingTable,
                        IMG_UINT32 uiLog2AllocPageSize,
                        PVRSRV_MEMALLOCFLAGS_T uiFlags,
-                       IMG_UINT32 uiAnnotationLength,
                        const IMG_CHAR *pszAnnotation,
                        IMG_PID uiPid,
                        PMR **ppsPMRPtr,
@@ -430,7 +429,6 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
 	PFN_SYS_DEV_CHECK_MEM_ALLOC_SIZE pfnCheckMemAllocSize =
 		psDevNode->psDevConfig->pfnCheckMemAllocSize;
 
-	PVR_LOG_RETURN_IF_INVALID_PARAM(uiAnnotationLength != 0, "uiAnnotationLength");
 	PVR_LOG_RETURN_IF_INVALID_PARAM(pszAnnotation != NULL, "pszAnnotation");
 
 	eError = _ValidateParams(ui32NumPhysChunks,
@@ -545,7 +543,6 @@ PhysmemNewRamBackedLockedPMR(CONNECTION_DATA *psConnection,
 							IMG_UINT32 *pui32MappingTable,
 							IMG_UINT32 uiLog2PageSize,
 							PVRSRV_MEMALLOCFLAGS_T uiFlags,
-							IMG_UINT32 uiAnnotationLength,
 							const IMG_CHAR *pszAnnotation,
 							IMG_PID uiPid,
 							PMR **ppsPMRPtr,
@@ -562,7 +559,6 @@ PhysmemNewRamBackedLockedPMR(CONNECTION_DATA *psConnection,
 									pui32MappingTable,
 									uiLog2PageSize,
 									uiFlags,
-									uiAnnotationLength,
 									pszAnnotation,
 									uiPid,
 									ppsPMRPtr,

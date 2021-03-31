@@ -902,25 +902,17 @@ PVRSRVBridgePhysmemNewRamBackedPMR(IMG_UINT32 ui32DispatchTableEntry,
 #if !defined(INTEGRITY_OS)
 	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
 #endif
+	static_assert(sizeof(psPhysmemNewRamBackedPMRIN->szAnnotation) ==
+		      DEVMEM_ANNOTATION_MAX_LEN, "Unexpected annotation size");
 
 	IMG_UINT32 ui32BufferSize =
 	    (psPhysmemNewRamBackedPMRIN->ui32NumPhysChunks *
 	     sizeof(IMG_UINT32)) +
-	    (psPhysmemNewRamBackedPMRIN->ui32AnnotationLength *
-	     sizeof(IMG_CHAR)) + 0;
+	     sizeof(psPhysmemNewRamBackedPMRIN->szAnnotation);
 
 	if (unlikely
 	    (psPhysmemNewRamBackedPMRIN->ui32NumPhysChunks >
 	     PMR_MAX_SUPPORTED_PAGE_COUNT))
-	{
-		psPhysmemNewRamBackedPMROUT->eError =
-		    PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
-		goto PhysmemNewRamBackedPMR_exit;
-	}
-
-	if (unlikely
-	    (psPhysmemNewRamBackedPMRIN->ui32AnnotationLength >
-	     DEVMEM_ANNOTATION_MAX_LEN))
 	{
 		psPhysmemNewRamBackedPMROUT->eError =
 		    PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
@@ -988,37 +980,20 @@ PVRSRVBridgePhysmemNewRamBackedPMR(IMG_UINT32 ui32DispatchTableEntry,
 			goto PhysmemNewRamBackedPMR_exit;
 		}
 	}
-	if (psPhysmemNewRamBackedPMRIN->ui32AnnotationLength != 0)
-	{
-		uiAnnotationInt =
-		    (IMG_CHAR *) IMG_OFFSET_ADDR(pArrayArgsBuffer,
-						 ui32NextOffset);
-		ui32NextOffset +=
-		    psPhysmemNewRamBackedPMRIN->ui32AnnotationLength *
-		    sizeof(IMG_CHAR);
-	}
+
+	uiAnnotationInt =
+		(IMG_CHAR *) IMG_OFFSET_ADDR(pArrayArgsBuffer, ui32NextOffset);
+	ui32NextOffset += sizeof(psPhysmemNewRamBackedPMRIN->szAnnotation);
+
+	/* Do not trust the runtime layout of psPhysmemNewRamBackedPMRIN, make sure
+	 * that strlcpy always reads at the most DEVMEM_ANNOTATION_MAX_LEN - 1 bytes.
+	 */
+	psPhysmemNewRamBackedPMRIN->szAnnotation[DEVMEM_ANNOTATION_MAX_LEN - 1] = '\0';
 
 	/* Copy the data over */
-	if (psPhysmemNewRamBackedPMRIN->ui32AnnotationLength *
-	    sizeof(IMG_CHAR) > 0)
-	{
-		if (OSCopyFromUser
-		    (NULL, uiAnnotationInt,
-		     (const void __user *)psPhysmemNewRamBackedPMRIN->
-		     puiAnnotation,
-		     psPhysmemNewRamBackedPMRIN->ui32AnnotationLength *
-		     sizeof(IMG_CHAR)) != PVRSRV_OK)
-		{
-			psPhysmemNewRamBackedPMROUT->eError =
-			    PVRSRV_ERROR_INVALID_PARAMS;
-
-			goto PhysmemNewRamBackedPMR_exit;
-		}
-		((IMG_CHAR *)
-		 uiAnnotationInt)[(psPhysmemNewRamBackedPMRIN->
-				   ui32AnnotationLength * sizeof(IMG_CHAR)) -
-				  1] = '\0';
-	}
+	OSStringLCopy(uiAnnotationInt,
+		      psPhysmemNewRamBackedPMRIN->szAnnotation,
+		      sizeof(psPhysmemNewRamBackedPMRIN->szAnnotation));
 
 	psPhysmemNewRamBackedPMROUT->eError =
 	    PhysmemNewRamBackedPMR(psConnection, OSGetDevNode(psConnection),
@@ -1030,8 +1005,7 @@ PVRSRVBridgePhysmemNewRamBackedPMR(IMG_UINT32 ui32DispatchTableEntry,
 				   ui32NumVirtChunks, ui32MappingTableInt,
 				   psPhysmemNewRamBackedPMRIN->ui32Log2PageSize,
 				   psPhysmemNewRamBackedPMRIN->uiFlags,
-				   psPhysmemNewRamBackedPMRIN->
-				   ui32AnnotationLength, uiAnnotationInt,
+				   uiAnnotationInt,
 				   psPhysmemNewRamBackedPMRIN->ui32PID,
 				   &psPMRPtrInt,
 				   psPhysmemNewRamBackedPMRIN->ui32PDumpFlags);
@@ -1120,25 +1094,17 @@ PVRSRVBridgePhysmemNewRamBackedLockedPMR(IMG_UINT32 ui32DispatchTableEntry,
 #if !defined(INTEGRITY_OS)
 	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
 #endif
+	static_assert(sizeof(psPhysmemNewRamBackedLockedPMRIN->szAnnotation) ==
+		      DEVMEM_ANNOTATION_MAX_LEN, "Unexpected annotation size");
 
 	IMG_UINT32 ui32BufferSize =
 	    (psPhysmemNewRamBackedLockedPMRIN->ui32NumVirtChunks *
 	     sizeof(IMG_UINT32)) +
-	    (psPhysmemNewRamBackedLockedPMRIN->ui32AnnotationLength *
-	     sizeof(IMG_CHAR)) + 0;
+	     sizeof(psPhysmemNewRamBackedLockedPMRIN->szAnnotation);
 
 	if (unlikely
 	    (psPhysmemNewRamBackedLockedPMRIN->ui32NumVirtChunks >
 	     PMR_MAX_SUPPORTED_PAGE_COUNT))
-	{
-		psPhysmemNewRamBackedLockedPMROUT->eError =
-		    PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
-		goto PhysmemNewRamBackedLockedPMR_exit;
-	}
-
-	if (unlikely
-	    (psPhysmemNewRamBackedLockedPMRIN->ui32AnnotationLength >
-	     DEVMEM_ANNOTATION_MAX_LEN))
 	{
 		psPhysmemNewRamBackedLockedPMROUT->eError =
 		    PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
@@ -1207,37 +1173,21 @@ PVRSRVBridgePhysmemNewRamBackedLockedPMR(IMG_UINT32 ui32DispatchTableEntry,
 			goto PhysmemNewRamBackedLockedPMR_exit;
 		}
 	}
-	if (psPhysmemNewRamBackedLockedPMRIN->ui32AnnotationLength != 0)
-	{
-		uiAnnotationInt =
-		    (IMG_CHAR *) IMG_OFFSET_ADDR(pArrayArgsBuffer,
-						 ui32NextOffset);
-		ui32NextOffset +=
-		    psPhysmemNewRamBackedLockedPMRIN->ui32AnnotationLength *
-		    sizeof(IMG_CHAR);
-	}
+
+	uiAnnotationInt = (IMG_CHAR *) IMG_OFFSET_ADDR(pArrayArgsBuffer,
+						       ui32NextOffset);
+	ui32NextOffset +=
+		sizeof(psPhysmemNewRamBackedLockedPMRIN->szAnnotation);
+
+	/* Do not trust the runtime layout of psPhysmemNewRamBackedLockedPMRIN, make sure
+	 * that strlcpy always reads at the most DEVMEM_ANNOTATION_MAX_LEN - 1 bytes.
+	 */
+	psPhysmemNewRamBackedLockedPMRIN->szAnnotation[DEVMEM_ANNOTATION_MAX_LEN - 1] = '\0';
 
 	/* Copy the data over */
-	if (psPhysmemNewRamBackedLockedPMRIN->ui32AnnotationLength *
-	    sizeof(IMG_CHAR) > 0)
-	{
-		if (OSCopyFromUser
-		    (NULL, uiAnnotationInt,
-		     (const void __user *)psPhysmemNewRamBackedLockedPMRIN->
-		     puiAnnotation,
-		     psPhysmemNewRamBackedLockedPMRIN->ui32AnnotationLength *
-		     sizeof(IMG_CHAR)) != PVRSRV_OK)
-		{
-			psPhysmemNewRamBackedLockedPMROUT->eError =
-			    PVRSRV_ERROR_INVALID_PARAMS;
-
-			goto PhysmemNewRamBackedLockedPMR_exit;
-		}
-		((IMG_CHAR *)
-		 uiAnnotationInt)[(psPhysmemNewRamBackedLockedPMRIN->
-				   ui32AnnotationLength * sizeof(IMG_CHAR)) -
-				  1] = '\0';
-	}
+	OSStringLCopy(uiAnnotationInt,
+		      psPhysmemNewRamBackedLockedPMRIN->szAnnotation,
+		      sizeof(psPhysmemNewRamBackedLockedPMRIN->szAnnotation));
 
 	psPhysmemNewRamBackedLockedPMROUT->eError =
 	    PhysmemNewRamBackedLockedPMR(psConnection,
@@ -1254,8 +1204,7 @@ PVRSRVBridgePhysmemNewRamBackedLockedPMR(IMG_UINT32 ui32DispatchTableEntry,
 					 ui32Log2PageSize,
 					 psPhysmemNewRamBackedLockedPMRIN->
 					 uiFlags,
-					 psPhysmemNewRamBackedLockedPMRIN->
-					 ui32AnnotationLength, uiAnnotationInt,
+					 uiAnnotationInt,
 					 psPhysmemNewRamBackedLockedPMRIN->
 					 ui32PID, &psPMRPtrInt,
 					 psPhysmemNewRamBackedLockedPMRIN->

@@ -244,8 +244,6 @@ IMG_INTERNAL PVRSRV_ERROR IMG_CALLCONV BridgePhysmemNewRamBackedPMR(IMG_HANDLE
 								    ui32Log2PageSize,
 								    PVRSRV_MEMALLOCFLAGS_T
 								    uiFlags,
-								    IMG_UINT32
-								    ui32AnnotationLength,
 								    const
 								    IMG_CHAR *
 								    puiAnnotation,
@@ -265,7 +263,7 @@ IMG_INTERNAL PVRSRV_ERROR IMG_CALLCONV BridgePhysmemNewRamBackedPMR(IMG_HANDLE
 				   uiSize, uiChunkSize, ui32NumPhysChunks,
 				   ui32NumVirtChunks, pui32MappingTable,
 				   ui32Log2PageSize, uiFlags,
-				   ui32AnnotationLength, puiAnnotation, ui32PID,
+				   puiAnnotation, ui32PID,
 				   &psPMRPtrInt, ui32PDumpFlags);
 
 	*phPMRPtr = psPMRPtrInt;
@@ -280,7 +278,6 @@ BridgePhysmemNewRamBackedLockedPMR(IMG_HANDLE hBridge, IMG_DEVMEM_SIZE_T uiSize,
 				   IMG_UINT32 * pui32MappingTable,
 				   IMG_UINT32 ui32Log2PageSize,
 				   PVRSRV_MEMALLOCFLAGS_T uiFlags,
-				   IMG_UINT32 ui32AnnotationLength,
 				   const IMG_CHAR * puiAnnotation,
 				   IMG_PID ui32PID, IMG_HANDLE * phPMRPtr,
 				   IMG_UINT32 ui32PDumpFlags)
@@ -295,7 +292,7 @@ BridgePhysmemNewRamBackedLockedPMR(IMG_HANDLE hBridge, IMG_DEVMEM_SIZE_T uiSize,
 					 uiSize, uiChunkSize, ui32NumPhysChunks,
 					 ui32NumVirtChunks, pui32MappingTable,
 					 ui32Log2PageSize, uiFlags,
-					 ui32AnnotationLength, puiAnnotation,
+					 puiAnnotation,
 					 ui32PID, &psPMRPtrInt, ui32PDumpFlags);
 
 	*phPMRPtr = psPMRPtrInt;
