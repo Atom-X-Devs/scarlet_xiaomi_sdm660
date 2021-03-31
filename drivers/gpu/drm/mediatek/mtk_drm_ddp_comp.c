@@ -39,9 +39,6 @@
 
 #define DISP_REG_UFO_START			0x0000
 
-#define DISP_AAL_EN				0x0000
-#define DISP_AAL_SIZE				0x0030
-
 #define DISP_CCORR_EN				0x0000
 #define CCORR_EN				BIT(0)
 #define DISP_CCORR_CFG				0x0020
@@ -69,8 +66,6 @@
 #define OD_RELAYMODE				BIT(0)
 
 #define UFO_BYPASS				BIT(2)
-
-#define AAL_EN					BIT(0)
 
 #define DISP_DITHERING				BIT(2)
 #define DITHER_LSB_ERR_SHIFT_R(x)		(((x) & 0x7) << 28)
@@ -175,23 +170,6 @@ static void mtk_od_start(struct mtk_ddp_comp *comp)
 static void mtk_ufoe_start(struct mtk_ddp_comp *comp)
 {
 	writel(UFO_BYPASS, comp->regs + DISP_REG_UFO_START);
-}
-
-static void mtk_aal_config(struct mtk_ddp_comp *comp, unsigned int w,
-			   unsigned int h, unsigned int vrefresh,
-			   unsigned int bpc, struct cmdq_pkt *cmdq_pkt)
-{
-	mtk_ddp_write(cmdq_pkt, h << 16 | w, comp, DISP_AAL_SIZE);
-}
-
-static void mtk_aal_start(struct mtk_ddp_comp *comp)
-{
-	writel(AAL_EN, comp->regs + DISP_AAL_EN);
-}
-
-static void mtk_aal_stop(struct mtk_ddp_comp *comp)
-{
-	writel_relaxed(0x0, comp->regs + DISP_AAL_EN);
 }
 
 static void mtk_ccorr_config(struct mtk_ddp_comp *comp, unsigned int w,
@@ -315,13 +293,6 @@ static void mtk_dither_stop(struct mtk_ddp_comp *comp)
 	writel_relaxed(0x0, comp->regs + DISP_DITHER_EN);
 }
 
-static const struct mtk_ddp_comp_funcs ddp_aal = {
-	.gamma_set = mtk_gamma_set,
-	.config = mtk_aal_config,
-	.start = mtk_aal_start,
-	.stop = mtk_aal_stop,
-};
-
 static const struct mtk_ddp_comp_funcs ddp_ccorr = {
 	.config = mtk_ccorr_config,
 	.start = mtk_ccorr_start,
@@ -370,8 +341,8 @@ struct mtk_ddp_comp_match {
 };
 
 static const struct mtk_ddp_comp_match mtk_ddp_matches[DDP_COMPONENT_ID_MAX] = {
-	[DDP_COMPONENT_AAL0]	= { MTK_DISP_AAL,	0, &ddp_aal },
-	[DDP_COMPONENT_AAL1]	= { MTK_DISP_AAL,	1, &ddp_aal },
+	[DDP_COMPONENT_AAL0]	= { MTK_DISP_AAL,	0, NULL },
+	[DDP_COMPONENT_AAL1]	= { MTK_DISP_AAL,	1, NULL },
 	[DDP_COMPONENT_BLS]	= { MTK_DISP_BLS,	0, NULL },
 	[DDP_COMPONENT_CCORR]	= { MTK_DISP_CCORR,	0, &ddp_ccorr },
 	[DDP_COMPONENT_COLOR0]	= { MTK_DISP_COLOR,	0, NULL },
