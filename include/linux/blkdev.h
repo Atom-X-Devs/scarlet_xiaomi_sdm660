@@ -770,6 +770,8 @@ static inline bool blk_account_rq(struct request *rq)
 
 #define rq_data_dir(rq)		(op_is_write(req_op(rq)) ? WRITE : READ)
 
+#define queue_to_disk(q)	(dev_to_disk(kobj_to_dev((q)->kobj.parent)))
+
 /*
  * Driver can handle struct request, if it either has an old style
  * request_fn defined, or is blk-mq based.
