@@ -209,6 +209,8 @@ struct mtk_dsi {
 
 	u32 data_rate;
 	u32 da_trail_delta;
+	/* force dsi line end without dsi_null data */
+	bool force_dsi_end_without_null;
 
 	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
@@ -560,6 +562,13 @@ static void mtk_dsi_config_vdo_timing(struct mtk_dsi *dsi)
 	} else if (signed_hbp_byte < MIN_HBP_BYTE) {
 		horizontal_frontporch_byte -= MIN_HBP_BYTE - signed_hbp_byte;
 		horizontal_backporch_byte = MIN_HBP_BYTE;
+	}
+
+	if (dsi->force_dsi_end_without_null) {
+		horizontal_sync_active_byte = roundup(horizontal_sync_active_byte, dsi->lanes) - 2;
+		horizontal_frontporch_byte = roundup(horizontal_frontporch_byte, dsi->lanes) - 2;
+		horizontal_backporch_byte = roundup(horizontal_backporch_byte, dsi->lanes) - 2;
+		horizontal_backporch_byte -= (vm->hactive * dsi_tmp_buf_bpp + 2) % dsi->lanes;
 	}
 
 	writel(horizontal_sync_active_byte, dsi->regs + DSI_HSA_WC);
@@ -1321,6 +1330,9 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		dev_info(dev, "Can't get da_trail_delta, keep it as 0: %d\n", ret);
 		dsi->da_trail_delta = 0;
 	}
+
+	dsi->force_dsi_end_without_null = of_property_read_bool(dev->of_node,
+								"force_dsi_end_without_null");
 
 	comp_id = mtk_ddp_comp_get_id(dev->of_node, MTK_DSI);
 	if (comp_id < 0) {
