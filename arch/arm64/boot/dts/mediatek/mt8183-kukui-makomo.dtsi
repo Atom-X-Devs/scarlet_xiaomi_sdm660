@@ -6,7 +6,6 @@
 
 /dts-v1/;
 #include "mt8183-kukui-jacuzzi.dtsi"
-#include "mt8183-kukui-audio-da7219-rt1015p.dtsi"
 
 &cpu_thermal {
 	sustainable-power = <4500>; /* milliwatts */
