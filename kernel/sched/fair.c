@@ -142,7 +142,6 @@ unsigned int sched_capacity_margin_down_boosted[CPU_NR] = {
 	3658, 3658, 3658, 3658, 3658, 3658, 3658, 3658
 }; /* not used for small cores, 72% margin for big */
 
-unsigned int sched_small_task_threshold = 102;
 __read_mostly unsigned int sysctl_sched_force_lb_enable = 1;
 
 static inline void update_load_add(struct load_weight *lw, unsigned long inc)
@@ -10314,9 +10313,7 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 		 */
 		if (env->sd->flags & SD_ASYM_CPUCAPACITY &&
 		    capacity_of(env->dst_cpu) < capacity &&
-		    (rq->nr_running == 1 ||
-			 (rq->nr_running == 2 && task_util(rq->curr) <
-			  sched_small_task_threshold)))
+		    rq->nr_running == 1)
 			continue;
 
 		wl = weighted_cpuload(rq);
