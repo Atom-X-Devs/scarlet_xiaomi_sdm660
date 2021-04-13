@@ -863,6 +863,154 @@ static int stm_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	return stm_is_locked_sr(nor, ofs, len, status);
 }
 
+/*
+ * mx25u6435f/mx25u6432f common protection table:
+ *
+ * mx25u6432f has T/B bit, but mx25u6435f doesn't
+ * while both chips have the same JEDEC ID,
+ * so here we only use common part of the BP definitions.
+ *
+ * - Upper 2^(Prot Level - 1) blocks are protected
+ * - Block size is hardcoded as 64Kib
+ * - Assume T/B is always 0 (top protected, factory default).
+ *
+ *   BP3| BP2 | BP1 | BP0 | Prot Level
+ *  -----------------------------------
+ *    0 |  0  |  0  |  0  |  NONE
+ *    0 |  0  |  0  |  1  |  1
+ *    0 |  0  |  1  |  0  |  2
+ *    0 |  0  |  1  |  1  |  3
+ *    0 |  1  |  0  |  0  |  4
+ *    0 |  1  |  0  |  1  |  5
+ *    0 |  1  |  1  |  0  |  6
+ *    0 |  1  |  1  |  0  |  7
+ *   .....................|  differ by 35/32f, not used
+ *    1 |  1  |  1  |  1  |  ALL
+ */
+
+#define MX_BP_MASK	(SR_BP0 | SR_BP1 | SR_BP2 | BIT(5))
+#define MX_BP_SHIFT	(2)
+
+static int mx_get_locked_len(struct spi_nor *nor, u8 sr, uint64_t *lock_len)
+{
+	struct mtd_info *mtd = &nor->mtd;
+	u8 bp;
+
+	bp = (sr & MX_BP_MASK) >> MX_BP_SHIFT;
+
+	if (bp == 0xf) {
+		/* protected all */
+		*lock_len = mtd->size;
+		return 0;
+	} else if (bp > 0x7) {
+		/* sorry, not supported yet */
+		return -ENOTSUPP;
+	} else {
+		*lock_len = bp ? (1 << (bp - 1)) : 0;
+		return 0;
+	}
+}
+
+static int mx_set_prot_level(struct spi_nor *nor, uint64_t lock_len, u8 *sr)
+{
+	uint64_t new_len;
+	u8 new_lvl;
+
+	/* 64Kib block size harcoded */
+	new_lvl = ilog2(lock_len) - 15;
+	new_len = 1ULL << (15 + new_lvl);
+
+	if (new_len != lock_len)
+		return -EINVAL;
+
+	*sr &= ~MX_BP_MASK;
+	*sr |= (new_lvl) << MX_BP_SHIFT;
+
+	return 0;
+}
+
+static int mx_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
+{
+	struct mtd_info *mtd = &nor->mtd;
+	int ret;
+	uint64_t lock_len;
+	u8 sr;
+
+	sr = read_sr(nor);
+
+	/* always 'top' protection */
+	if ((ofs + len) != mtd->size)
+		return -EINVAL;
+
+	ret = mx_get_locked_len(nor, sr, &lock_len);
+	if (ret)
+		return ret;
+
+	/* already locked? */
+	if (len <= lock_len)
+		return 0;
+
+	ret = mx_set_prot_level(nor, len, &sr);
+	if (ret)
+		return ret;
+
+	return write_sr_and_check(nor, sr, MX_BP_MASK);
+}
+
+static int mx_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
+{
+	struct mtd_info *mtd = &nor->mtd;
+	int ret;
+	uint64_t lock_len;
+	u8 sr;
+
+	if ((ofs + len) > mtd->size)
+		return -EINVAL;
+
+	sr = read_sr(nor);
+
+	ret = mx_get_locked_len(nor, sr, &lock_len);
+	if (ret)
+		return ret;
+
+	/* already unlocked? */
+	if ((ofs + len) <= (mtd->size - lock_len))
+		return 0;
+
+	/* can't make a hole in a locked region */
+	if (ofs > (mtd->size - lock_len))
+		return -EINVAL;
+
+	ret = mx_set_prot_level(nor, mtd->size - ofs - len, &sr);
+	if (ret)
+		return ret;
+
+	return write_sr_and_check(nor, sr, MX_BP_MASK);
+}
+
+static int mx_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
+{
+	struct mtd_info *mtd = &nor->mtd;
+	int ret;
+	uint64_t lock_len;
+	u8 sr;
+
+	if ((ofs + len) > mtd->size)
+		return -EINVAL;
+
+	if (!len)
+		return 0;
+
+	sr = read_sr(nor);
+
+	ret = mx_get_locked_len(nor, sr, &lock_len);
+	if (ret)
+		return ret;
+
+	return (ofs >= (mtd->size - lock_len)) ? 1 : 0;
+}
+
+
 static int spi_nor_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 {
 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
@@ -1085,7 +1233,7 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "mx25u2033e",  INFO(0xc22532, 0, 64 * 1024,   4, SECT_4K) },
 	{ "mx25u4035",   INFO(0xc22533, 0, 64 * 1024,   8, SECT_4K) },
 	{ "mx25u8035",   INFO(0xc22534, 0, 64 * 1024,  16, SECT_4K) },
-	{ "mx25u6435f",  INFO(0xc22537, 0, 64 * 1024, 128, SECT_4K) },
+	{ "mx25u6435f",  INFO(0xc22537, 0, 64 * 1024, 128, SECT_4K | SPI_NOR_HAS_LOCK) },
 	{ "mx25l12805d", INFO(0xc22018, 0, 64 * 1024, 256, 0) },
 	{ "mx25l12855e", INFO(0xc22618, 0, 64 * 1024, 256, 0) },
 	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
@@ -2913,6 +3061,10 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 		nor->flash_lock = stm_lock;
 		nor->flash_unlock = stm_unlock;
 		nor->flash_is_locked = stm_is_locked;
+	} else if (JEDEC_MFR(info) == SNOR_MFR_MACRONIX && info->flags & SPI_NOR_HAS_LOCK) {
+		nor->flash_lock = mx_lock;
+		nor->flash_unlock = mx_unlock;
+		nor->flash_is_locked = mx_is_locked;
 	}
 
 	if (nor->flash_lock && nor->flash_unlock && nor->flash_is_locked) {
