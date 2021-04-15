@@ -74,7 +74,7 @@ kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
 #endif
 }
 
-signed long
+static signed long
 kbase_fence_wait_workaround(struct dma_fence *fence,
 			    bool intr,
 			    signed long timeout)
