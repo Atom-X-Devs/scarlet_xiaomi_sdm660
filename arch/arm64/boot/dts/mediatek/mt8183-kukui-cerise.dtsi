@@ -16,3 +16,7 @@
 		drive-strength = <MTK_DRIVE_6mA>;
 	};
 };
+
+&i2c2 {
+        clock-stretch-ns = <13200>;
+};
