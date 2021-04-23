@@ -576,6 +576,7 @@ static int smp2p_parse_ipc(struct qcom_smp2p *smp2p)
 static int qcom_smp2p_probe(struct platform_device *pdev)
 {
 	struct smp2p_entry *entry;
+	struct smp2p_entry *next_entry;
 	struct device_node *node;
 	struct qcom_smp2p *smp2p;
 	const char *key;
@@ -688,10 +689,10 @@ unreg_ws:
 	wakeup_source_unregister(smp2p->ws);
 
 unwind_interfaces:
-	list_for_each_entry(entry, &smp2p->inbound, node)
+	list_for_each_entry_safe(entry, next_entry, &smp2p->inbound, node)
 		irq_domain_remove(entry->domain);
 
-	list_for_each_entry(entry, &smp2p->outbound, node)
+	list_for_each_entry_safe(entry, next_entry, &smp2p->outbound, node)
 		qcom_smem_state_unregister(entry->state);
 
 	smp2p->out->valid_entries = 0;
@@ -710,13 +711,14 @@ static int qcom_smp2p_remove(struct platform_device *pdev)
 {
 	struct qcom_smp2p *smp2p = platform_get_drvdata(pdev);
 	struct smp2p_entry *entry;
+	struct smp2p_entry *next_entry;
 
 	wakeup_source_unregister(smp2p->ws);
 
-	list_for_each_entry(entry, &smp2p->inbound, node)
+	list_for_each_entry_safe(entry, next_entry, &smp2p->inbound, node)
 		irq_domain_remove(entry->domain);
 
-	list_for_each_entry(entry, &smp2p->outbound, node)
+	list_for_each_entry_safe(entry, next_entry, &smp2p->outbound, node)
 		qcom_smem_state_unregister(entry->state);
 
 	mbox_free_channel(smp2p->mbox_chan);
