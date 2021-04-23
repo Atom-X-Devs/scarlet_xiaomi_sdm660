@@ -362,7 +362,7 @@ static int cmdq_suspend(struct device *dev)
 	}
 
 	if (task_running)
-		dev_warn(dev, "exist running task(s) in suspend\n");
+		dev_err(dev, "exist running task(s) in suspend %d\n", i);
 
 	clk_unprepare(cmdq->clock);
 

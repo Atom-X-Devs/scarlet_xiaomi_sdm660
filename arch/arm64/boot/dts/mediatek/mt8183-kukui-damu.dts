@@ -5,7 +5,7 @@
 
 /dts-v1/;
 #include "mt8183-kukui-jacuzzi.dtsi"
-#include "mt8183-kukui-audio-da7219.dtsi"
+#include "mt8183-kukui-audio-da7219-max98357a.dtsi"
 
 / {
 	model = "Google damu board";
@@ -32,4 +32,8 @@
 
 	post-power-on-delay-ms = <10>;
 	hid-descr-addr = <0x0001>;
+};
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_DAMU";
 };

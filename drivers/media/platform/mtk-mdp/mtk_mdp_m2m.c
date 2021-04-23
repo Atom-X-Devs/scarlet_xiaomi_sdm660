@@ -436,8 +436,16 @@ static void mtk_mdp_prepare_addr(struct mtk_mdp_ctx *ctx,
 
 	pix_size = frame->width * frame->height;
 	planes = min_t(u32, frame->fmt->num_planes, ARRAY_SIZE(addr->addr));
-	for (i = 0; i < planes; i++)
-		addr->addr[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+	for (i = 0; i < planes; i++) {
+		/*
+		 * TODO(b/172216855): The way to pass an offset within a DMA-buf
+		 * is not defined in V4L2 specification, so we abuse data_offset
+		 * for now. Fix it when we have the right interface, including
+		 * any necessary validation and potential alignment issues.
+		 */
+		addr->addr[i] = vb2_dma_contig_plane_dma_addr(vb, i) +
+				vb->planes[i].data_offset;
+	}
 
 	if (planes == 1) {
 		if (frame->fmt->pixelformat == V4L2_PIX_FMT_YVU420) {

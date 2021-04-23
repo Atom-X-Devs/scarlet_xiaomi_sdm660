@@ -2228,7 +2228,8 @@ static int i915_rps_boost_info(struct seq_file *m, void *data)
 	seq_printf(m, "CPU waiting? %d\n", count_irq_waiters(dev_priv));
 	seq_printf(m, "Boosts outstanding? %d\n",
 		   atomic_read(&rps->num_waiters));
-	seq_printf(m, "Interactive? %d\n", READ_ONCE(rps->power.interactive));
+	seq_printf(m, "Interactive? %d %s\n", READ_ONCE(rps->power.interactive),
+		   i915_modparams.disable_rps_interactive ? "(disabled)" : "");
 	seq_printf(m, "Frequency requested %d\n",
 		   intel_gpu_freq(dev_priv, rps->cur_freq));
 	seq_printf(m, "  min hard:%d, soft:%d; max soft:%d, hard:%d\n",
@@ -4956,6 +4957,28 @@ static int i915_panel_show(struct seq_file *m, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(i915_panel);
 
+static int i915_hdcp_sink_capability_show(struct seq_file *m, void *data)
+{
+	struct drm_connector *connector = m->private;
+	struct intel_connector *intel_connector = to_intel_connector(connector);
+
+	if (connector->status != connector_status_connected)
+		return -ENODEV;
+
+	/* HDCP is supported by connector */
+	if (!intel_connector->hdcp.shim)
+		return -EINVAL;
+
+	seq_printf(m, "%s:%d HDCP version: ", connector->name,
+		   connector->base.id);
+	seq_printf(m, "%s ", !intel_hdcp_capable(intel_connector) ?
+		   "None" : "HDCP1.4");
+	seq_puts(m, "\n");
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(i915_hdcp_sink_capability);
+
 /**
  * i915_debugfs_connector_add - add i915 specific connector debugfs files
  * @connector: pointer to a registered drm_connector
@@ -4983,6 +5006,13 @@ int i915_debugfs_connector_add(struct drm_connector *connector)
 				    connector, &i915_panel_fops);
 		debugfs_create_file("i915_psr_sink_status", S_IRUGO, root,
 				    connector, &i915_psr_sink_status_fops);
+	}
+
+	if (connector->connector_type == DRM_MODE_CONNECTOR_DisplayPort ||
+	    connector->connector_type == DRM_MODE_CONNECTOR_HDMIA ||
+	    connector->connector_type == DRM_MODE_CONNECTOR_HDMIB) {
+		debugfs_create_file("i915_hdcp_sink_capability", S_IRUGO, root,
+				    connector, &i915_hdcp_sink_capability_fops);
 	}
 
 	return 0;

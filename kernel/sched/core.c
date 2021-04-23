@@ -24,7 +24,7 @@
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
-#if defined(CONFIG_SCHED_DEBUG) && defined(HAVE_JUMP_LABEL)
+#ifdef CONFIG_SCHED_DEBUG
 /*
  * Debugging: various feature bits
  *
@@ -315,8 +315,12 @@ static void __sched_core_disable(void)
 	static_branch_disable(&__sched_core_enabled);
 }
 
+DEFINE_STATIC_KEY_TRUE(sched_coresched_supported);
+
 static void sched_core_get(void)
 {
+	if (!static_branch_likely(&sched_coresched_supported))
+		return;
 	mutex_lock(&sched_core_mutex);
 	if (!sched_core_count++)
 		__sched_core_enable();
@@ -325,6 +329,8 @@ static void sched_core_get(void)
 
 static void sched_core_put(void)
 {
+	if (!static_branch_likely(&sched_coresched_supported))
+		return;
 	mutex_lock(&sched_core_mutex);
 	if (!--sched_core_count)
 		__sched_core_disable();
@@ -2803,8 +2809,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * If task is using prctl(2) for tagging, do the prctl(2)-style tagging
 	 * for the child as well.
 	 */
-	if (current->core_cookie && ((unsigned long)current == current->core_cookie))
-		task_set_core_sched(1, p);
+	if (current->core_cookie)
+		task_set_core_sched(1, p, (clone_flags & CLONE_THREAD) ?
+						current->core_cookie : 0);
 #endif
 	return 0;
 }
@@ -4073,6 +4080,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	const struct cpumask *smt_mask;
 	int i, j, cpu, occ = 0;
 	bool need_sync = false;
+	bool fi_before = false;
 
 	cpu = cpu_of(rq);
 	if (cpu_is_offline(cpu))
@@ -4131,11 +4139,21 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 
 		if (rq_i->core_forceidle) {
 			need_sync = true;
+			fi_before = true;
 			rq_i->core_forceidle = false;
 		}
 
 		if (i != cpu)
 			update_rq_clock(rq_i);
+	}
+
+	if (!fi_before) {
+		for_each_cpu(i, smt_mask) {
+			struct rq *rq_i = cpu_rq(i);
+
+			/* Reset the snapshot if core is no longer in force-idle. */
+			rq_i->cfs.min_vruntime_fi = rq_i->cfs.min_vruntime;
+		}
 	}
 
 	/*
@@ -4167,8 +4185,15 @@ again:
 				/*
 				 * If there weren't no cookies; we don't need
 				 * to bother with the other siblings.
+				 * If the rest of the core is not running a
+				 * tagged task, i.e.  need_sync == 0, and the
+				 * current CPU which called into the schedule()
+				 * loop does not have any tasks for this class,
+				 * skip selecting for other siblings since
+				 * there's no point. We don't skip for RT/DL
+				 * because that could make CFS force-idle RT.
 				 */
-				if (i == cpu && !need_sync)
+				if (i == cpu && !need_sync && class == &fair_sched_class)
 					goto next_class;
 
 				continue;
@@ -4240,6 +4265,7 @@ next_class:;
 	 * their task. This ensures there is no inter-sibling overlap between
 	 * non-matching user state.
 	 */
+	need_sync = false;
 	for_each_cpu(i, smt_mask) {
 		struct rq *rq_i = cpu_rq(i);
 
@@ -4248,8 +4274,10 @@ next_class:;
 
 		WARN_ON_ONCE(!rq_i->core_pick);
 
-		if (is_idle_task(rq_i->core_pick) && rq_i->nr_running)
+		if (is_idle_task(rq_i->core_pick) && rq_i->nr_running) {
 			rq_i->core_forceidle = true;
+			need_sync = true;
+		}
 
 		rq_i->core_pick->core_occupation = occ;
 
@@ -4263,6 +4291,14 @@ next_class:;
 		WARN_ON_ONCE(!cookie_match(next, rq_i->core_pick));
 	}
 
+	if (!fi_before && need_sync) {
+		for_each_cpu(i, smt_mask) {
+			struct rq *rq_i = cpu_rq(i);
+
+			/* Snapshot if core is in force-idle. */
+			rq_i->cfs.min_vruntime_fi = rq_i->cfs.min_vruntime;
+		}
+	}
 done:
 	set_next_task(rq, next);
 	return next;
@@ -5983,12 +6019,8 @@ static void do_sched_yield(void)
 	schedstat_inc(rq->yld_count);
 	current->sched_class->yield_task(rq);
 
-	/*
-	 * Since we are going to call schedule() anyway, there's
-	 * no need to preempt or enable interrupts:
-	 */
 	preempt_disable();
-	rq_unlock(rq, &rf);
+	rq_unlock_irq(rq, &rf);
 	sched_preempt_enable_no_resched();
 
 	schedule();
@@ -7258,7 +7290,8 @@ static int task_set_core_sched_stopper(void *data)
 	return 0;
 }
 
-int task_set_core_sched(int set, struct task_struct *tsk)
+int task_set_core_sched(int set, struct task_struct *tsk,
+			unsigned long cookie)
 {
 	if (!tsk)
 		tsk = current;
@@ -7295,15 +7328,15 @@ int task_set_core_sched(int set, struct task_struct *tsk)
 	if (set)
 		sched_core_get();
 
-	tsk->core_cookie = set ? (unsigned long)tsk : 0;
+	if (cookie)
+		tsk->core_cookie = cookie;
+	else
+		tsk->core_cookie = set ? (unsigned long)tsk : 0;
 
 	stop_machine(task_set_core_sched_stopper, (void *)tsk, NULL);
 
 	if (!set)
 		sched_core_put();
-
-	pr_alert("coresched: prctl success: %s/%d %lx (fork: %d)\n", tsk->comm,
-		 tsk->pid, tsk->core_cookie, tsk != current);
 	return 0;
 }
 #endif

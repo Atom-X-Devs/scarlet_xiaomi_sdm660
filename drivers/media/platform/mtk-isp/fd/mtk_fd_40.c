@@ -835,10 +835,6 @@ static const struct v4l2_file_operations fd_video_fops = {
 	.poll = v4l2_m2m_fop_poll,
 	.unlocked_ioctl = video_ioctl2,
 	.mmap = v4l2_m2m_fop_mmap,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl32 = v4l2_compat_ioctl32,
-#endif
-
 };
 
 static void mtk_fd_fill_user_param(struct user_param *user_param,
@@ -1139,6 +1135,7 @@ static int mtk_fd_probe(struct platform_device *pdev)
 
 	mutex_init(&fd->vfd_lock);
 	init_completion(&fd->fd_job_finished);
+	complete_all(&fd->fd_job_finished);
 	INIT_DELAYED_WORK(&fd->job_timeout_work, mtk_fd_job_timeout_work);
 	pm_runtime_enable(dev);
 

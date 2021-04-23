@@ -29,7 +29,7 @@ static void cmdq_buf_print_write(struct device *dev, u32 offset,
 				 struct cmdq_instruction *cmdq_inst)
 {
 	u32 addr = ((u32)(cmdq_inst->offset |
-		    (cmdq_inst->op << CMDQ_SUBSYS_SHIFT)));
+		    (cmdq_inst->subsys << CMDQ_SUBSYS_SHIFT)));
 
 	dev_err(dev, "0x%08x [Write] Subsys Reg 0x%08x = 0x%08x\n",
 		offset, addr, cmdq_inst->value);
@@ -46,7 +46,7 @@ static void cmdq_buf_print_wfe(struct device *dev, u32 offset,
 static void cmdq_buf_print_mask(struct device *dev, u32 offset,
 				struct cmdq_instruction *cmdq_inst)
 {
-	dev_err(dev, "0x%08x mask 0x%08x\n", offset, ~(cmdq_inst->value));
+	dev_err(dev, "0x%08x mask 0x%08x\n", offset, ~(cmdq_inst->mask));
 }
 
 static void cmdq_buf_print_misc(struct device *dev, u32 offset,

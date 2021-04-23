@@ -483,7 +483,7 @@ static int anx7625_dsi_video_timing_config(struct anx7625_data *ctx)
 			(n & 0xff));
 	/* diff */
 	ret |= anx7625_reg_write(ctx, ctx->i2c.rx_p1_client,
-			MIPI_DIGITAL_ADJ_1, 0x37);
+			MIPI_DIGITAL_ADJ_1, 0x3d);
 
 	ret |= anx7625_odfc_config(ctx, post_divider - 1);
 
@@ -1590,7 +1590,6 @@ static int anx7625_attach_dsi(struct anx7625_data *ctx)
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->mode_flags = MIPI_DSI_MODE_VIDEO	|
 		MIPI_DSI_MODE_VIDEO_SYNC_PULSE	|
-		MIPI_DSI_MODE_EOT_PACKET	|
 		MIPI_DSI_MODE_VIDEO_HSE;
 
 	if (mipi_dsi_attach(dsi) < 0) {

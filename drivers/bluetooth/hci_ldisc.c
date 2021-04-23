@@ -142,10 +142,9 @@ int hci_uart_tx_wakeup(struct hci_uart *hu)
 	if (!test_bit(HCI_UART_PROTO_READY, &hu->flags))
 		goto no_schedule;
 
-	if (test_and_set_bit(HCI_UART_SENDING, &hu->tx_state)) {
-		set_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
+	set_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
+	if (test_and_set_bit(HCI_UART_SENDING, &hu->tx_state))
 		goto no_schedule;
-	}
 
 	BT_DBG("");
 
@@ -189,10 +188,11 @@ restart:
 		kfree_skb(skb);
 	}
 
+	clear_bit(HCI_UART_SENDING, &hu->tx_state);
 	if (test_bit(HCI_UART_TX_WAKEUP, &hu->tx_state))
 		goto restart;
 
-	clear_bit(HCI_UART_SENDING, &hu->tx_state);
+	wake_up_bit(&hu->tx_state, HCI_UART_SENDING);
 }
 
 void hci_uart_init_work(struct work_struct *work)
@@ -226,6 +226,13 @@ int hci_uart_init_ready(struct hci_uart *hu)
 	schedule_work(&hu->init_ready);
 
 	return 0;
+}
+
+int hci_uart_wait_until_sent(struct hci_uart *hu)
+{
+	return wait_on_bit_timeout(&hu->tx_state, HCI_UART_SENDING,
+				   TASK_INTERRUPTIBLE,
+				   msecs_to_jiffies(2000));
 }
 
 /* ------- Interface to HCI layer ------ */
@@ -545,6 +552,7 @@ static void hci_uart_tty_close(struct tty_struct *tty)
 		clear_bit(HCI_UART_PROTO_READY, &hu->flags);
 		percpu_up_write(&hu->proto_lock);
 
+		cancel_work_sync(&hu->init_ready);
 		cancel_work_sync(&hu->write_work);
 
 		if (hdev) {

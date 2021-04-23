@@ -9,7 +9,7 @@
 #ifndef LINUX_CEC_NOTIFIER_H
 #define LINUX_CEC_NOTIFIER_H
 
-#include <linux/types.h>
+#include <linux/err.h>
 #include <media/cec.h>
 
 struct device;
@@ -64,28 +64,15 @@ void cec_notifier_set_phys_addr_from_edid(struct cec_notifier *n,
 					  const struct edid *edid);
 
 /**
- * cec_notifier_register - register a callback with the notifier
- * @n: the CEC notifier
- * @adap: the CEC adapter, passed as argument to the callback function
- * @callback: the callback function
+ * cec_notifier_parse_hdmi_phandle - find the hdmi device from "hdmi-phandle"
+ * @dev: the device with the "hdmi-phandle" device tree property
+ *
+ * Returns the device pointer referenced by the "hdmi-phandle" property.
+ * Note that the refcount of the returned device is not incremented.
+ * This device pointer is only used as a key value in the notifier
+ * list, but it is never accessed by the CEC driver.
  */
-void cec_notifier_register(struct cec_notifier *n,
-			   struct cec_adapter *adap,
-			   void (*callback)(struct cec_adapter *adap, u16 pa));
-
-/**
- * cec_notifier_unregister - unregister the callback from the notifier.
- * @n: the CEC notifier
- */
-void cec_notifier_unregister(struct cec_notifier *n);
-
-/**
- * cec_register_cec_notifier - register the notifier with the cec adapter.
- * @adap: the CEC adapter
- * @notifier: the CEC notifier
- */
-void cec_register_cec_notifier(struct cec_adapter *adap,
-			       struct cec_notifier *notifier);
+struct device *cec_notifier_parse_hdmi_phandle(struct device *dev);
 
 #else
 static inline struct cec_notifier *cec_notifier_get_conn(struct device *dev,
@@ -108,20 +95,11 @@ static inline void cec_notifier_set_phys_addr_from_edid(struct cec_notifier *n,
 {
 }
 
-static inline void cec_notifier_register(struct cec_notifier *n,
-			 struct cec_adapter *adap,
-			 void (*callback)(struct cec_adapter *adap, u16 pa))
+static inline struct device *cec_notifier_parse_hdmi_phandle(struct device *dev)
 {
+	return ERR_PTR(-ENODEV);
 }
 
-static inline void cec_notifier_unregister(struct cec_notifier *n)
-{
-}
-
-static inline void cec_register_cec_notifier(struct cec_adapter *adap,
-					     struct cec_notifier *notifier)
-{
-}
 #endif
 
 /**

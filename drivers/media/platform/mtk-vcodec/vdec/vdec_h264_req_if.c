@@ -3,7 +3,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <media/v4l2-mem2mem.h>
-#include <media/h264-ctrls.h>
+#include <media/v4l2-h264.h>
 #include <media/videobuf2-dma-contig.h>
 
 #include "../vdec_drv_if.h"
@@ -23,9 +23,9 @@
 
 /* get used parameters for sps/pps */
 #define GET_MTK_VDEC_FLAG(cond, flag) \
-		dst_param->cond = ((src_param->flags & flag) ? (1) : (0))
+	{ dst_param->cond = ((src_param->flags & flag) ? (1) : (0)); }
 #define GET_MTK_VDEC_PARAM(param) \
-		dst_param->param = src_param->param
+	{ dst_param->param = src_param->param; }
 /* motion vector size (bytes) for every macro block */
 #define HW_MB_STORE_SZ				64
 
@@ -200,7 +200,6 @@ struct vdec_h264_vsi {
  * @pred_buf : HW working predication buffer
  * @mv_buf   : HW working motion vector buffer
  * @vpu      : VPU instance
- * @vsi      : VPU area shared with VPU
  * @vsi_ctx  : Local VSI data for this decoding context
  */
 struct vdec_h264_slice_inst {
@@ -209,7 +208,6 @@ struct vdec_h264_slice_inst {
 	struct mtk_vcodec_mem pred_buf;
 	struct mtk_vcodec_mem mv_buf[H264_MAX_MV_NUM];
 	struct vdec_vpu_inst vpu;
-	struct vdec_h264_vsi *vsi;
 	struct vdec_h264_vsi vsi_ctx;
 	struct mtk_h264_dec_slice_param h264_slice_param;
 
@@ -236,7 +234,7 @@ static void get_h264_dpb_list(struct vdec_h264_slice_inst *inst,
 		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
 	for (index = 0; index < 16; index++) {
-		const struct slice_h264_dpb_entry * dpb;
+		const struct slice_h264_dpb_entry *dpb;
 		int vb2_index;
 
 		dpb = &slice_param->decode_params.dpb[index];
@@ -322,7 +320,7 @@ static void get_h264_pps_parameters(struct mtk_h264_pps_param *dst_param,
 	GET_MTK_VDEC_FLAG(transform_8x8_mode_flag,
 		V4L2_H264_PPS_FLAG_TRANSFORM_8X8_MODE);
 	GET_MTK_VDEC_FLAG(scaling_matrix_present_flag,
-		V4L2_H264_PPS_FLAG_PIC_SCALING_MATRIX_PRESENT);
+		V4L2_H264_PPS_FLAG_SCALING_MATRIX_PRESENT);
 }
 
 static void
@@ -338,14 +336,14 @@ get_h264_scaling_matrix(struct slice_api_h264_scaling_matrix *dst_matrix,
 
 static void get_h264_decode_parameters(
 	struct slice_api_h264_decode_param *dst_params,
-	const struct v4l2_ctrl_h264_decode_params *src_params)
+	const struct v4l2_ctrl_h264_decode_params *src_params,
+	const struct v4l2_h264_dpb_entry dpb[V4L2_H264_NUM_DPB_ENTRIES])
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(dst_params->dpb); i++) {
 		struct slice_h264_dpb_entry *dst_entry = &dst_params->dpb[i];
-		const struct v4l2_h264_dpb_entry *src_entry =
-			&src_params->dpb[i];
+		const struct v4l2_h264_dpb_entry *src_entry = &dpb[i];
 
 		dst_entry->reference_ts = src_entry->reference_ts;
 		dst_entry->frame_num = src_entry->frame_num;
@@ -356,14 +354,12 @@ static void get_h264_decode_parameters(
 		dst_entry->flags = src_entry->flags;
 	}
 
-	dst_params->num_slices = src_params->num_slices;
+	/*
+	 * num_slices is a leftover from the old H.264 support and is ignored
+	 * by the firmware.
+	 */
+	dst_params->num_slices = 0;
 	dst_params->nal_ref_idc = src_params->nal_ref_idc;
-	memcpy(dst_params->ref_pic_list_p0, src_params->ref_pic_list_p0,
-	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
-	memcpy(dst_params->ref_pic_list_b0, src_params->ref_pic_list_b0,
-	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
-	memcpy(dst_params->ref_pic_list_b1, src_params->ref_pic_list_b1,
-	       ARRAY_SIZE(dst_params->ref_pic_list_p0));
 	dst_params->top_field_order_cnt = src_params->top_field_order_cnt;
 	dst_params->bottom_field_order_cnt = src_params->bottom_field_order_cnt;
 	dst_params->flags = src_params->flags;
@@ -380,15 +376,11 @@ static bool dpb_entry_match(const struct v4l2_h264_dpb_entry *a,
  * Move DPB entries of dec_param that refer to a frame already existing in dpb
  * into the already existing slot in dpb, and move other entries into new slots.
  *
- * At the same time, create a translation table so we can easily update the
- * reference lists.
- *
  * This function is an adaptation of the similarly-named function in
  * hantro_h264.c.
  */
 static void update_dpb(const struct v4l2_ctrl_h264_decode_params *dec_param,
-		       struct v4l2_h264_dpb_entry *dpb,
-		       u8 *translation_table)
+		       struct v4l2_h264_dpb_entry *dpb)
 {
 	DECLARE_BITMAP(new, ARRAY_SIZE(dec_param->dpb)) = { 0, };
 	DECLARE_BITMAP(in_use, ARRAY_SIZE(dec_param->dpb)) = { 0, };
@@ -422,7 +414,6 @@ static void update_dpb(const struct v4l2_ctrl_h264_decode_params *dec_param,
 
 			*cdpb = *ndpb;
 			set_bit(j, used);
-			translation_table[i] = j;
 			/* Don't reiterate on this one. */
 			clear_bit(j, in_use);
 			break;
@@ -449,55 +440,51 @@ static void update_dpb(const struct v4l2_ctrl_h264_decode_params *dec_param,
 		cdpb = &dpb[j];
 		*cdpb = *ndpb;
 		set_bit(j, used);
-		translation_table[i] = j;
 	}
 }
 
 /*
- * Update reference list entries to point to the updated position in the DPB.
+ * The firmware expects unused reflist entries to have the value 0x20.
  */
-static void
-update_ref_list(u8 *ref_list, const u8 *translation_table)
+static void fixup_ref_list(u8 *ref_list, size_t num_valid)
 {
-	int i;
-
-	for (i = 0; i < 32; i++) {
-		const u8 dpb_index = ref_list[i];
-
-		if (dpb_index == 32)
-			continue;
-
-		ref_list[i] = translation_table[dpb_index];
-	}
+	memset(&ref_list[num_valid], 0x20, 32 - num_valid);
 }
 
 static void get_vdec_decode_parameters(struct vdec_h264_slice_inst *inst)
 {
-	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
 	const struct v4l2_ctrl_h264_decode_params *dec_params =
-		get_ctrl_ptr(inst->ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
-	struct v4l2_ctrl_h264_decode_params fixed_params = *dec_params;
-	u8 translation_table[ARRAY_SIZE(dec_params->dpb)] = { 32, };
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_DECODE_PARAMS);
+	const struct v4l2_ctrl_h264_sps *sps =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_SPS);
+	const struct v4l2_ctrl_h264_pps *pps =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_PPS);
+	const struct v4l2_ctrl_h264_scaling_matrix *scaling_matrix =
+		get_ctrl_ptr(inst->ctx, V4L2_CID_STATELESS_H264_SCALING_MATRIX);
+	struct mtk_h264_dec_slice_param *slice_param = &inst->h264_slice_param;
+	struct v4l2_h264_reflist_builder reflist_builder;
+	u8 *p0_reflist = slice_param->decode_params.ref_pic_list_p0;
+	u8 *b0_reflist = slice_param->decode_params.ref_pic_list_b0;
+	u8 *b1_reflist = slice_param->decode_params.ref_pic_list_b1;
 
-	update_dpb(dec_params, inst->dpb, translation_table);
-	memcpy(fixed_params.dpb, inst->dpb, sizeof(inst->dpb));
+	update_dpb(dec_params, inst->dpb);
 
-	update_ref_list(fixed_params.ref_pic_list_p0, translation_table);
-	update_ref_list(fixed_params.ref_pic_list_b0, translation_table);
-	update_ref_list(fixed_params.ref_pic_list_b1, translation_table);
-
-	get_h264_sps_parameters(&slice_param->sps,
-				get_ctrl_ptr(inst->ctx,
-					     V4L2_CID_MPEG_VIDEO_H264_SPS));
-	get_h264_pps_parameters(&slice_param->pps,
-				get_ctrl_ptr(inst->ctx,
-					     V4L2_CID_MPEG_VIDEO_H264_PPS));
-	get_h264_scaling_matrix(
-		&slice_param->scaling_matrix,
-		get_ctrl_ptr(inst->ctx,
-			     V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX));
-	get_h264_decode_parameters(&slice_param->decode_params, &fixed_params);
+	get_h264_sps_parameters(&slice_param->sps, sps);
+	get_h264_pps_parameters(&slice_param->pps, pps);
+	get_h264_scaling_matrix(&slice_param->scaling_matrix, scaling_matrix);
+	get_h264_decode_parameters(&slice_param->decode_params, dec_params,
+				   inst->dpb);
 	get_h264_dpb_list(inst, slice_param);
+
+	/* Build the reference lists */
+	v4l2_h264_init_reflist_builder(&reflist_builder, dec_params, sps,
+				       inst->dpb);
+	v4l2_h264_build_p_ref_list(&reflist_builder, p0_reflist);
+	v4l2_h264_build_b_ref_lists(&reflist_builder, b0_reflist, b1_reflist);
+	/* Adapt the built lists to the firmware's expectations */
+	fixup_ref_list(p0_reflist, reflist_builder.num_valid);
+	fixup_ref_list(b0_reflist, reflist_builder.num_valid);
+	fixup_ref_list(b1_reflist, reflist_builder.num_valid);
 
 	memcpy(&inst->vsi_ctx.h264_slice_params, slice_param,
 	       sizeof(inst->vsi_ctx.h264_slice_params));
@@ -649,8 +636,7 @@ static int vdec_h264_slice_init(struct mtk_vcodec_ctx *ctx)
 		goto error_free_inst;
 	}
 
-	inst->vsi = (struct vdec_h264_vsi *)inst->vpu.vsi;
-	memcpy(&inst->vsi_ctx, inst->vsi, sizeof(inst->vsi_ctx));
+	memcpy(&inst->vsi_ctx, inst->vpu.vsi, sizeof(inst->vsi_ctx));
 	inst->vsi_ctx.dec.resolution_changed = true;
 	inst->vsi_ctx.dec.realloc_mv_buf = true;
 
@@ -710,11 +696,9 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		(struct vdec_h264_slice_inst *)h_vdec;
 	struct vdec_vpu_inst *vpu = &inst->vpu;
 	struct mtk_video_dec_buf *src_buf_info;
-	struct mtk_video_dec_buf *dst_buf_info;
 	int nal_start_idx = 0, err = 0;
-	unsigned int nal_type, data[2];
+	uint32_t nal_type, data[2];
 	unsigned char *buf;
-	uint64_t vdec_fb_va;
 	uint64_t y_fb_dma;
 	uint64_t c_fb_dma;
 
@@ -726,9 +710,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		return vpu_dec_reset(vpu);
 
 	src_buf_info = container_of(bs, struct mtk_video_dec_buf, bs_buffer);
-	dst_buf_info = container_of(fb, struct mtk_video_dec_buf, frame_buffer);
 
-	vdec_fb_va = (u64)(uintptr_t)fb;
 	y_fb_dma = fb ? (u64)fb->base_y.dma_addr : 0;
 	c_fb_dma = fb ? (u64)fb->base_c.dma_addr : 0;
 
@@ -746,7 +728,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 	inst->vsi_ctx.dec.bs_dma = (uint64_t)bs->dma_addr;
 	inst->vsi_ctx.dec.y_fb_dma = y_fb_dma;
 	inst->vsi_ctx.dec.c_fb_dma = c_fb_dma;
-	inst->vsi_ctx.dec.vdec_fb_va = vdec_fb_va;
+	inst->vsi_ctx.dec.vdec_fb_va = (u64)(uintptr_t)fb;
 
 	get_vdec_decode_parameters(inst);
 	*res_chg = inst->vsi_ctx.dec.resolution_changed;
@@ -761,7 +743,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		*res_chg = false;
 	}
 
-	memcpy(inst->vsi, &inst->vsi_ctx, sizeof(*inst->vsi));
+	memcpy(inst->vpu.vsi, &inst->vsi_ctx, sizeof(inst->vsi_ctx));
 	err = vpu_dec_start(vpu, data, 2);
 	if (err)
 		goto err_free_fb_out;
@@ -777,7 +759,7 @@ static int vdec_h264_slice_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 		vpu_dec_end(vpu);
 	}
 
-	memcpy(&inst->vsi_ctx, inst->vsi, sizeof(inst->vsi_ctx));
+	memcpy(&inst->vsi_ctx, inst->vpu.vsi, sizeof(inst->vsi_ctx));
 	mtk_vcodec_debug(inst, "\n - NALU[%d] type=%d -\n", inst->num_nalu,
 			 nal_type);
 	return 0;

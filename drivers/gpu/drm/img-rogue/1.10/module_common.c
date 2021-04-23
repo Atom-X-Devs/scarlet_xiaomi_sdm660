@@ -108,15 +108,6 @@ EXPORT_SYMBOL(RGXInitSLC);
 #endif
 
 #if defined(SUPPORT_RGX)
-EXPORT_SYMBOL(RGXHWPerfConnect);
-EXPORT_SYMBOL(RGXHWPerfDisconnect);
-EXPORT_SYMBOL(RGXHWPerfControl);
-EXPORT_SYMBOL(RGXHWPerfConfigureAndEnableCounters);
-EXPORT_SYMBOL(RGXHWPerfConfigureAndEnableCustomCounters);
-EXPORT_SYMBOL(RGXHWPerfDisableCounters);
-EXPORT_SYMBOL(RGXHWPerfAcquireEvents);
-EXPORT_SYMBOL(RGXHWPerfReleaseEvents);
-EXPORT_SYMBOL(RGXHWPerfConvertCRTimeStamp);
 #if defined(SUPPORT_KERNEL_HWPERF_TEST)
 EXPORT_SYMBOL(OSAddTimer);
 EXPORT_SYMBOL(OSEnableTimer);

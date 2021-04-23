@@ -22,6 +22,7 @@
  */
 
 #include <drm/drm_atomic_helper.h>
+#include <linux/dmi.h>
 
 #include "intel_drv.h"
 #include "i915_drv.h"
@@ -742,6 +743,24 @@ static void intel_psr_enable_locked(struct drm_i915_private *dev_priv,
 	intel_psr_activate(intel_dp);
 }
 
+static int intel_fbc_vtd_callback(const struct dmi_system_id *id)
+{
+	DRM_DEBUG_KMS("This is temporary Wa to disable PSR to prevent screen flicker on %s device\n", id->ident);
+	return 1;
+}
+
+static const struct dmi_system_id intel_fbc_vtd_detect[] = {
+	{
+		.callback = intel_fbc_vtd_callback,
+		.ident = "Google Nightfury",
+		.matches = {
+			DMI_MATCH(DMI_BOARD_VENDOR, "Google"),
+			DMI_MATCH(DMI_BOARD_NAME, "Nightfury"),
+		},
+	},
+	{ }
+};
+
 /**
  * intel_psr_enable - Enable PSR
  * @intel_dp: Intel DP
@@ -758,6 +777,9 @@ void intel_psr_enable(struct intel_dp *intel_dp,
 		return;
 
 	if (WARN_ON(!CAN_PSR(dev_priv)))
+		return;
+
+	if (dmi_check_system(intel_fbc_vtd_detect))
 		return;
 
 	WARN_ON(dev_priv->drrs.dp);

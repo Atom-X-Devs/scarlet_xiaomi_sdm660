@@ -2948,41 +2948,68 @@ static int skl_max_plane_width(const struct drm_framebuffer *fb,
 	switch (fb->modifier) {
 	case DRM_FORMAT_MOD_LINEAR:
 	case I915_FORMAT_MOD_X_TILED:
-		switch (cpp) {
-		case 8:
+		/*
+		 * Validated limit is 4k, but has 5k should
+		 * work apart from the following features:
+		 * - Ytile (already limited to 4k)
+		 * - FP16 (already limited to 4k)
+		 * - render compression (already limited to 4k)
+		 * - KVMR sprite and cursor (don't care)
+		 * - horizontal panning (TODO verify this)
+		 * - pipe and plane scaling (TODO verify this)
+		 */
+		if (cpp == 8)
 			return 4096;
-		case 4:
-		case 2:
-		case 1:
-			return 8192;
-		default:
-			MISSING_CASE(cpp);
-			break;
-		}
-		break;
+		else
+			return 5120;
 	case I915_FORMAT_MOD_Y_TILED_CCS:
 	case I915_FORMAT_MOD_Yf_TILED_CCS:
 		/* FIXME AUX plane? */
 	case I915_FORMAT_MOD_Y_TILED:
 	case I915_FORMAT_MOD_Yf_TILED:
-		switch (cpp) {
-		case 8:
+		if (cpp == 8)
 			return 2048;
-		case 4:
+		else
 			return 4096;
-		case 2:
-		case 1:
-			return 8192;
-		default:
-			MISSING_CASE(cpp);
-			break;
-		}
-		break;
 	default:
 		MISSING_CASE(fb->modifier);
+		return 2048;
 	}
+}
 
-	return 2048;
+static int glk_max_plane_width(const struct drm_framebuffer *fb,
+			       int color_plane,
+			       unsigned int rotation)
+{
+	int cpp = fb->format->cpp[color_plane];
+
+	switch (fb->modifier) {
+	case DRM_FORMAT_MOD_LINEAR:
+	case I915_FORMAT_MOD_X_TILED:
+		if (cpp == 8)
+			return 4096;
+		else
+			return 5120;
+	case I915_FORMAT_MOD_Y_TILED_CCS:
+	case I915_FORMAT_MOD_Yf_TILED_CCS:
+		/* FIXME AUX plane? */
+	case I915_FORMAT_MOD_Y_TILED:
+	case I915_FORMAT_MOD_Yf_TILED:
+		if (cpp == 8)
+			return 2048;
+		else
+			return 5120;
+	default:
+		MISSING_CASE(fb->modifier);
+		return 2048;
+	}
+}
+
+static int icl_max_plane_width(const struct drm_framebuffer *fb,
+			       int color_plane,
+			       unsigned int rotation)
+{
+	return 5120;
 }
 
 static bool skl_check_main_ccs_coordinates(struct intel_plane_state *plane_state,
@@ -3025,15 +3052,23 @@ static bool skl_check_main_ccs_coordinates(struct intel_plane_state *plane_state
 
 static int skl_check_main_surface(struct intel_plane_state *plane_state)
 {
+	struct drm_i915_private *dev_priv = to_i915(plane_state->base.plane->dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
 	int x = plane_state->base.src.x1 >> 16;
 	int y = plane_state->base.src.y1 >> 16;
 	int w = drm_rect_width(&plane_state->base.src) >> 16;
 	int h = drm_rect_height(&plane_state->base.src) >> 16;
-	int max_width = skl_max_plane_width(fb, 0, rotation);
+	int max_width;
 	int max_height = 4096;
 	u32 alignment, offset, aux_offset = plane_state->color_plane[1].offset;
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		max_width = icl_max_plane_width(fb, 0, rotation);
+	else if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
+		max_width = glk_max_plane_width(fb, 0, rotation);
+	else
+		max_width = skl_max_plane_width(fb, 0, rotation);
 
 	if (w > max_width || h > max_height) {
 		DRM_DEBUG_KMS("requested Y/RGB source size %dx%d too big (limit %dx%d)\n",
@@ -6519,11 +6554,35 @@ struct intel_connector *intel_connector_alloc(void)
  * This should only be used after intel_connector_alloc has returned
  * successfully, and before drm_connector_init returns successfully.
  * Otherwise the destroy callbacks for the connector and the state should
- * take care of proper cleanup/free
+ * take care of proper cleanup/free (see intel_connector_destroy).
  */
 void intel_connector_free(struct intel_connector *connector)
 {
 	kfree(to_intel_digital_connector_state(connector->base.state));
+	kfree(connector);
+}
+
+/*
+ * Connector type independent destroy hook for drm_connector_funcs.
+ */
+void intel_connector_destroy(struct drm_connector *connector)
+{
+	struct intel_connector *intel_connector = to_intel_connector(connector);
+
+	kfree(intel_connector->detect_edid);
+
+	intel_hdcp_cleanup(intel_connector);
+
+	if (!IS_ERR_OR_NULL(intel_connector->edid))
+		kfree(intel_connector->edid);
+
+	intel_panel_fini(&intel_connector->panel);
+
+	drm_connector_cleanup(connector);
+
+	if (intel_connector->port)
+		drm_dp_mst_put_port_malloc(intel_connector->port);
+
 	kfree(connector);
 }
 
@@ -13367,10 +13426,9 @@ intel_prepare_plane_fb(struct drm_plane *plane,
 	 * that are not quite steady state without resorting to forcing
 	 * maximum clocks following a vblank miss (see do_rps_boost()).
 	 */
-	if (!intel_state->rps_interactive) {
-		intel_rps_mark_interactive(dev_priv, true);
+	if (!intel_state->rps_interactive &&
+	    !intel_rps_mark_interactive(dev_priv, true))
 		intel_state->rps_interactive = true;
-	}
 
 	return 0;
 }
@@ -13392,10 +13450,9 @@ intel_cleanup_plane_fb(struct drm_plane *plane,
 		to_intel_atomic_state(old_state->state);
 	struct drm_i915_private *dev_priv = to_i915(plane->dev);
 
-	if (intel_state->rps_interactive) {
-		intel_rps_mark_interactive(dev_priv, false);
+	if (intel_state->rps_interactive &&
+	    !intel_rps_mark_interactive(dev_priv, false))
 		intel_state->rps_interactive = false;
-	}
 
 	/* Should only be called after a successful intel_prepare_plane_fb()! */
 	mutex_lock(&dev_priv->drm.struct_mutex);
@@ -14867,6 +14924,7 @@ intel_mode_valid(struct drm_device *dev,
 			   DRM_MODE_FLAG_CLKDIV2))
 		return MODE_BAD;
 
+	/* Transcoder timing limits */
 	if (INTEL_GEN(dev_priv) >= 9 ||
 	    IS_BROADWELL(dev_priv) || IS_HASWELL(dev_priv)) {
 		hdisplay_max = 8192; /* FDI max 4096 handled elsewhere */
@@ -14895,6 +14953,41 @@ intel_mode_valid(struct drm_device *dev,
 	    mode->vsync_start > vtotal_max ||
 	    mode->vsync_end > vtotal_max ||
 	    mode->vtotal > vtotal_max)
+		return MODE_V_ILLEGAL;
+
+	return MODE_OK;
+}
+
+enum drm_mode_status
+intel_mode_valid_max_plane_size(struct drm_i915_private *dev_priv,
+			       const struct drm_display_mode *mode)
+{
+	int plane_width_max, plane_height_max;
+
+	/*
+	 * intel_mode_valid() should be
+	 * sufficient on older platforms.
+	 */
+	if (INTEL_GEN(dev_priv) < 9)
+		return MODE_OK;
+
+	/*
+	 * Most people will probably want a fullscreen
+	 * plane so let's not advertize modes that are
+	 * too big for that.
+	 */
+	if (INTEL_GEN(dev_priv) >= 11) {
+		plane_width_max = 5120;
+		plane_height_max = 4320;
+	} else {
+		plane_width_max = 5120;
+		plane_height_max = 4096;
+	}
+
+	if (mode->hdisplay > plane_width_max)
+		return MODE_H_ILLEGAL;
+
+	if (mode->vdisplay > plane_height_max)
 		return MODE_V_ILLEGAL;
 
 	return MODE_OK;
@@ -15450,6 +15543,8 @@ int intel_modeset_init(struct drm_device *dev)
 
 	intel_update_czclk(dev_priv);
 	intel_modeset_init_hw(dev);
+
+	intel_hdcp_component_init(dev_priv);
 
 	if (dev_priv->max_cdclk_freq == 0)
 		intel_update_max_cdclk(dev_priv);
@@ -16164,9 +16259,9 @@ static void intel_hpd_poll_fini(struct drm_device *dev)
 	for_each_intel_connector_iter(connector, &conn_iter) {
 		if (connector->modeset_retry_work.func)
 			cancel_work_sync(&connector->modeset_retry_work);
-		if (connector->hdcp_shim) {
-			cancel_delayed_work_sync(&connector->hdcp_check_work);
-			cancel_work_sync(&connector->hdcp_prop_work);
+		if (connector->hdcp.shim) {
+			cancel_delayed_work_sync(&connector->hdcp.check_work);
+			cancel_work_sync(&connector->hdcp.prop_work);
 		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
@@ -16203,6 +16298,8 @@ void intel_modeset_cleanup(struct drm_device *dev)
 
 	/* flush any delayed tasks or pending work */
 	flush_scheduled_work();
+
+	intel_hdcp_component_fini(dev_priv);
 
 	drm_mode_config_cleanup(dev);
 

@@ -1288,10 +1288,12 @@ SYSCALL_DEFINE1(uname, struct old_utsname __user *, name)
 
 SYSCALL_DEFINE1(olduname, struct oldold_utsname __user *, name)
 {
-	struct oldold_utsname tmp = {};
+	struct oldold_utsname tmp;
 
 	if (!name)
 		return -EFAULT;
+
+	memset(&tmp, 0, sizeof(tmp));
 
 	down_read(&uts_sem);
 	memcpy(&tmp.sysname, &utsname()->sysname, __OLD_UTS_LEN);
@@ -2646,7 +2648,7 @@ int ksys_prctl(int option, unsigned long arg2, unsigned long arg3,
 		error = prctl_set_vma(arg2, arg3, arg4, arg5);
 		break;
 	case PR_SET_CORE_SCHED:
-		error = task_set_core_sched(arg2, NULL);
+		error = task_set_core_sched(arg2, NULL, 0);
 		break;
 	default:
 		error = -EINVAL;

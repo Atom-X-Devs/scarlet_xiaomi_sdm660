@@ -1899,6 +1899,8 @@ void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state
 	i915_reg_t reg = TRANS_DDI_FUNC_CTL(cpu_transcoder);
 	uint32_t val = I915_READ(reg);
 
+	WARN_ON(val & TRANS_DDI_HDCP_SIGNALLING);
+
 	val &= ~(TRANS_DDI_FUNC_ENABLE | TRANS_DDI_PORT_MASK | TRANS_DDI_DP_VC_PAYLOAD_ALLOC);
 	val |= TRANS_DDI_PORT_NONE;
 	I915_WRITE(reg, val);
@@ -1912,11 +1914,11 @@ void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state
 }
 
 int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
+				     enum transcoder cpu_transcoder,
 				     bool enable)
 {
 	struct drm_device *dev = intel_encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
-	enum pipe pipe = 0;
 	int ret = 0;
 	uint32_t tmp;
 
@@ -1924,18 +1926,12 @@ int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
 						intel_encoder->power_domain)))
 		return -ENXIO;
 
-	if (WARN_ON(!intel_encoder->get_hw_state(intel_encoder, &pipe))) {
-		ret = -EIO;
-		goto out;
-	}
-
-	tmp = I915_READ(TRANS_DDI_FUNC_CTL(pipe));
+	tmp = I915_READ(TRANS_DDI_FUNC_CTL(cpu_transcoder));
 	if (enable)
 		tmp |= TRANS_DDI_HDCP_SIGNALLING;
 	else
 		tmp &= ~TRANS_DDI_HDCP_SIGNALLING;
-	I915_WRITE(TRANS_DDI_FUNC_CTL(pipe), tmp);
-out:
+	I915_WRITE(TRANS_DDI_FUNC_CTL(cpu_transcoder), tmp);
 	intel_display_power_put(dev_priv, intel_encoder->power_domain);
 	return ret;
 }
@@ -3249,7 +3245,8 @@ static void intel_enable_ddi(struct intel_encoder *encoder,
 	/* Enable hdcp if it's desired */
 	if (conn_state->content_protection ==
 	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
-		intel_hdcp_enable(to_intel_connector(conn_state->connector));
+		intel_hdcp_enable(to_intel_connector(conn_state->connector),
+				  crtc_state->cpu_transcoder);
 }
 
 static void intel_disable_ddi_dp(struct intel_encoder *encoder,
@@ -3307,16 +3304,18 @@ static void intel_ddi_update_pipe_dp(struct intel_encoder *encoder,
 	intel_edp_drrs_enable(intel_dp, crtc_state);
 }
 
-static void intel_ddi_update_pipe(struct intel_encoder *encoder,
-				  const struct intel_crtc_state *crtc_state,
-				  const struct drm_connector_state *conn_state)
+void intel_ddi_update_pipe(struct intel_encoder *encoder,
+			   const struct intel_crtc_state *crtc_state,
+			   const struct drm_connector_state *conn_state)
 {
-	if (!intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
+	if (!intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI) &&
+	    !intel_encoder_is_mst(encoder))
 		intel_ddi_update_pipe_dp(encoder, crtc_state, conn_state);
 
 	if (conn_state->content_protection ==
 	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
-		intel_hdcp_enable(to_intel_connector(conn_state->connector));
+		intel_hdcp_enable(to_intel_connector(conn_state->connector),
+				  crtc_state->cpu_transcoder);
 	else if (conn_state->content_protection ==
 		 DRM_MODE_CONTENT_PROTECTION_UNDESIRED)
 		intel_hdcp_disable(to_intel_connector(conn_state->connector));
@@ -3863,6 +3862,9 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 
 	drm_encoder_init(&dev_priv->drm, encoder, &intel_ddi_funcs,
 			 DRM_MODE_ENCODER_TMDS, "DDI %c", port_name(port));
+
+	mutex_init(&intel_dig_port->hdcp_mutex);
+	intel_dig_port->num_hdcp_streams = 0;
 
 	intel_encoder->hotplug = intel_ddi_hotplug;
 	intel_encoder->compute_output_type = intel_ddi_compute_output_type;

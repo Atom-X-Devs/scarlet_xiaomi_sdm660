@@ -755,6 +755,10 @@ static void sched_debug_header(struct seq_file *m)
 		"sysctl_sched_tunable_scaling",
 		sysctl_sched_tunable_scaling,
 		sched_tunable_scaling_names[sysctl_sched_tunable_scaling]);
+#ifdef CONFIG_SCHED_CORE
+	SEQ_printf(m, "  .%-40s: %d\n", "core_sched_enabled",
+		   !!static_branch_likely(&__sched_core_enabled));
+#endif
 	SEQ_printf(m, "\n");
 }
 
@@ -835,6 +839,7 @@ static int __init init_sched_debug_procfs(void)
 
 __initcall(init_sched_debug_procfs);
 
+#define __PS(S, F) SEQ_printf(m, "%-45s:%21Ld\n", S, (long long)(F))
 #define __P(F)	SEQ_printf(m, "%-45s:%21Ld\n",	     #F, (long long)F)
 #define   P(F)	SEQ_printf(m, "%-45s:%21Ld\n",	     #F, (long long)p->F)
 #define __PN(F)	SEQ_printf(m, "%-45s:%14Ld.%06ld\n", #F, SPLIT_NS((long long)F))
@@ -998,6 +1003,10 @@ void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
 		SEQ_printf(m, "%-45s:%21Ld\n",
 			   "clock-delta", (long long)(t1-t0));
 	}
+
+#ifdef CONFIG_SCHED_CORE
+	__PS("core_cookie", p->core_cookie);
+#endif
 
 	sched_show_numa(p, m);
 }

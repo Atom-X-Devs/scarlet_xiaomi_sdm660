@@ -36,6 +36,7 @@
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_crtc.h>
 #include <drm/drmP.h>
+#include <drm/drm_dp_mst_helper.h>
 
 #include "drm_crtc_helper_internal.h"
 
@@ -60,7 +61,7 @@ static struct drm_dp_aux_dev *drm_dp_aux_dev_get_by_minor(unsigned index)
 
 	mutex_lock(&aux_idr_mutex);
 	aux_dev = idr_find(&aux_idr, index);
-	if (!kref_get_unless_zero(&aux_dev->refcount))
+	if (aux_dev && !kref_get_unless_zero(&aux_dev->refcount))
 		aux_dev = NULL;
 	mutex_unlock(&aux_idr_mutex);
 
@@ -162,6 +163,7 @@ static ssize_t auxdev_read_iter(struct kiocb *iocb, struct iov_iter *to)
 		}
 
 		res = drm_dp_dpcd_read(aux_dev->aux, pos, buf, todo);
+
 		if (res <= 0)
 			break;
 
@@ -209,6 +211,7 @@ static ssize_t auxdev_write_iter(struct kiocb *iocb, struct iov_iter *from)
 		}
 
 		res = drm_dp_dpcd_write(aux_dev->aux, pos, buf, todo);
+
 		if (res <= 0)
 			break;
 

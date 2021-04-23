@@ -35,6 +35,12 @@
 
 #define VERSION "1.0"
 
+/* Add module param to control whether the controller is powered down during
+ * suspend. Default is False.
+ */
+static bool power_down_suspend;
+module_param(power_down_suspend, bool, 0644);
+
 static struct memory_type_mapping mem_type_mapping_tbl[] = {
 	{"ITCM", NULL, 0, 0xF0},
 	{"DTCM", NULL, 0, 0xF1},
@@ -74,6 +80,18 @@ static void btmrvl_sdio_card_reset(struct btmrvl_sdio_card *card)
 {
 	BT_ERR("resetting SDIO card!");
 	schedule_work(&card->reset_work);
+}
+
+static void btmrvl_sdio_cmd_timeout(struct hci_dev *hdev)
+{
+	struct btmrvl_private *priv = hci_get_drvdata(hdev);
+	struct btmrvl_sdio_card *card = priv->btmrvl_dev.card;
+
+	if (++card->cmd_timeout_cnt < 5)
+		return;
+
+	bt_dev_err(hdev, "Resetting due to command timeout");
+	btmrvl_sdio_card_reset(card);
 }
 
 static irqreturn_t btmrvl_wake_irq_bt(int irq, void *priv)
@@ -1583,6 +1601,12 @@ static int btmrvl_sdio_probe(struct sdio_func *func,
 		ret = -ENODEV;
 		goto disable_host_int;
 	}
+
+	if (power_down_suspend)
+		set_bit(HCI_QUIRK_POWER_DOWN_SYSTEM_SUSPEND,
+			&priv->btmrvl_dev.hcidev->quirks);
+
+	priv->btmrvl_dev.hcidev->cmd_timeout = btmrvl_sdio_cmd_timeout;
 
 	return 0;
 

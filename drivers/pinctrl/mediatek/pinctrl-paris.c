@@ -265,15 +265,13 @@ static int mtk_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 
 		break;
 	case PIN_CONFIG_OUTPUT:
-		err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DIR,
-				       MTK_OUTPUT);
-		if (err)
-			goto err;
-
 		err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DO,
 				       arg);
 		if (err)
 			goto err;
+
+		err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DIR,
+				       MTK_OUTPUT);
 		break;
 	case PIN_CONFIG_INPUT_SCHMITT_ENABLE:
 		/* arg = 1: Input mode & SMT enable ;
@@ -873,6 +871,8 @@ int mtk_paris_pinctrl_probe(struct platform_device *pdev,
 	}
 
 	hw->nbase = hw->soc->nbase_names;
+
+	spin_lock_init(&hw->lock);
 
 	err = mtk_pctrl_build_state(pdev);
 	if (err) {

@@ -35,8 +35,9 @@ int mtk_vcodec_init_enc_pm(struct mtk_vcodec_dev *mtkdev)
 		enc_clk->clk_info = devm_kcalloc(&pdev->dev,
 			enc_clk->clk_num, sizeof(*clk_info),
 			GFP_KERNEL);
-		if (!enc_clk->clk_info)
+		if (!enc_clk->clk_info) {
 			return -ENOMEM;
+		}
 	} else {
 		mtk_v4l2_err("Failed to get venc clock count");
 		return -EINVAL;
@@ -55,11 +56,12 @@ int mtk_vcodec_init_enc_pm(struct mtk_vcodec_dev *mtkdev)
 		if (IS_ERR(clk_info->vcodec_clk)) {
 			mtk_v4l2_err("venc devm_clk_get (%d)%s fail", i,
 				clk_info->clk_name);
-			return PTR_ERR(clk_info->vcodec_clk);
+			ret = PTR_ERR(clk_info->vcodec_clk);
+			return ret;
 		}
 	}
 
-	return ret;
+	return 0;
 }
 
 void mtk_vcodec_enc_clock_on(struct mtk_vcodec_pm *pm)
