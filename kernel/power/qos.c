@@ -267,7 +267,7 @@ static const struct file_operations pm_qos_debug_fops = {
 };
 
 static inline int pm_qos_set_value_for_cpus(struct pm_qos_constraints *c,
-		struct cpumask *cpus)
+		struct cpumask *cpus, bool dev_req)
 {
 	struct pm_qos_request *req = NULL;
 	int cpu;
@@ -280,6 +280,19 @@ static inline int pm_qos_set_value_for_cpus(struct pm_qos_constraints *c,
 
 	if (c != pm_qos_array[PM_QOS_CPU_DMA_LATENCY]->constraints)
 		return -EINVAL;
+
+	/*
+	 * pm_qos_set_value_for_cpus expects all c->list elements to be of type
+	 * pm_qos_request, however requests from device will contain elements
+	 * of type dev_pm_qos_request.
+	 * pm_qos_constraints.target_per_cpu can be accessed only for
+	 * constraints associated with one of the pm_qos_class and present in
+	 * pm_qos_array. Device requests are not associated with any of
+	 * pm_qos_class, therefore their target_per_cpu cannot be accessed. We
+	 * can safely skip updating target_per_cpu for device requests.
+	 */
+	if (dev_req)
+		return 0;
 
 	plist_for_each_entry(req, &c->list, node) {
 		for_each_cpu(cpu, &req->cpus_affine) {
@@ -357,7 +370,7 @@ int pm_qos_update_target(struct pm_qos_constraints *c, struct plist_node *node,
 	curr_value = pm_qos_get_value(c);
 	cpumask_clear(&cpus);
 	pm_qos_set_value(c, curr_value);
-	ret = pm_qos_set_value_for_cpus(c, &cpus);
+	ret = pm_qos_set_value_for_cpus(c, &cpus, dev_req);
 
 	spin_unlock_irqrestore(&pm_qos_lock, flags);
 
