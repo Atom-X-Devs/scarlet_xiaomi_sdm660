@@ -7353,6 +7353,35 @@ int l2cap_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr)
 	return exact ? lm1 : lm2;
 }
 
+/* TODO(b/168048314): Quick and dirty solution to prevent l2cap chan from
+ * accessing freed hci chan. See whether this helps with the crash and decide
+ * whether to keep or remove.
+ */
+void l2cap_notify_hci_chan_free(struct hci_chan *hchan)
+{
+	struct l2cap_chan *chan;
+	struct l2cap_conn *conn = NULL;
+	struct hci_conn *hcon = hchan->conn;
+	bool l2cap_chan_exists = false;
+
+	if (hcon)
+		conn = hcon->l2cap_data;
+
+	if (!conn)
+		return;
+
+	list_for_each_entry(chan, &conn->chan_l, list) {
+		chan->hs_hchan = NULL;
+		l2cap_chan_exists = true;
+	}
+
+	if (l2cap_chan_exists)
+		BT_ERR("L2CAP chan isn't freed yet when HCI chan is freed");
+
+	if (conn->hchan)
+		conn->hchan = NULL;
+}
+
 /* Find the next fixed channel in BT_LISTEN state, continue iteration
  * from an existing channel in the list or from the beginning of the
  * global list (by passing NULL as first parameter).

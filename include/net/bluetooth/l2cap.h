@@ -950,4 +950,6 @@ void l2cap_conn_put(struct l2cap_conn *conn);
 int l2cap_register_user(struct l2cap_conn *conn, struct l2cap_user *user);
 void l2cap_unregister_user(struct l2cap_conn *conn, struct l2cap_user *user);
 
+void l2cap_notify_hci_chan_free(struct hci_chan *hchan);
+
 #endif /* __L2CAP_H */

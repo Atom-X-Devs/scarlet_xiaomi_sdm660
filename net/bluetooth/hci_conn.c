@@ -1779,6 +1779,8 @@ void hci_chan_del(struct hci_chan *chan)
 
 	BT_DBG("%s hcon %p chan %p", hdev->name, conn, chan);
 
+	l2cap_notify_hci_chan_free(chan);
+
 	list_del_rcu(&chan->list);
 
 	synchronize_rcu();

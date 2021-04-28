@@ -4377,7 +4377,15 @@ static void hci_queue_acl(struct hci_chan *chan, struct sk_buff_head *queue,
 
 void hci_send_acl(struct hci_chan *chan, struct sk_buff *skb, __u16 flags)
 {
-	struct hci_dev *hdev = chan->conn->hdev;
+	struct hci_dev *hdev;
+
+	if (!chan) {
+		BT_ERR("Failed to send hci, chan is NULL");
+		kfree_skb(skb);
+		return;
+	}
+
+	hdev = chan->conn->hdev;
 
 	BT_DBG("%s chan %p flags 0x%4.4x", hdev->name, chan, flags);
 
