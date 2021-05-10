@@ -883,7 +883,7 @@ static int stm_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
  *    0 |  1  |  0  |  0  |  4
  *    0 |  1  |  0  |  1  |  5
  *    0 |  1  |  1  |  0  |  6
- *    0 |  1  |  1  |  0  |  7
+ *    0 |  1  |  1  |  1  |  7
  *   .....................|  differ by 35/32f, not used
  *    1 |  1  |  1  |  1  |  ALL
  */
@@ -906,7 +906,8 @@ static int mx_get_locked_len(struct spi_nor *nor, u8 sr, uint64_t *lock_len)
 		/* sorry, not supported yet */
 		return -ENOTSUPP;
 	} else {
-		*lock_len = bp ? (1 << (bp - 1)) : 0;
+		/* 64Kib block size harcoded */
+		*lock_len = bp ? (1ULL << (bp + 15)) : 0;
 		return 0;
 	}
 }
@@ -916,9 +917,14 @@ static int mx_set_prot_level(struct spi_nor *nor, uint64_t lock_len, u8 *sr)
 	uint64_t new_len;
 	u8 new_lvl;
 
-	/* 64Kib block size harcoded */
-	new_lvl = ilog2(lock_len) - 15;
-	new_len = 1ULL << (15 + new_lvl);
+	if (lock_len) {
+		/* 64Kib block size harcoded */
+		new_lvl = ilog2(lock_len) - 15;
+		new_len = 1ULL << (15 + new_lvl);
+	} else {
+		new_lvl = 0;
+		new_len = 0;
+	}
 
 	if (new_len != lock_len)
 		return -EINVAL;
@@ -3056,15 +3062,15 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	mtd->_resume = spi_nor_resume;
 
 	/* NOR protection support for STmicro/Micron chips and similar */
-	if (JEDEC_MFR(info) == SNOR_MFR_MICRON ||
+	if (JEDEC_MFR(info) == SNOR_MFR_MACRONIX && info->flags & SPI_NOR_HAS_LOCK) {
+		nor->flash_lock = mx_lock;
+		nor->flash_unlock = mx_unlock;
+		nor->flash_is_locked = mx_is_locked;
+	} else if (JEDEC_MFR(info) == SNOR_MFR_MICRON ||
 			info->flags & SPI_NOR_HAS_LOCK) {
 		nor->flash_lock = stm_lock;
 		nor->flash_unlock = stm_unlock;
 		nor->flash_is_locked = stm_is_locked;
-	} else if (JEDEC_MFR(info) == SNOR_MFR_MACRONIX && info->flags & SPI_NOR_HAS_LOCK) {
-		nor->flash_lock = mx_lock;
-		nor->flash_unlock = mx_unlock;
-		nor->flash_is_locked = mx_is_locked;
 	}
 
 	if (nor->flash_lock && nor->flash_unlock && nor->flash_is_locked) {
