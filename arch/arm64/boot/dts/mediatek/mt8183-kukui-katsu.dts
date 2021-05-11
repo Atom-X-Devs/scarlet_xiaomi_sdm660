@@ -32,3 +32,7 @@
 &panel {
 	compatible = "starry,2081101qfh032011-53g";
 };
+
+&qca_wifi {
+	qcom,ath10k-calibration-variant = "GO_KATSU";
+};
