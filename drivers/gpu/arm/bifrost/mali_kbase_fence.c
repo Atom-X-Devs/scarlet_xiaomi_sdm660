@@ -74,35 +74,12 @@ kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
 #endif
 }
 
-static signed long
-kbase_fence_wait_workaround(struct dma_fence *fence,
-			    bool intr,
-			    signed long timeout)
-{
-	/* TODO(fshao): b:175656896: sometimes the screen hangs because the DMA
-	 * fences don't get signaled, which triggers system reboot in the end.
-	 *
-	 * This is a workaround to shorten the wait time of the fence, so the
-	 * screen can recover from hanging when the issue happens.
-	 *
-	 * To properly address this issue we need to first find out which
-	 * component is responsible for signaling the Mali DMA fences, but
-	 * unfortunately there's no easy way to do that AFAIK.
-	 */
-	signed long ret;
-
-	ret = dma_fence_default_wait(fence, intr, msecs_to_jiffies(100));
-	if (ret == 0)
-		pr_err("%s: dma fence wait timed out.", __func__);
-	return ret;
-}
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
 const struct fence_ops kbase_fence_ops = {
 	.wait = fence_default_wait,
 #else
 const struct dma_fence_ops kbase_fence_ops = {
-	.wait = kbase_fence_wait_workaround,
+	.wait = dma_fence_default_wait,
 #endif
 	.get_driver_name = kbase_fence_get_driver_name,
 	.get_timeline_name = kbase_fence_get_timeline_name,
