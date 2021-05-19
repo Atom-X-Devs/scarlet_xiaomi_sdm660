@@ -836,7 +836,7 @@ bool kbase_has_exec_va_zone(struct kbase_context *kctx)
  *
  * Return: true if any allocs exist on any zone, false otherwise
  */
-bool kbase_region_tracker_has_allocs(struct kbase_context *kctx)
+static bool kbase_region_tracker_has_allocs(struct kbase_context *kctx)
 {
 	unsigned int zone_idx;
 
