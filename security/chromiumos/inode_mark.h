@@ -32,6 +32,8 @@ enum chromiumos_inode_security_policy {
 enum chromiumos_inode_security_policy_type {
 	CHROMIUMOS_SYMLINK_TRAVERSAL = 0,
 	CHROMIUMOS_FIFO_ACCESS,
+	CHROMIUMOS_BLKDEV_ACCESS,
+	CHROMIUMOS_NVME_IOCTL_IO_ACCESS,
 	CHROMIUMOS_NUMBER_OF_POLICIES, /* Do not add entries after this line. */
 };
 

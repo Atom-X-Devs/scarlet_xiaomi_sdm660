@@ -222,7 +222,7 @@ chromiumos_inode_mark_create(
 
 	inode_mark->policies[type] = policy;
 	ret = fsnotify_add_mark_locked(&inode_mark->mark, &inode->i_fsnotify_marks,
-				       type, false);
+				       FSNOTIFY_OBJ_TYPE_INODE, false);
 	if (ret)
 		goto out;
 
