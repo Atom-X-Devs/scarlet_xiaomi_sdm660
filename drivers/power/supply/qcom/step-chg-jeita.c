@@ -873,10 +873,18 @@ int qcom_step_chg_init(struct device *dev,
 
 	chip->jeita_fcc_config->param.psy_prop = POWER_SUPPLY_PROP_TEMP;
 	chip->jeita_fcc_config->param.prop_name = "BATT_TEMP";
+#ifdef CONFIG_XIAOMI_SDM660
+	chip->jeita_fcc_config->param.hysteresis = 0;
+#else
 	chip->jeita_fcc_config->param.hysteresis = 10;
+#endif
 	chip->jeita_fv_config->param.psy_prop = POWER_SUPPLY_PROP_TEMP;
 	chip->jeita_fv_config->param.prop_name = "BATT_TEMP";
+#ifdef CONFIG_XIAOMI_SDM660
+	chip->jeita_fv_config->param.hysteresis = 0;
+#else
 	chip->jeita_fv_config->param.hysteresis = 10;
+#endif
 
 	INIT_DELAYED_WORK(&chip->status_change_work, status_change_work);
 	INIT_DELAYED_WORK(&chip->get_config_work, get_config_work);
