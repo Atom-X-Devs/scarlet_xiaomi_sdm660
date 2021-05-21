@@ -913,6 +913,16 @@ int fg_get_msoc(struct fg_dev *fg, int *msoc)
 		*msoc = 100;
 	else if (*msoc == 0)
 		*msoc = 0;
+#ifdef CONFIG_XIAOMI_WAYNE
+	else if (*msoc >= FULL_SOC_REPORT_THR - 2 &&
+		 *msoc < FULL_SOC_RAW && fg->report_full) {
+		*msoc = DIV_ROUND_CLOSEST(*msoc * FULL_CAPACITY, FULL_SOC_RAW) + 1;
+		if (*msoc >= FULL_CAPACITY)
+			*msoc = FULL_CAPACITY;
+	} else if (*msoc >= FULL_SOC_REPORT_THR - 4 &&
+		   *msoc <= FULL_SOC_REPORT_THR - 3 && fg->report_full)
+		*msoc = DIV_ROUND_CLOSEST(*msoc * FULL_CAPACITY, FULL_SOC_RAW);
+#endif
 	else
 		*msoc = DIV_ROUND_CLOSEST((*msoc - 1) * (FULL_CAPACITY - 2),
 				FULL_SOC_RAW - 2) + 1;
