@@ -615,6 +615,30 @@ static int fg_get_battery_temp(struct fg_dev *fg, int *val)
 
 	/* Value is in Kelvin; Convert it to deciDegC */
 	temp = (temp - 273) * 10;
+#ifdef CONFIG_XIAOMI_WAYNE
+	if (temp < -80) {
+		switch (temp) {
+		case -90:
+			temp = -110;
+			break;
+		case -100:
+			temp = -120;
+			break;
+		case -110:
+			temp = -130;
+			break;
+		case -120:
+			temp = -150;
+			break;
+		case -130:
+			temp = -170;
+			break;
+		default:
+			temp -= 50;
+			break;
+		};
+	}
+#endif
 	*val = temp;
 	return 0;
 }
@@ -1854,10 +1878,17 @@ static int fg_adjust_recharge_voltage(struct fg_dev *fg)
 
 	recharge_volt_mv = chip->dt.recharge_volt_thr_mv;
 
+#ifdef CONFIG_XIAOMI_WAYNE
+	if (fg->health == POWER_SUPPLY_HEALTH_WARM)
+		recharge_volt_mv = 4050;
+	if (fg->health == POWER_SUPPLY_HEALTH_COOL)
+		recharge_volt_mv = 4280;
+#else
 	/* Lower the recharge voltage in soft JEITA */
 	if (fg->health == POWER_SUPPLY_HEALTH_WARM ||
 			fg->health == POWER_SUPPLY_HEALTH_COOL)
 		recharge_volt_mv -= 200;
+#endif
 
 	rc = fg_set_recharge_voltage(fg, recharge_volt_mv);
 	if (rc < 0) {
@@ -2598,6 +2629,9 @@ static void status_change_work(struct work_struct *work)
 			struct fg_dev, status_change_work);
 	union power_supply_propval prop = {0, };
 	int rc, batt_temp;
+#ifdef CONFIG_XIAOMI_WAYNE
+	int msoc;
+#endif
 
 	if (!batt_psy_initialized(fg)) {
 		fg_dbg(fg, FG_STATUS, "Charger not available?!\n");
@@ -2639,6 +2673,18 @@ static void status_change_work(struct work_struct *work)
 	fg->charge_done = prop.intval;
 	fg_cycle_counter_update(fg);
 	fg_cap_learning_update(fg);
+
+#ifdef CONFIG_XIAOMI_WAYNE
+	if (fg->charge_done && !fg->report_full)
+		fg->report_full = true;
+	else if (!fg->charge_done && fg->report_full) {
+		rc = fg_get_msoc_raw(fg, &msoc);
+		if (rc < 0)
+			pr_err("Error in getting msoc, rc=%d\n", rc);
+		if (msoc < FULL_SOC_REPORT_THR - 4)
+			fg->report_full = false;
+	}
+#endif
 
 	rc = fg_charge_full_update(fg);
 	if (rc < 0)
@@ -4182,6 +4228,9 @@ static int fg_hw_init(struct fg_dev *fg)
 	if (chip->dt.delta_soc_thr > 0 && chip->dt.delta_soc_thr < 100) {
 		fg_encode(fg->sp, FG_SRAM_DELTA_MSOC_THR,
 			chip->dt.delta_soc_thr, buf);
+#ifdef CONFIG_XIAOMI_WAYNE
+		buf[0] = 0x8;
+#endif
 		rc = fg_sram_write(fg,
 				fg->sp[FG_SRAM_DELTA_MSOC_THR].addr_word,
 				fg->sp[FG_SRAM_DELTA_MSOC_THR].addr_byte,
@@ -4416,6 +4465,14 @@ static int fg_hw_init(struct fg_dev *fg)
 			return rc;
 		}
 	}
+
+#ifdef CONFIG_XIAOMI_SDM660
+	buf[0] = 0x33;
+	buf[1] = 0x3;
+	rc = fg_sram_write(fg, 4, 0, buf, 2, FG_IMA_DEFAULT);
+	if (rc < 0)
+		pr_err("Error in configuring Sram, rc=%d\n", rc);
+#endif
 
 	return 0;
 }
@@ -5076,7 +5133,11 @@ static int fg_parse_dt(struct fg_gen3_chip *chip)
 	if (rc < 0)
 		chip->dt.sys_term_curr_ma = DEFAULT_SYS_TERM_CURR_MA;
 	else
+#ifdef CONFIG_XIAOMI_SDM660
+		chip->dt.sys_term_curr_ma = -temp;
+#else
 		chip->dt.sys_term_curr_ma = temp;
+#endif
 
 	rc = of_property_read_u32(node, "qcom,fg-chg-term-base-current", &temp);
 	if (rc < 0)

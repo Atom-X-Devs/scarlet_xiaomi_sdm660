@@ -533,6 +533,10 @@ static int pre_chg_current[] = {
 	200, 300, 400, 500, 600, 700,
 };
 
+#ifdef CONFIG_XIAOMI_SDM660
+static bool is_global_version;
+#endif
+
 static int smb1351_read_reg(struct smb1351_charger *chip, int reg, u8 *val)
 {
 	s32 ret;
@@ -2727,6 +2731,16 @@ static int is_parallel_charger(struct i2c_client *client)
 	return of_property_read_bool(node, "qcom,parallel-charger");
 }
 
+#ifdef CONFIG_XIAOMI_SDM660
+static int __init hwc_setup(char *s)
+{
+	is_global_version = !strcmp(s, "Global");
+	return 1;
+}
+
+__setup("androidboot.hwc=", hwc_setup);
+#endif
+
 static int create_debugfs_entries(struct smb1351_charger *chip)
 {
 	struct dentry *ent;
@@ -2944,6 +2958,13 @@ static int smb1351_parallel_charger_probe(struct i2c_client *client,
 	struct device_node *node = client->dev.of_node;
 	struct power_supply_config parallel_psy_cfg = {};
 
+#ifdef CONFIG_XIAOMI_SDM660
+	if (is_global_version && !IS_ENABLED(CONFIG_XIAOMI_WAYNE)) {
+		pr_info("Global version doesn't have smb1351 regulator, skipping probe\n");
+		return -ENODEV;
+	}
+#endif
+
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;
@@ -3117,7 +3138,29 @@ static struct i2c_driver smb1351_charger_driver = {
 	.id_table	= smb1351_charger_id,
 };
 
+#ifdef CONFIG_XIAOMI_SDM660
+static int __init smb1351_charger_init(void)
+{
+	struct power_supply *pl_psy = power_supply_get_by_name("parallel");
+
+	if (pl_psy) {
+		pr_info("Another parallel driver has been registered\n");
+		return -ENOENT;
+	}
+
+	return i2c_add_driver(&smb1351_charger_driver);
+}
+
+static void __exit smb1351_charger_exit(void)
+{
+	i2c_del_driver(&smb1351_charger_driver);
+}
+
+late_initcall(smb1351_charger_init);
+module_exit(smb1351_charger_exit);
+#else
 module_i2c_driver(smb1351_charger_driver);
+#endif
 
 MODULE_DESCRIPTION("smb1351 Charger");
 MODULE_LICENSE("GPL v2");
