@@ -2020,12 +2020,12 @@ inline unsigned long node_shrink_slab(struct pglist_data *node,
 {
 	int i;
 
-	for (i = 1; i <= DEF_PRIORITY; i++) {
-		if (total >> i < scanned)
+	for (i = 0; i < DEF_PRIORITY; i++) {
+		if (total >> i <= scanned)
 			break;
 	}
 
-	return shrink_slab(gfp_mask, node->node_id, NULL, i - 1);
+	return shrink_slab(gfp_mask, node->node_id, NULL, i);
 }
 #endif
 
