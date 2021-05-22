@@ -74,7 +74,6 @@ static struct vfsmount *shm_mnt;
 #include <linux/magic.h>
 #include <linux/syscalls.h>
 #include <linux/fcntl.h>
-#include <linux/mm_metrics.h>
 #include <uapi/linux/memfd.h>
 #include <linux/userfaultfd_k.h>
 #include <linux/rmap.h>
@@ -363,7 +362,7 @@ static bool shmem_confirm_swap(struct address_space *mapping,
 	rcu_read_lock();
 	item = radix_tree_lookup(&mapping->i_pages, index);
 	rcu_read_unlock();
-	return swp_radix_same(swap, item);
+	return item == swp_to_radix_entry(swap);
 }
 
 /*
@@ -1115,8 +1114,7 @@ static void shmem_evict_inode(struct inode *inode)
 	clear_inode(inode);
 }
 
-static unsigned long find_swap_entry(struct radix_tree_root *root,
-				     swp_entry_t swap, void **item)
+static unsigned long find_swap_entry(struct radix_tree_root *root, void *item)
 {
 	struct radix_tree_iter iter;
 	void __rcu **slot;
@@ -1131,8 +1129,7 @@ static unsigned long find_swap_entry(struct radix_tree_root *root,
 			slot = radix_tree_iter_retry(&iter);
 			continue;
 		}
-		if (swp_radix_same(swap, entry)) {
-			*item = entry;
+		if (entry == item) {
 			found = iter.index;
 			break;
 		}
@@ -1159,7 +1156,8 @@ static int shmem_unuse_inode(struct shmem_inode_info *info,
 	gfp_t gfp;
 	int error = 0;
 
-	index = find_swap_entry(&mapping->i_pages, swap, &radswap);
+	radswap = swp_to_radix_entry(swap);
+	index = find_swap_entry(&mapping->i_pages, radswap);
 	if (index == -1)
 		return -EAGAIN;	/* tell shmem_unuse we found nothing */
 
@@ -1238,7 +1236,7 @@ int shmem_unuse(swp_entry_t swap, struct page *page)
 	 * There's a faint possibility that swap page was replaced before
 	 * caller locked it: caller will come back later with the right page.
 	 */
-	if (unlikely(!PageSwapCache(page) || !swp_page_same(swap, page)))
+	if (unlikely(!PageSwapCache(page) || page_private(page) != swap.val))
 		goto out;
 
 	/*
@@ -1368,7 +1366,6 @@ static int shmem_writepage(struct page *page, struct writeback_control *wbc)
 		spin_unlock_irq(&info->lock);
 
 		swap_shmem_alloc(swap);
-		mm_metrics_swapout(&swap);
 		shmem_delete_from_page_cache(page, swp_to_radix_entry(swap));
 
 		mutex_unlock(&shmem_swaplist_mutex);
@@ -1687,13 +1684,9 @@ repeat:
 	charge_mm = vma ? vma->vm_mm : current->mm;
 
 	if (swap.val) {
-		u64 start = 0;
-
-		mm_metrics_swapin(swap);
 		/* Look it up and read it in.. */
 		page = lookup_swap_cache(swap, NULL, 0);
 		if (!page) {
-			start = mm_metrics_swapin_start();
 			/* Or update major stats only when swapin succeeds?? */
 			if (fault_type) {
 				*fault_type |= VM_FAULT_MAJOR;
@@ -1710,7 +1703,7 @@ repeat:
 
 		/* We have to do this with page locked to prevent races */
 		lock_page(page);
-		if (!PageSwapCache(page) || !swp_page_same(swap, page) ||
+		if (!PageSwapCache(page) || page_private(page) != swap.val ||
 		    !shmem_confirm_swap(mapping, index, swap)) {
 			error = -EEXIST;	/* try again */
 			goto unlock;
@@ -1719,7 +1712,6 @@ repeat:
 			error = -EIO;
 			goto failed;
 		}
-		mm_metrics_swapin_end(start);
 		wait_on_page_writeback(page);
 
 		if (shmem_should_replace_page(page, gfp)) {
