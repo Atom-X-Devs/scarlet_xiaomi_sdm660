@@ -36,6 +36,7 @@
 #include <linux/cleancache.h>
 #include <linux/shmem_fs.h>
 #include <linux/rmap.h>
+#include <linux/kstaled.h>
 #include <linux/delayacct.h>
 #include <linux/psi.h>
 #include "internal.h"
