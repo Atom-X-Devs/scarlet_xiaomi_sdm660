@@ -12,6 +12,7 @@
 extern unsigned long low_mem_thresholds[];
 extern unsigned int low_mem_threshold_count;
 extern unsigned int low_mem_threshold_last;
+void low_mem_notify(void);
 extern const struct file_operations low_mem_notify_fops;
 extern bool low_mem_margin_enabled;
 extern unsigned long low_mem_lowest_seen_anon_mem;
@@ -84,8 +85,6 @@ static inline unsigned long get_available_mem_adj(void)
 }
 
 #ifdef CONFIG_LOW_MEM_NOTIFY
-void low_mem_notify(void);
-
 extern atomic_t in_low_mem_check;
 
 /*
@@ -143,10 +142,6 @@ static inline bool low_mem_check(void)
 	return is_low_mem;
 }
 #else
-static inline void low_mem_notify(void)
-{
-}
-
 static inline bool low_mem_check(void)
 {
 	return false;
