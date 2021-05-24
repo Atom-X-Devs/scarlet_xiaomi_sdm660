@@ -1170,8 +1170,8 @@ int compat_ksys_clock_adjtime(clockid_t which_clock, struct compat_timex __user 
 
 	err = kc->clock_adj(which_clock, &ktx);
 
-	if (err >= 0)
-		err = compat_put_timex(utp, &ktx);
+	if (err >= 0 && compat_put_timex(utp, &ktx))
+		return -EFAULT;
 
 	return err;
 }
