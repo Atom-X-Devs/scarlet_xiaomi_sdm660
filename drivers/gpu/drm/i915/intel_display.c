@@ -3991,8 +3991,6 @@ static void intel_update_pipe_config(const struct intel_crtc_state *old_crtc_sta
 
 	/* on skylake this is done by detaching scalers */
 	if (INTEL_GEN(dev_priv) >= 9) {
-		skl_detach_scalers(crtc);
-
 		if (new_crtc_state->pch_pfit.enabled)
 			skylake_pfit_enable(crtc);
 	} else if (HAS_PCH_SPLIT(dev_priv)) {
@@ -13524,8 +13522,6 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 
 	if (intel_cstate->update_pipe)
 		intel_update_pipe_config(old_intel_cstate, intel_cstate);
-	else if (INTEL_GEN(dev_priv) >= 9)
-		skl_detach_scalers(intel_crtc);
 
 out:
 	if (dev_priv->display.atomic_update_watermarks)
@@ -13549,6 +13545,19 @@ void intel_crtc_arm_fifo_underrun(struct intel_crtc *crtc,
 	}
 }
 
+static void commit_pipe_post_plane_update(struct intel_atomic_state *state,
+					  struct intel_crtc *crtc)
+{
+	struct drm_i915_private *dev_priv = to_i915(state->base.dev);
+	const struct intel_crtc_state *new_crtc_state =
+		intel_atomic_get_new_crtc_state(state, crtc);
+	struct intel_crtc *new_crtc = to_intel_crtc(new_crtc_state->base.crtc);
+
+	if (INTEL_GEN(dev_priv) >= 9 &&
+	    !needs_modeset(&new_crtc_state->base))
+		skl_detach_scalers(new_crtc);
+}
+
 static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 				     struct drm_crtc_state *old_crtc_state)
 {
@@ -13557,6 +13566,8 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 		to_intel_atomic_state(old_crtc_state->state);
 	struct intel_crtc_state *new_crtc_state =
 		intel_atomic_get_new_crtc_state(old_intel_state, intel_crtc);
+
+	commit_pipe_post_plane_update(old_intel_state, intel_crtc);
 
 	intel_pipe_update_end(new_crtc_state);
 
