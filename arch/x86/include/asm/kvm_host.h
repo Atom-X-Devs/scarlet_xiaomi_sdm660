@@ -296,11 +296,6 @@ struct kvm_mmu_page {
 	bool unsync;
 	bool lpage_disallowed; /* Can't be replaced by an equiv large page */
 	int root_count;          /* Currently serving as active root */
-#ifdef CONFIG_KSTALED
-	atomic_t ref_count;
-	struct rcu_head rcu_head;
-	struct list_head pgtbl_lh;
-#endif
 	unsigned int unsync_children;
 	struct kvm_rmap_head parent_ptes; /* rmap pointers to parent sptes */
 
@@ -887,10 +882,6 @@ struct kvm_arch {
 	bool guest_can_read_msr_platform_info;
 
 	struct task_struct *nx_lpage_recovery_thread;
-#ifdef CONFIG_KSTALED
-	spinlock_t pgtbl_list_lock;
-	struct list_head pgtbl_list;
-#endif
 };
 
 struct kvm_vm_stat {
@@ -1474,12 +1465,14 @@ asmlinkage void __noreturn kvm_spurious_fault(void);
 	____kvm_handle_fault_on_reboot(insn, "")
 
 #define KVM_ARCH_WANT_MMU_NOTIFIER
-int kvm_unmap_hva_range(struct kvm *kvm, unsigned long start, unsigned long end);
+int kvm_unmap_hva_range(struct kvm *kvm, unsigned long start, unsigned long end,
+			bool blockable);
 int kvm_age_hva(struct kvm *kvm, unsigned long start, unsigned long end);
 int kvm_test_age_hva(struct kvm *kvm, unsigned long hva);
 void kvm_set_spte_hva(struct kvm *kvm, unsigned long hva, pte_t pte);
 int kvm_cpu_has_injectable_intr(struct kvm_vcpu *v);
 int kvm_cpu_has_interrupt(struct kvm_vcpu *vcpu);
+int kvm_cpu_has_extint(struct kvm_vcpu *v);
 int kvm_arch_interrupt_allowed(struct kvm_vcpu *vcpu);
 int kvm_cpu_get_interrupt(struct kvm_vcpu *v);
 void kvm_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event);

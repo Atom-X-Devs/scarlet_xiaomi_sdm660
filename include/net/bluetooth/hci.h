@@ -225,6 +225,9 @@ enum {
 	 * supported.
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
+
+	/* This quirk will be set when running on Intel StP controller */
+	HCI_QUIRK_INTEL_STP_CONTROLLER,
 };
 
 /* HCI device flags */
@@ -299,13 +302,16 @@ enum {
 	HCI_BREDR_ENABLED,
 	HCI_LE_SCAN_INTERRUPTED,
 	HCI_WIDEBAND_SPEECH_ENABLED,
+	HCI_EVENT_FILTER_CONFIGURED,
 
 	HCI_DUT_MODE,
 	HCI_VENDOR_DIAG,
 	HCI_FORCE_BREDR_SMP,
 	HCI_FORCE_STATIC_ADDR,
 	HCI_LL_RPA_RESOLUTION,
+	HCI_ENABLE_LL_PRIVACY,
 	HCI_CMD_PENDING,
+	HCI_FORCE_NO_MITM,
 
 	__HCI_NUM_FLAGS,
 };
@@ -315,6 +321,7 @@ enum {
 #define HCI_PAIRING_TIMEOUT	msecs_to_jiffies(60000)	/* 60 seconds */
 #define HCI_INIT_TIMEOUT	msecs_to_jiffies(10000)	/* 10 seconds */
 #define HCI_CMD_TIMEOUT		msecs_to_jiffies(2000)	/* 2 seconds */
+#define HCI_NCMD_TIMEOUT	msecs_to_jiffies(4000)	/* 4 seconds */
 #define HCI_ACL_TX_TIMEOUT	msecs_to_jiffies(45000)	/* 45 seconds */
 #define HCI_AUTO_OFF_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
 #define HCI_POWER_OFF_TIMEOUT	msecs_to_jiffies(5000)	/* 5 seconds */
@@ -456,6 +463,8 @@ enum {
 #define HCI_LE_SLAVE_FEATURES		0x08
 #define HCI_LE_PING			0x10
 #define HCI_LE_DATA_LEN_EXT		0x20
+#define HCI_LE_LL_PRIVACY		0x40
+#define HCI_LE_EXT_SCAN_POLICY		0x80
 #define HCI_LE_PHY_2M			0x01
 #define HCI_LE_PHY_CODED		0x08
 #define HCI_LE_EXT_ADV			0x10
@@ -1578,6 +1587,20 @@ struct hci_cp_le_write_def_data_len {
 	__le16	tx_time;
 } __packed;
 
+#define HCI_OP_LE_ADD_TO_RESOLV_LIST	0x2027
+struct hci_cp_le_add_to_resolv_list {
+	__u8	 bdaddr_type;
+	bdaddr_t bdaddr;
+	__u8	 peer_irk[16];
+	__u8	 local_irk[16];
+} __packed;
+
+#define HCI_OP_LE_DEL_FROM_RESOLV_LIST	0x2028
+struct hci_cp_le_del_from_resolv_list {
+	__u8	 bdaddr_type;
+	bdaddr_t bdaddr;
+} __packed;
+
 #define HCI_OP_LE_CLEAR_RESOLV_LIST	0x2029
 
 #define HCI_OP_LE_READ_RESOLV_LIST_SIZE	0x202a
@@ -1587,6 +1610,8 @@ struct hci_rp_le_read_resolv_list_size {
 } __packed;
 
 #define HCI_OP_LE_SET_ADDR_RESOLV_ENABLE 0x202d
+
+#define HCI_OP_LE_SET_RPA_TIMEOUT	0x202e
 
 #define HCI_OP_LE_READ_MAX_DATA_LEN	0x202f
 struct hci_rp_le_read_max_data_len {
@@ -1732,6 +1757,13 @@ struct hci_cp_le_set_ext_scan_rsp_data {
 struct hci_cp_le_set_adv_set_rand_addr {
 	__u8  handle;
 	bdaddr_t  bdaddr;
+} __packed;
+
+#define HCI_OP_LE_READ_TRANSMIT_POWER	0x204b
+struct hci_rp_le_read_transmit_power {
+	__u8  status;
+	__s8  min_le_tx_power;
+	__s8  max_le_tx_power;
 } __packed;
 
 /* ---- HCI Events ---- */
@@ -2139,8 +2171,10 @@ struct hci_ev_le_conn_complete {
 #define LE_EXT_ADV_SCAN_RSP		0x0008
 #define LE_EXT_ADV_LEGACY_PDU		0x0010
 
-#define ADDR_LE_DEV_PUBLIC	0x00
-#define ADDR_LE_DEV_RANDOM	0x01
+#define ADDR_LE_DEV_PUBLIC		0x00
+#define ADDR_LE_DEV_RANDOM		0x01
+#define ADDR_LE_DEV_PUBLIC_RESOLVED	0x02
+#define ADDR_LE_DEV_RANDOM_RESOLVED	0x03
 
 #define HCI_EV_LE_ADVERTISING_REPORT	0x02
 struct hci_ev_le_advertising_info {

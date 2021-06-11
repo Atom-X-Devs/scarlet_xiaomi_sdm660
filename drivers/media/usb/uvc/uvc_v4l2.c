@@ -242,6 +242,12 @@ static int uvc_v4l2_try_format(struct uvc_streaming *stream,
 	 * the Windows driver).
 	 */
 	mutex_lock(&stream->mutex);
+	if (!video_is_registered(&stream->vdev)) {
+		mutex_unlock(&stream->mutex);
+		ret = -ENODEV;
+		goto done;
+	}
+
 	if (stream->dev->quirks & UVC_QUIRK_PROBE_EXTRAFIELDS)
 		probe->dwMaxVideoFrameSize =
 			stream->ctrl.dwMaxVideoFrameSize;
@@ -252,11 +258,41 @@ static int uvc_v4l2_try_format(struct uvc_streaming *stream,
 	if (ret < 0)
 		goto done;
 
+	/* After the probe, update fmt with the values returned from
+	 * negotiation with the device. Some devices return invalid bFormatIndex
+	 * and bFrameIndex values, in which case we can only assume they have
+	 * accepted the requested format as-is.
+	 */
+	for (i = 0; i < stream->nformats; ++i) {
+		if (probe->bFormatIndex == stream->format[i].index) {
+			format = &stream->format[i];
+			break;
+		}
+	}
+
+	if (i == stream->nformats)
+		uvc_trace(UVC_TRACE_FORMAT,
+			  "Unknown bFormatIndex %u, using default\n",
+			  probe->bFormatIndex);
+
+	for (i = 0; i < format->nframes; ++i) {
+		if (probe->bFrameIndex == format->frame[i].bFrameIndex) {
+			frame = &format->frame[i];
+			break;
+		}
+	}
+
+	if (i == format->nframes)
+		uvc_trace(UVC_TRACE_FORMAT,
+			  "Unknown bFrameIndex %u, using default\n",
+			  probe->bFrameIndex);
+
 	fmt->fmt.pix.width = frame->wWidth;
 	fmt->fmt.pix.height = frame->wHeight;
 	fmt->fmt.pix.field = V4L2_FIELD_NONE;
 	fmt->fmt.pix.bytesperline = uvc_v4l2_get_bytesperline(format, frame);
 	fmt->fmt.pix.sizeimage = probe->dwMaxVideoFrameSize;
+	fmt->fmt.pix.pixelformat = format->fcc;
 	fmt->fmt.pix.colorspace = format->colorspace;
 	fmt->fmt.pix.priv = 0;
 
@@ -280,6 +316,12 @@ static int uvc_v4l2_get_format(struct uvc_streaming *stream,
 		return -EINVAL;
 
 	mutex_lock(&stream->mutex);
+
+	if (!video_is_registered(&stream->vdev)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
 	format = stream->cur_format;
 	frame = stream->cur_frame;
 
@@ -318,6 +360,11 @@ static int uvc_v4l2_set_format(struct uvc_streaming *stream,
 		return ret;
 
 	mutex_lock(&stream->mutex);
+
+	if (!video_is_registered(&stream->vdev)) {
+		ret = -ENODEV;
+		goto done;
+	}
 
 	if (uvc_queue_allocated(&stream->queue)) {
 		ret = -EBUSY;
@@ -393,6 +440,11 @@ static int uvc_v4l2_set_streamparm(struct uvc_streaming *stream,
 		timeperframe.numerator, timeperframe.denominator, interval);
 
 	mutex_lock(&stream->mutex);
+
+	if (!video_is_registered(&stream->vdev)) {
+		mutex_unlock(&stream->mutex);
+		return -ENODEV;
+	}
 
 	if (uvc_queue_streaming(&stream->queue)) {
 		mutex_unlock(&stream->mutex);
@@ -533,6 +585,12 @@ static int uvc_v4l2_open(struct file *file)
 	}
 
 	mutex_lock(&stream->dev->lock);
+	if (!video_is_registered(&stream->vdev)) {
+		mutex_unlock(&stream->dev->lock);
+		usb_autopm_put_interface(stream->dev->intf);
+		kfree(handle);
+		return -ENODEV;
+	}
 	if (stream->dev->users == 0) {
 		ret = uvc_status_start(stream->dev, GFP_KERNEL);
 		if (ret < 0) {
@@ -575,7 +633,7 @@ static int uvc_v4l2_release(struct file *file)
 	file->private_data = NULL;
 
 	mutex_lock(&stream->dev->lock);
-	if (--stream->dev->users == 0)
+	if (--stream->dev->users == 0 && video_is_registered(&stream->vdev))
 		uvc_status_stop(stream->dev);
 	mutex_unlock(&stream->dev->lock);
 
@@ -720,6 +778,10 @@ static int uvc_ioctl_reqbufs(struct file *file, void *fh,
 		return ret;
 
 	mutex_lock(&stream->mutex);
+	if (!video_is_registered(&stream->vdev)) {
+		mutex_unlock(&stream->mutex);
+		return -ENODEV;
+	}
 	ret = uvc_request_buffers(&stream->queue, rb);
 	mutex_unlock(&stream->mutex);
 	if (ret < 0)
@@ -804,7 +866,12 @@ static int uvc_ioctl_streamon(struct file *file, void *fh,
 		return -EBUSY;
 
 	mutex_lock(&stream->mutex);
+	if (!video_is_registered(&stream->vdev)) {
+		ret = -ENODEV;
+		goto unlock;
+	}
 	ret = uvc_queue_streamon(&stream->queue, type);
+unlock:
 	mutex_unlock(&stream->mutex);
 
 	return ret;
@@ -815,15 +882,21 @@ static int uvc_ioctl_streamoff(struct file *file, void *fh,
 {
 	struct uvc_fh *handle = fh;
 	struct uvc_streaming *stream = handle->stream;
+	int ret = 0;
 
 	if (!uvc_has_privileges(handle))
 		return -EBUSY;
 
 	mutex_lock(&stream->mutex);
+	if (!video_is_registered(&stream->vdev)) {
+		ret = -ENODEV;
+		goto unlock;
+	}
 	uvc_queue_streamoff(&stream->queue, type);
+unlock:
 	mutex_unlock(&stream->mutex);
 
-	return 0;
+	return ret;
 }
 
 static int uvc_ioctl_enum_input(struct file *file, void *fh,
@@ -1111,14 +1184,74 @@ static int uvc_ioctl_querymenu(struct file *file, void *fh,
 	return uvc_query_v4l2_menu(chain, qm);
 }
 
-static int uvc_ioctl_g_selection(struct file *file, void *fh,
-				 struct v4l2_selection *sel)
+/* UVC 1.5 ROI rectangle is half the size of v4l2_rect */
+struct uvc_roi_rect {
+	__u16			top;
+	__u16			left;
+	__u16			bottom;
+	__u16			right;
+	__u16			auto_controls;
+} __packed;
+
+static int uvc_ioctl_g_roi_target(struct file *file, void *fh,
+				  struct v4l2_selection *sel)
 {
 	struct uvc_fh *handle = fh;
 	struct uvc_streaming *stream = handle->stream;
+	struct uvc_video_chain *chain = handle->chain;
+	struct uvc_roi_rect *roi;
+	u8 query;
+	int ret;
 
-	if (sel->type != stream->type)
+	switch (sel->target) {
+	case V4L2_SEL_TGT_ROI:
+		query = UVC_GET_CUR;
+		break;
+	case V4L2_SEL_TGT_ROI_DEFAULT:
+		query = UVC_GET_DEF;
+		break;
+	case V4L2_SEL_TGT_ROI_BOUNDS_MIN:
+		query = UVC_GET_MIN;
+		break;
+	case V4L2_SEL_TGT_ROI_BOUNDS_MAX:
+		query = UVC_GET_MAX;
+		break;
+	default:
 		return -EINVAL;
+	}
+
+	/* hcd requires transfer buffer to be DMA capable */
+	roi = kzalloc(sizeof(struct uvc_roi_rect), GFP_KERNEL);
+	if (!roi)
+		return -ENOMEM;
+
+	/*
+	 * Synchronize with uvc_ioctl_query_ext_ctrl() that can set
+	 * ROI auto_controls concurrently.
+	 */
+	mutex_lock(&chain->ctrl_mutex);
+
+	ret = uvc_query_ctrl(stream->dev, query, 1, stream->dev->intfnum,
+			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
+			     sizeof(struct uvc_roi_rect));
+	if (!ret) {
+		/* ROI left, top, right, bottom are global coordinates. */
+		sel->r.left	= roi->left;
+		sel->r.top	= roi->top;
+		sel->r.width	= roi->right - roi->left + 1;
+		sel->r.height	= roi->bottom - roi->top + 1;
+	}
+
+	mutex_unlock(&chain->ctrl_mutex);
+	kfree(roi);
+	return ret;
+}
+
+static int uvc_ioctl_g_sel_target(struct file *file, void *fh,
+				  struct v4l2_selection *sel)
+{
+	struct uvc_fh *handle = fh;
+	struct uvc_streaming *stream = handle->stream;
 
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP_DEFAULT:
@@ -1143,6 +1276,128 @@ static int uvc_ioctl_g_selection(struct file *file, void *fh,
 	mutex_unlock(&stream->mutex);
 
 	return 0;
+}
+
+static int uvc_ioctl_g_selection(struct file *file, void *fh,
+				 struct v4l2_selection *sel)
+{
+	struct uvc_fh *handle = fh;
+	struct uvc_streaming *stream = handle->stream;
+
+	if (sel->type != stream->type)
+		return -EINVAL;
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+		return uvc_ioctl_g_sel_target(file, fh, sel);
+	case V4L2_SEL_TGT_ROI:
+	case V4L2_SEL_TGT_ROI_DEFAULT:
+	case V4L2_SEL_TGT_ROI_BOUNDS_MIN:
+	case V4L2_SEL_TGT_ROI_BOUNDS_MAX:
+		return uvc_ioctl_g_roi_target(file, fh, sel);
+	}
+
+	return -EINVAL;
+}
+
+static void validate_roi_bounds(struct uvc_streaming *stream,
+				struct v4l2_selection *sel)
+{
+	lockdep_assert_held(&stream->mutex);
+
+	if (sel->r.left > USHRT_MAX)
+		sel->r.left = 0;
+
+	if (sel->r.top > USHRT_MAX)
+		sel->r.top = 0;
+
+	if (sel->r.width + sel->r.left > USHRT_MAX || !sel->r.width) {
+		sel->r.left = 0;
+		sel->r.width = stream->cur_frame->wWidth;
+	}
+
+	if (sel->r.height + sel->r.top > USHRT_MAX || !sel->r.height) {
+		sel->r.top = 0;
+		sel->r.height = stream->cur_frame->wHeight;
+	}
+}
+
+static int uvc_ioctl_s_roi(struct file *file, void *fh,
+			   struct v4l2_selection *sel)
+{
+	struct uvc_fh *handle = fh;
+	struct uvc_streaming *stream = handle->stream;
+	struct uvc_video_chain *chain = handle->chain;
+	struct uvc_roi_rect *roi;
+	int ret;
+
+	/* hcd requires transfer buffer to be DMA capable */
+	roi = kzalloc(sizeof(struct uvc_roi_rect), GFP_KERNEL);
+	if (!roi)
+		return -ENOMEM;
+
+	/*
+	 * Synchronize with uvc_ioctl_query_ext_ctrl() that can set
+	 * ROI auto_controls concurrently.
+	 */
+	mutex_lock(&chain->ctrl_mutex);
+
+	/*
+	 * Get current ROI configuration. We are especially interested in
+	 * ->auto_controls, because we will use GET_CUR ->auto_controls
+	 * value for SET_CUR. Some firmwares require sizeof(uvc_roi_rect)
+	 * to be 5 * sizeof(__u16) so we need to set correct rectangle
+	 * dimensions and correct auto_controls value.
+	 */
+	ret = uvc_query_ctrl(stream->dev, UVC_GET_CUR, 1, stream->dev->intfnum,
+			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
+			     sizeof(struct uvc_roi_rect));
+	if (ret)
+		goto out;
+
+	mutex_lock(&stream->mutex);
+
+	validate_roi_bounds(stream, sel);
+
+	/*
+	 * ROI left, top, right, bottom are global coordinates.
+	 * Note that we use ->auto_controls value which we read earlier.
+	 */
+	roi->left		= sel->r.left;
+	roi->top		= sel->r.top;
+	roi->right		= sel->r.width + sel->r.left - 1;
+	roi->bottom		= sel->r.height + sel->r.top - 1;
+
+	ret = uvc_query_ctrl(stream->dev, UVC_SET_CUR, 1, stream->dev->intfnum,
+			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
+			     sizeof(struct uvc_roi_rect));
+
+	mutex_unlock(&stream->mutex);
+
+out:
+	mutex_unlock(&chain->ctrl_mutex);
+	kfree(roi);
+	return ret;
+}
+
+static int uvc_ioctl_s_selection(struct file *file, void *fh,
+				 struct v4l2_selection *sel)
+{
+	struct uvc_fh *handle = fh;
+	struct uvc_streaming *stream = handle->stream;
+
+	if (sel->type != stream->type)
+		return -EINVAL;
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_ROI:
+		return uvc_ioctl_s_roi(file, fh, sel);
+	}
+
+	return -EINVAL;
 }
 
 static int uvc_ioctl_g_parm(struct file *file, void *fh,
@@ -1502,6 +1757,7 @@ const struct v4l2_ioctl_ops uvc_ioctl_ops = {
 	.vidioc_try_ext_ctrls = uvc_ioctl_try_ext_ctrls,
 	.vidioc_querymenu = uvc_ioctl_querymenu,
 	.vidioc_g_selection = uvc_ioctl_g_selection,
+	.vidioc_s_selection = uvc_ioctl_s_selection,
 	.vidioc_g_parm = uvc_ioctl_g_parm,
 	.vidioc_s_parm = uvc_ioctl_s_parm,
 	.vidioc_enum_framesizes = uvc_ioctl_enum_framesizes,

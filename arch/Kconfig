@@ -365,6 +365,13 @@ config HAVE_RCU_TABLE_FREE
 config HAVE_RCU_TABLE_INVALIDATE
 	bool
 
+config ARCH_WANT_IRQS_OFF_ACTIVATE_MM
+	bool
+	help
+	  Temporary select until all architectures can be converted to have
+	  irqs disabled over activate_mm. Architectures that do IPI based TLB
+	  shootdowns should enable this.
+
 config ARCH_HAVE_NMI_SAFE_CMPXCHG
 	bool
 
@@ -523,6 +530,15 @@ config HAVE_ARCH_TRANSPARENT_HUGEPAGE
 
 config HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD
 	bool
+
+config HAVE_ARCH_PARENT_PMD_YOUNG
+	bool
+	depends on PGTABLE_LEVELS > 2
+	help
+	  Architectures that select this are able to set the accessed bit on
+	  non-leaf PMD entries in addition to leaf PTE entries where pages are
+	  mapped. For them, page table walkers that clear the accessed bit may
+	  stop at non-leaf PMD entries if they do not see the accessed bit.
 
 config HAVE_ARCH_HUGE_VMAP
 	bool

@@ -27,7 +27,6 @@
  * This will move to the public headers once this API is fully stable.
  */
 #include <media/mpeg2-ctrls.h>
-#include <media/h264-ctrls.h>
 #include <media/vp8-ctrls.h>
 
 /* forward references */
@@ -56,6 +55,7 @@ struct poll_table_struct;
  * @p_h264_scaling_matrix:	Pointer to a struct v4l2_ctrl_h264_scaling_matrix.
  * @p_h264_slice_params:	Pointer to a struct v4l2_ctrl_h264_slice_params.
  * @p_h264_decode_params:	Pointer to a struct v4l2_ctrl_h264_decode_params.
+ * @p_h264_pred_weights:	Pointer to a struct v4l2_ctrl_h264_pred_weights.
  * @p_vp8_frame_header:		Pointer to a VP8 frame header structure.
  * @p:				Pointer to a compound value.
  */
@@ -73,6 +73,7 @@ union v4l2_ctrl_ptr {
 	struct v4l2_ctrl_h264_scaling_matrix *p_h264_scaling_matrix;
 	struct v4l2_ctrl_h264_slice_params *p_h264_slice_params;
 	struct v4l2_ctrl_h264_decode_params *p_h264_decode_params;
+	struct v4l2_ctrl_h264_pred_weights *p_h264_pred_weights;
 	struct v4l2_ctrl_vp8_frame_header *p_vp8_frame_header;
 	void *p;
 };
@@ -279,12 +280,14 @@ struct v4l2_ctrl {
  *		the control has been applied. This prevents applying controls
  *		from a cluster with multiple controls twice (when the first
  *		control of a cluster is applied, they all are).
- * @req:	If set, this refers to another request that sets this control.
+ * @valid_p_req: If set, then p_req contains the control value for the request.
  * @p_req:	If the control handler containing this control reference
  *		is bound to a media request, then this points to the
- *		value of the control that should be applied when the request
+ *		value of the control that must be applied when the request
  *		is executed, or to the value of the control at the time
- *		that the request was completed.
+ *		that the request was completed. If @valid_p_req is false,
+ *		then this control was never set for this request and the
+ *		control will not be updated when this request is applied.
  *
  * Each control handler has a list of these refs. The list_head is used to
  * keep a sorted-by-control-ID list of all controls, while the next pointer
@@ -297,7 +300,7 @@ struct v4l2_ctrl_ref {
 	struct v4l2_ctrl_helper *helper;
 	bool from_other_dev;
 	bool req_done;
-	struct v4l2_ctrl_ref *req;
+	bool valid_p_req;
 	union v4l2_ctrl_ptr p_req;
 };
 
@@ -324,7 +327,7 @@ struct v4l2_ctrl_ref {
  * @error:	The error code of the first failed control addition.
  * @request_is_queued: True if the request was queued.
  * @requests:	List to keep track of open control handler request objects.
- *		For the parent control handler (@req_obj.req == NULL) this
+ *		For the parent control handler (@req_obj.ops == NULL) this
  *		is the list header. When the parent control handler is
  *		removed, it has to unbind and put all these requests since
  *		they refer to the parent.

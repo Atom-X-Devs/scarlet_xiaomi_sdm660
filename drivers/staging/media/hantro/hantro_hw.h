@@ -11,7 +11,6 @@
 
 #include <linux/interrupt.h>
 #include <linux/v4l2-controls.h>
-#include <media/h264-ctrls.h>
 #include <media/mpeg2-ctrls.h>
 #include <media/vp8-ctrls.h>
 #include <media/videobuf2-core.h>
@@ -92,14 +91,12 @@ struct hantro_vp8_enc_hw_ctx {
  * struct hantro_h264_dec_ctrls
  * @decode:	Decode params
  * @scaling:	Scaling info
- * @slice:	Slice params
  * @sps:	SPS info
  * @pps:	PPS info
  */
 struct hantro_h264_dec_ctrls {
 	const struct v4l2_ctrl_h264_decode_params *decode;
 	const struct v4l2_ctrl_h264_scaling_matrix *scaling;
-	const struct v4l2_ctrl_h264_slice_params *slices;
 	const struct v4l2_ctrl_h264_sps *sps;
 	const struct v4l2_ctrl_h264_pps *pps;
 };

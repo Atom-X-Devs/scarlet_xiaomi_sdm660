@@ -295,7 +295,6 @@ static void
 init_reflist_builder(struct hantro_ctx *ctx,
 		     struct hantro_h264_reflist_builder *b)
 {
-	const struct v4l2_ctrl_h264_slice_params *slice_params;
 	const struct v4l2_ctrl_h264_decode_params *dec_param;
 	const struct v4l2_ctrl_h264_sps *sps;
 	struct vb2_v4l2_buffer *buf = hantro_get_dst_buf(ctx);
@@ -305,10 +304,9 @@ init_reflist_builder(struct hantro_ctx *ctx,
 	unsigned int i;
 
 	dec_param = ctx->h264_dec.ctrls.decode;
-	slice_params = &ctx->h264_dec.ctrls.slices[0];
 	sps = ctx->h264_dec.ctrls.sps;
 	max_frame_num = 1 << (sps->log2_max_frame_num_minus4 + 4);
-	cur_frame_num = slice_params->frame_num;
+	cur_frame_num = dec_param->frame_num;
 
 	memset(b, 0, sizeof(*b));
 	b->dpb = dpb;
@@ -595,27 +593,22 @@ int hantro_h264_dec_prepare_run(struct hantro_ctx *ctx)
 	hantro_prepare_run(ctx);
 
 	ctrls->scaling =
-		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX);
+		hantro_get_ctrl(ctx, V4L2_CID_STATELESS_H264_SCALING_MATRIX);
 	if (WARN_ON(!ctrls->scaling))
 		return -EINVAL;
 
 	ctrls->decode =
-		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS);
+		hantro_get_ctrl(ctx, V4L2_CID_STATELESS_H264_DECODE_PARAMS);
 	if (WARN_ON(!ctrls->decode))
 		return -EINVAL;
 
-	ctrls->slices =
-		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS);
-	if (WARN_ON(!ctrls->slices))
-		return -EINVAL;
-
 	ctrls->sps =
-		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_SPS);
+		hantro_get_ctrl(ctx, V4L2_CID_STATELESS_H264_SPS);
 	if (WARN_ON(!ctrls->sps))
 		return -EINVAL;
 
 	ctrls->pps =
-		hantro_get_ctrl(ctx, V4L2_CID_MPEG_VIDEO_H264_PPS);
+		hantro_get_ctrl(ctx, V4L2_CID_STATELESS_H264_PPS);
 	if (WARN_ON(!ctrls->pps))
 		return -EINVAL;
 

@@ -1166,7 +1166,6 @@ static inline struct mem_cgroup *page_memcg(struct page *page)
 }
 static inline struct mem_cgroup *page_memcg_rcu(struct page *page)
 {
-	WARN_ON_ONCE(!rcu_read_lock_held());
 	return NULL;
 }
 #endif
@@ -1363,8 +1362,6 @@ void unmap_vmas(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
  *	       this handler should only handle pud_trans_huge() puds.
  *	       the pmd_entry or pte_entry callbacks will be used for
  *	       regular PUDs.
- * @pud_entry_late: if set, called for each non-empty PUD (2nd-level)
- *	       entry after pmd_entry and pte_entry are called.
  * @pmd_entry: if set, called for each non-empty PMD (3rd-level) entry
  *	       this handler is required to be able to handle
  *	       pmd_trans_huge() pmds.  They may simply choose to
@@ -1386,8 +1383,6 @@ void unmap_vmas(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
 struct mm_walk {
 	int (*pud_entry)(pud_t *pud, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk);
-	int (*pud_entry_late)(pud_t *pud, unsigned long addr,
-			      unsigned long next, struct mm_walk *walk);
 	int (*pmd_entry)(pmd_t *pmd, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk);
 	int (*pte_entry)(pte_t *pte, unsigned long addr,
@@ -2186,7 +2181,7 @@ static inline void zero_resv_unavail(void) {}
 
 extern void set_dma_reserve(unsigned long new_dma_reserve);
 extern void memmap_init_zone(unsigned long, int, unsigned long, unsigned long,
-		enum memmap_context, struct vmem_altmap *);
+		enum meminit_context, struct vmem_altmap *);
 extern void setup_per_zone_wmarks(void);
 extern int __meminit init_per_zone_wmark_min(void);
 extern void mem_init(void);
@@ -2567,6 +2562,15 @@ static inline vm_fault_t vmf_insert_pfn(struct vm_area_struct *vma,
 
 	return VM_FAULT_NOPAGE;
 }
+
+#ifndef io_remap_pfn_range
+static inline int io_remap_pfn_range(struct vm_area_struct *vma,
+				     unsigned long addr, unsigned long pfn,
+				     unsigned long size, pgprot_t prot)
+{
+	return remap_pfn_range(vma, addr, pfn, size, pgprot_decrypted(prot));
+}
+#endif
 
 static inline vm_fault_t vmf_error(int err)
 {

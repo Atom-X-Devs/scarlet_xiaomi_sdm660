@@ -2419,12 +2419,17 @@ int smp_conn_security(struct hci_conn *hcon, __u8 sec_level)
 			authreq |= SMP_AUTH_CT2;
 	}
 
-	/* Require MITM if IO Capability allows or the security level
-	 * requires it.
+	/* Don't attempt to set MITM if setting is overridden by debugfs
+	 * Needed to pass certification test SM/MAS/PKE/BV-01-C
 	 */
-	if (hcon->io_capability != HCI_IO_NO_INPUT_OUTPUT ||
-	    hcon->pending_sec_level > BT_SECURITY_MEDIUM)
-		authreq |= SMP_AUTH_MITM;
+	if (!hci_dev_test_flag(hcon->hdev, HCI_FORCE_NO_MITM)) {
+		/* Require MITM if IO Capability allows or the security level
+		 * requires it.
+		 */
+		if (hcon->io_capability != HCI_IO_NO_INPUT_OUTPUT ||
+		    hcon->pending_sec_level > BT_SECURITY_MEDIUM)
+			authreq |= SMP_AUTH_MITM;
+	}
 
 	if (hcon->role == HCI_ROLE_MASTER) {
 		struct smp_cmd_pairing cp;
@@ -2751,6 +2756,15 @@ static int smp_cmd_public_key(struct l2cap_conn *conn, struct sk_buff *skb)
 
 	if (skb->len < sizeof(*key))
 		return SMP_INVALID_PARAMS;
+
+	/* Check if remote and local public keys are the same and debug key is
+	 * not in use.
+	 */
+	if (!test_bit(SMP_FLAG_DEBUG_KEY, &smp->flags) &&
+	    !crypto_memneq(key, smp->local_pk, 64)) {
+		bt_dev_err(hdev, "Remote and local public keys are identical");
+		return SMP_UNSPECIFIED;
+	}
 
 	memcpy(smp->remote_pk, key, 64);
 

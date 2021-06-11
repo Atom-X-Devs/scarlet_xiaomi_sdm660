@@ -3798,6 +3798,8 @@ static int mxt_check_device_present(struct i2c_client *client)
 			/* Fall through */
 
 		default:
+			dev_err(&client->dev, "Failed to probe addr %#x, orig_addr %#x.\n",
+				client->addr, orig_addr);
 			return -ENXIO;
 		}
 	} while (1);

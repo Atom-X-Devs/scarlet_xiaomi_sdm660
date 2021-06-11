@@ -349,13 +349,8 @@ static void mdp_auto_release_work(struct work_struct *work)
 				auto_release_work);
 	mdp = cb_param->mdp;
 
-	if (cb_param->comps && cb_param->num_comps) {
-		int i;
-
-		for (i = 0; i < cb_param->num_comps; i++)
-			mdp_comp_clock_off(&mdp->pdev->dev,
-					   &cb_param->comps[i]);
-	}
+	mdp_comp_clocks_off(&mdp->pdev->dev, cb_param->comps,
+			    cb_param->num_comps);
 
 	kfree(cb_param->comps);
 	kfree(cb_param);
@@ -398,7 +393,17 @@ static void mdp_handle_cmdq_callback(struct cmdq_cb_data data)
 
 	cmdq_pkt_destroy(cb_param->pkt);
 	INIT_WORK(&cb_param->auto_release_work, mdp_auto_release_work);
-	queue_work(mdp->clock_wq, &cb_param->auto_release_work);
+	if (!queue_work(mdp->clock_wq, &cb_param->auto_release_work)) {
+		mdp_err("%s:queue_work fail!\n", __func__);
+		mdp_comp_clocks_off(&mdp->pdev->dev, cb_param->comps,
+				    cb_param->num_comps);
+
+		kfree(cb_param->comps);
+		kfree(cb_param);
+
+		atomic_dec(&mdp->job_count);
+		wake_up(&mdp->callback_wq);
+	}
 }
 
 int mdp_cmdq_send(struct mdp_dev *mdp, struct mdp_cmdq_param *param)
@@ -440,14 +445,22 @@ int mdp_cmdq_send(struct mdp_dev *mdp, struct mdp_cmdq_param *param)
 		return ret;
 	}
 
-	// TODO: engine conflict dispatch
-	for (i = 0; i < param->config->num_components; i++)
-		mdp_comp_clock_on(&mdp->pdev->dev, path.comps[i].comp);
-
 	if (param->wait) {
+		for (i = 0; i < param->config->num_components; i++)
+			mdp_comp_clock_on(&mdp->pdev->dev, path.comps[i].comp);
 		ret = cmdq_pkt_flush(cmd.pkt);
-		if (param->mdp_ctx)
-			mdp_m2m_job_finish(param->mdp_ctx);
+#ifdef MDP_DEBUG
+		if (ret) {
+			struct mdp_func_struct *p_func = mdp_get_func();
+
+			p_func->mdp_dump_mmsys_config();
+			mdp_dump_info(~0, 1);
+		}
+#endif
+		if (!ret) { /* error handle in mdp_m2m_worker */
+			if (param->mdp_ctx)
+				mdp_m2m_job_finish(param->mdp_ctx);
+		}
 		cmdq_pkt_destroy(cmd.pkt);
 		for (i = 0; i < param->config->num_components; i++)
 			mdp_comp_clock_off(&mdp->pdev->dev, path.comps[i].comp);
@@ -480,11 +493,16 @@ int mdp_cmdq_send(struct mdp_dev *mdp, struct mdp_cmdq_param *param)
 		cb_param->num_comps = param->config->num_components;
 		cb_param->mdp_ctx = param->mdp_ctx;
 
+		mdp_comp_clocks_on(&mdp->pdev->dev, cb_param->comps,
+				   cb_param->num_comps);
+
 		ret = cmdq_pkt_flush_async(cmd.pkt,
 					   mdp_handle_cmdq_callback,
 					   (void *)cb_param);
 		if (ret) {
 			mdp_err("%s:cmdq_pkt_flush_async fail!\n", __func__);
+			mdp_comp_clocks_off(&mdp->pdev->dev, cb_param->comps,
+					    cb_param->num_comps);
 			kfree(cb_param);
 			kfree(comps);
 		}

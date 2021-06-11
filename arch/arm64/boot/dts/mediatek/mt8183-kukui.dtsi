@@ -122,17 +122,11 @@
 		};
 	};
 
-	max98357a: max98357a {
-		compatible = "maxim,max98357a";
-		sdmode-gpios = <&pio 175 0>;
-	};
-
 	btsco: bt-sco {
 		compatible = "linux,bt-sco";
 	};
 
 	sound: mt8183-sound {
-		compatible = "mediatek,mt8183_mt6358_ts3a227_max98357";
 		mediatek,platform = <&afe>;
 		mediatek,hdmi-codec = <&it6505dptx>;
 		pinctrl-names = "default",
@@ -375,7 +369,7 @@
 		compatible = "ite,it6505";
 		status = "okay";
 		interrupt-parent = <&pio>;
-		interrupts = <152 IRQ_TYPE_EDGE_FALLING 152 0>;
+		interrupts = <152 IRQ_TYPE_LEVEL_LOW 152 0>;
 		reg = <0x5c>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&it6505_pins>;
@@ -816,7 +810,7 @@
 	pwm0_pin_default: pwm0_pin_default {
 		pins1 {
 			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
-			output-high;
+			output-low;
 			bias-pull-up;
 		};
 		pins2 {

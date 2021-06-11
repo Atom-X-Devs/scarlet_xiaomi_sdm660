@@ -57,6 +57,8 @@ struct drm_printer;
 	param(unsigned int, inject_load_failure, 0) \
 	/* CHROMIUM: Use VBT to determine whether to use AUX or PWM backlight control */ \
 	param(int, enable_dpcd_backlight, -1) \
+	param(int, power_mode_limit, 2) \
+	param(int, disable_rps_interactive, 0) \
 	/* leave bools at the end to not create holes */ \
 	param(bool, alpha_support, IS_ENABLED(CONFIG_DRM_I915_ALPHA_SUPPORT)) \
 	param(bool, enable_hangcheck, true) \
