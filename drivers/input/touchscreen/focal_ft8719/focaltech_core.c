@@ -33,13 +33,8 @@
 * Included header files
 *****************************************************************************/
 #include "focaltech_core.h"
-#if defined(CONFIG_FB)
 #include <linux/notifier.h>
 #include <linux/fb.h>
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
-#include <linux/earlysuspend.h>
-#define FTS_SUSPEND_LEVEL 1     /* Early-suspend level */
-#endif
 
 /*****************************************************************************
 * Private constant and macro definitions using #define
@@ -604,9 +599,9 @@ static void fts_release_all_finger(void)
 static int fts_input_report_key(struct fts_ts_data *data, int index)
 {
     u32 ik;
-    int id = data->events[index].id;
+    //int id = data->events[index].id;
     int x = data->events[index].x;
-    int y = data->events[index].y;
+    //int y = data->events[index].y;
     int flag = data->events[index].flag;
     u32 key_num = data->pdata->key_number;
 
@@ -796,10 +791,6 @@ static int fts_read_touchdata(struct fts_ts_data *data)
     }
 #endif
 
-#if FTS_POINT_REPORT_CHECK_EN
-    fts_prc_queue_work(data);
-#endif
-
     data->point_num = 0;
     data->touch_point = 0;
 
@@ -899,20 +890,12 @@ static irqreturn_t fts_ts_interrupt(int irq, void *data)
         return IRQ_HANDLED;
     }
 
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_set_intr(1);
-#endif
-
     ret = fts_read_touchdata(ts_data);
     if (ret == 0) {
         mutex_lock(&ts_data->report_mutex);
         fts_report_event(ts_data);
         mutex_unlock(&ts_data->report_mutex);
     }
-
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_set_intr(0);
-#endif
 
     return IRQ_HANDLED;
 }
@@ -1224,7 +1207,6 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
     return 0;
 }
 
-#if defined(CONFIG_FB)
 /*****************************************************************************
 *  Name: fb_notifier_callback
 *  Brief:
@@ -1255,39 +1237,6 @@ static int fb_notifier_callback(struct notifier_block *self,
 	}
     return 0;
 }
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
-/*****************************************************************************
-*  Name: fts_ts_early_suspend
-*  Brief:
-*  Input:
-*  Output:
-*  Return:
-*****************************************************************************/
-static void fts_ts_early_suspend(struct early_suspend *handler)
-{
-    struct fts_ts_data *data = container_of(handler,
-                                            struct fts_ts_data,
-                                            early_suspend);
-
-    fts_ts_suspend(&data->client->dev);
-}
-
-/*****************************************************************************
-*  Name: fts_ts_late_resume
-*  Brief:
-*  Input:
-*  Output:
-*  Return:
-*****************************************************************************/
-static void fts_ts_late_resume(struct early_suspend *handler)
-{
-    struct fts_ts_data *data = container_of(handler,
-                                            struct fts_ts_data,
-                                            early_suspend);
-
-    fts_ts_resume(&data->client->dev);
-}
-#endif
 
 /*****************************************************************************
 *  Name: fts_ts_probe
@@ -1403,13 +1352,6 @@ static int fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
     }
 #endif
 
-#if FTS_POINT_REPORT_CHECK_EN
-    ret = fts_point_report_check_init(ts_data);
-    if (ret) {
-        FTS_ERROR("init point report check fail");
-    }
-#endif
-
     ret = fts_ex_mode_init(client);
     if (ret) {
         FTS_ERROR("init glove/cover/charger fail");
@@ -1421,26 +1363,6 @@ static int fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
         FTS_ERROR("init gesture fail");
     }
 	fts_data->input_dev->event =fts_gesture_switch;
-#endif
-
-#if FTS_TEST_EN
-    ret = fts_test_init(client);
-    if (ret) {
-        FTS_ERROR("init production test fail");
-    }
-#endif
-
-init_tp_selftest(client);
-
-if (ret) {
-	FTS_ERROR("init tp self test fail");
-}
-
-#if FTS_ESDCHECK_EN
-    ret = fts_esdcheck_init(ts_data);
-    if (ret) {
-        FTS_ERROR("init esd check fail");
-    }
 #endif
 
     ret = fts_irq_registration(ts_data);
@@ -1456,18 +1378,12 @@ if (ret) {
     }
 #endif
 
-#if defined(CONFIG_FB)
     ts_data->fb_notif.notifier_call = fb_notifier_callback;
     ret = fb_register_client(&ts_data->fb_notif);
     if (ret) {
         FTS_ERROR("[FB]Unable to register fb_notifier: %d", ret);
     }
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
-    ts_data->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + FTS_SUSPEND_LEVEL;
-    ts_data->early_suspend.suspend = fts_ts_early_suspend;
-    ts_data->early_suspend.resume = fts_ts_late_resume;
-    register_early_suspend(&ts_data->early_suspend);
-#endif
+
 /* add tp lockdown information by yangjiangzhu  2018/5/21 start */	
 #if FTS_TP_LOCKDOWN_INFO
 	ret = fts_create_tp_lockdown_info(ts_data);
@@ -1520,10 +1436,6 @@ static int fts_ts_remove(struct i2c_client *client)
 
     FTS_FUNC_ENTER();
 
-#if FTS_POINT_REPORT_CHECK_EN
-    fts_point_report_check_exit(ts_data);
-#endif
-
 #if FTS_APK_NODE_EN
     fts_release_apk_debug_channel(ts_data);
 #endif
@@ -1538,26 +1450,14 @@ static int fts_ts_remove(struct i2c_client *client)
     fts_fwupg_exit(ts_data);
 #endif
 
-#if FTS_TEST_EN
-    fts_test_exit(client);
-#endif
-
 /* add tp lockdown information by yangjiangzhu  2018/5/21 start */
 #if FTS_TP_LOCKDOWN_INFO
     fts_release_tp_lockdown_info(ts_data);
 #endif
 /* add tp lockdown information by yangjiangzhu  2018/5/21 end */
 
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_exit(ts_data);
-#endif
-
-#if defined(CONFIG_FB)
     if (fb_unregister_client(&ts_data->fb_notif))
         FTS_ERROR("Error occurred while unregistering fb_notifier.");
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
-    unregister_early_suspend(&ts_data->early_suspend);
-#endif
 
     free_irq(client->irq, ts_data);
     input_unregister_device(ts_data->input_dev);
@@ -1613,12 +1513,7 @@ static int fts_ts_suspend(struct device *dev)
         return 0;
     }
 
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_suspend();
-#endif
-
-	if (focal_gesture_mode) {
-	
+	if (focal_gesture_mode) {	
 		for (i = 0; i < 5; i++) {
        		 fts_i2c_write_reg(ts_data->client, 0xd1, 0xff);
        		 fts_i2c_write_reg(ts_data->client, 0xd2, 0xff);
@@ -1695,14 +1590,10 @@ static int fts_ts_resume(struct device *dev)
 
     fts_tp_state_recovery(ts_data->client);
 
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_resume();
-#endif
-
-if (focal_gesture_mode){
-    if (fts_gesture_resume(ts_data->client) == 0) {
-        ts_data->suspended = false;
-        return 0;
+    if (focal_gesture_mode) {
+        if (fts_gesture_resume(ts_data->client) == 0) {
+            ts_data->suspended = false;
+            return 0;
     	}
 	}
 
