@@ -123,12 +123,6 @@
 #define FTS_GESTURE_EN                          1
 
 /*
- * ESD check & protection
- * default: disable
- */
-#define FTS_ESDCHECK_EN                         1
-
-/*
  * Production test enable
  * 1: enable, 0:disable(default)
  */
@@ -207,24 +201,26 @@
 #define FTS_VENDOR_ID2                         0x0000
 #define FTS_VENDOR_ID3                         0x0000
 
+#define FIRMWARE                      "include/firmware/LQ_E7T_FT8719_BOE_VID0xDA_PID0xC3_6P26_V0x09_L0xA5_I2C_20180928_app.i"
+
+
 /*
  * FW.i file for auto upgrade, you must replace it with your own
  * define your own fw_file, the sample one to be replaced is invalid
  * NOTE: if FTS_GET_VENDOR_ID_NUM > 1, it's the fw corresponding with FTS_VENDOR_ID
  */
-#define FTS_UPGRADE_FW_FILE                      "include/firmware/LQ_E7T_FT8719_BOE_VID0xDA_PID0xC3_6P26_V0x09_L0xA5_I2C_20180928_app.i"
+#define FTS_UPGRADE_FW_FILE          FIRMWARE
 
 /*
  * if FTS_GET_VENDOR_ID_NUM >= 2, fw corrsponding with FTS_VENDOR_ID2
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW2_FILE                     "include/firmware/LQ_E7T_FT8719_BOE_VID0xDA_PID0xC3_6P26_V0x09_L0xA5_I2C_20180928_app.i"
-
+#define FTS_UPGRADE_FW2_FILE         FIRMWARE
 /*
  * if FTS_GET_VENDOR_ID_NUM >= 3, fw corrsponding with FTS_VENDOR_ID3
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW3_FILE                     "include/firmware/LQ_E7T_FT8719_BOE_VID0xDA_PID0xC3_6P26_V0x09_L0xA5_I2C_20180928_app.i"
+#define FTS_UPGRADE_FW3_FILE         FIRMWARE
 
 /*********************************************************/
 
