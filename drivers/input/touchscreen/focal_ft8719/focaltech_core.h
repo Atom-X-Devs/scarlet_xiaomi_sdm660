@@ -135,7 +135,6 @@ struct fts_ts_data {
     struct ts_ic_info ic_info;
     struct workqueue_struct *ts_workqueue;
     struct work_struct fwupg_work;
-    struct delayed_work esdcheck_work;
     struct delayed_work prc_work;
     struct regulator *vdd;
     struct regulator *vcc_i2c;
@@ -164,11 +163,7 @@ struct fts_ts_data {
     struct pinctrl_state *pins_suspend;
     struct pinctrl_state *pins_release;
 #endif
-#if defined(CONFIG_FB)
     struct notifier_block fb_notif;
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
-    struct early_suspend early_suspend;
-#endif
 };
 
 /*****************************************************************************
@@ -191,7 +186,6 @@ int fts_gesture_init(struct fts_ts_data *ts_data);
 int fts_gesture_exit(struct i2c_client *client);
 void fts_gesture_recovery(struct i2c_client *client);
 int fts_gesture_readdata(struct fts_ts_data *ts_data);
-
 int fts_gesture_resume(struct i2c_client *client);
 #endif
 
@@ -211,32 +205,6 @@ void fts_release_tp_lockdown_info(struct fts_ts_data *ts_data);
 #if FTS_SYSFS_NODE_EN
 int fts_create_sysfs(struct i2c_client *client);
 int fts_remove_sysfs(struct i2c_client *client);
-#endif
-
-/* ESD */
-#if FTS_ESDCHECK_EN
-int fts_esdcheck_init(struct fts_ts_data *ts_data);
-int fts_esdcheck_exit(struct fts_ts_data *ts_data);
-int fts_esdcheck_switch(bool enable);
-int fts_esdcheck_proc_busy(bool proc_debug);
-int fts_esdcheck_set_intr(bool intr);
-int fts_esdcheck_suspend(void);
-int fts_esdcheck_resume(void);
-#endif
-
-/* Production test */
-#if FTS_TEST_EN
-int fts_test_init(struct i2c_client *client);
-int fts_test_exit(struct i2c_client *client);
-#endif
-int init_tp_selftest(struct i2c_client * client);
-
-
-/* Point Report Check*/
-#if FTS_POINT_REPORT_CHECK_EN
-int fts_point_report_check_init(struct fts_ts_data *ts_data);
-int fts_point_report_check_exit(struct fts_ts_data *ts_data);
-void fts_prc_queue_work(struct fts_ts_data *ts_data);
 #endif
 
 /* FW upgrade */
