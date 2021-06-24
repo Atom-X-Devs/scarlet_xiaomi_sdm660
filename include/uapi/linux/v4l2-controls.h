@@ -894,7 +894,17 @@ enum v4l2_auto_focus_range {
 
 #define V4L2_CID_PAN_SPEED			(V4L2_CID_CAMERA_CLASS_BASE+32)
 #define V4L2_CID_TILT_SPEED			(V4L2_CID_CAMERA_CLASS_BASE+33)
-#define V4L2_CID_REGION_OF_INTEREST_AUTO	(V4L2_CID_CAMERA_CLASS_BASE+34)
+
+/*
+ * senozhatsky@ b:191930245
+ *
+ * These are FROMLIST defines. Use very high value to avoid collisions
+ * with upstream patches. Controls classes are USHRT_MAX apart from each
+ * other, but the lower 0x900 are not being used. This leaves us with the
+ * USHRT_MAX - 0x900 values. Use SHRT_MAX.
+ */
+#define V4L2_CID_REGION_OF_INTEREST_AUTO	\
+	(V4L2_CID_CAMERA_CLASS_BASE + SHRT_MAX)
 #define V4L2_CID_REGION_OF_INTEREST_AUTO_EXPOSURE		(1 << 0)
 #define V4L2_CID_REGION_OF_INTEREST_AUTO_IRIS			(1 << 1)
 #define V4L2_CID_REGION_OF_INTEREST_AUTO_WHITE_BALANCE		(1 << 2)
