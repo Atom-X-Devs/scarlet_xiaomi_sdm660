@@ -337,6 +337,7 @@ struct fg_batt_props {
 	int		therm_pull_up_kohms;
 	int		*rslow_normal_coeffs;
 	int		*rslow_low_coeffs;
+	int		nom_cap_uah;
 };
 
 struct fg_cyc_ctr_data {
