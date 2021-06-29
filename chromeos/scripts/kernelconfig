@@ -84,7 +84,8 @@ build_one() {
 	set -- \
 		LD="ld.lld" \
 		CC="${ccompiler}" \
-		CXX="${cross}-g++"
+		CXX="${cross}-g++" \
+		CROSS_COMPILE="${cross}-"
 
 	local O="$(pwd)/build/${arch}"
 	mkdir -p "${O}"
