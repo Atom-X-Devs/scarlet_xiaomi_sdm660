@@ -72,6 +72,10 @@ struct msm_camera_sensor_slave_info32 {
 	struct msm_sensor_init_params sensor_init_params;
 	enum msm_sensor_output_format_t output_format;
 	uint8_t bypass_video_node_creation;
+#ifdef CONFIG_XIAOMI_SDM660
+	struct msm_vendor_id_info_t vendor_id_info;
+	struct msm_vcm_id_info_t vcm_id_info;
+#endif
 };
 
 struct msm_camera_csid_lut_params32 {

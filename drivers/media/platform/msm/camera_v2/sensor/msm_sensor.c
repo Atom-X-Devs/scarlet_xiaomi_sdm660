@@ -253,6 +253,16 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
 
+#ifdef CONFIG_XIAOMI_SDM660
+	uint16_t vcmid = 0;
+	uint16_t vendorid = 0;
+	struct msm_vendor_id_info_t *vendor_id_info;
+	struct msm_vcm_id_info_t *vcm_id_info;
+
+	enum cci_i2c_master_t temp_cci_i2c_master;
+	uint16_t temp_cid;
+#endif
+
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: %pK\n",
 			__func__, __LINE__, s_ctrl);
@@ -261,6 +271,10 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	sensor_i2c_client = s_ctrl->sensor_i2c_client;
 	slave_info = s_ctrl->sensordata->slave_info;
 	sensor_name = s_ctrl->sensordata->sensor_name;
+#ifdef CONFIG_XIAOMI_SDM660
+	vendor_id_info = s_ctrl->sensordata->vendor_id_info;
+	vcm_id_info = s_ctrl->sensordata->vcm_id_info;
+#endif
 
 	if (!sensor_i2c_client || !slave_info || !sensor_name) {
 		pr_err("%s:%d failed: %pK %pK %pK\n",
@@ -294,6 +308,61 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 				__func__, chipid, slave_info->sensor_id);
 		return -ENODEV;
 	}
+
+#ifdef CONFIG_XIAOMI_SDM660
+	if (vendor_id_info && vendor_id_info->eeprom_slave_addr) {
+		temp_cci_i2c_master =
+			sensor_i2c_client->cci_client->cci_i2c_master;
+		temp_cid = sensor_i2c_client->cci_client->sid;
+		sensor_i2c_client->cci_client->sid =
+			vendor_id_info->eeprom_slave_addr >> 1;
+		if (s_ctrl->cci_i2c_master >= 0 &&
+		    s_ctrl->cci_i2c_master < MASTER_MAX) {
+			sensor_i2c_client->cci_client->cci_i2c_master =
+				s_ctrl->cci_i2c_master;
+		}
+
+		rc = msm_camera_cci_i2c_read(sensor_i2c_client,
+					     vendor_id_info->vendor_id_addr,
+					     &vendorid,
+					     vendor_id_info->data_type);
+		if (rc < 0) {
+			pr_err("%s: %s: read vendor id failed\n", __func__,
+			       sensor_name);
+			goto out;
+		}
+
+		pr_debug("%s: vendor id: 0x%x expected id 0x%x:\n", __func__,
+			 vendorid, vendor_id_info->vendor_id);
+		if (vendor_id_info->vendor_id != vendorid) {
+			rc = -ENODEV;
+			pr_err("%s vendor id %x does not match %x\n", __func__,
+			       vendorid, vendor_id_info->vendor_id);
+		} else if (vcm_id_info && vcm_id_info->vcm_id_addr != 0) {
+			msm_camera_cci_i2c_read(sensor_i2c_client,
+						vcm_id_info->vcm_id_addr,
+						&vcmid, vcm_id_info->data_type);
+			if (rc < 0) {
+				pr_err("%s: %s: read vcm id failed\n", __func__,
+				       sensor_name);
+				goto out;
+			}
+
+			pr_debug("%s: vcm id: 0x%x expected id 0x%x:\n",
+				 __func__, vcmid, vcm_id_info->vcm_id);
+			if (vcm_id_info->vcm_id != vcmid) {
+				rc = -ENODEV;
+				pr_err("%s vcm id %x does not match %x\n",
+				       __func__, vcmid, vcm_id_info->vcm_id);
+				goto out;
+			}
+		}
+	out:
+		sensor_i2c_client->cci_client->sid = temp_cid;
+		sensor_i2c_client->cci_client->cci_i2c_master =
+			temp_cci_i2c_master;
+	}
+#endif
 	return rc;
 }
 
