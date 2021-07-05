@@ -54,6 +54,7 @@
 #define I2C_TIME_DEFAULT_VALUE		0x0003
 #define I2C_WRRD_TRANAC_VALUE		0x0002
 #define I2C_RD_TRANAC_VALUE		0x0001
+#define I2C_SCL_MIS_COMP_VALUE		0x0000
 
 #define I2C_DMA_CON_TX			0x0000
 #define I2C_DMA_CON_RX			0x0001
@@ -64,12 +65,13 @@
 #define I2C_DMA_4G_MODE			0x0001
 
 #define I2C_DEFAULT_CLK_DIV		5
-#define I2C_DEFAULT_SPEED		100000	/* hz */
-#define MAX_FS_MODE_SPEED		400000
-#define MAX_HS_MODE_SPEED		3400000
 #define MAX_SAMPLE_CNT_DIV		8
 #define MAX_STEP_CNT_DIV		64
+#define MAX_CLOCK_DIV			256
 #define MAX_HS_STEP_CNT_DIV		8
+#define I2C_STANDARD_MODE_BUFFER	(1000 / 2)
+#define I2C_FAST_MODE_BUFFER		(300 / 2)
+#define I2C_FAST_MODE_PLUS_BUFFER	(20 / 2)
 
 #define I2C_CONTROL_RS                  (0x1 << 1)
 #define I2C_CONTROL_DMA_EN              (0x1 << 2)
@@ -134,6 +136,12 @@ enum I2C_REGS_OFFSET {
 	OFFSET_TRANSFER_LEN_AUX,
 	OFFSET_CLOCK_DIV,
 	OFFSET_LTIMING,
+	OFFSET_SCL_HIGH_LOW_RATIO,
+	OFFSET_HS_SCL_HIGH_LOW_RATIO,
+	OFFSET_SCL_MIS_COMP_POINT,
+	OFFSET_STA_STO_AC_TIMING,
+	OFFSET_HS_STA_STO_AC_TIMING,
+	OFFSET_SDA_TIMING,
 };
 
 static const u16 mt_i2c_regs_v1[] = {
@@ -161,6 +169,12 @@ static const u16 mt_i2c_regs_v1[] = {
 	[OFFSET_DEBUGCTRL] = 0x68,
 	[OFFSET_TRANSFER_LEN_AUX] = 0x6c,
 	[OFFSET_CLOCK_DIV] = 0x70,
+	[OFFSET_SCL_HIGH_LOW_RATIO] = 0x74,
+	[OFFSET_HS_SCL_HIGH_LOW_RATIO] = 0x78,
+	[OFFSET_SCL_MIS_COMP_POINT] = 0x7C,
+	[OFFSET_STA_STO_AC_TIMING] = 0x80,
+	[OFFSET_HS_STA_STO_AC_TIMING] = 0x84,
+	[OFFSET_SDA_TIMING] = 0x88,
 };
 
 static const u16 mt_i2c_regs_v2[] = {
@@ -179,9 +193,11 @@ static const u16 mt_i2c_regs_v2[] = {
 	[OFFSET_HS] = 0x30,
 	[OFFSET_IO_CONFIG] = 0x34,
 	[OFFSET_FIFO_ADDR_CLR] = 0x38,
+	[OFFSET_SDA_TIMING] = 0x3c,
 	[OFFSET_TRANSFER_LEN_AUX] = 0x44,
 	[OFFSET_CLOCK_DIV] = 0x48,
 	[OFFSET_SOFTRESET] = 0x50,
+	[OFFSET_SCL_MIS_COMP_POINT] = 0x90,
 	[OFFSET_DEBUGSTAT] = 0xe0,
 	[OFFSET_DEBUGCTRL] = 0xe8,
 	[OFFSET_FIFO_STAT] = 0xf4,
@@ -202,6 +218,19 @@ struct mtk_i2c_compatible {
 	unsigned char ltiming_adjust: 1;
 };
 
+struct mtk_i2c_ac_timing {
+	u16 htiming;
+	u16 ltiming;
+	u16 hs;
+	u16 ext;
+	u16 inter_clk_div;
+	u16 scl_hl_ratio;
+	u16 hs_scl_hl_ratio;
+	u16 sta_stop;
+	u16 hs_sta_stop;
+	u16 sda_timing;
+};
+
 struct mtk_i2c {
 	struct i2c_adapter adap;	/* i2c host adapter */
 	struct device *dev;
@@ -216,6 +245,7 @@ struct mtk_i2c {
 	struct clk *clk_arb;		/* Arbitrator clock for i2c */
 	bool have_pmic;			/* can use i2c pins from PMIC */
 	bool use_push_pull;		/* IO config push-pull mode */
+	bool default_timing_adjust;	/* no timing adjust mode */
 
 	u16 irq_stat;			/* interrupt status */
 	unsigned int clk_src_div;
@@ -224,9 +254,46 @@ struct mtk_i2c {
 	u16 timing_reg;
 	u16 high_speed_reg;
 	u16 ltiming_reg;
+	unsigned int clock_stretch_ns;
 	unsigned char auto_restart;
 	bool ignore_restart_irq;
+	struct mtk_i2c_ac_timing ac_timing;
 	const struct mtk_i2c_compatible *dev_comp;
+};
+
+/**
+ * struct i2c_spec_values:
+ * @min_low_ns: min LOW period of the SCL clock
+ * @min_su_sta_ns: min set-up time for a repeated START condition
+ * @max_hd_dat_ns: max data hold time
+ * @min_su_dat_ns: min data set-up time
+ */
+struct i2c_spec_values {
+	unsigned int min_low_ns;
+	unsigned int min_su_sta_ns;
+	unsigned int max_hd_dat_ns;
+	unsigned int min_su_dat_ns;
+};
+
+static const struct i2c_spec_values standard_mode_spec = {
+	.min_low_ns = 4700 + I2C_STANDARD_MODE_BUFFER,
+	.min_su_sta_ns = 4700 + I2C_STANDARD_MODE_BUFFER,
+	.max_hd_dat_ns = 3450 - I2C_STANDARD_MODE_BUFFER,
+	.min_su_dat_ns = 250 + I2C_STANDARD_MODE_BUFFER,
+};
+
+static const struct i2c_spec_values fast_mode_spec = {
+	.min_low_ns = 1300 + I2C_FAST_MODE_BUFFER,
+	.min_su_sta_ns = 600 + I2C_FAST_MODE_BUFFER,
+	.max_hd_dat_ns = 900 - I2C_FAST_MODE_BUFFER,
+	.min_su_dat_ns = 100 + I2C_FAST_MODE_BUFFER,
+};
+
+static const struct i2c_spec_values fast_mode_plus_spec = {
+	.min_low_ns = 500 + I2C_FAST_MODE_PLUS_BUFFER,
+	.min_su_sta_ns = 260 + I2C_FAST_MODE_PLUS_BUFFER,
+	.max_hd_dat_ns = 400 - I2C_FAST_MODE_PLUS_BUFFER,
+	.min_su_dat_ns = 50 + I2C_FAST_MODE_PLUS_BUFFER,
 };
 
 static const struct i2c_adapter_quirks mt6577_i2c_quirks = {
@@ -396,6 +463,11 @@ static void mtk_i2c_clock_disable(struct mtk_i2c *i2c)
 static void mtk_i2c_init_hw(struct mtk_i2c *i2c)
 {
 	u16 control_reg;
+	u16 ext_conf_val;
+
+	writel(I2C_DMA_HARD_RST, i2c->pdmabase + OFFSET_RST);
+	udelay(50);
+	writel(I2C_DMA_CLR_FLAG, i2c->pdmabase + OFFSET_RST);
 
 	mtk_i2c_writew(i2c, I2C_SOFT_RST, OFFSET_SOFTRESET);
 
@@ -408,13 +480,47 @@ static void mtk_i2c_init_hw(struct mtk_i2c *i2c)
 	if (i2c->dev_comp->dcm)
 		mtk_i2c_writew(i2c, I2C_DCM_DISABLE, OFFSET_DCM_EN);
 
-	if (i2c->dev_comp->timing_adjust)
-		mtk_i2c_writew(i2c, I2C_DEFAULT_CLK_DIV - 1, OFFSET_CLOCK_DIV);
-
 	mtk_i2c_writew(i2c, i2c->timing_reg, OFFSET_TIMING);
 	mtk_i2c_writew(i2c, i2c->high_speed_reg, OFFSET_HS);
 	if (i2c->dev_comp->ltiming_adjust)
 		mtk_i2c_writew(i2c, i2c->ltiming_reg, OFFSET_LTIMING);
+
+	if (i2c->speed_hz <= I2C_MAX_STANDARD_MODE_FREQ)
+		ext_conf_val = I2C_ST_START_CON;
+	else
+		ext_conf_val = I2C_FS_START_CON;
+
+	if (i2c->default_timing_adjust) {
+		if (i2c->dev_comp->timing_adjust)
+			mtk_i2c_writew(i2c, I2C_DEFAULT_CLK_DIV - 1,
+				       OFFSET_CLOCK_DIV);
+	} else if (i2c->dev_comp->timing_adjust) {
+		ext_conf_val = i2c->ac_timing.ext;
+		mtk_i2c_writew(i2c, i2c->ac_timing.inter_clk_div,
+			       OFFSET_CLOCK_DIV);
+		mtk_i2c_writew(i2c, I2C_SCL_MIS_COMP_VALUE,
+			       OFFSET_SCL_MIS_COMP_POINT);
+		mtk_i2c_writew(i2c, i2c->ac_timing.sda_timing,
+			       OFFSET_SDA_TIMING);
+
+		if (i2c->dev_comp->ltiming_adjust) {
+			mtk_i2c_writew(i2c, i2c->ac_timing.htiming,
+				       OFFSET_TIMING);
+			mtk_i2c_writew(i2c, i2c->ac_timing.hs, OFFSET_HS);
+			mtk_i2c_writew(i2c, i2c->ac_timing.ltiming,
+				       OFFSET_LTIMING);
+		} else {
+			mtk_i2c_writew(i2c, i2c->ac_timing.scl_hl_ratio,
+				       OFFSET_SCL_HIGH_LOW_RATIO);
+			mtk_i2c_writew(i2c, i2c->ac_timing.hs_scl_hl_ratio,
+				       OFFSET_HS_SCL_HIGH_LOW_RATIO);
+			mtk_i2c_writew(i2c, i2c->ac_timing.sta_stop,
+				       OFFSET_STA_STO_AC_TIMING);
+			mtk_i2c_writew(i2c, i2c->ac_timing.hs_sta_stop,
+				       OFFSET_HS_STA_STO_AC_TIMING);
+		}
+	}
+	mtk_i2c_writew(i2c, ext_conf_val, OFFSET_EXT_CONF);
 
 	/* If use i2c pin from PMIC mt6397 side, need set PATH_DIR first */
 	if (i2c->have_pmic)
@@ -427,10 +533,127 @@ static void mtk_i2c_init_hw(struct mtk_i2c *i2c)
 
 	mtk_i2c_writew(i2c, control_reg, OFFSET_CONTROL);
 	mtk_i2c_writew(i2c, I2C_DELAY_LEN, OFFSET_DELAY_LEN);
+}
 
-	writel(I2C_DMA_HARD_RST, i2c->pdmabase + OFFSET_RST);
-	udelay(50);
-	writel(I2C_DMA_CLR_FLAG, i2c->pdmabase + OFFSET_RST);
+static const struct i2c_spec_values *mtk_i2c_get_spec(unsigned int speed)
+{
+	if (speed <= I2C_MAX_STANDARD_MODE_FREQ)
+		return &standard_mode_spec;
+	else if (speed <= I2C_MAX_FAST_MODE_FREQ)
+		return &fast_mode_spec;
+	else
+		return &fast_mode_plus_spec;
+}
+
+static int mtk_i2c_max_step_cnt(unsigned int target_speed)
+{
+	if (target_speed > I2C_MAX_FAST_MODE_FREQ)
+		return MAX_HS_STEP_CNT_DIV;
+	else
+		return MAX_STEP_CNT_DIV;
+}
+
+/*
+ * Check and Calculate i2c ac-timing
+ *
+ * Hardware design:
+ * sample_ns = (1000000000 * (sample_cnt + 1)) / clk_src
+ * xxx_cnt_div =  spec->min_xxx_ns / sample_ns
+ *
+ * Sample_ns is rounded down for xxx_cnt_div would be greater
+ * than the smallest spec.
+ * The sda_timing is chosen as the middle value between
+ * the largest and smallest.
+ */
+static int mtk_i2c_check_ac_timing(struct mtk_i2c *i2c,
+				   unsigned int clk_src,
+				   unsigned int check_speed,
+				   unsigned int step_cnt,
+				   unsigned int sample_cnt)
+{
+	const struct i2c_spec_values *spec;
+	unsigned int su_sta_cnt, low_cnt, high_cnt, max_step_cnt;
+	unsigned int sda_max, sda_min, clk_ns, max_sta_cnt = 0x3f;
+	unsigned int sample_ns = div_u64(1000000000ULL * (sample_cnt + 1),
+					 clk_src);
+
+	if (i2c->default_timing_adjust || !i2c->dev_comp->timing_adjust)
+		return 0;
+
+	if (i2c->dev_comp->ltiming_adjust)
+		max_sta_cnt = 0x100;
+
+	spec = mtk_i2c_get_spec(check_speed);
+
+	if (i2c->dev_comp->ltiming_adjust)
+		clk_ns = 1000000000 / clk_src;
+	else
+		clk_ns = sample_ns / 2;
+
+	su_sta_cnt = DIV_ROUND_UP(spec->min_su_sta_ns + i2c->clock_stretch_ns,
+				  clk_ns);
+	if (su_sta_cnt > max_sta_cnt)
+		return -1;
+
+	low_cnt = DIV_ROUND_UP(spec->min_low_ns, sample_ns);
+	max_step_cnt = mtk_i2c_max_step_cnt(check_speed);
+	if ((2 * step_cnt) > low_cnt && low_cnt < max_step_cnt) {
+		if (low_cnt > step_cnt) {
+			high_cnt = 2 * step_cnt - low_cnt;
+		} else {
+			high_cnt = step_cnt;
+			low_cnt = step_cnt;
+		}
+	} else {
+		return -2;
+	}
+
+	sda_max = spec->max_hd_dat_ns / sample_ns;
+	if (sda_max > low_cnt)
+		sda_max = 0;
+
+	sda_min = DIV_ROUND_UP(spec->min_su_dat_ns, sample_ns);
+	if (sda_min < low_cnt)
+		sda_min = 0;
+
+	if (sda_min > sda_max)
+		return -3;
+
+	if (check_speed > I2C_MAX_FAST_MODE_FREQ) {
+		if (i2c->dev_comp->ltiming_adjust) {
+			i2c->ac_timing.hs = I2C_TIME_DEFAULT_VALUE |
+				(sample_cnt << 12) | (high_cnt << 8);
+			i2c->ac_timing.ltiming &= ~GENMASK(15, 9);
+			i2c->ac_timing.ltiming |= (sample_cnt << 12) |
+				(low_cnt << 9);
+			i2c->ac_timing.ext &= ~GENMASK(7, 1);
+			i2c->ac_timing.ext |= (su_sta_cnt << 1) | (1 << 0);
+		} else {
+			i2c->ac_timing.hs_scl_hl_ratio = (1 << 12) |
+				(high_cnt << 6) | low_cnt;
+			i2c->ac_timing.hs_sta_stop = (su_sta_cnt << 8) |
+				su_sta_cnt;
+		}
+		i2c->ac_timing.sda_timing &= ~GENMASK(11, 6);
+		i2c->ac_timing.sda_timing |= (1 << 12) |
+			((sda_max + sda_min) / 2) << 6;
+	} else {
+		if (i2c->dev_comp->ltiming_adjust) {
+			i2c->ac_timing.htiming = (sample_cnt << 8) | (high_cnt);
+			i2c->ac_timing.ltiming = (sample_cnt << 6) | (low_cnt);
+			i2c->ac_timing.ext = (su_sta_cnt << 8) | (1 << 0);
+		} else {
+			i2c->ac_timing.scl_hl_ratio = (1 << 12) |
+				(high_cnt << 6) | low_cnt;
+			i2c->ac_timing.sta_stop = (su_sta_cnt << 8) |
+				su_sta_cnt;
+		}
+
+		i2c->ac_timing.sda_timing = (1 << 12) |
+			(sda_max + sda_min) / 2;
+	}
+
+	return 0;
 }
 
 /*
@@ -457,15 +680,12 @@ static int mtk_i2c_calculate_speed(struct mtk_i2c *i2c, unsigned int clk_src,
 	unsigned int opt_div;
 	unsigned int best_mul;
 	unsigned int cnt_mul;
+	int ret = -EINVAL;
 
-	if (target_speed > MAX_HS_MODE_SPEED)
-		target_speed = MAX_HS_MODE_SPEED;
+	if (target_speed > I2C_MAX_HIGH_SPEED_MODE_FREQ)
+		target_speed = I2C_MAX_HIGH_SPEED_MODE_FREQ;
 
-	if (target_speed > MAX_FS_MODE_SPEED)
-		max_step_cnt = MAX_HS_STEP_CNT_DIV;
-	else
-		max_step_cnt = MAX_STEP_CNT_DIV;
-
+	max_step_cnt = mtk_i2c_max_step_cnt(target_speed);
 	base_step_cnt = max_step_cnt;
 	/* Find the best combination */
 	opt_div = DIV_ROUND_UP(clk_src >> 1, target_speed);
@@ -484,6 +704,11 @@ static int mtk_i2c_calculate_speed(struct mtk_i2c *i2c, unsigned int clk_src,
 			continue;
 
 		if (cnt_mul < best_mul) {
+			ret = mtk_i2c_check_ac_timing(i2c, clk_src,
+				target_speed, step_cnt - 1, sample_cnt - 1);
+			if (ret)
+				continue;
+
 			best_mul = cnt_mul;
 			base_sample_cnt = sample_cnt;
 			base_step_cnt = step_cnt;
@@ -491,6 +716,9 @@ static int mtk_i2c_calculate_speed(struct mtk_i2c *i2c, unsigned int clk_src,
 				break;
 		}
 	}
+
+	if (ret)
+		return -EINVAL;
 
 	sample_cnt = base_sample_cnt;
 	step_cnt = base_step_cnt;
@@ -509,7 +737,7 @@ static int mtk_i2c_calculate_speed(struct mtk_i2c *i2c, unsigned int clk_src,
 	return 0;
 }
 
-static int mtk_i2c_set_speed(struct mtk_i2c *i2c, unsigned int parent_clk)
+static int mtk_i2c_set_speed_default_timing(struct mtk_i2c *i2c, unsigned int parent_clk)
 {
 	unsigned int clk_src;
 	unsigned int step_cnt;
@@ -519,12 +747,15 @@ static int mtk_i2c_set_speed(struct mtk_i2c *i2c, unsigned int parent_clk)
 	unsigned int target_speed;
 	int ret;
 
+	if (i2c->dev_comp->timing_adjust)
+		i2c->clk_src_div *= I2C_DEFAULT_CLK_DIV;
+
 	clk_src = parent_clk / i2c->clk_src_div;
 	target_speed = i2c->speed_hz;
 
-	if (target_speed > MAX_FS_MODE_SPEED) {
+	if (target_speed > I2C_MAX_FAST_MODE_PLUS_FREQ) {
 		/* Set master code speed register */
-		ret = mtk_i2c_calculate_speed(i2c, clk_src, MAX_FS_MODE_SPEED,
+		ret = mtk_i2c_calculate_speed(i2c, clk_src, I2C_MAX_FAST_MODE_FREQ,
 					      &l_step_cnt, &l_sample_cnt);
 		if (ret < 0)
 			return ret;
@@ -561,6 +792,80 @@ static int mtk_i2c_set_speed(struct mtk_i2c *i2c, unsigned int parent_clk)
 	return 0;
 }
 
+static int mtk_i2c_set_speed_adjust_timing(struct mtk_i2c *i2c,
+					   unsigned int parent_clk)
+{
+	unsigned int clk_src;
+	unsigned int step_cnt;
+	unsigned int sample_cnt;
+	unsigned int l_step_cnt;
+	unsigned int l_sample_cnt;
+	unsigned int target_speed;
+	unsigned int clk_div;
+	unsigned int max_clk_div;
+	int ret;
+
+	target_speed = i2c->speed_hz;
+	parent_clk /= i2c->clk_src_div;
+
+	if (i2c->dev_comp->timing_adjust)
+		max_clk_div = MAX_CLOCK_DIV;
+	else
+		max_clk_div = 1;
+
+	for (clk_div = 1; clk_div <= max_clk_div; clk_div++) {
+		clk_src = parent_clk / clk_div;
+
+		if (target_speed > I2C_MAX_FAST_MODE_PLUS_FREQ) {
+			/* Set master code speed register */
+			ret = mtk_i2c_calculate_speed(i2c, clk_src,
+						      I2C_MAX_FAST_MODE_FREQ,
+						      &l_step_cnt,
+						      &l_sample_cnt);
+			if (ret < 0)
+				continue;
+
+			i2c->timing_reg = (l_sample_cnt << 8) | l_step_cnt;
+
+			/* Set the high speed mode register */
+			ret = mtk_i2c_calculate_speed(i2c, clk_src,
+						      target_speed, &step_cnt,
+						      &sample_cnt);
+			if (ret < 0)
+				continue;
+
+			i2c->high_speed_reg = I2C_TIME_DEFAULT_VALUE |
+					(sample_cnt << 12) | (step_cnt << 8);
+
+			if (i2c->dev_comp->ltiming_adjust)
+				i2c->ltiming_reg =
+					(l_sample_cnt << 6) | l_step_cnt |
+					(sample_cnt << 12) | (step_cnt << 9);
+		} else {
+			ret = mtk_i2c_calculate_speed(i2c, clk_src,
+						      target_speed, &l_step_cnt,
+						      &l_sample_cnt);
+			if (ret < 0)
+				continue;
+
+			i2c->timing_reg = (l_sample_cnt << 8) | l_step_cnt;
+
+			/* Disable the high speed transaction */
+			i2c->high_speed_reg = I2C_TIME_CLR_VALUE;
+
+			if (i2c->dev_comp->ltiming_adjust)
+				i2c->ltiming_reg =
+					(l_sample_cnt << 6) | l_step_cnt;
+		}
+
+		break;
+	}
+
+	i2c->ac_timing.inter_clk_div = clk_div - 1;
+
+	return 0;
+}
+
 static inline u32 mtk_i2c_set_4g_mode(dma_addr_t addr)
 {
 	return (addr & BIT_ULL(32)) ? I2C_DMA_4G_MODE : I2C_DMA_CLR_FLAG;
@@ -589,19 +894,13 @@ static int mtk_i2c_do_transfer(struct mtk_i2c *i2c, struct i2c_msg *msgs,
 
 	control_reg = mtk_i2c_readw(i2c, OFFSET_CONTROL) &
 			~(I2C_CONTROL_DIR_CHANGE | I2C_CONTROL_RS);
-	if ((i2c->speed_hz > MAX_FS_MODE_SPEED) || (left_num >= 1))
+	if ((i2c->speed_hz > I2C_MAX_FAST_MODE_FREQ) || (left_num >= 1))
 		control_reg |= I2C_CONTROL_RS;
 
 	if (i2c->op == I2C_MASTER_WRRD)
 		control_reg |= I2C_CONTROL_DIR_CHANGE | I2C_CONTROL_RS;
 
 	mtk_i2c_writew(i2c, control_reg, OFFSET_CONTROL);
-
-	/* set start condition */
-	if (i2c->speed_hz <= I2C_DEFAULT_SPEED)
-		mtk_i2c_writew(i2c, I2C_ST_START_CON, OFFSET_EXT_CONF);
-	else
-		mtk_i2c_writew(i2c, I2C_FS_START_CON, OFFSET_EXT_CONF);
 
 	addr_reg = i2c_8bit_addr_from_msg(msgs);
 	mtk_i2c_writew(i2c, addr_reg, OFFSET_SLAVE_ADDR);
@@ -806,7 +1105,7 @@ static int mtk_i2c_transfer(struct i2c_adapter *adap,
 		}
 	}
 
-	if (i2c->auto_restart && num >= 2 && i2c->speed_hz > MAX_FS_MODE_SPEED)
+	if (i2c->auto_restart && num >= 2 && i2c->speed_hz > I2C_MAX_FAST_MODE_FREQ)
 		/* ignore the first restart irq after the master code,
 		 * otherwise the first transfer will be discarded.
 		 */
@@ -901,7 +1200,7 @@ static int mtk_i2c_parse_dt(struct device_node *np, struct mtk_i2c *i2c)
 
 	ret = of_property_read_u32(np, "clock-frequency", &i2c->speed_hz);
 	if (ret < 0)
-		i2c->speed_hz = I2C_DEFAULT_SPEED;
+		i2c->speed_hz = I2C_MAX_STANDARD_MODE_FREQ;
 
 	ret = of_property_read_u32(np, "clock-div", &i2c->clk_src_div);
 	if (ret < 0)
@@ -910,9 +1209,13 @@ static int mtk_i2c_parse_dt(struct device_node *np, struct mtk_i2c *i2c)
 	if (i2c->clk_src_div == 0)
 		return -EINVAL;
 
+	of_property_read_u32(np, "clock-stretch-ns", &i2c->clock_stretch_ns);
+
 	i2c->have_pmic = of_property_read_bool(np, "mediatek,have-pmic");
 	i2c->use_push_pull =
 		of_property_read_bool(np, "mediatek,use-push-pull");
+	i2c->default_timing_adjust =
+		of_property_read_bool(np, "mediatek,default-timing-adjust");
 
 	return 0;
 }
@@ -959,9 +1262,6 @@ static int mtk_i2c_probe(struct platform_device *pdev)
 	if (ret)
 		return -EINVAL;
 
-	if (i2c->dev_comp->timing_adjust)
-		i2c->clk_src_div *= I2C_DEFAULT_CLK_DIV;
-
 	if (i2c->have_pmic && !i2c->dev_comp->pmic_i2c)
 		return -EINVAL;
 
@@ -993,7 +1293,10 @@ static int mtk_i2c_probe(struct platform_device *pdev)
 
 	strlcpy(i2c->adap.name, I2C_DRV_NAME, sizeof(i2c->adap.name));
 
-	ret = mtk_i2c_set_speed(i2c, clk_get_rate(clk));
+	if (i2c->default_timing_adjust)
+		ret = mtk_i2c_set_speed_default_timing(i2c, clk_get_rate(clk));
+	else
+		ret = mtk_i2c_set_speed_adjust_timing(i2c, clk_get_rate(clk));
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to set the speed.\n");
 		return -EINVAL;

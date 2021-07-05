@@ -1699,6 +1699,7 @@ static noinline int fixup_inode_link_counts(struct btrfs_trans_handle *trans,
 			break;
 
 		if (ret == 1) {
+			ret = 0;
 			if (path->slots[0] == 0)
 				break;
 			path->slots[0]--;
@@ -1711,17 +1712,19 @@ static noinline int fixup_inode_link_counts(struct btrfs_trans_handle *trans,
 
 		ret = btrfs_del_item(trans, root, path);
 		if (ret)
-			goto out;
+			break;
 
 		btrfs_release_path(path);
 		inode = read_one_inode(root, key.offset);
-		if (!inode)
-			return -EIO;
+		if (!inode) {
+			ret = -EIO;
+			break;
+		}
 
 		ret = fixup_inode_link_count(trans, root, inode);
 		iput(inode);
 		if (ret)
-			goto out;
+			break;
 
 		/*
 		 * fixup on a directory may create new entries,
@@ -1730,8 +1733,6 @@ static noinline int fixup_inode_link_counts(struct btrfs_trans_handle *trans,
 		 */
 		key.offset = (u64)-1;
 	}
-	ret = 0;
-out:
 	btrfs_release_path(path);
 	return ret;
 }
@@ -1770,8 +1771,6 @@ static noinline int link_to_fixup_dir(struct btrfs_trans_handle *trans,
 		ret = btrfs_update_inode(trans, root, inode);
 	} else if (ret == -EEXIST) {
 		ret = 0;
-	} else {
-		BUG(); /* Logic Error */
 	}
 	iput(inode);
 
@@ -3422,11 +3421,13 @@ fail:
 	btrfs_free_path(path);
 out_unlock:
 	mutex_unlock(&dir->log_mutex);
-	if (ret == -ENOSPC) {
+	if (err == -ENOSPC) {
 		btrfs_set_log_full_commit(root->fs_info, trans);
-		ret = 0;
-	} else if (ret < 0)
-		btrfs_abort_transaction(trans, ret);
+		err = 0;
+	} else if (err < 0 && err != -ENOENT) {
+		/* ENOENT can be returned if the entry hasn't been fsynced yet */
+		btrfs_abort_transaction(trans, err);
+	}
 
 	btrfs_end_log_trans(root);
 
@@ -3587,6 +3588,7 @@ static noinline int log_dir_items(struct btrfs_trans_handle *trans,
 	 * search and this search we'll not find the key again and can just
 	 * bail.
 	 */
+search:
 	ret = btrfs_search_slot(NULL, root, &min_key, path, 0, 0);
 	if (ret != 0)
 		goto done;
@@ -3606,6 +3608,13 @@ static noinline int log_dir_items(struct btrfs_trans_handle *trans,
 
 			if (min_key.objectid != ino || min_key.type != key_type)
 				goto done;
+
+			if (need_resched()) {
+				btrfs_release_path(path);
+				cond_resched();
+				goto search;
+			}
+
 			ret = overwrite_item(trans, log, dst_path, src, i,
 					     &min_key);
 			if (ret) {

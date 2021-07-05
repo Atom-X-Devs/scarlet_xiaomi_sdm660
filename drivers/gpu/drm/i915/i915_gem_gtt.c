@@ -1262,7 +1262,7 @@ static int gen8_init_scratch(struct i915_address_space *vm)
 {
 	int ret;
 
-	ret = setup_scratch_page(vm, __GFP_HIGHMEM);
+	ret = setup_scratch_page(vm, GFP_KERNEL | __GFP_HIGHMEM);
 	if (ret)
 		return ret;
 
@@ -1972,7 +1972,7 @@ static int gen6_ppgtt_init_scratch(struct gen6_hw_ppgtt *ppgtt)
 	u32 pde;
 	int ret;
 
-	ret = setup_scratch_page(vm, __GFP_HIGHMEM);
+	ret = setup_scratch_page(vm, GFP_KERNEL | __GFP_HIGHMEM);
 	if (ret)
 		return ret;
 
@@ -3078,7 +3078,7 @@ static int ggtt_probe_common(struct i915_ggtt *ggtt, u64 size)
 		return -ENOMEM;
 	}
 
-	ret = setup_scratch_page(&ggtt->vm, GFP_DMA32);
+	ret = setup_scratch_page(&ggtt->vm, GFP_KERNEL | __GFP_DMA32);
 	if (ret) {
 		DRM_ERROR("Scratch setup failed\n");
 		/* iounmap will also get called at remove, but meh */

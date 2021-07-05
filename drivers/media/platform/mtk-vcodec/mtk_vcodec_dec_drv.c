@@ -224,7 +224,9 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		mtk_v4l2_err("Could not get vdec IPI device");
 		return -ENODEV;
 	}
-	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, VPU_RST_DEC);
+	dma_set_max_seg_size(&pdev->dev, UINT_MAX);
+
+	dev->fw_handler = mtk_vcodec_fw_select(dev, fw_type, DECODER);
 	if (IS_ERR(dev->fw_handler))
 		return PTR_ERR(dev->fw_handler);
 
@@ -251,6 +253,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	}
 
 	dev->dec_irq = platform_get_irq(pdev, 0);
+	irq_set_status_flags(dev->dec_irq, IRQ_NOAUTOEN);
 	ret = devm_request_irq(&pdev->dev, dev->dec_irq,
 			mtk_vcodec_dec_irq_handler, 0, pdev->name, dev);
 	if (ret) {
@@ -260,7 +263,6 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		goto err_res;
 	}
 
-	disable_irq(dev->dec_irq);
 	mutex_init(&dev->dec_mutex);
 	mutex_init(&dev->dev_mutex);
 	spin_lock_init(&dev->irqlock);
@@ -370,17 +372,17 @@ err_dec_pm:
 	return ret;
 }
 
-extern const struct mtk_vcodec_dec_pdata mtk_frame_8173_pdata;
-extern const struct mtk_vcodec_dec_pdata mtk_req_8183_pdata;
+extern const struct mtk_vcodec_dec_pdata mtk_vdec_8173_pdata;
+extern const struct mtk_vcodec_dec_pdata mtk_vdec_8183_pdata;
 
 static const struct of_device_id mtk_vcodec_match[] = {
 	{
 		.compatible = "mediatek,mt8173-vcodec-dec",
-		.data = &mtk_frame_8173_pdata,
+		.data = &mtk_vdec_8173_pdata,
 	},
 	{
 		.compatible = "mediatek,mt8183-vcodec-dec",
-		.data = &mtk_req_8183_pdata,
+		.data = &mtk_vdec_8183_pdata,
 	},
 	{},
 };

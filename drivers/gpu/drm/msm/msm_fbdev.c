@@ -180,10 +180,6 @@ struct drm_fb_helper *msm_fbdev_init(struct drm_device *dev)
 		goto fail;
 	}
 
-	ret = drm_fb_helper_single_add_all_connectors(helper);
-	if (ret)
-		goto fini;
-
 	ret = drm_fb_helper_initial_config(helper, 32);
 	if (ret)
 		goto fini;

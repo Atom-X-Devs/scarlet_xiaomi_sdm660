@@ -131,12 +131,6 @@ mt8183_da7219_rt1015_i2s_hw_params(struct snd_pcm_substream *substream,
 
 		if (!strcmp(codec_dai->component->name, RT1015_DEV0_NAME) ||
 		    !strcmp(codec_dai->component->name, RT1015_DEV1_NAME)) {
-			ret = snd_soc_dai_set_bclk_ratio(codec_dai, 64);
-			if (ret) {
-				dev_err(rtd->dev, "failed to set bclk ratio\n");
-				return ret;
-			}
-
 			ret = snd_soc_dai_set_pll(codec_dai, 0,
 						  RT1015_PLL_S_BCLK,
 						  rate * 64, rate * 256);
@@ -353,6 +347,12 @@ SND_SOC_DAILINK_DEFS(i2s3_rt1015,
 			   COMP_CODEC(DA7219_DEV_NAME, DA7219_CODEC_DAI)),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
+SND_SOC_DAILINK_DEFS(i2s3_rt1015p,
+	DAILINK_COMP_ARRAY(COMP_CPU("I2S3")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("rt1015p", "HiFi"),
+			   COMP_CODEC(DA7219_DEV_NAME, DA7219_CODEC_DAI)),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 SND_SOC_DAILINK_DEFS(i2s5,
 	DAILINK_COMP_ARRAY(COMP_CPU("I2S5")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("bt-sco", "bt-sco-pcm")),
@@ -549,7 +549,8 @@ mt8183_da7219_max98357_headset_init(struct snd_soc_component *component)
 				    "Headset Jack",
 				    SND_JACK_HEADSET |
 				    SND_JACK_BTN_0 | SND_JACK_BTN_1 |
-				    SND_JACK_BTN_2 | SND_JACK_BTN_3,
+				    SND_JACK_BTN_2 | SND_JACK_BTN_3 |
+				    SND_JACK_LINEOUT,
 				    &priv->headset_jack,
 				    NULL, 0);
 	if (ret)
@@ -629,8 +630,44 @@ static struct snd_soc_codec_conf mt8183_da7219_rt1015_codec_conf[] = {
 	},
 };
 
+static const struct snd_kcontrol_new mt8183_da7219_rt1015_snd_controls[] = {
+	SOC_DAPM_PIN_SWITCH("Left Spk"),
+	SOC_DAPM_PIN_SWITCH("Right Spk"),
+};
+
+static const
+struct snd_soc_dapm_widget mt8183_da7219_rt1015_dapm_widgets[] = {
+	SND_SOC_DAPM_SPK("Left Spk", NULL),
+	SND_SOC_DAPM_SPK("Right Spk", NULL),
+	SND_SOC_DAPM_PINCTRL("TDM_OUT_PINCTRL",
+			     "aud_tdm_out_on", "aud_tdm_out_off"),
+};
+
+static const struct snd_soc_dapm_route mt8183_da7219_rt1015_dapm_routes[] = {
+	{"Left Spk", NULL, "Left SPO"},
+	{"Right Spk", NULL, "Right SPO"},
+	{"I2S Playback", NULL, "TDM_OUT_PINCTRL"},
+};
+
 static struct snd_soc_card mt8183_da7219_rt1015_card = {
 	.name = "mt8183_da7219_rt1015",
+	.owner = THIS_MODULE,
+	.controls = mt8183_da7219_rt1015_snd_controls,
+	.num_controls = ARRAY_SIZE(mt8183_da7219_rt1015_snd_controls),
+	.dapm_widgets = mt8183_da7219_rt1015_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(mt8183_da7219_rt1015_dapm_widgets),
+	.dapm_routes = mt8183_da7219_rt1015_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(mt8183_da7219_rt1015_dapm_routes),
+	.dai_link = mt8183_da7219_dai_links,
+	.num_links = ARRAY_SIZE(mt8183_da7219_dai_links),
+	.aux_dev = &mt8183_da7219_max98357_headset_dev,
+	.num_aux_devs = 1,
+	.codec_conf = mt8183_da7219_rt1015_codec_conf,
+	.num_configs = ARRAY_SIZE(mt8183_da7219_rt1015_codec_conf),
+};
+
+static struct snd_soc_card mt8183_da7219_rt1015p_card = {
+	.name = "mt8183_da7219_rt1015p",
 	.owner = THIS_MODULE,
 	.controls = mt8183_da7219_max98357_snd_controls,
 	.num_controls = ARRAY_SIZE(mt8183_da7219_max98357_snd_controls),
@@ -642,8 +679,8 @@ static struct snd_soc_card mt8183_da7219_rt1015_card = {
 	.num_links = ARRAY_SIZE(mt8183_da7219_dai_links),
 	.aux_dev = &mt8183_da7219_max98357_headset_dev,
 	.num_aux_devs = 1,
-	.codec_conf = mt8183_da7219_rt1015_codec_conf,
-	.num_configs = ARRAY_SIZE(mt8183_da7219_rt1015_codec_conf),
+	.codec_conf = mt6358_codec_conf,
+	.num_configs = ARRAY_SIZE(mt6358_codec_conf),
 };
 
 static int mt8183_da7219_max98357_dev_probe(struct platform_device *pdev)
@@ -678,7 +715,7 @@ static int mt8183_da7219_max98357_dev_probe(struct platform_device *pdev)
 			if (card == &mt8183_da7219_max98357_card) {
 				dai_link->be_hw_params_fixup =
 					mt8183_i2s_hw_params_fixup;
-				dai_link->ops = &mt8183_mt6358_i2s_ops;
+				dai_link->ops = &mt8183_da7219_i2s_ops;
 				dai_link->cpus = i2s3_max98357a_cpus;
 				dai_link->num_cpus =
 					ARRAY_SIZE(i2s3_max98357a_cpus);
@@ -701,6 +738,19 @@ static int mt8183_da7219_max98357_dev_probe(struct platform_device *pdev)
 				dai_link->platforms = i2s3_rt1015_platforms;
 				dai_link->num_platforms =
 					ARRAY_SIZE(i2s3_rt1015_platforms);
+			} else if (card == &mt8183_da7219_rt1015p_card) {
+				dai_link->be_hw_params_fixup =
+					mt8183_rt1015_i2s_hw_params_fixup;
+				dai_link->ops = &mt8183_da7219_i2s_ops;
+				dai_link->cpus = i2s3_rt1015p_cpus;
+				dai_link->num_cpus =
+					ARRAY_SIZE(i2s3_rt1015p_cpus);
+				dai_link->codecs = i2s3_rt1015p_codecs;
+				dai_link->num_codecs =
+					ARRAY_SIZE(i2s3_rt1015p_codecs);
+				dai_link->platforms = i2s3_rt1015p_platforms;
+				dai_link->num_platforms =
+					ARRAY_SIZE(i2s3_rt1015p_platforms);
 			}
 		}
 
@@ -747,6 +797,10 @@ static const struct of_device_id mt8183_da7219_max98357_dt_match[] = {
 		.compatible = "mediatek,mt8183_da7219_rt1015",
 		.data = &mt8183_da7219_rt1015_card,
 	},
+	{
+		.compatible = "mediatek,mt8183_da7219_rt1015p",
+		.data = &mt8183_da7219_rt1015p_card,
+	},
 	{}
 };
 #endif
@@ -757,6 +811,7 @@ static struct platform_driver mt8183_da7219_max98357_driver = {
 #ifdef CONFIG_OF
 		.of_match_table = mt8183_da7219_max98357_dt_match,
 #endif
+		.pm = &snd_soc_pm_ops,
 	},
 	.probe = mt8183_da7219_max98357_dev_probe,
 };

@@ -836,6 +836,7 @@ enum htt_security_types {
 
 #define ATH10K_HTT_TXRX_PEER_SECURITY_MAX 2
 #define ATH10K_TXRX_NUM_EXT_TIDS 19
+#define ATH10K_TXRX_NON_QOS_TID 16
 
 enum htt_security_flags {
 #define HTT_SECURITY_TYPE_MASK 0x7F
@@ -1760,14 +1761,14 @@ struct ath10k_htt_txbuf_32 {
 	struct ath10k_htc_hdr htc_hdr;
 	struct htt_cmd_hdr cmd_hdr;
 	struct htt_data_tx_desc cmd_tx;
-} __packed;
+} __packed __aligned(4);
 
 struct ath10k_htt_txbuf_64 {
 	struct htt_data_tx_desc_frag frags[2];
 	struct ath10k_htc_hdr htc_hdr;
 	struct htt_cmd_hdr cmd_hdr;
 	struct htt_data_tx_desc_64 cmd_tx;
-} __packed;
+} __packed __aligned(4);
 
 struct ath10k_htt {
 	struct ath10k *ar;

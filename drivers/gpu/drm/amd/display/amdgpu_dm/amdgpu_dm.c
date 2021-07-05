@@ -660,7 +660,7 @@ static void s3_handle_mst(struct drm_device *dev, bool suspend)
 		if (suspend) {
 			drm_dp_mst_topology_mgr_suspend(mgr);
 		} else {
-			ret = drm_dp_mst_topology_mgr_resume(mgr);
+			ret = drm_dp_mst_topology_mgr_resume(mgr, true);
 			if (ret < 0) {
 				drm_dp_mst_topology_mgr_set_mst(mgr, false);
 				need_hotplug = true;
@@ -745,8 +745,8 @@ static void emulated_link_detect(struct dc_link *link)
 	link->type = dc_connection_none;
 	prev_sink = link->local_sink;
 
-	if (prev_sink != NULL)
-		dc_sink_retain(prev_sink);
+	if (prev_sink)
+		dc_sink_release(prev_sink);
 
 	switch (link->connector_signal) {
 	case SIGNAL_TYPE_HDMI_TYPE_A: {
@@ -3219,7 +3219,6 @@ amdgpu_dm_connector_helper_funcs = {
 	 */
 	.get_modes = get_modes,
 	.mode_valid = amdgpu_dm_connector_mode_valid,
-	.best_encoder = drm_atomic_helper_best_encoder
 };
 
 static void dm_crtc_helper_disable(struct drm_crtc *crtc)
@@ -3622,14 +3621,23 @@ static int to_drm_connector_type(enum signal_type st)
 	}
 }
 
+static struct drm_encoder *amdgpu_dm_connector_to_encoder(struct drm_connector *connector)
+{
+	struct drm_encoder *encoder;
+
+	/* There is only one encoder per connector */
+	drm_connector_for_each_possible_encoder(connector, encoder)
+		return encoder;
+
+	return NULL;
+}
+
 static void amdgpu_dm_get_native_mode(struct drm_connector *connector)
 {
-	const struct drm_connector_helper_funcs *helper =
-		connector->helper_private;
 	struct drm_encoder *encoder;
 	struct amdgpu_encoder *amdgpu_encoder;
 
-	encoder = helper->best_encoder(connector);
+	encoder = amdgpu_dm_connector_to_encoder(connector);
 
 	if (encoder == NULL)
 		return;
@@ -3756,14 +3764,12 @@ static void amdgpu_dm_connector_ddc_get_modes(struct drm_connector *connector,
 
 static int amdgpu_dm_connector_get_modes(struct drm_connector *connector)
 {
-	const struct drm_connector_helper_funcs *helper =
-			connector->helper_private;
 	struct amdgpu_dm_connector *amdgpu_dm_connector =
 			to_amdgpu_dm_connector(connector);
 	struct drm_encoder *encoder;
 	struct edid *edid = amdgpu_dm_connector->edid;
 
-	encoder = helper->best_encoder(connector);
+	encoder = amdgpu_dm_connector_to_encoder(connector);
 
 	if (!edid || !drm_edid_is_valid(edid)) {
 		amdgpu_dm_connector->num_modes =
@@ -4840,14 +4846,14 @@ static int dm_force_atomic_commit(struct drm_connector *connector)
 
 	ret = PTR_ERR_OR_ZERO(conn_state);
 	if (ret)
-		goto err;
+		goto out;
 
 	/* Attach crtc to drm_atomic_state*/
 	crtc_state = drm_atomic_get_crtc_state(state, &disconnected_acrtc->base);
 
 	ret = PTR_ERR_OR_ZERO(crtc_state);
 	if (ret)
-		goto err;
+		goto out;
 
 	/* force a restore */
 	crtc_state->mode_changed = true;
@@ -4857,17 +4863,15 @@ static int dm_force_atomic_commit(struct drm_connector *connector)
 
 	ret = PTR_ERR_OR_ZERO(plane_state);
 	if (ret)
-		goto err;
-
+		goto out;
 
 	/* Call commit internally with the state we just constructed */
 	ret = drm_atomic_commit(state);
-	if (!ret)
-		return 0;
 
-err:
-	DRM_ERROR("Restoring old state failed with %i\n", ret);
+out:
 	drm_atomic_state_put(state);
+	if (ret)
+		DRM_ERROR("Restoring old state failed with %i\n", ret);
 
 	return ret;
 }

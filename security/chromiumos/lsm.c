@@ -32,10 +32,22 @@
 #include <linux/sched/task_stack.h>
 #include <linux/sched.h>	/* current and other task related stuff */
 #include <linux/security.h>
+#include <linux/uaccess.h>
 #include <uapi/linux/fs.h>
+#include <uapi/linux/nvme_ioctl.h>
 
 #include "inode_mark.h"
 #include "utils.h"
+
+#define ADMIN_GET_LOG_PAGE	0x02
+#define ADMIN_IDENTITY		0x06
+#define ADMIN_SET_FEATURE	0x09
+#define ADMIN_GET_FEATURE	0x0A
+#define ADMIN_ASYNC_EVENT	0x0C
+#define ADMIN_FW_COMMIT	0x10
+#define ADMIN_FW_DL		0x11
+#define ADMIN_SELF_TEST	0x14
+#define ADMIN_KEEP_ALIVE	0x18
 
 #if defined(CONFIG_SECURITY_CHROMIUMOS_NO_UNPRIVILEGED_UNSAFE_MOUNTS) || \
 	defined(CONFIG_SECURITY_CHROMIUMOS_NO_SYMLINK_MOUNT)
@@ -177,19 +189,82 @@ static int chromiumos_security_inode_follow_link(struct dentry *dentry,
 	return policy == CHROMIUMOS_INODE_POLICY_BLOCK ? -EACCES : 0;
 }
 
+static int chromiumos_security_file_ioctl(
+	struct file *file, unsigned int cmd, unsigned long arg)
+{
+	static char accessed_path[PATH_MAX];
+	enum chromiumos_inode_security_policy policy;
+	struct dentry *dentry = file->f_path.dentry;
+	bool should_check = false;
+
+	if (!S_ISCHR(file->f_inode->i_mode) &&
+	    !S_ISBLK(file->f_inode->i_mode)) {
+		return 0;
+	}
+
+	// Filter direct IO related ioctls
+	if (cmd == NVME_IOCTL_SUBMIT_IO || cmd == NVME_IOCTL_IO_CMD)
+		should_check = true;
+
+	// Filter IO opcodes in admin cmd
+	if (cmd == NVME_IOCTL_ADMIN_CMD) {
+		struct nvme_passthru_cmd __user *ucmd = (void __user *)arg;
+		struct nvme_passthru_cmd cmd;
+
+		if (copy_from_user(&cmd, ucmd, sizeof(cmd)))
+			return -EFAULT;
+
+		// Allow list of admin op codes.
+		if (cmd.opcode != ADMIN_GET_LOG_PAGE &&
+		    cmd.opcode != ADMIN_IDENTITY &&
+		    cmd.opcode != ADMIN_SET_FEATURE &&
+		    cmd.opcode != ADMIN_GET_FEATURE &&
+		    cmd.opcode != ADMIN_ASYNC_EVENT &&
+		    cmd.opcode != ADMIN_FW_COMMIT &&
+		    cmd.opcode != ADMIN_FW_DL &&
+		    cmd.opcode != ADMIN_SELF_TEST &&
+		    cmd.opcode != ADMIN_KEEP_ALIVE) {
+			should_check = true;
+		}
+	}
+
+	if (!should_check)
+		return 0;
+
+	policy = chromiumos_get_inode_security_policy(
+		dentry, dentry->d_inode,
+		CHROMIUMOS_NVME_IOCTL_IO_ACCESS);
+
+	/*
+	 * Emit a warning in cases of blocked chrdev ioctl attempts. These will
+	 * show up in kernel warning reports collected by the crash reporter,
+	 * so we have some insight on spurious failures that need addressing.
+	 */
+	WARN(policy == CHROMIUMOS_INODE_POLICY_BLOCK,
+	     "Blocked ioctl '%d' access for path %x:%x:%s\n (see https://goo.gl/8xICW6 for context and rationale)\n",
+	     cmd, MAJOR(dentry->d_sb->s_dev), MINOR(dentry->d_sb->s_dev),
+	     dentry_path(dentry, accessed_path, PATH_MAX));
+
+	return policy == CHROMIUMOS_INODE_POLICY_BLOCK ? -EACCES : 0;
+}
+
 static int chromiumos_security_file_open(struct file *file)
 {
 	static char accessed_path[PATH_MAX];
 	enum chromiumos_inode_security_policy policy;
 	struct dentry *dentry = file->f_path.dentry;
 
-	/* Returns 0 if file is not a FIFO */
-	if (!S_ISFIFO(file->f_inode->i_mode))
+	if (S_ISFIFO(file->f_inode->i_mode)) {
+		policy = chromiumos_get_inode_security_policy(
+			dentry, dentry->d_inode,
+			CHROMIUMOS_FIFO_ACCESS);
+	} else if (S_ISBLK(file->f_inode->i_mode)) {
+		policy = chromiumos_get_inode_security_policy(
+			dentry, dentry->d_inode,
+			CHROMIUMOS_BLKDEV_ACCESS);
+	} else {
 		return 0;
-
-	policy = chromiumos_get_inode_security_policy(
-		dentry, dentry->d_inode,
-		CHROMIUMOS_FIFO_ACCESS);
+	}
 
 	/*
 	 * Emit a warning in cases of blocked fifo access attempts. These will
@@ -261,6 +336,7 @@ static struct security_hook_list chromiumos_security_hooks[] = {
 	LSM_HOOK_INIT(sb_mount, chromiumos_security_sb_mount),
 	LSM_HOOK_INIT(inode_follow_link, chromiumos_security_inode_follow_link),
 	LSM_HOOK_INIT(file_open, chromiumos_security_file_open),
+	LSM_HOOK_INIT(file_ioctl, chromiumos_security_file_ioctl),
 	LSM_HOOK_INIT(sb_copy_data, chromiumos_sb_copy_data)
 };
 

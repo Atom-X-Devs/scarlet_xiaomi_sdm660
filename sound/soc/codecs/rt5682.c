@@ -71,6 +71,7 @@ struct rt5682_priv {
 	int pll_out;
 
 	int jack_type;
+	int irq_work_delay_time;
 };
 
 static const struct reg_sequence patch_list[] = {
@@ -971,7 +972,8 @@ static irqreturn_t rt5682_irq(int irq, void *data)
 	struct rt5682_priv *rt5682 = data;
 
 	mod_delayed_work(system_power_efficient_wq,
-			&rt5682->jack_detect_work, msecs_to_jiffies(250));
+		&rt5682->jack_detect_work,
+		msecs_to_jiffies(rt5682->irq_work_delay_time));
 
 	return IRQ_HANDLED;
 }
@@ -1084,6 +1086,7 @@ static void rt5682_jack_detect_handler(struct work_struct *work)
 			/* jack was out, report jack type */
 			rt5682->jack_type =
 				rt5682_headset_detect(rt5682->component, 1);
+			rt5682->irq_work_delay_time = 0;
 		} else if ((rt5682->jack_type & SND_JACK_HEADSET) ==
 			SND_JACK_HEADSET) {
 			/* jack is already in, report button event */
@@ -1130,6 +1133,7 @@ static void rt5682_jack_detect_handler(struct work_struct *work)
 	} else {
 		/* jack out */
 		rt5682->jack_type = rt5682_headset_detect(rt5682->component, 0);
+		rt5682->irq_work_delay_time = 50;
 	}
 
 	snd_soc_jack_report(rt5682->hs_jack, rt5682->jack_type,

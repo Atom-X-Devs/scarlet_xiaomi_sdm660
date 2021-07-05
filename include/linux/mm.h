@@ -59,6 +59,8 @@ extern int sysctl_legacy_va_layout;
 #endif
 
 extern int min_filelist_kbytes;
+extern int min_filelist_kbytes_handler(struct ctl_table *table, int write,
+		void __user *buf, size_t *len, loff_t *pos);
 
 #ifdef CONFIG_HAVE_ARCH_MMAP_RND_BITS
 extern const int mmap_rnd_bits_min;
@@ -810,10 +812,12 @@ vm_fault_t finish_mkwrite_fault(struct vm_fault *vmf);
  */
 
 /* Page flags: | [SECTION] | [NODE] | ZONE | [LAST_CPUPID] | ... | FLAGS | */
-#define SECTIONS_PGOFF		((sizeof(unsigned long)*8) - SECTIONS_WIDTH)
+#define SECTIONS_PGOFF		(BITS_PER_LONG - SECTIONS_WIDTH)
 #define NODES_PGOFF		(SECTIONS_PGOFF - NODES_WIDTH)
 #define ZONES_PGOFF		(NODES_PGOFF - ZONES_WIDTH)
 #define LAST_CPUPID_PGOFF	(ZONES_PGOFF - LAST_CPUPID_WIDTH)
+#define LRU_GEN_PGOFF		(LAST_CPUPID_PGOFF - LRU_GEN_WIDTH)
+#define LRU_USAGE_PGOFF		(LRU_GEN_PGOFF - LRU_USAGE_WIDTH)
 
 /*
  * Define the bit shifts to access each section.  For non-existent
@@ -838,8 +842,8 @@ vm_fault_t finish_mkwrite_fault(struct vm_fault *vmf);
 
 #define ZONEID_PGSHIFT		(ZONEID_PGOFF * (ZONEID_SHIFT != 0))
 
-#if SECTIONS_WIDTH+NODES_WIDTH+ZONES_WIDTH > BITS_PER_LONG - NR_PAGEFLAGS
-#error SECTIONS_WIDTH+NODES_WIDTH+ZONES_WIDTH > BITS_PER_LONG - NR_PAGEFLAGS
+#if LRU_USAGE_PGOFF < NR_PAGEFLAGS
+#error LRU_USAGE_PGOFF < NR_PAGEFLAGS
 #endif
 
 #define ZONES_MASK		((1UL << ZONES_WIDTH) - 1)
@@ -1166,7 +1170,6 @@ static inline struct mem_cgroup *page_memcg(struct page *page)
 }
 static inline struct mem_cgroup *page_memcg_rcu(struct page *page)
 {
-	WARN_ON_ONCE(!rcu_read_lock_held());
 	return NULL;
 }
 #endif
@@ -1363,8 +1366,6 @@ void unmap_vmas(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
  *	       this handler should only handle pud_trans_huge() puds.
  *	       the pmd_entry or pte_entry callbacks will be used for
  *	       regular PUDs.
- * @pud_entry_late: if set, called for each non-empty PUD (2nd-level)
- *	       entry after pmd_entry and pte_entry are called.
  * @pmd_entry: if set, called for each non-empty PMD (3rd-level) entry
  *	       this handler is required to be able to handle
  *	       pmd_trans_huge() pmds.  They may simply choose to
@@ -1384,10 +1385,10 @@ void unmap_vmas(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
  * (see the comment on walk_page_range() for more details)
  */
 struct mm_walk {
+	int (*p4d_entry)(p4d_t *p4d, unsigned long addr,
+			 unsigned long next, struct mm_walk *walk);
 	int (*pud_entry)(pud_t *pud, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk);
-	int (*pud_entry_late)(pud_t *pud, unsigned long addr,
-			      unsigned long next, struct mm_walk *walk);
 	int (*pmd_entry)(pmd_t *pmd, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk);
 	int (*pte_entry)(pte_t *pte, unsigned long addr,
@@ -1439,6 +1440,23 @@ void unmap_mapping_pages(struct address_space *mapping,
 		pgoff_t start, pgoff_t nr, bool even_cows);
 void unmap_mapping_range(struct address_space *mapping,
 		loff_t const holebegin, loff_t const holelen, int even_cows);
+
+static inline void task_enter_user_fault(void)
+{
+	WARN_ON(current->in_user_fault);
+	current->in_user_fault = 1;
+}
+
+static inline void task_exit_user_fault(void)
+{
+	WARN_ON(!current->in_user_fault);
+	current->in_user_fault = 0;
+}
+
+static inline bool task_in_user_fault(void)
+{
+	return current->in_user_fault;
+}
 #else
 static inline vm_fault_t handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
@@ -1459,6 +1477,19 @@ static inline void unmap_mapping_pages(struct address_space *mapping,
 		pgoff_t start, pgoff_t nr, bool even_cows) { }
 static inline void unmap_mapping_range(struct address_space *mapping,
 		loff_t const holebegin, loff_t const holelen, int even_cows) { }
+
+static inline void task_enter_user_fault(void)
+{
+}
+
+static inline void task_exit_user_fault(void)
+{
+}
+
+static inline bool task_in_user_fault(void)
+{
+	return false;
+}
 #endif
 
 static inline void unmap_shared_mapping_range(struct address_space *mapping,
@@ -2186,7 +2217,7 @@ static inline void zero_resv_unavail(void) {}
 
 extern void set_dma_reserve(unsigned long new_dma_reserve);
 extern void memmap_init_zone(unsigned long, int, unsigned long, unsigned long,
-		enum memmap_context, struct vmem_altmap *);
+		enum meminit_context, struct vmem_altmap *);
 extern void setup_per_zone_wmarks(void);
 extern int __meminit init_per_zone_wmark_min(void);
 extern void mem_init(void);
@@ -2567,6 +2598,15 @@ static inline vm_fault_t vmf_insert_pfn(struct vm_area_struct *vma,
 
 	return VM_FAULT_NOPAGE;
 }
+
+#ifndef io_remap_pfn_range
+static inline int io_remap_pfn_range(struct vm_area_struct *vma,
+				     unsigned long addr, unsigned long pfn,
+				     unsigned long size, pgprot_t prot)
+{
+	return remap_pfn_range(vma, addr, pfn, size, pgprot_decrypted(prot));
+}
+#endif
 
 static inline vm_fault_t vmf_error(int err)
 {

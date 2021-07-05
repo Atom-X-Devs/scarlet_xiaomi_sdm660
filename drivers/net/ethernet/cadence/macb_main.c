@@ -1704,7 +1704,8 @@ static inline int macb_clear_csum(struct sk_buff *skb)
 
 static int macb_pad_and_fcs(struct sk_buff **skb, struct net_device *ndev)
 {
-	bool cloned = skb_cloned(*skb) || skb_header_cloned(*skb);
+	bool cloned = skb_cloned(*skb) || skb_header_cloned(*skb) ||
+		      skb_is_nonlinear(*skb);
 	int padlen = ETH_ZLEN - (*skb)->len;
 	int headroom = skb_headroom(*skb);
 	int tailroom = skb_tailroom(*skb);
@@ -2511,6 +2512,9 @@ static struct net_device_stats *gem_get_stats(struct macb *bp)
 {
 	struct gem_stats *hwstat = &bp->hw_stats.gem;
 	struct net_device_stats *nstat = &bp->dev->stats;
+
+	if (!netif_running(bp->dev))
+		return nstat;
 
 	gem_update_stats(bp);
 

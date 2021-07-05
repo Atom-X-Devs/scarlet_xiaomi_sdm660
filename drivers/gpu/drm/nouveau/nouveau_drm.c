@@ -44,7 +44,6 @@
 #include <nvif/class.h>
 #include <nvif/cl0002.h>
 #include <nvif/cla06f.h>
-#include <nvif/if0004.h>
 
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
@@ -288,7 +287,6 @@ nouveau_accel_fini(struct nouveau_drm *drm)
 	nouveau_channel_idle(drm->channel);
 	nvif_object_fini(&drm->ntfy);
 	nvkm_gpuobj_del(&drm->notify);
-	nvif_notify_fini(&drm->flip);
 	nvif_object_fini(&drm->nvsw);
 	nouveau_channel_del(&drm->channel);
 
@@ -410,17 +408,6 @@ nouveau_accel_init(struct nouveau_drm *drm)
 				BEGIN_NV04(drm->channel, NvSubSw, 0, 1);
 				OUT_RING  (drm->channel, drm->nvsw.handle);
 			}
-
-			ret = nvif_notify_init(&drm->nvsw,
-					       nouveau_flip_complete,
-					       false, NV04_NVSW_NTFY_UEVENT,
-					       NULL, 0, 0, &drm->flip);
-			if (ret == 0)
-				ret = nvif_notify_get(&drm->flip);
-			if (ret) {
-				nouveau_accel_fini(drm);
-				return;
-			}
 		}
 
 		if (ret) {
@@ -507,7 +494,7 @@ nouveau_drm_device_init(struct drm_device *dev)
 		goto fail_dispctor;
 
 	if (dev->mode_config.num_crtc) {
-		ret = nouveau_display_init(dev);
+		ret = nouveau_display_init(dev, false, false);
 		if (ret)
 			goto fail_dispinit;
 	}
