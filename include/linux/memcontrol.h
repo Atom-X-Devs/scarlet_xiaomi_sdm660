@@ -188,6 +188,8 @@ struct memcg_padding {
 #define MEMCG_PADDING(name)
 #endif
 
+struct lru_gen_mm_list;
+
 /*
  * The memory controller data structure. The memory controller controls both
  * page cache and RSS per cgroup. We would eventually like to provide
@@ -310,6 +312,10 @@ struct mem_cgroup {
 	/* List of events which userspace want to receive */
 	struct list_head event_list;
 	spinlock_t event_list_lock;
+
+#ifdef CONFIG_LRU_GEN
+	struct lru_gen_mm_list *mm_list;
+#endif
 
 	struct mem_cgroup_per_node *nodeinfo[0];
 	/* WARNING: nodeinfo must be the last member here */
@@ -528,18 +534,6 @@ unsigned long mem_cgroup_get_max(struct mem_cgroup *memcg);
 
 void mem_cgroup_print_oom_info(struct mem_cgroup *memcg,
 				struct task_struct *p);
-
-static inline void mem_cgroup_enter_user_fault(void)
-{
-	WARN_ON(current->in_user_fault);
-	current->in_user_fault = 1;
-}
-
-static inline void mem_cgroup_exit_user_fault(void)
-{
-	WARN_ON(!current->in_user_fault);
-	current->in_user_fault = 0;
-}
 
 static inline bool task_in_memcg_oom(struct task_struct *p)
 {
@@ -994,14 +988,6 @@ static inline void mem_cgroup_handle_over_high(void)
 {
 }
 
-static inline void mem_cgroup_enter_user_fault(void)
-{
-}
-
-static inline void mem_cgroup_exit_user_fault(void)
-{
-}
-
 static inline bool task_in_memcg_oom(struct task_struct *p)
 {
 	return false;
@@ -1091,6 +1077,12 @@ unsigned long mem_cgroup_soft_limit_reclaim(pg_data_t *pgdat, int order,
 }
 
 static inline void mem_cgroup_split_huge_fixup(struct page *head)
+{
+}
+
+static inline void __count_memcg_events(struct mem_cgroup *memcg,
+					enum vm_event_item idx,
+					unsigned long count)
 {
 }
 

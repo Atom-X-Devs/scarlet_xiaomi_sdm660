@@ -2,7 +2,7 @@
 /*
  * Google Kukui (and derivatives) audio fragment for da7219.
  *
- * Copyright 2019 Google LLC.
+ * Copyright 2020 Google LLC.
  */
 
 &i2c5 {
@@ -50,6 +50,5 @@
 };
 
 &sound {
-	compatible = "mediatek,mt8183_da7219_max98357";
 	mediatek,headset-codec = <&da7219>;
 };

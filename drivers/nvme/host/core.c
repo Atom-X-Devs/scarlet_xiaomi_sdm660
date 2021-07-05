@@ -64,6 +64,26 @@ static bool force_apst;
 module_param(force_apst, bool, 0644);
 MODULE_PARM_DESC(force_apst, "allow APST for newly enumerated devices even if quirked off");
 
+static unsigned long apst_primary_timeout_ms = 100;
+module_param(apst_primary_timeout_ms, ulong, 0644);
+MODULE_PARM_DESC(apst_primary_timeout_ms,
+	"primary APST timeout in ms");
+
+static unsigned long apst_secondary_timeout_ms = 2000;
+module_param(apst_secondary_timeout_ms, ulong, 0644);
+MODULE_PARM_DESC(apst_secondary_timeout_ms,
+	"secondary APST timeout in ms");
+
+static unsigned long apst_primary_latency_tol_us = 15000;
+module_param(apst_primary_latency_tol_us, ulong, 0644);
+MODULE_PARM_DESC(apst_primary_latency_tol_us,
+	"primary APST latency tolerance in us");
+
+static unsigned long apst_secondary_latency_tol_us = 100000;
+module_param(apst_secondary_latency_tol_us, ulong, 0644);
+MODULE_PARM_DESC(apst_secondary_latency_tol_us,
+	"secondary APST latency tolerance in us");
+
 static bool streams;
 module_param(streams, bool, 0644);
 MODULE_PARM_DESC(streams, "turn on support for Streams write directives");
@@ -255,11 +275,8 @@ void nvme_complete_rq(struct request *req)
 	trace_nvme_complete_rq(req);
 
 	if (unlikely(status != BLK_STS_OK && nvme_req_needs_retry(req))) {
-		if ((req->cmd_flags & REQ_NVME_MPATH) &&
-		    blk_path_error(status)) {
-			nvme_failover_req(req);
+		if ((req->cmd_flags & REQ_NVME_MPATH) && nvme_failover_req(req))
 			return;
-		}
 
 		if (!blk_queue_dying(req->q)) {
 			nvme_req(req)->retries++;
@@ -1618,7 +1635,7 @@ static void __nvme_revalidate_disk(struct gendisk *disk, struct nvme_id_ns *id)
 	if (ns->head->disk) {
 		nvme_update_disk_info(ns->head->disk, ns, id);
 		blk_queue_stack_limits(ns->head->disk->queue, ns->queue);
-		revalidate_disk(ns->head->disk);
+		nvme_mpath_update_disk_size(ns->head->disk);
 	}
 #endif
 }
@@ -1970,29 +1987,70 @@ static int nvme_configure_timestamp(struct nvme_ctrl *ctrl)
 	return ret;
 }
 
+/*
+ * The function checks whether the given total (exlat + enlat) latency of
+ * a power state allows the latter to be used as an APST transition target.
+ * It does so by comparing the latency to the primary and secondary latency
+ * tolerances defined by module params. If there's a match, the corresponding
+ * timeout value is returned and the matching tolerance index (1 or 2) is
+ * reported.
+ */
+static bool nvme_apst_get_transition_time(u64 total_latency,
+		u64 *transition_time, unsigned *last_index)
+{
+	if (total_latency <= apst_primary_latency_tol_us) {
+		if (*last_index == 1)
+			return false;
+		*last_index = 1;
+		*transition_time = apst_primary_timeout_ms;
+		return true;
+	}
+	if (apst_secondary_timeout_ms &&
+		total_latency <= apst_secondary_latency_tol_us) {
+		if (*last_index <= 2)
+			return false;
+		*last_index = 2;
+		*transition_time = apst_secondary_timeout_ms;
+		return true;
+	}
+	return false;
+}
+
+/*
+ * APST (Autonomous Power State Transition) lets us program a table of power
+ * state transitions that the controller will perform automatically.
+ *
+ * Depending on module params, one of the two supported techniques will be used:
+ *
+ * - If the parameters provide explicit timeouts and tolerances, they will be
+ *   used to build a table with up to 2 non-operational states to transition to.
+ *   The default parameter values were selected based on the values used by
+ *   Microsoft's and Intel's NVMe drivers. Yet, since we don't implement dynamic
+ *   regeneration of the APST table in the event of switching between external
+ *   and battery power, the timeouts and tolerances reflect a compromise
+ *   between values used by Microsoft for AC and battery scenarios.
+ * - If not, we'll configure the table with a simple heuristic: we are willing
+ *   to spend at most 2% of the time transitioning between power states.
+ *   Therefore, when running in any given state, we will enter the next
+ *   lower-power non-operational state after waiting 50 * (enlat + exlat)
+ *   microseconds, as long as that state's exit latency is under the requested
+ *   maximum latency.
+ *
+ * We will not autonomously enter any non-operational state for which the total
+ * latency exceeds ps_max_latency_us.
+ *
+ * Users can set ps_max_latency_us to zero to turn off APST.
+ */
 static int nvme_configure_apst(struct nvme_ctrl *ctrl)
 {
-	/*
-	 * APST (Autonomous Power State Transition) lets us program a
-	 * table of power state transitions that the controller will
-	 * perform automatically.  We configure it with a simple
-	 * heuristic: we are willing to spend at most 2% of the time
-	 * transitioning between power states.  Therefore, when running
-	 * in any given state, we will enter the next lower-power
-	 * non-operational state after waiting 50 * (enlat + exlat)
-	 * microseconds, as long as that state's exit latency is under
-	 * the requested maximum latency.
-	 *
-	 * We will not autonomously enter any non-operational state for
-	 * which the total latency exceeds ps_max_latency_us.  Users
-	 * can set ps_max_latency_us to zero to turn off APST.
-	 */
-
-	unsigned apste;
 	struct nvme_feat_auto_pst *table;
+	unsigned apste = 0;
 	u64 max_lat_us = 0;
+	__le64 target = 0;
 	int max_ps = -1;
+	int state;
 	int ret;
+	unsigned last_lt_index = UINT_MAX;
 
 	/*
 	 * If APST isn't supported or if we haven't been initialized yet,
@@ -2012,83 +2070,78 @@ static int nvme_configure_apst(struct nvme_ctrl *ctrl)
 
 	if (!ctrl->apst_enabled || ctrl->ps_max_latency_us == 0) {
 		/* Turn off APST. */
-		apste = 0;
 		dev_dbg(ctrl->device, "APST disabled\n");
-	} else {
-		__le64 target = cpu_to_le64(0);
-		int state;
+		goto done;
+	}
+
+	/*
+	 * Walk through all states from lowest- to highest-power.
+	 * According to the spec, lower-numbered states use more power.  NPSS,
+	 * despite the name, is the index of the lowest-power state, not the
+	 * number of states.
+	 */
+	for (state = (int)ctrl->npss; state >= 0; state--) {
+		u64 total_latency_us, exit_latency_us, transition_ms;
+
+		if (target)
+			table->entries[state] = target;
 
 		/*
-		 * Walk through all states from lowest- to highest-power.
-		 * According to the spec, lower-numbered states use more
-		 * power.  NPSS, despite the name, is the index of the
-		 * lowest-power state, not the number of states.
+		 * Don't allow transitions to the deepest state if it's quirked
+		 * off.
 		 */
-		for (state = (int)ctrl->npss; state >= 0; state--) {
-			u64 total_latency_us, exit_latency_us, transition_ms;
+		if (state == ctrl->npss &&
+		    (ctrl->quirks & NVME_QUIRK_NO_DEEPEST_PS))
+			continue;
 
-			if (target)
-				table->entries[state] = target;
+		/*
+		 * Is this state a useful non-operational state for higher-power
+		 * states to autonomously transition to?
+		 */
+		if (!(ctrl->psd[state].flags & NVME_PS_FLAGS_NON_OP_STATE))
+			continue;
 
-			/*
-			 * Don't allow transitions to the deepest state
-			 * if it's quirked off.
-			 */
-			if (state == ctrl->npss &&
-			    (ctrl->quirks & NVME_QUIRK_NO_DEEPEST_PS))
+		exit_latency_us = (u64)le32_to_cpu(ctrl->psd[state].exit_lat);
+		if (exit_latency_us > ctrl->ps_max_latency_us)
+			continue;
+
+		total_latency_us = exit_latency_us +
+			le32_to_cpu(ctrl->psd[state].entry_lat);
+
+		/*
+		 * This state is good. It can be used as the APST idle target
+		 * for higher power states.
+		 */
+		if (apst_primary_timeout_ms && apst_primary_latency_tol_us) {
+			if (!nvme_apst_get_transition_time(total_latency_us,
+					&transition_ms, &last_lt_index))
 				continue;
-
-			/*
-			 * Is this state a useful non-operational state for
-			 * higher-power states to autonomously transition to?
-			 */
-			if (!(ctrl->psd[state].flags &
-			      NVME_PS_FLAGS_NON_OP_STATE))
-				continue;
-
-			exit_latency_us =
-				(u64)le32_to_cpu(ctrl->psd[state].exit_lat);
-			if (exit_latency_us > ctrl->ps_max_latency_us)
-				continue;
-
-			total_latency_us =
-				exit_latency_us +
-				le32_to_cpu(ctrl->psd[state].entry_lat);
-
-			/*
-			 * This state is good.  Use it as the APST idle
-			 * target for higher power states.
-			 */
+		} else {
 			transition_ms = total_latency_us + 19;
 			do_div(transition_ms, 20);
 			if (transition_ms > (1 << 24) - 1)
 				transition_ms = (1 << 24) - 1;
-
-			target = cpu_to_le64((state << 3) |
-					     (transition_ms << 8));
-
-			if (max_ps == -1)
-				max_ps = state;
-
-			if (total_latency_us > max_lat_us)
-				max_lat_us = total_latency_us;
 		}
 
-		apste = 1;
-
-		if (max_ps == -1) {
-			dev_dbg(ctrl->device, "APST enabled but no non-operational states are available\n");
-		} else {
-			dev_dbg(ctrl->device, "APST enabled: max PS = %d, max round-trip latency = %lluus, table = %*phN\n",
-				max_ps, max_lat_us, (int)sizeof(*table), table);
-		}
+		target = cpu_to_le64((state << 3) | (transition_ms << 8));
+		if (max_ps == -1)
+			max_ps = state;
+		if (total_latency_us > max_lat_us)
+			max_lat_us = total_latency_us;
 	}
 
+	if (max_ps == -1)
+		dev_dbg(ctrl->device, "APST enabled but no non-operational states are available\n");
+	else
+		dev_dbg(ctrl->device, "APST enabled: max PS = %d, max round-trip latency = %lluus, table = %*phN\n",
+			max_ps, max_lat_us, (int)sizeof(*table), table);
+	apste = 1;
+
+done:
 	ret = nvme_set_features(ctrl, NVME_FEAT_AUTO_PST, apste,
 				table, sizeof(*table), NULL);
 	if (ret)
 		dev_err(ctrl->device, "failed to set APST feature (%d)\n", ret);
-
 	kfree(table);
 	return ret;
 }
@@ -2110,7 +2163,8 @@ static void nvme_set_latency_tolerance(struct device *dev, s32 val)
 
 	if (ctrl->ps_max_latency_us != latency) {
 		ctrl->ps_max_latency_us = latency;
-		nvme_configure_apst(ctrl);
+		if (ctrl->state == NVME_CTRL_LIVE)
+			nvme_configure_apst(ctrl);
 	}
 }
 
@@ -2150,6 +2204,36 @@ static const struct nvme_core_quirk_entry core_quirks[] = {
 		.vid = 0x144d,
 		.mn = "SAMSUNG MZALQ128HBHQ-000L2",
 		.quirks = NVME_QUIRK_SIMPLE_SUSPEND,
+	},
+	{
+		/*
+		 * This LiteON CL1-3D256 CR22001 firmware version has some
+		 * issue in simple suspend.
+		 * Simple Suspend issue will be fixed in future firmware
+		 */
+		.vid = 0x14a4,
+		.fr = "CR22001",
+		.quirks = NVME_QUIRK_NORMAL_SUSPEND_HMB,
+	},
+		{
+		/*
+		 * This LiteON CL1-3D256 CR220TQ firmware version has some
+		 * issue in simple suspend.
+		 * Simple Suspend issue will be fixed in future firmware
+		 */
+		.vid = 0x14a4,
+		.fr = "CR220TQ",
+		.quirks = NVME_QUIRK_NORMAL_SUSPEND_HMB,
+	},
+	{
+		/*
+		 * This SSSTC CL1-3D256 CR22001 firmware version has some
+		 * issue in simple suspend.
+		 * Simple Suspend issue will be fixed in future firmware
+		 */
+		.vid = 0x1e95,
+		.fr = "CR22001",
+		.quirks = NVME_QUIRK_NORMAL_SUSPEND_HMB,
 	}
 };
 
@@ -2639,7 +2723,23 @@ static int nvme_dev_open(struct inode *inode, struct file *file)
 		return -EWOULDBLOCK;
 	}
 
+	nvme_get_ctrl(ctrl);
+	if (!try_module_get(ctrl->ops->module)) {
+		nvme_put_ctrl(ctrl);
+		return -EINVAL;
+	}
+
 	file->private_data = ctrl;
+	return 0;
+}
+
+static int nvme_dev_release(struct inode *inode, struct file *file)
+{
+	struct nvme_ctrl *ctrl =
+		container_of(inode->i_cdev, struct nvme_ctrl, cdev);
+
+	module_put(ctrl->ops->module);
+	nvme_put_ctrl(ctrl);
 	return 0;
 }
 
@@ -2703,6 +2803,7 @@ static long nvme_dev_ioctl(struct file *file, unsigned int cmd,
 static const struct file_operations nvme_dev_fops = {
 	.owner		= THIS_MODULE,
 	.open		= nvme_dev_open,
+	.release	= nvme_dev_release,
 	.unlocked_ioctl	= nvme_dev_ioctl,
 	.compat_ioctl	= nvme_dev_ioctl,
 };
@@ -2859,6 +2960,14 @@ const struct attribute_group nvme_ns_id_attr_group = {
 	.is_visible	= nvme_ns_id_attrs_are_visible,
 };
 
+const struct attribute_group *nvme_ns_id_attr_groups[] = {
+	&nvme_ns_id_attr_group,
+#ifdef CONFIG_NVM
+	&nvme_nvm_attr_group,
+#endif
+	NULL,
+};
+
 #define nvme_show_str_function(field)						\
 static ssize_t  field##_show(struct device *dev,				\
 			    struct device_attribute *attr, char *buf)		\
@@ -2889,6 +2998,10 @@ static ssize_t nvme_sysfs_delete(struct device *dev,
 				size_t count)
 {
 	struct nvme_ctrl *ctrl = dev_get_drvdata(dev);
+
+	/* Can't delete non-created controllers */
+	if (!ctrl->created)
+		return -EBUSY;
 
 	if (device_remove_file_self(dev, attr))
 		nvme_delete_ctrl_sync(ctrl);
@@ -3224,14 +3337,7 @@ static void nvme_alloc_ns(struct nvme_ctrl *ctrl, unsigned nsid)
 
 	nvme_get_ctrl(ctrl);
 
-	device_add_disk(ctrl->device, ns->disk);
-	if (sysfs_create_group(&disk_to_dev(ns->disk)->kobj,
-					&nvme_ns_id_attr_group))
-		pr_warn("%s: failed to create sysfs group for identification\n",
-			ns->disk->disk_name);
-	if (ns->ndev && nvme_nvm_register_sysfs(ns))
-		pr_warn("%s: failed to register lightnvm sysfs group for identification\n",
-			ns->disk->disk_name);
+	device_add_disk(ctrl->device, ns->disk, nvme_ns_id_attr_groups);
 
 	nvme_mpath_add_disk(ns, id);
 	nvme_fault_inject_init(ns);
@@ -3265,10 +3371,6 @@ static void nvme_ns_remove(struct nvme_ns *ns)
 	synchronize_srcu(&ns->head->srcu); /* wait for concurrent submissions */
 
 	if (ns->disk && ns->disk->flags & GENHD_FL_UP) {
-		sysfs_remove_group(&disk_to_dev(ns->disk)->kobj,
-					&nvme_ns_id_attr_group);
-		if (ns->ndev)
-			nvme_nvm_unregister_sysfs(ns);
 		del_gendisk(ns->disk);
 		blk_cleanup_queue(ns->queue);
 		if (blk_get_integrity(ns->disk))
@@ -3610,6 +3712,7 @@ void nvme_start_ctrl(struct nvme_ctrl *ctrl)
 		queue_work(nvme_wq, &ctrl->async_event_work);
 		nvme_start_queues(ctrl);
 	}
+	ctrl->created = true;
 }
 EXPORT_SYMBOL_GPL(nvme_start_ctrl);
 

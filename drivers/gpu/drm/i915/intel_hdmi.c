@@ -961,13 +961,13 @@ int intel_hdmi_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdmi_hdcp_write(intel_dig_port, DRM_HDCP_DDC_AN, an,
 				    DRM_HDCP_AN_LEN);
 	if (ret) {
-		DRM_ERROR("Write An over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Write An over DDC failed (%d)\n", ret);
 		return ret;
 	}
 
 	ret = intel_gmbus_output_aksv(adapter);
 	if (ret < 0) {
-		DRM_ERROR("Failed to output aksv (%d)\n", ret);
+		DRM_DEBUG_KMS("Failed to output aksv (%d)\n", ret);
 		return ret;
 	}
 	return 0;
@@ -980,7 +980,7 @@ static int intel_hdmi_hdcp_read_bksv(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BKSV, bksv,
 				   DRM_HDCP_KSV_LEN);
 	if (ret)
-		DRM_ERROR("Read Bksv over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Read Bksv over DDC failed (%d)\n", ret);
 	return ret;
 }
 
@@ -992,7 +992,7 @@ int intel_hdmi_hdcp_read_bstatus(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BSTATUS,
 				   bstatus, DRM_HDCP_BSTATUS_LEN);
 	if (ret)
-		DRM_ERROR("Read bstatus over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Read bstatus over DDC failed (%d)\n", ret);
 	return ret;
 }
 
@@ -1005,7 +1005,7 @@ int intel_hdmi_hdcp_repeater_present(struct intel_digital_port *intel_dig_port,
 
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BCAPS, &val, 1);
 	if (ret) {
-		DRM_ERROR("Read bcaps over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Read bcaps over DDC failed (%d)\n", ret);
 		return ret;
 	}
 	*repeater_present = val & DRM_HDCP_DDC_BCAPS_REPEATER_PRESENT;
@@ -1020,7 +1020,7 @@ int intel_hdmi_hdcp_read_ri_prime(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_RI_PRIME,
 				   ri_prime, DRM_HDCP_RI_LEN);
 	if (ret)
-		DRM_ERROR("Read Ri' over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Read Ri' over DDC failed (%d)\n", ret);
 	return ret;
 }
 
@@ -1033,7 +1033,7 @@ int intel_hdmi_hdcp_read_ksv_ready(struct intel_digital_port *intel_dig_port,
 
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BCAPS, &val, 1);
 	if (ret) {
-		DRM_ERROR("Read bcaps over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Read bcaps over DDC failed (%d)\n", ret);
 		return ret;
 	}
 	*ksv_ready = val & DRM_HDCP_DDC_BCAPS_KSV_FIFO_READY;
@@ -1048,7 +1048,7 @@ int intel_hdmi_hdcp_read_ksv_fifo(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_KSV_FIFO,
 				   ksv_fifo, num_downstream * DRM_HDCP_KSV_LEN);
 	if (ret) {
-		DRM_ERROR("Read ksv fifo over DDC failed (%d)\n", ret);
+		DRM_DEBUG_KMS("Read ksv fifo over DDC failed (%d)\n", ret);
 		return ret;
 	}
 	return 0;
@@ -1066,12 +1066,13 @@ int intel_hdmi_hdcp_read_v_prime_part(struct intel_digital_port *intel_dig_port,
 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_V_PRIME(i),
 				   part, DRM_HDCP_V_PRIME_PART_LEN);
 	if (ret)
-		DRM_ERROR("Read V'[%d] over DDC failed (%d)\n", i, ret);
+		DRM_DEBUG_KMS("Read V'[%d] over DDC failed (%d)\n", i, ret);
 	return ret;
 }
 
 static
 int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
+				      enum transcoder cpu_transcoder,
 				      bool enable)
 {
 	int ret;
@@ -1079,7 +1080,8 @@ int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
 	if (!enable)
 		usleep_range(6, 60); /* Bspec says >= 6us */
 
-	ret = intel_ddi_toggle_hdcp_signalling(&intel_dig_port->base, enable);
+	ret = intel_ddi_toggle_hdcp_signalling(&intel_dig_port->base, cpu_transcoder,
+					       enable);
 	if (ret) {
 		DRM_ERROR("%s HDCP signalling failed (%d)\n",
 			  enable ? "Enable" : "Disable", ret);
@@ -1089,7 +1091,8 @@ int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
 }
 
 static
-bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port)
+bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port,
+				     struct intel_connector *connector)
 {
 	struct drm_i915_private *dev_priv =
 		intel_dig_port->base.base.dev->dev_private;
@@ -1117,12 +1120,13 @@ bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port)
 }
 
 static
-bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port)
+bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port,
+				struct intel_connector *connector)
 {
 	int retry;
 
 	for (retry = 0; retry < 3; retry++)
-		if (intel_hdmi_hdcp_check_link_once(intel_dig_port))
+		if (intel_hdmi_hdcp_check_link_once(intel_dig_port, connector))
 			return true;
 
 	DRM_ERROR("Link check failed\n");
@@ -1595,8 +1599,10 @@ intel_hdmi_mode_valid(struct drm_connector *connector,
 			status = hdmi_port_clock_valid(hdmi, clock * 5 / 4,
 						       true, force_dvi);
 	}
+	if (status != MODE_OK)
+		return status;
 
-	return status;
+	return intel_mode_valid_max_plane_size(dev_priv, mode);
 }
 
 static bool hdmi_deep_color_possible(const struct intel_crtc_state *crtc_state,
@@ -2084,13 +2090,26 @@ static void chv_hdmi_pre_enable(struct intel_encoder *encoder,
 	chv_phy_release_cl2_override(encoder);
 }
 
+static int
+intel_hdmi_connector_register(struct drm_connector *connector)
+{
+	int ret;
+
+	ret = intel_connector_register(connector);
+	if (ret)
+		return ret;
+
+	i915_debugfs_connector_add(connector);
+
+	return ret;
+}
+
 static void intel_hdmi_destroy(struct drm_connector *connector)
 {
 	if (intel_attached_hdmi(connector)->cec_notifier)
 		cec_notifier_put(intel_attached_hdmi(connector)->cec_notifier);
-	kfree(to_intel_connector(connector)->detect_edid);
-	drm_connector_cleanup(connector);
-	kfree(connector);
+
+	intel_connector_destroy(connector);
 }
 
 static const struct drm_connector_funcs intel_hdmi_connector_funcs = {
@@ -2099,7 +2118,7 @@ static const struct drm_connector_funcs intel_hdmi_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.atomic_get_property = intel_digital_connector_atomic_get_property,
 	.atomic_set_property = intel_digital_connector_atomic_set_property,
-	.late_register = intel_connector_register,
+	.late_register = intel_hdmi_connector_register,
 	.early_unregister = intel_connector_unregister,
 	.destroy = intel_hdmi_destroy,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
@@ -2390,15 +2409,15 @@ void intel_hdmi_init_connector(struct intel_digital_port *intel_dig_port,
 
 	intel_hdmi_add_properties(intel_hdmi, connector);
 
+	intel_connector_attach_encoder(intel_connector, intel_encoder);
+	intel_hdmi->attached_connector = intel_connector;
+
 	if (is_hdcp_supported(dev_priv, port)) {
-		int ret = intel_hdcp_init(intel_connector,
+		int ret = intel_hdcp_init(intel_connector, port,
 					  &intel_hdmi_hdcp_shim);
 		if (ret)
 			DRM_DEBUG_KMS("HDCP init failed, skipping.\n");
 	}
-
-	intel_connector_attach_encoder(intel_connector, intel_encoder);
-	intel_hdmi->attached_connector = intel_connector;
 
 	/* For G4X desktop chip, PEG_BAND_GAP_DATA 3:0 must first be written
 	 * 0xd.  Failure to do so will result in spurious interrupts being
@@ -2459,6 +2478,8 @@ void intel_hdmi_init(struct drm_i915_private *dev_priv,
 	}
 
 	intel_encoder = &intel_dig_port->base;
+
+	mutex_init(&intel_dig_port->hdcp_mutex);
 
 	drm_encoder_init(&dev_priv->drm, &intel_encoder->base,
 			 &intel_hdmi_enc_funcs, DRM_MODE_ENCODER_TMDS,

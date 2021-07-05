@@ -298,6 +298,7 @@ static enum power_supply_property hidinput_battery_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_MODEL_NAME,
+	POWER_SUPPLY_PROP_SERIAL_NUMBER,
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_SCOPE,
 };
@@ -330,6 +331,11 @@ static const struct hid_device_id hid_battery_quirks[] = {
 	  HID_BATTERY_QUIRK_IGNORE },
 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_ASUSTEK,
 		USB_DEVICE_ID_ASUSTEK_T100CHI_KEYBOARD),
+	  HID_BATTERY_QUIRK_IGNORE },
+	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_LOGITECH,
+		USB_DEVICE_ID_LOGITECH_DINOVO_EDGE_KBD),
+	  HID_BATTERY_QUIRK_IGNORE },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_ELAN, USB_DEVICE_ID_ASUS_UX550_TOUCHSCREEN),
 	  HID_BATTERY_QUIRK_IGNORE },
 	{}
 };
@@ -407,6 +413,33 @@ static int hidinput_get_battery_property(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_MODEL_NAME:
 		val->strval = dev->name;
+		break;
+
+	case POWER_SUPPLY_PROP_SERIAL_NUMBER:
+		/*
+		 * Serial number does not have an active HID query
+		 * mechanism like hidinput_query_battery_capacity, as the
+		 * only devices expected to have serial numbers are digitizers,
+		 * which are unlikely to be able to pull the serial number from
+		 * an untethered pen on demand.
+		 */
+		if (dev->battery_serial_number == 0) {
+			/* Make no claims about S/N format if we haven't actually seen a value yet. */
+			strcpy(dev->battery_serial_number_str, "");
+		} else {
+			if (!dev->battery_sn_64bit) {
+				snprintf(dev->battery_serial_number_str,
+					sizeof(dev->battery_serial_number_str),
+					"%08llX",
+					dev->battery_serial_number);
+			} else {
+				snprintf(dev->battery_serial_number_str,
+					sizeof(dev->battery_serial_number_str),
+					"%016llX",
+					dev->battery_serial_number);
+			}
+		}
+		val->strval = dev->battery_serial_number_str;
 		break;
 
 	case POWER_SUPPLY_PROP_STATUS:
@@ -492,6 +525,9 @@ static int hidinput_setup_battery(struct hid_device *dev, unsigned report_type, 
 	dev->battery_max = max;
 	dev->battery_report_type = report_type;
 	dev->battery_report_id = field->report->id;
+	dev->battery_state_changed = false;
+	dev->battery_reported = false;
+	dev->battery_sn_64bit = false;
 
 	/*
 	 * Stylus is normally not connected to the device and thus we
@@ -533,7 +569,13 @@ static void hidinput_cleanup_battery(struct hid_device *dev)
 	dev->battery = NULL;
 }
 
-static void hidinput_update_battery(struct hid_device *dev, int value)
+static void hidinput_set_battery_sn_64bit(struct hid_device *dev)
+{
+	dev->battery_sn_64bit = true;
+}
+
+static void hidinput_update_battery_capacity(struct hid_device *dev,
+					     __s32 value)
 {
 	int capacity;
 
@@ -545,12 +587,70 @@ static void hidinput_update_battery(struct hid_device *dev, int value)
 
 	capacity = hidinput_scale_battery_capacity(dev, value);
 
-	if (dev->battery_status != HID_BATTERY_REPORTED ||
-	    capacity != dev->battery_capacity) {
+	if (capacity != dev->battery_capacity) {
 		dev->battery_capacity = capacity;
+		dev->battery_state_changed = true;
+	}
+	dev->battery_reported = true;
+}
+
+static void hidinput_update_battery_serial(struct hid_device *dev,
+					   const __s32 value, bool top_32_bits)
+{
+	__u64 sn;
+	__u32 sn_hi, sn_lo;
+
+	if (!dev->battery)
+		return;
+
+	if (!top_32_bits) {
+		sn_lo = (__u32)value;
+		sn_hi = (__u32)(dev->battery_new_serial_number >> 32);
+	} else {
+		sn_lo = (__u32)dev->battery_new_serial_number;
+		sn_hi = (__u32)value;
+	}
+
+	sn = (((__u64)sn_hi) << 32) | (__u64)sn_lo;
+
+	dev->battery_new_serial_number = sn;
+	dev->battery_reported = true;
+}
+
+static void hidinput_flush_battery(struct hid_device *dev)
+{
+	if (!dev->battery)
+		return;
+
+	/* Only consider pushing a battery change if there is a
+	 * battery field in this report.
+	 */
+	if (!dev->battery_reported)
+		return;
+
+	/* As we have the entire S/N now, check if it changed, and is non-zero.
+	 * We do want to ignore actual updates of zero, as they are expected to
+	 * convey 'no information', instead of 'no stylus present'.
+	 */
+	if (dev->battery_new_serial_number != 0 &&
+	    dev->battery_new_serial_number != dev->battery_serial_number) {
+		dev->battery_serial_number = dev->battery_new_serial_number;
+		dev->battery_state_changed = true;
+	}
+
+	if (dev->battery_status != HID_BATTERY_REPORTED ||
+	    dev->battery_state_changed ||
+	    ktime_after(ktime_get_coarse(), dev->battery_ratelimit_time)) {
 		dev->battery_status = HID_BATTERY_REPORTED;
+		dev->battery_state_changed = false;
+		dev->battery_ratelimit_time =
+			ktime_add_ms(ktime_get_coarse(), 30 * 1000);
 		power_supply_changed(dev->battery);
 	}
+
+	/* Clean up for next report */
+	dev->battery_reported = false;
+	dev->battery_new_serial_number = 0;
 }
 #else  /* !CONFIG_HID_BATTERY_STRENGTH */
 static int hidinput_setup_battery(struct hid_device *dev, unsigned report_type,
@@ -563,7 +663,21 @@ static void hidinput_cleanup_battery(struct hid_device *dev)
 {
 }
 
-static void hidinput_update_battery(struct hid_device *dev, int value)
+static void hidinput_set_battery_sn_64bit(struct hid_device *dev)
+{
+}
+
+static void hidinput_update_battery_capacity(struct hid_device *dev,
+					     __s32 value)
+{
+}
+
+static void hidinput_update_battery_serial(struct hid_device *dev,
+					   const __s32 value, bool top_32_bits)
+{
+}
+
+static void hidinput_flush_battery(struct hid_device *dev)
 {
 }
 #endif	/* CONFIG_HID_BATTERY_STRENGTH */
@@ -780,7 +894,8 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		break;
 
 	case HID_UP_DIGITIZER:
-		if ((field->application & 0xff) == 0x01) /* Digitizer */
+		if (((field->application & 0xff) == 0x01) ||
+			(device->quirks & HID_QUIRK_DEVICE_IS_DIGITIZER)) /* Digitizer */
 			__set_bit(INPUT_PROP_POINTER, input->propbit);
 		else if ((field->application & 0xff) == 0x02) /* Pen */
 			__set_bit(INPUT_PROP_DIRECT, input->propbit);
@@ -809,7 +924,7 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x3b: /* Battery Strength */
 			hidinput_setup_battery(device, HID_INPUT_REPORT, field);
 			usage->type = EV_PWR;
-			goto ignore;
+			return;
 
 		case 0x3c: /* Invert */
 			map_key_clear(BTN_TOOL_RUBBER);
@@ -854,6 +969,11 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 			bit = input->mscbit;
 			max = MSC_MAX;
 			break;
+
+		case 0x6e: /* TransducerSerialNumberSecond32Bits */
+			hidinput_set_battery_sn_64bit(device);
+			usage->type = EV_MSC;
+			return;
 
 		default:  goto unknown;
 		}
@@ -1071,7 +1191,7 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case HID_DC_BATTERYSTRENGTH:
 			hidinput_setup_battery(device, HID_INPUT_REPORT, field);
 			usage->type = EV_PWR;
-			goto ignore;
+			return;
 		}
 		goto unknown;
 
@@ -1144,6 +1264,10 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 	}
 
 mapped:
+	/* Mapping failed, bail out */
+	if (!bit)
+		return;
+
 	if (device->driver->input_mapped &&
 	    device->driver->input_mapped(device, hidinput, field, usage,
 					 &bit, &max) < 0) {
@@ -1281,8 +1405,16 @@ void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct 
 		return;
 
 	if (usage->type == EV_PWR) {
-		hidinput_update_battery(hid, value);
+		hidinput_update_battery_capacity(hid, value);
 		return;
+	}
+	if (usage->type == EV_MSC && usage->hid == (HID_UP_DIGITIZER | 0x006e)) { /* TransducerSerialNumberSecond32Bits */
+		hidinput_update_battery_serial(hid, value, true);
+		return;
+	}
+	if (usage->type == EV_MSC && usage->code == MSC_SERIAL) {
+		hidinput_update_battery_serial(hid, value, false);
+		/* fall through to standard MSC_SERIAL processing */
 	}
 
 	if (!field->hidinput)
@@ -1413,6 +1545,8 @@ void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct 
 void hidinput_report_event(struct hid_device *hid, struct hid_report *report)
 {
 	struct hid_input *hidinput;
+
+	hidinput_flush_battery(hid);
 
 	if (hid->quirks & HID_QUIRK_NO_INPUT_SYNC)
 		return;
@@ -1857,6 +1991,16 @@ static struct hid_input *hidinput_match_application(struct hid_report *report)
 	list_for_each_entry(hidinput, &hid->inputs, list) {
 		if (hidinput->application == report->application)
 			return hidinput;
+
+		/*
+		 * Keep SystemControl and ConsumerControl applications together
+		 * with the main keyboard, if present.
+		 */
+		if ((report->application == HID_GD_SYSTEM_CONTROL ||
+		     report->application == HID_CP_CONSUMER_CONTROL) &&
+		    hidinput->application == HID_GD_KEYBOARD) {
+			return hidinput;
+		}
 	}
 
 	return NULL;

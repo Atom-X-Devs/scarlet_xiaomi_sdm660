@@ -776,6 +776,10 @@ void __init cpuhp_threads_init(void)
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
+#ifndef arch_clear_mm_cpumask_cpu
+#define arch_clear_mm_cpumask_cpu(cpu, mm) cpumask_clear_cpu(cpu, mm_cpumask(mm))
+#endif
+
 /**
  * clear_tasks_mm_cpumask - Safely clear tasks' mm_cpumask for a CPU
  * @cpu: a CPU id
@@ -811,7 +815,7 @@ void clear_tasks_mm_cpumask(int cpu)
 		t = find_lock_task_mm(p);
 		if (!t)
 			continue;
-		cpumask_clear_cpu(cpu, mm_cpumask(t->mm));
+		arch_clear_mm_cpumask_cpu(cpu, t->mm);
 		task_unlock(t);
 	}
 	rcu_read_unlock();
@@ -2350,3 +2354,48 @@ bool cpu_mitigations_auto_nosmt(void)
 	return cpu_mitigations == CPU_MITIGATIONS_AUTO_NOSMT;
 }
 EXPORT_SYMBOL_GPL(cpu_mitigations_auto_nosmt);
+
+#ifdef CONFIG_SCHED_CORE
+/*
+ * These are used for a global "coresched=" cmdline option for controlling
+ * core scheduling. Note that core sched may be needed for usecases other
+ * than security as well.
+ */
+enum coresched_cmds {
+	CORE_SCHED_OFF,
+	CORE_SCHED_SECURE,
+	CORE_SCHED_ON,
+};
+
+static enum coresched_cmds coresched_cmd __ro_after_init = CORE_SCHED_SECURE;
+
+static int __init coresched_parse_cmdline(char *arg)
+{
+	if (!strcmp(arg, "off"))
+		coresched_cmd = CORE_SCHED_OFF;
+	else if (!strcmp(arg, "on"))
+		coresched_cmd = CORE_SCHED_ON;
+	else if (!strcmp(arg, "secure"))
+		/*
+		 * On x86, coresched=secure means coresched is enabled only if
+		 * system has MDS/L1TF vulnerability (see x86/bugs.c).
+		 */
+		coresched_cmd = CORE_SCHED_SECURE;
+	else
+		pr_crit("Unsupported coresched=%s, defaulting to secure.\n",
+			arg);
+
+	if (coresched_cmd == CORE_SCHED_OFF)
+		static_branch_disable(&sched_coresched_supported);
+
+	return 0;
+}
+early_param("coresched", coresched_parse_cmdline);
+
+/* coresched=secure */
+bool coresched_cmd_secure(void)
+{
+	return coresched_cmd == CORE_SCHED_SECURE;
+}
+EXPORT_SYMBOL_GPL(coresched_cmd_secure);
+#endif

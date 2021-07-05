@@ -330,7 +330,7 @@ DECLARE_STATIC_KEY_FALSE(mds_idle_clear);
  * combination with microcode which triggers a CPU buffer flush when the
  * instruction is executed.
  */
-static inline void mds_clear_cpu_buffers(void)
+static __always_inline void mds_clear_cpu_buffers(void)
 {
 	static const u16 ds = __KERNEL_DS;
 
@@ -351,7 +351,7 @@ static inline void mds_clear_cpu_buffers(void)
  *
  * Clear CPU buffers if the corresponding static key is enabled
  */
-static inline void mds_user_clear_cpu_buffers(void)
+static __always_inline void mds_user_clear_cpu_buffers(void)
 {
 	if (static_branch_likely(&mds_user_clear))
 		mds_clear_cpu_buffers();
@@ -364,8 +364,14 @@ static inline void mds_user_clear_cpu_buffers(void)
  */
 static inline void mds_idle_clear_cpu_buffers(void)
 {
+	/*
+	 * Core-scheduling already protects from cross-HT MDS.
+	 * Clearing CPU buffers on idle is not needed.
+	 */
+#ifndef CONFIG_SCHED_CORE
 	if (static_branch_likely(&mds_idle_clear))
 		mds_clear_cpu_buffers();
+#endif
 }
 
 #endif /* __ASSEMBLY__ */

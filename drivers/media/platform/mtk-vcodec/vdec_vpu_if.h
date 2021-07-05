@@ -13,7 +13,7 @@ struct mtk_vcodec_ctx;
 
 /**
  * struct vdec_vpu_inst - VPU instance for video codec
- * @id      : ipi msg id for each decoder
+ * @id          : ipi msg id for each decoder
  * @vsi         : driver structure allocated by VPU side and shared to AP side
  *                for control and info share
  * @failure     : VPU execution result status, 0: success, others: fail

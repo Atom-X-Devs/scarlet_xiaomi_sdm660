@@ -14,6 +14,14 @@ struct mmu_notifier_ops;
 /* mmu_notifier_ops flags */
 #define MMU_INVALIDATE_DOES_NOT_BLOCK	(0x01)
 
+struct mmu_notifier_walk {
+	bool (*start_batch)(struct mm_struct *mm, void *priv);
+	bool (*end_batch)(void *priv, bool last);
+	struct page *(*get_page)(void *priv, unsigned long pfn, bool young);
+	void (*update_page)(void *priv, struct page *page);
+	void *private;
+};
+
 #ifdef CONFIG_MMU_NOTIFIER
 
 /*
@@ -88,6 +96,9 @@ struct mmu_notifier_ops {
 			   struct mm_struct *mm,
 			   unsigned long start,
 			   unsigned long end);
+
+	void (*clear_young_walk)(struct mmu_notifier *mn,
+				 struct mmu_notifier_walk *walk);
 
 	/*
 	 * test_young is called to check the young/accessed bitflag in
@@ -188,8 +199,6 @@ struct mmu_notifier_ops {
 	 */
 	void (*invalidate_range)(struct mmu_notifier *mn, struct mm_struct *mm,
 				 unsigned long start, unsigned long end);
-
-	int (*update_ages)(struct mmu_notifier *mn);
 };
 
 /*
@@ -229,6 +238,8 @@ extern int __mmu_notifier_clear_flush_young(struct mm_struct *mm,
 extern int __mmu_notifier_clear_young(struct mm_struct *mm,
 				      unsigned long start,
 				      unsigned long end);
+extern void __mmu_notifier_clear_young_walk(struct mm_struct *mm,
+					    struct mmu_notifier_walk *walk);
 extern int __mmu_notifier_test_young(struct mm_struct *mm,
 				     unsigned long address);
 extern void __mmu_notifier_change_pte(struct mm_struct *mm,
@@ -241,15 +252,7 @@ extern void __mmu_notifier_invalidate_range_end(struct mm_struct *mm,
 				  bool only_end);
 extern void __mmu_notifier_invalidate_range(struct mm_struct *mm,
 				  unsigned long start, unsigned long end);
-extern int __mmu_notifier_update_ages(struct mm_struct *mm);
 extern bool mm_has_blockable_invalidate_notifiers(struct mm_struct *mm);
-
-static inline int mmu_notifier_update_ages(struct mm_struct *mm)
-{
-	if (mm_has_notifiers(mm))
-		return __mmu_notifier_update_ages(mm);
-	return 0;
-}
 
 static inline void mmu_notifier_release(struct mm_struct *mm)
 {
@@ -273,6 +276,13 @@ static inline int mmu_notifier_clear_young(struct mm_struct *mm,
 	if (mm_has_notifiers(mm))
 		return __mmu_notifier_clear_young(mm, start, end);
 	return 0;
+}
+
+static inline void mmu_notifier_clear_young_walk(struct mm_struct *mm,
+						 struct mmu_notifier_walk *walk)
+{
+	if (mm_has_notifiers(mm))
+		__mmu_notifier_clear_young_walk(mm, walk);
 }
 
 static inline int mmu_notifier_test_young(struct mm_struct *mm,
@@ -459,16 +469,16 @@ static inline void mmu_notifier_release(struct mm_struct *mm)
 {
 }
 
-static inline int mmu_notifier_update_ages(struct mm_struct *mm)
-{
-	return 0;
-}
-
 static inline int mmu_notifier_clear_flush_young(struct mm_struct *mm,
 					  unsigned long start,
 					  unsigned long end)
 {
 	return 0;
+}
+
+static inline void mmu_notifier_clear_young_walk(struct mm_struct *mm,
+						 struct mmu_notifier_walk *walk)
+{
 }
 
 static inline int mmu_notifier_test_young(struct mm_struct *mm,

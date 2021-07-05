@@ -31,6 +31,7 @@ obj-$(CONFIG_USB_IMX21_HCD)	+= host/
 obj-$(CONFIG_USB_FSL_USB2)	+= host/
 obj-$(CONFIG_USB_FOTG210_HCD)	+= host/
 obj-$(CONFIG_USB_MAX3421_HCD)	+= host/
+obj-$(CONFIG_USB_HOST_MAUSB)	+= host/mausb/
 
 obj-$(CONFIG_USB_C67X00_HCD)	+= c67x00/
 

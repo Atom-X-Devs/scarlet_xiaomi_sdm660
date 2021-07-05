@@ -24,6 +24,8 @@
 #include <linux/spi/spi.h>
 #include <uapi/linux/sched/types.h>
 
+#include "cros_ec.h"
+
 /* The header byte, which follows the preamble */
 #define EC_MSG_HEADER			0xec
 
@@ -786,8 +788,7 @@ static int cros_ec_spi_probe(struct spi_device *spi)
 
 	err = cros_ec_register(ec_dev);
 	if (err) {
-		dev_err(dev, "cannot register EC, fallback to spidev\n");
-		strncpy(spi->modalias, "spidev", SPI_NAME_SIZE);
+		dev_err(dev, "cannot register EC\n");
 		return err;
 	}
 
