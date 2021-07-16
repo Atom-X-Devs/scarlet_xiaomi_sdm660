@@ -62,7 +62,7 @@ endif
 endif
 
 # Make WLAN as open-source driver by default
-WLAN_OPEN_SOURCE := y
+WLAN_OPEN_SOURCE := n
 
 ifeq (y,$(findstring y,$(CONFIG_ICNSS) $(CONFIG_ICNSS_MODULE)))
 	CONFIG_HELIUMPLUS := y
