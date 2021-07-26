@@ -1,4 +1,4 @@
-ifeq (,$(filter y, $(CONFIG_BOARD_BRAMBLE) $(CONFIG_BOARD_REDFIN)))
+ifeq (,$(filter y, $(CONFIG_BOARD_BRAMBLE) $(CONFIG_BOARD_REDFIN) $(CONFIG_BOARD_BARBET)))
 
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
         dtbo-$(CONFIG_ARCH_KONA) += \
@@ -357,7 +357,7 @@ dtb-$(CONFIG_ARCH_SDM429) += sdm429-mtp.dtb \
 	sda429-mtp.dtb \
 	sda429-cdp.dtb
 endif
-endif #CONFIG_BOARD_BRAMBLE CONFIG_BOARD_REDFIN
+endif #CONFIG_BOARD_BRAMBLE CONFIG_BOARD_REDFIN CONFIG_BOARD_BARBET
 
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
