@@ -50,3 +50,5 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-makomo-rev0-sku0.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-makomo-rev3-sku0.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-makomo-rev4-sku0.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-makomo-rev4-sku1.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-munna-rev0-sku1.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-munna-rev0-sku0.dtb
