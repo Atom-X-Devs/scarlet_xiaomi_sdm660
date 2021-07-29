@@ -194,31 +194,32 @@ static void usb_set_lpm_mel(struct usb_device *udev,
 	unsigned int total_mel;
 
 	/*
-	 * 1, Time to transition path from host to device into U0.
+	 * tMEL1. time to transition path from host to device into U0.
 	 * MEL for parent already contains the delay up to parent, so only add
-	 * the exit latency for the last link (slower one), and the hub header
-	 * decode latency. See USB 3.1 section C 2.2.1
-	 * store MEL in nanoseconds
+	 * the exit latency for the last link (pick the slower exit latency),
+	 * and the hub header decode latency. See USB 3.1 section C 2.2.1
+	 * Store MEL in nanoseconds
 	 */
 	total_mel = hub_lpm_params->mel +
 		max(udev_exit_latency, hub_exit_latency) * 1000 +
 		hub->descriptor->u.ss.bHubHdrDecLat * 100;
 
 	/*
-	 * 2. Time to submit PING packet. Sum of tTPTransmissionDelay for
+	 * tMEL2. Time to submit PING packet. Sum of tTPTransmissionDelay for
 	 * each link + wHubDelay for each hub. Add only for last link.
-	 * Step 4, the time for PING_RESPONSE to traverse upstream is similar.
+	 * tMEL4, the time for PING_RESPONSE to traverse upstream is similar.
 	 * Multiply by 2 to include it as well.
 	 */
 	total_mel += (__le16_to_cpu(hub->descriptor->u.ss.wHubDelay) +
 		      USB_TP_TRANSMISSION_DELAY) * 2;
 
 	/*
-	 * 3, tPingResponse. Time taken by device to generate PING_RESPONSE
-	 * after receiving PING. Also add 2100ns as stated in USB 3.1 C 1.5.2.4 to
-	 * cover the delay if the PING_RESPONSE is queued behind a Max Packet Size DP.
-	 * Note these delays should be added only once for the entire path, so add them
-	 * to the MEL of the device connected to the roothub.
+	 * tMEL3, tPingResponse. Time taken by device to generate PING_RESPONSE
+	 * after receiving PING. Also add 2100ns as stated in USB 3.1 C 1.5.2.4
+	 * to cover the delay if the PING_RESPONSE is queued behind a Max Packet
+	 * Size DP.
+	 * Note these delays should be added only once for the entire path, so
+	 * add them to the MEL of the device connected to the roothub.
 	 */
 	if (!hub->hdev->parent)
 		total_mel += USB_PING_RESPONSE_TIME + 2100;
@@ -4000,7 +4001,7 @@ static int usb_set_lpm_timeout(struct usb_device *udev,
 static bool usb_device_may_initiate_lpm(struct usb_device *udev,
 					enum usb3_link_state state)
 {
-	unsigned long long sel;		/* us */
+	unsigned int sel;		/* us */
 	int i, j;
 
 	if (state == USB3_LPM_U1)
@@ -4118,8 +4119,14 @@ static void usb_enable_link_state(struct usb_hcd *hcd, struct usb_device *udev,
 			 */
 			usb_set_lpm_timeout(udev, state, 0);
 			hcd->driver->disable_usb3_lpm_timeout(hcd, udev, state);
+			return;
 		}
 	}
+
+	if (state == USB3_LPM_U1)
+		udev->usb3_lpm_u1_enabled = 1;
+	else if (state == USB3_LPM_U2)
+		udev->usb3_lpm_u2_enabled = 1;
 }
 /*
  * Disable the hub-initiated U1/U2 idle timeouts, and disable device-initiated
