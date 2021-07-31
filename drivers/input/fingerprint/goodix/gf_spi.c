@@ -251,7 +251,7 @@ static inline int irq_setup(struct gf_dev *gf_dev)
 {
 	int status;
 
-	gf_dev->irq = gf_irq_num(gf_dev);
+	gf_dev->irq = gpio_to_irq(gf_dev->irq_gpio);
 	status = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
 			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			"gf", gf_dev);
@@ -271,15 +271,6 @@ static inline void irq_cleanup(struct gf_dev *gf_dev)
 	disable_irq(gf_dev->irq);
 	disable_irq_wake(gf_dev->irq);
 	free_irq(gf_dev->irq, gf_dev);
-}
-
-static inline int gf_irq_num(struct gf_dev *gf_dev)
-{
-	if (gf_dev == NULL) {
-		return -1;
-	} else {
-		return gpio_to_irq(gf_dev->irq_gpio);
-	}
 }
 
 static inline void nav_event_input(struct gf_dev *gf_dev, gf_nav_event_t nav_event)
