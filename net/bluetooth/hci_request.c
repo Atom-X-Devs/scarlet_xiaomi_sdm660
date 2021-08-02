@@ -2124,8 +2124,6 @@ int hci_get_random_address(struct hci_dev *hdev, bool require_privacy,
 	 * current RPA has expired then generate a new one.
 	 */
 	if (use_rpa) {
-		int to;
-
 		/* If Controller supports LL Privacy use own address type is
 		 * 0x03
 		 */
@@ -2136,14 +2134,10 @@ int hci_get_random_address(struct hci_dev *hdev, bool require_privacy,
 			*own_addr_type = ADDR_LE_DEV_RANDOM;
 
 		if (adv_instance) {
-			if (!adv_instance->rpa_expired &&
-			    !bacmp(&adv_instance->random_addr, &hdev->rpa))
+			if (adv_rpa_valid(adv_instance))
 				return 0;
-
-			adv_instance->rpa_expired = false;
 		} else {
-			if (!hci_dev_test_and_clear_flag(hdev, HCI_RPA_EXPIRED) &&
-			    !bacmp(&hdev->random_addr, &hdev->rpa))
+			if (rpa_valid(hdev))
 				return 0;
 		}
 
@@ -2154,14 +2148,6 @@ int hci_get_random_address(struct hci_dev *hdev, bool require_privacy,
 		}
 
 		bacpy(rand_addr, &hdev->rpa);
-
-		to = msecs_to_jiffies(hdev->rpa_timeout * 1000);
-		if (adv_instance)
-			queue_delayed_work(hdev->workqueue,
-					   &adv_instance->rpa_expired_cb, to);
-		else
-			queue_delayed_work(hdev->workqueue,
-					   &hdev->rpa_expired, to);
 
 		return 0;
 	}
@@ -2203,6 +2189,84 @@ int hci_get_random_address(struct hci_dev *hdev, bool require_privacy,
 void __hci_req_clear_ext_adv_sets(struct hci_request *req)
 {
 	hci_req_add(req, HCI_OP_LE_CLEAR_ADV_SETS, 0, NULL);
+}
+
+/* TODO(b:210940077): This is currently only in Chromium repo. If we want to
+ * upstream this, please consider to refactor le_scan_restart as well.
+ */
+static void __hci_req_le_scan_enable(struct hci_request *req)
+{
+	struct hci_dev *hdev = req->hdev;
+	bool enable_filter = hci_is_adv_monitoring(hdev) ?
+			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
+
+	if (use_ext_scan(hdev)) {
+		struct hci_cp_le_set_ext_scan_enable ext_enable_cp;
+
+		memset(&ext_enable_cp, 0, sizeof(ext_enable_cp));
+		ext_enable_cp.enable = LE_SCAN_ENABLE;
+		ext_enable_cp.filter_dup = enable_filter;
+
+		hci_req_add(req, HCI_OP_LE_SET_EXT_SCAN_ENABLE,
+			    sizeof(ext_enable_cp), &ext_enable_cp);
+	} else {
+		struct hci_cp_le_set_scan_enable cp;
+
+		memset(&cp, 0, sizeof(cp));
+		cp.enable = LE_SCAN_ENABLE;
+		cp.filter_dup = enable_filter;
+		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
+	}
+}
+
+static void set_random_addr(struct hci_request *req, bdaddr_t *rpa)
+{
+	struct hci_dev *hdev = req->hdev;
+	bool adv_enabled = hci_dev_test_flag(hdev, HCI_LE_ADV);
+	bool scan_enabled = hci_dev_test_flag(hdev, HCI_LE_SCAN);
+
+	/* If we're initiating an LE connection or actively scanning, we can't
+	 * go ahead and change the random address at this time. This is because
+	 * the eventual initiator address used for the subsequently created
+	 * connection will be undefined (some controllers use the new address
+	 * and others the one we had when the operation started).
+	 *
+	 * In this kind of scenario skip the update and let the random address
+	 * be updated at the next cycle.
+	 */
+
+	if (hci_lookup_le_connect(hdev) ||
+	    (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
+			hdev->le_scan_type == LE_SCAN_ACTIVE)) {
+		BT_DBG("Deferring random address update");
+		hci_dev_set_flag(hdev, HCI_RPA_EXPIRED);
+		return;
+	}
+
+	/* Because any random address update will fail while advertising is in
+	 * progress, we pause any active instances to update the random address.
+	 */
+	if (adv_enabled) {
+		__hci_req_disable_advertising(req);
+		hci_dev_clear_flag(hdev, HCI_LE_ADV);
+	}
+
+	/* For some controller, ex. Intel ThP2, it is not allowed to set random
+	 * address while passive scan is enabled. Pause LE scan for updating
+	 * random address.
+	 */
+	if (scan_enabled)
+		hci_req_add_le_scan_disable(req, false);
+
+	hci_req_add(req, HCI_OP_LE_SET_RANDOM_ADDR, 6, rpa);
+
+	/* Re-enable passive scan */
+	if (scan_enabled)
+		__hci_req_le_scan_enable(req);
+
+	/* Re-enable previously-active advertisements */
+	if (adv_enabled)
+		__hci_req_enable_paused_adv(req);
 }
 
 int __hci_req_setup_ext_adv_instance(struct hci_request *req, u8 instance)
@@ -2303,6 +2367,13 @@ int __hci_req_setup_ext_adv_instance(struct hci_request *req, u8 instance)
 		} else {
 			if (!bacmp(&random_addr, &hdev->random_addr))
 				return 0;
+			/* Instance 0x00 doesn't have an adv_info, instead it
+			 * uses hdev->random_addr to track its address so
+			 * whenever it needs to be updated this also set the
+			 * random address since hdev->random_addr is shared with
+			 * scan state machine.
+			 */
+			set_random_addr(req, &random_addr);
 		}
 
 		memset(&cp, 0, sizeof(cp));
@@ -2560,84 +2631,6 @@ void hci_req_clear_adv_instance(struct hci_dev *hdev, struct sock *sk,
 						false);
 }
 
-/* TODO(b:210940077): This is currently only in Chromium repo. If we want to
- * upstream this, please consider to refactor le_scan_restart as well.
- */
-static void __hci_req_le_scan_enable(struct hci_request *req)
-{
-	struct hci_dev *hdev = req->hdev;
-	bool enable_filter = hci_is_adv_monitoring(hdev) ?
-			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
-
-	if (use_ext_scan(hdev)) {
-		struct hci_cp_le_set_ext_scan_enable ext_enable_cp;
-
-		memset(&ext_enable_cp, 0, sizeof(ext_enable_cp));
-		ext_enable_cp.enable = LE_SCAN_ENABLE;
-		ext_enable_cp.filter_dup = enable_filter;
-
-		hci_req_add(req, HCI_OP_LE_SET_EXT_SCAN_ENABLE,
-			    sizeof(ext_enable_cp), &ext_enable_cp);
-	} else {
-		struct hci_cp_le_set_scan_enable cp;
-
-		memset(&cp, 0, sizeof(cp));
-		cp.enable = LE_SCAN_ENABLE;
-		cp.filter_dup = enable_filter;
-		hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
-	}
-}
-
-static void set_random_addr(struct hci_request *req, bdaddr_t *rpa)
-{
-	struct hci_dev *hdev = req->hdev;
-	bool adv_enabled = hci_dev_test_flag(hdev, HCI_LE_ADV);
-	bool scan_enabled = hci_dev_test_flag(hdev, HCI_LE_SCAN);
-
-	/* If we're initiating an LE connection or actively scanning, we can't
-	 * go ahead and change the random address at this time. This is because
-	 * the eventual initiator address used for the subsequently created
-	 * connection will be undefined (some controllers use the new address
-	 * and others the one we had when the operation started).
-	 *
-	 * In this kind of scenario skip the update and let the random address
-	 * be updated at the next cycle.
-	 */
-
-	if (hci_lookup_le_connect(hdev) ||
-	    (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
-			hdev->le_scan_type == LE_SCAN_ACTIVE)) {
-		BT_DBG("Deferring random address update");
-		hci_dev_set_flag(hdev, HCI_RPA_EXPIRED);
-		return;
-	}
-
-	/* Because any random address update will fail while advertising is in
-	 * progress, we pause any active instances to update the random address.
-	 */
-	if (adv_enabled) {
-		__hci_req_disable_advertising(req);
-		hci_dev_clear_flag(hdev, HCI_LE_ADV);
-	}
-
-	/* For some controller, ex. Intel ThP2, it is not allowed to set random
-	 * address while passive scan is enabled. Pause LE scan for updating
-	 * random address.
-	 */
-	if (scan_enabled)
-		hci_req_add_le_scan_disable(req, false);
-
-	hci_req_add(req, HCI_OP_LE_SET_RANDOM_ADDR, 6, rpa);
-
-	/* Re-enable passive scan */
-	if (scan_enabled)
-		__hci_req_le_scan_enable(req);
-
-	/* Re-enable previously-active advertisements */
-	if (adv_enabled)
-		__hci_req_enable_paused_adv(req);
-}
-
 int hci_update_random_address(struct hci_request *req, bool require_privacy,
 			      bool use_rpa, u8 *own_addr_type)
 {
@@ -2649,8 +2642,6 @@ int hci_update_random_address(struct hci_request *req, bool require_privacy,
 	 * the current RPA in use, then generate a new one.
 	 */
 	if (use_rpa) {
-		int to;
-
 		/* If Controller supports LL Privacy use own address type is
 		 * 0x03
 		 */
@@ -2660,8 +2651,7 @@ int hci_update_random_address(struct hci_request *req, bool require_privacy,
 		else
 			*own_addr_type = ADDR_LE_DEV_RANDOM;
 
-		if (!hci_dev_test_and_clear_flag(hdev, HCI_RPA_EXPIRED) &&
-		    !bacmp(&hdev->random_addr, &hdev->rpa))
+		if (rpa_valid(hdev))
 			return 0;
 
 		err = smp_generate_rpa(hdev, hdev->irk, &hdev->rpa);
@@ -2671,9 +2661,6 @@ int hci_update_random_address(struct hci_request *req, bool require_privacy,
 		}
 
 		set_random_addr(req, &hdev->rpa);
-
-		to = msecs_to_jiffies(hdev->rpa_timeout * 1000);
-		queue_delayed_work(hdev->workqueue, &hdev->rpa_expired, to);
 
 		return 0;
 	}
