@@ -186,6 +186,7 @@ described below.
 			    "nvidia,tegra194-carmel"
 			    "qcom,krait"
 			    "qcom,kryo"
+			    "qcom,kryo260"
 			    "qcom,kryo385"
 			    "qcom,scorpion"
 	- enable-method
