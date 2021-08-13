@@ -649,7 +649,7 @@ static ssize_t edid_store(struct device *dev,
 	memset(hdmi_ctrl->edid_buf, 0, hdmi_ctrl->edid_buf_size);
 
 	while (edid_size--) {
-		char t[char_to_nib + 1];
+		char t[3]; /* char_to_nib + 1; */
 		int d;
 
 		memcpy(t, buf_t, sizeof(char) * char_to_nib);
