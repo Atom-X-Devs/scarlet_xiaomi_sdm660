@@ -30,8 +30,12 @@
 #define TOUCH_FORCE_NUM 1000
 #define NVT_TOUCH_SUPPORT_HW_RST 0
 #define WAKEUP_GESTURE 0
-#define BOOT_UPDATE_FIRMWARE 0
+#ifdef CONFIG_TOUCHSCREEN_NT36XXX_FW_UPDATE
+#define BOOT_UPDATE_FIRMWARE 1
 #define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw.bin"
+#else
+#define BOOT_UPDATE_FIRMWARE 0
+#endif
 
 #if WAKEUP_GESTURE
 extern const uint16_t gesture_key_array[];
