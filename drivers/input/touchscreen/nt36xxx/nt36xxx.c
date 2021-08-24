@@ -450,8 +450,10 @@ static uint8_t nvt_fw_recovery(uint8_t *point_data)
 	return detected;
 }
 
-static irqreturn_t nvt_ts_work_func(int irq, void *data)
+static void nvt_ts_worker(struct work_struct *work)
 {
+	struct nvt_ts_data *ts = container_of(work, struct nvt_ts_data, irq_work);
+
 	int32_t ret = -1;
 	int32_t i = 0;
 	int32_t finger_cnt = 0;
@@ -481,7 +483,7 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 		input_id = (uint8_t) (point_data[1] >> 3);
 		nvt_ts_wakeup_gesture_report(input_id, point_data);
 		mutex_unlock(&ts->lock);
-		return IRQ_HANDLED;
+		return;
 	}
 #endif
 
@@ -521,6 +523,14 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 
 XFER_ERROR:
 	mutex_unlock(&ts->lock);
+	return;
+}
+
+static irqreturn_t nvt_ts_work_func(int irq, void *data)
+{
+	struct nvt_ts_data *ts = data;
+
+	queue_work(ts->coord_workqueue, &ts->irq_work);
 
 	return IRQ_HANDLED;
 }
@@ -741,6 +751,13 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, msecs_to_jiffies(14000));
 #endif
 
+	ts->coord_workqueue = alloc_workqueue("nvt_ts_workqueue", WQ_HIGHPRI, 0);
+	if (!ts->coord_workqueue) {
+		ret = -ENOMEM;
+		goto err_create_nvt_ts_workqueue_failed;
+	}
+	INIT_WORK(&ts->irq_work, nvt_ts_worker);
+
 	ts->fb_notif.notifier_call = nvt_fb_notifier_callback;
 	ret = fb_register_client(&ts->fb_notif);
 	if(ret)
@@ -753,6 +770,9 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 
 	fb_unregister_client(&ts->fb_notif);
 err_register_fb_notif_failed:
+err_create_nvt_ts_workqueue_failed:
+	if (ts->coord_workqueue)
+		destroy_workqueue(ts->coord_workqueue);
 #if BOOT_UPDATE_FIRMWARE
 	if (nvt_fwu_wq) {
 		cancel_delayed_work_sync(&ts->nvt_fwu_work);
@@ -790,6 +810,9 @@ err_gpio_config_failed:
 
 static int32_t nvt_ts_remove(struct i2c_client *client)
 {
+	if (ts->coord_workqueue)
+		destroy_workqueue(ts->coord_workqueue);
+
 	fb_unregister_client(&ts->fb_notif);
 
 #if BOOT_UPDATE_FIRMWARE
