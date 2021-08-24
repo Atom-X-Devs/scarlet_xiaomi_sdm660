@@ -10,3 +10,11 @@ config TOUCHSCREEN_NT36XXX
 	  to your system.
 
 	  If unsure, say N.
+
+config TOUCHSCREEN_NT36XXX_FW_UPDATE
+	bool "Novatek NT36xxx firmware update"
+	depends on TOUCHSCREEN_NT36XXX
+	help
+	  Say Y here if you want to enable firmware update function of nt36xxx driver.
+
+	  If unsure, say N.
