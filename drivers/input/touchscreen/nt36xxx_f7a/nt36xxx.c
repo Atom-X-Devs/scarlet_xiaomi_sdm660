@@ -273,33 +273,21 @@ Executive outcomes. 0---succeed. -1---fail.
 int32_t nvt_clear_fw_status(void)
 {
 	uint8_t buf[8] = {0};
-	int32_t i = 0;
-	const int32_t retry = 20;
 
-	for (i = 0; i < retry; i++) {
-		buf[0] = 0xFF;
-		buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
-		buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
-		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
-		buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
-		buf[1] = 0x00;
-		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
-		buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
-		buf[1] = 0xFF;
-		CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
+	buf[0] = 0xFF;
+	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
+	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
+	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
 
-		if (buf[1] == 0x00)
-			break;
+	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
+	buf[1] = 0x00;
+	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 
-		msleep(10);
-	}
+	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
+	buf[1] = 0xFF;
+	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
 
-	if (i >= retry) {
-		NVT_ERR("failed, i=%d, buf[1]=0x%02X\n", i, buf[1]);
-		return -EPERM;
-	} else {
-		return 0;
-	}
+	return 0;
 }
 
 /*******************************************************
@@ -312,30 +300,17 @@ Executive outcomes. 0---succeed. -1---failed.
 int32_t nvt_check_fw_status(void)
 {
 	uint8_t buf[8] = {0};
-	int32_t i = 0;
-	const int32_t retry = 50;
 
-	for (i = 0; i < retry; i++) {
-		buf[0] = 0xFF;
-		buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
-		buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
-		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
-		buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
-		buf[1] = 0x00;
-		CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
+	buf[0] = 0xFF;
+	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
+	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
+	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
 
-		if ((buf[1] & 0xF0) == 0xA0)
-			break;
+	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
+	buf[1] = 0x00;
+	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
 
-		msleep(10);
-	}
-
-	if (i >= retry) {
-		NVT_ERR("failed, i=%d, buf[1]=0x%02X\n", i, buf[1]);
-		return -EPERM;
-	} else {
-		return 0;
-	}
+	return 0;
 }
 
 /*******************************************************
@@ -348,30 +323,12 @@ Executive outcomes. 0---succeed. -1---failed.
 int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state)
 {
 	uint8_t buf[8] = {0};
-	int32_t ret = 0;
-	int32_t retry = 0;
 
-	while (1) {
-		msleep(10);
-		buf[0] = EVENT_MAP_RESET_COMPLETE;
-		buf[1] = 0x00;
-		CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 6);
+	buf[0] = EVENT_MAP_RESET_COMPLETE;
+	buf[1] = 0x00;
+	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 6);
 
-		if ((buf[1] >= check_reset_state) && (buf[1] <= RESET_STATE_MAX)) {
-			ret = 0;
-			break;
-		}
-
-		retry++;
-
-		if (unlikely(retry > 100)) {
-			NVT_ERR("error, retry=%d, buf[1]=0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X\n", retry, buf[1], buf[2], buf[3], buf[4], buf[5]);
-			ret = -EPERM;
-			break;
-		}
-	}
-
-	return ret;
+	return 0;
 }
 
 /*******************************************************
