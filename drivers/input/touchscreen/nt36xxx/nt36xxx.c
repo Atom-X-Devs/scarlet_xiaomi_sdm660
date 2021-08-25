@@ -300,82 +300,41 @@ void nvt_bootloader_reset(void)
 int32_t nvt_clear_fw_status(void)
 {
 	uint8_t buf[8] = {0};
-	int32_t i = 0;
-	const int32_t retry = 20;
 
-	for (i = 0; i < retry; i++) {
-		nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
+	nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
 
-		buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
-		buf[1] = 0x00;
-		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
-		buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
-		buf[1] = 0xFF;
-		CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
+	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
+	buf[1] = 0x00;
+	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 
-		if (buf[1] == 0x00)
-			break;
+	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
+	buf[1] = 0xFF;
+	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
 
-		msleep(10);
-	}
-
-	if (i >= retry) {
-		return -1;
-	} else {
-		return 0;
-	}
+	return 0;
 }
 
 int32_t nvt_check_fw_status(void)
 {
 	uint8_t buf[8] = {0};
-	int32_t i = 0;
-	const int32_t retry = 50;
 
-	for (i = 0; i < retry; i++) {
-		nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
+	nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
 
-		buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
-		buf[1] = 0x00;
-		CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
+	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
+	buf[1] = 0x00;
+	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
 
-		if ((buf[1] & 0xF0) == 0xA0)
-			break;
-
-		msleep(10);
-	}
-
-	if (i >= retry) {
-		return -1;
-	} else {
-		return 0;
-	}
+	return 0;
 }
 
 int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state)
 {
 	uint8_t buf[8] = {0};
 	int32_t ret = 0;
-	int32_t retry = 0;
 
-	while (1) {
-		msleep(10);
-
-		buf[0] = EVENT_MAP_RESET_COMPLETE;
-		buf[1] = 0x00;
-		CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 6);
-
-		if ((buf[1] >= check_reset_state) && (buf[1] <= RESET_STATE_MAX)) {
-			ret = 0;
-			break;
-		}
-
-		retry++;
-		if(unlikely(retry > 100)) {
-			ret = -1;
-			break;
-		}
-	}
+	buf[0] = EVENT_MAP_RESET_COMPLETE;
+	buf[1] = 0x00;
+	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 6);
 
 	return ret;
 }
