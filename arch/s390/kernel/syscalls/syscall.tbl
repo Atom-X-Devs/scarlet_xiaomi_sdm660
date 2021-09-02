@@ -394,3 +394,5 @@
 424  common	pidfd_send_signal	sys_pidfd_send_signal		sys_pidfd_send_signal
 434  common	pidfd_open		sys_pidfd_open			sys_pidfd_open
 440  common	process_madvise		sys_process_madvise		sys_process_madvise
+# 447 reserved for memfd_secret
+448  common	process_mrelease	sys_process_mrelease		sys_process_mrelease
