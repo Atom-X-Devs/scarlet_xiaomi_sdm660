@@ -3676,6 +3676,10 @@ static int _sde_kms_hw_init_blocks(struct sde_kms *sde_kms,
 		goto hw_intr_init_err;
 	}
 
+#ifdef CONFIG_DRM_MSM_DSI_SOMC_PANEL
+	sde_kms_dualdsi_workaround(sde_kms);
+#endif
+
 	/*
 	 * Attempt continuous splash handoff only if reserved
 	 * splash memory is found & release resources on any error
