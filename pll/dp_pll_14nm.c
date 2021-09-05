@@ -86,7 +86,7 @@ static struct dp_pll_vco_clk dp_vco_clk = {
 	.max_rate = DP_VCO_HSCLK_RATE_5400MHZDIV1000,
 	.hw.init = &(struct clk_init_data){
 		.name = "dp_vco_clk",
-		.parent_names = (const char *[]){ "xo_board" },
+		.parent_names = (const char *[]){ "bi_tcxo" },
 		.num_parents = 1,
 		.ops = &dp_14nm_vco_clk_ops,
 	},
