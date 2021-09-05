@@ -1323,7 +1323,8 @@ static void _sde_sspp_setup_cursor(struct sde_mdss_cfg *sde_cfg,
 	struct sde_sspp_cfg *sspp, struct sde_sspp_sub_blks *sblk,
 	struct sde_prop_value *prop_value, u32 *cursor_count)
 {
-	if (!IS_SDE_MAJOR_MINOR_SAME(sde_cfg->hwversion, SDE_HW_VER_300))
+	if (!IS_SDE_MAJOR_MINOR_SAME(sde_cfg->hwversion, SDE_HW_VER_300) ||
+		!IS_SDE_MAJOR_MINOR_SAME(sde_cfg->hwversion, SDE_HW_VER_320))
 		SDE_ERROR("invalid sspp type %d, xin id %d\n",
 				sspp->type, sspp->xin_id);
 	set_bit(SDE_SSPP_CURSOR, &sspp->features);
@@ -4233,6 +4234,20 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->perf.min_prefill_lines = 25;
 		sde_cfg->vbif_qos_nlvl = 4;
 		sde_cfg->ts_prefill_rev = 1;
+		clear_bit(MDSS_INTR_LTM_0_INTR, sde_cfg->mdss_irqs);
+		clear_bit(MDSS_INTR_LTM_1_INTR, sde_cfg->mdss_irqs);
+		sde_cfg->has_decimation = true;
+		sde_cfg->has_cursor = true;
+		sde_cfg->has_hdr = true;
+	} else if (IS_SDM660_TARGET(hw_rev)) {
+		sde_cfg->has_wb_ubwc = true;
+		sde_cfg->perf.min_prefill_lines = 25;
+		sde_cfg->vbif_qos_nlvl = 4;
+		sde_cfg->ts_prefill_rev = 1;
+		clear_bit(MDSS_INTR_AD4_0_INTR, sde_cfg->mdss_irqs);
+		clear_bit(MDSS_INTR_AD4_1_INTR, sde_cfg->mdss_irqs);
+		clear_bit(MDSS_INTF_TEAR_1_INTR, sde_cfg->mdss_irqs);
+		clear_bit(MDSS_INTF_TEAR_2_INTR, sde_cfg->mdss_irqs);
 		clear_bit(MDSS_INTR_LTM_0_INTR, sde_cfg->mdss_irqs);
 		clear_bit(MDSS_INTR_LTM_1_INTR, sde_cfg->mdss_irqs);
 		sde_cfg->has_decimation = true;
