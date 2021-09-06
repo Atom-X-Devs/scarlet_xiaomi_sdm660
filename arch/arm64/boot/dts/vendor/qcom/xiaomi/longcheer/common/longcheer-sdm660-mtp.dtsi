@@ -60,7 +60,7 @@
 		fp-gpio-irq = <&tlmm 72 0x00>;
 		fp-gpio-reset = <&tlmm 20 0x00>;
 	};
-	
+
 	fpc1020 {
 		status = "ok";
 		compatible = "fpc,fpc1020";
