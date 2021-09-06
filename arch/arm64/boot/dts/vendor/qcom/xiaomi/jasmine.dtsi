@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-#include "longcheer/common/longcheer-sdm660-base.dtsi"
+#include "longcheer/common/longcheer-sdm660.dtsi"
 #include "longcheer/wayne/wayne-common-base.dtsi"
 
 &firmware {
