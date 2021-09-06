@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+/* common diff with msm-audio.dtsi */
+&dai_mi2s0 {
+	qcom,msm-mi2s-rx-lines = <1>;
+	qcom,msm-mi2s-tx-lines = <2>;
+};
+
+&int_codec {
+	/delete-property/ qcom,us-euro-gpios;
+	qcom,msm-micbias1-ext-cap;
+	qcom,pri-mi2s-gpios = <&cdc_pri_mi2s_gpios>;
+};
+
+&soc {
+	cdc_pri_mi2s_gpios: msm_cdc_pinctrl_pri_mi2s {
+		compatible = "qcom,msm-cdc-pinctrl";
+		pinctrl-names = "aud_active", "aud_sleep";
+		pinctrl-0 = <&pri_mi2s_sck_active &pri_mi2s_ws_active
+				&pri_mi2s_sd0_active &pri_mi2s_sd1_active>;
+		pinctrl-1 = <&pri_mi2s_sck_sleep &pri_mi2s_ws_sleep
+				&pri_mi2s_sd0_sleep &pri_mi2s_sd1_sleep>;
+	};
+};
+
+&msm_sdw_codec {
+	/delete-property/ qcom,cdc-sdw-gpios;
+};
+
+&wsa881x_211_en {
+	status = "disabled";
+};
+
+&wsa881x_212_en {
+	status = "disabled";
+};
+
+&wsa881x_213_en {
+	status = "disabled";
+};
+
+&wsa881x_214_en {
+	status = "disabled";
+};

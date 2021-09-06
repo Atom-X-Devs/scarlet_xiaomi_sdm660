@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include "longcheer-pm660.dtsi"
-#include "longcheer-sdm660-audio.dtsi"
 #include "longcheer-sdm660-camera.dtsi"
 #include "longcheer-sdm660-mdss.dtsi"
 #include "longcheer-sdm660-mtp.dtsi"
-#include "longcheer-sdm660-pinctrl.dtsi"
 #include "longcheer-sdm660-ramoops.dtsi"
 
 /* sdm660.dtsi common diff */
