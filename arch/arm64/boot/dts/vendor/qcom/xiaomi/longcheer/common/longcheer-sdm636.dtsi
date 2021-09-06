@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
+#include "longcheer-sdm636-audio.dtsi"
+#include "longcheer-sdm636-pinctrl.dtsi"
+#include "longcheer-sdm660-base.dtsi"
+
 /* sdm660.dtsi tulip/whyred specific diff */
 &tlmm {
 	hall_int_active:hall_int_active {
@@ -134,4 +138,17 @@
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+};
+
+/* sdm636-audio-dtsi diff */
+&cdc_sdw_gpios {
+	status = "disabled";
+};
+
+&wsa_spkr_en1 {
+	status = "disabled";
+};
+
+&wsa_spkr_en2 {
+	status = "disabled";
 };
