@@ -636,7 +636,9 @@ int32_t Update_Firmware(void)
 
 	nvt_bootloader_reset();
 	nvt_check_fw_reset_state(RESET_STATE_INIT);
+#if !TOUCHSCREEN_LAVENDER || !TOUCHSCREEN_TULIP
 	nvt_get_fw_info();
+#endif
 
 	return ret;
 }
@@ -712,16 +714,44 @@ void Boot_Update_Firmware(struct work_struct *work)
 	int32_t ret = 0;
 
 	char firmware_name[256] = "";
+#if XIAOMI_PANEL
+	char g_lcd_id[128];
+#endif
+
+#if TOUCHSCREEN_TULIP
+	if (strstr(g_lcd_id,"shenchao nt36672a fhdplus video mode dsi panel") != NULL) {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_SHENCHAO);
+	} else {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_TIANMA);
+	}
+#elif TOUCHSCREEN_WHYRED
+	if (strstr(g_lcd_id,"tianma nt36672") != NULL) {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME);
+	} else {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_TWO);
+	}
+#elif TOUCHSCREEN_WAYNE
+	if (tianma_jdi_flag) {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_JDI);
+	} else {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_TIANMA);
+	}
+#elif TOUCHSCREEN_LAVENDER
+	if (strstr(g_lcd_id, "tianma nt36672a") != NULL) {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_TIANMA);
+	} else if (strstr(g_lcd_id, "shenchao nt36672a") != NULL) {
+		sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME_SHENCHAO);
+	}
+#else
 	sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME);
+#endif
 
 	ret = update_firmware_request(firmware_name);
 	if (ret)
 		return;
 
 	mutex_lock(&ts->lock);
-
 	nvt_sw_reset_idle();
-
 	ret = Check_CheckSum();
 
 	if ((ret < 0) || ((ret == 0) && (Check_FW_Ver() == 0)) || (nvt_check_flash_end_flag())) {
@@ -735,5 +765,11 @@ void Boot_Update_Firmware(struct work_struct *work)
 
 	mutex_unlock(&ts->lock);
 	update_firmware_release();
+#if TOUCHSCREEN_LAVENDER || TOUCHSCREEN_TULIP
+	nvt_get_fw_info;
+#if !TOUCHSCREEN_TULIP
+	ts->touch_state = TOUCH_STATE_WORKING;
+#endif
+#endif
 }
 #endif /* BOOT_UPDATE_FIRMWARE */
