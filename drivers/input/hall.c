@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
 #include <linux/init.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
@@ -15,13 +17,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/fb.h>
 
-/*add by Wenke Ma, for hall switch key code*/
 #define KEY_HALL_OPEN                0x284
 #define KEY_HALL_CLOSE               0x285
-
 #define GPIO_HALL_EINT_PIN 107
-#define CONFIG_HALL_SYS
-
 
 struct hall_switch_info
 {
@@ -31,9 +29,7 @@ struct hall_switch_info
 	int irq;
 	int hall_switch_state;
 	struct input_dev *ipdev;
-#ifdef CONFIG_HALL_SYS
 	struct class *hall_sys_class;
-#endif
 };
 
 struct hall_switch_info *global_hall_info;
@@ -42,13 +38,16 @@ static irqreturn_t hall_interrupt(int irq, void *data)
 {
 	struct hall_switch_info *hall_info = data;
 	int hall_gpio;
+
 	hall_gpio = gpio_get_value_cansleep(hall_info->irq_gpio);
+
 	pr_err("Macle hall irq interrupt gpio = %d\n", hall_gpio);
+
 	if (hall_gpio == hall_info->hall_switch_state) {
 		return IRQ_HANDLED;
 	} else {
 		hall_info->hall_switch_state = hall_gpio;
-		pr_err("Macle hall report key s ");
+		pr_err("Macle hall report keys");
 	}
 
 	if (hall_gpio) {
@@ -72,6 +71,7 @@ static int hall_parse_dt(struct device *dev, struct hall_switch_info *pdata)
 		return pdata->irq_gpio;
 
 	pr_info("Macle hall irq_gpio=%d\n", pdata->irq_gpio);
+
 	return 0;
 }
 
@@ -79,8 +79,8 @@ static int hall_parse_dt(struct device *dev, struct hall_switch_info *pdata)
 static int hall_power_on(struct device *pdev)
 {
 	int ret = 0;
-	//struct regulator *hall_vdd;
 	struct regulator *hall_vio;
+
 	hall_vio = regulator_get(pdev, "vdd-io");
 	if (IS_ERR(hall_vio)) {
 		ret = -1;
@@ -101,6 +101,7 @@ static int hall_power_on(struct device *pdev)
 		dev_err(pdev, "Regulator vio enable failed ret=%d\n", ret);
 		return ret;
 	}
+
 	return ret;
 
 reg_vio_put:
@@ -108,28 +109,32 @@ reg_vio_put:
 	return ret;
 }
 
-#ifdef CONFIG_HALL_SYS
 static ssize_t hall_state_show(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
 	int state;
+
 	if (global_hall_info->hall_switch_state)
 		state = 3;
 	else
 		state = 2;
 
 	pr_err("Macle hall_state_show state = %d, custome_state=%d\n", global_hall_info->hall_switch_state, state);
+
 	return sprintf(buf, "%d\n", state);
 }
 
 static struct class_attribute hall_state =
 	__ATTR(hall_state, S_IRUGO, hall_state_show, NULL);
 
-static int hall_register_class_dev(struct hall_switch_info *hall_info){
+static int hall_register_class_dev(struct hall_switch_info *hall_info)
+{
 	int err;
+
 	if (!hall_info->hall_sys_class) {
 		hall_info->hall_sys_class = class_create(THIS_MODULE, "hall_class");
-		if (IS_ERR(hall_info->hall_sys_class)){
+
+		if (IS_ERR(hall_info->hall_sys_class)) {
 			hall_info->hall_sys_class = NULL;
 			printk(KERN_ERR "could not allocate hall_class\n");
 			return -1;
@@ -137,19 +142,20 @@ static int hall_register_class_dev(struct hall_switch_info *hall_info){
 	}
 
 	err = class_create_file(hall_info->hall_sys_class, &hall_state);
-	if(err < 0){
+	if(err < 0) {
 		class_destroy(hall_info->hall_sys_class);
 		return -1;
 	}
+
 	return 0;
 }
-#endif
 
 static int hall_probe(struct platform_device *pdev)
 {
 	int rc = 0;
 	int err;
 	struct hall_switch_info *hall_info;
+
 	pr_err("Macle hall_probe\n");
 
 	if (pdev->dev.of_node) {
@@ -158,6 +164,7 @@ static int hall_probe(struct platform_device *pdev)
 			pr_err("Macle %s:hall failed to alloc memory for module data\n",__func__);
 			return -ENOMEM;
 		}
+
 		err = hall_parse_dt(&pdev->dev, hall_info);
 		if (err) {
 			dev_err(&pdev->dev, "Macle hall_probe DT parsing failed\n");
@@ -166,16 +173,16 @@ static int hall_probe(struct platform_device *pdev)
 	} else{
 		return -ENOMEM;
 	}
-	mutex_init(&hall_info->io_lock);
 
+	mutex_init(&hall_info->io_lock);
 	platform_set_drvdata(pdev, hall_info);
 
-	/* input system config */
 	hall_info->ipdev = input_allocate_device();
 	if (!hall_info->ipdev) {
 		pr_err("hall_probe: input_allocate_device fail\n");
 		goto input_error;
 	}
+
 	hall_info->ipdev->name = "hall-switch-input";
 	input_set_capability(hall_info->ipdev, EV_KEY, KEY_HALL_OPEN);
 	input_set_capability(hall_info->ipdev, EV_KEY, KEY_HALL_CLOSE);
@@ -201,6 +208,7 @@ static int hall_probe(struct platform_device *pdev)
 			pr_err("hall_probe: gpio_direction_input fail rc=%d\n", rc);
 			goto err_irq;
 		}
+
 		hall_info->hall_switch_state = gpio_get_value(hall_info->irq_gpio);
 		pr_err("hall_probe: gpios = %d, gpion=%d\n", hall_info->hall_switch_state, hall_info->hall_switch_state);
 
@@ -223,10 +231,9 @@ static int hall_probe(struct platform_device *pdev)
 	}
 
     pr_err("hall_probe end\n");
-#ifdef CONFIG_HALL_SYS
 	hall_register_class_dev(hall_info);
-#endif
 	global_hall_info = hall_info;
+
 	return 0;
 err_irq:
 	disable_irq_wake(hall_info->irq);
@@ -247,15 +254,15 @@ free_struct:
 static int hall_remove(struct platform_device *pdev)
 {
 	struct hall_switch_info *hall = platform_get_drvdata(pdev);
-#ifdef CONFIG_HALL_SYS
+
 	class_destroy(hall->hall_sys_class);
-#endif
 	pr_err("hall_remove\n");
 	disable_irq_wake(hall->irq);
 	device_init_wakeup(&pdev->dev, 0);
 	free_irq(hall->irq, hall->ipdev);
 	gpio_free(hall->irq_gpio);
 	input_unregister_device(hall->ipdev);
+
 	return 0;
 }
 
@@ -274,17 +281,7 @@ static struct platform_driver hall_driver = {
 	},
 };
 
-static int __init hall_init(void)
-{
-	return platform_driver_register(&hall_driver);
-}
+module_platform_driver(hall_driver);
 
-static void __exit hall_exit(void)
-{
-	platform_driver_unregister(&hall_driver);
-}
-
-module_init(hall_init);
-module_exit(hall_exit);
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("mawenke");
