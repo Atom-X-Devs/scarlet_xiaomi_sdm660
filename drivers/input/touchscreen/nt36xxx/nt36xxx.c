@@ -19,6 +19,21 @@
 #include <linux/fb.h>
 #include "nt36xxx.h"
 
+#if TOUCHSCREEN_LAVENDER
+extern char g_lcd_id[128];
+static struct work_struct g_resume_work;
+static void do_nvt_ts_resume_work(struct work_struct *work);
+
+struct g_nvt_data {
+	bool valid;
+	bool usb_plugin;
+	struct work_struct nvt_usb_plugin_work;
+};
+
+struct g_nvt_data g_nvt = {0};
+EXPORT_SYMBOL(g_nvt);
+#endif
+
 struct nvt_ts_data *ts;
 static uint8_t bTouchIsAwake;
 static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
@@ -30,6 +45,10 @@ extern void Boot_Update_Firmware(struct work_struct *work);
 #if WAKEUP_GESTURE
 #ifdef CONFIG_TOUCHSCREEN_COMMON
 #include <linux/input/tp_common.h>
+#endif
+#if XIAOMI_PANEL
+#define WAKEUP_ON 5
+#define WAKEUP_OFF 4
 #endif
 #define GESTURE_WORD_C			12
 #define GESTURE_WORD_W			13
@@ -62,6 +81,32 @@ const uint16_t gesture_key_array[] = {
 	KEY_POWER,  //GESTURE_SLIDE_LEFT
 	KEY_POWER,  //GESTURE_SLIDE_RIGHT
 };
+
+#if XIAOMI_PANEL
+bool enable_gesture_mode = false;
+bool delay_gesture = false;
+bool suspend_state = false;
+static struct wakeup_source *gesture_wakelock;
+
+int nvt_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int code, int value)
+{
+	if (type == EV_SYN && code == SYN_CONFIG) {
+		if (suspend_state) {
+			if ((value != WAKEUP_OFF) || enable_gesture_mode) {
+				delay_gesture = true;
+			}
+		}
+
+		if (value == WAKEUP_OFF) {
+			enable_gesture_mode = false;
+		} else if (value == WAKEUP_ON) {
+			enable_gesture_mode  = true;
+		}
+	}
+
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_TOUCHSCREEN_COMMON
 static ssize_t double_tap_show(struct kobject *kobj,
@@ -411,7 +456,7 @@ static void nvt_parse_dt(struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 
-#if NVT_TOUCH_SUPPORT_HW_RST
+#if NVT_TOUCH_SUPPORT_HW_RST || TOUCHSCREEN_WHYRED || TOUCHSCREEN_WAYNE
 	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
 #endif
 	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
@@ -431,11 +476,17 @@ static int nvt_gpio_config(struct nvt_ts_data *ts)
 {
 	int32_t ret = 0;
 
-#if NVT_TOUCH_SUPPORT_HW_RST
+#if NVT_TOUCH_SUPPORT_HW_RST || TOUCHSCREEN_WHYRED || TOUCHSCREEN_WAYNE
 	if (gpio_is_valid(ts->reset_gpio)) {
+#if TOUCHSCREEN_WHYRED || TOUCHSCREEN_WAYNE
+		ret = gpio_request(ts->reset_gpio,"NVT-reset");
+		if (ret)
+			goto err_request_irq_gpio;
+#else
 		ret = gpio_request_one(ts->reset_gpio, GPIOF_OUT_INIT_HIGH, "NVT-tp-rst");
 		if (ret)
 			goto err_request_reset_gpio;
+#endif
 	}
 #endif
 
@@ -459,7 +510,7 @@ static void nvt_gpio_deconfig(struct nvt_ts_data *ts)
 {
 	if (gpio_is_valid(ts->irq_gpio))
 		gpio_free(ts->irq_gpio);
-#if NVT_TOUCH_SUPPORT_HW_RST
+#if NVT_TOUCH_SUPPORT_HW_RST || TOUCHSCREEN_WHYRED || TOUCHSCREEN_WAYNE
 	if (gpio_is_valid(ts->reset_gpio))
 		gpio_free(ts->reset_gpio);
 #endif
@@ -495,8 +546,12 @@ static void nvt_ts_worker(struct work_struct *work)
 	uint32_t input_y = 0;
 
 #if WAKEUP_GESTURE
-	if (bTouchIsAwake == 0)
+	if (bTouchIsAwake == 0) {
+#if XIAOMI_PANEL
+		__pm_wakeup_event(gesture_wakelock, msecs_to_jiffies(5000));
+#endif
 		pm_wakeup_event(&ts->input_dev->dev, 5000);
+	}
 #endif
 
 	mutex_lock(&ts->lock);
@@ -564,6 +619,42 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+#if TOUCHSCREEN_LAVENDER
+static void nvt_ts_usb_plugin_work_func(struct work_struct *work)
+{
+	uint8_t buf[8] = {0};
+	int32_t ret = 0;
+
+	if ( !bTouchIsAwake || (ts->touch_state != TOUCH_STATE_WORKING) ) {
+		return;
+	}
+
+	mutex_lock(&ts->lock);
+
+	msleep(35);
+
+	buf[0] = 0xFF;
+	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
+	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
+	ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
+	if (ret < 0)
+		goto exit;
+
+	buf[0] = EVENT_MAP_HOST_CMD;
+	if (g_nvt.usb_plugin)
+		buf[1] = 0x53;
+	else
+		buf[1] = 0x51;
+
+	ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+	if (ret < 0)
+		goto exit;
+
+exit:
+	mutex_unlock(&ts->lock);
+}
+#endif
 
 void nvt_stop_crc_reboot(void)
 {
@@ -707,6 +798,17 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 
 	msleep(10);
 
+#if XIAOMI_PANEL
+	ts->vcc_i2c = regulator_get(&client->dev, "vcc_i2c-supply");
+	if (IS_ERR(ts->vcc_i2c))
+		ret = PTR_ERR(ts->vcc_i2c);
+
+	if (regulator_count_voltages(ts->vcc_i2c) > 0)
+		ret = regulator_set_voltage(ts->vcc_i2c, 1800000, 1800000);
+
+	ret = regulator_enable(ts->vcc_i2c);
+#endif
+
 	ret = nvt_ts_check_chip_ver_trim();
 	if (ret) {
 		ret = -EINVAL;
@@ -740,9 +842,15 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 #endif
 
 #if WAKEUP_GESTURE
+#if XIAOMI_PANEL
+	ts->input_dev->event =nvt_gesture_switch;
+#endif
 	for (retry = 0; retry < (sizeof(gesture_key_array) / sizeof(gesture_key_array[0])); retry++) {
 		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
 	}
+#if XIAOMI_PANEL
+	gesture_wakelock = wakeup_source_register(NULL, "gesture_wakelock");
+#endif
 #ifdef CONFIG_TOUCHSCREEN_COMMON
 	ret = tp_common_set_double_tap_ops(&double_tap_ops);
 #endif
@@ -762,7 +870,13 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	if (client->irq) {
 		ts->irq_enabled = true;
 		ret = request_threaded_irq(client->irq, NULL, nvt_ts_work_func,
-				ts->int_trigger_type | IRQF_ONESHOT, NVT_I2C_NAME, ts);
+				ts->int_trigger_type | IRQF_ONESHOT
+#if XIAOMI_PANEL
+#if WAKEUP_GESTURE
+				| IRQF_NO_SUSPEND
+#endif
+#endif
+				, NVT_I2C_NAME, ts);
 		if (ret != 0) {
 			goto err_int_request_failed;
 		} else {
@@ -919,12 +1033,22 @@ static int32_t nvt_ts_suspend(struct device *dev)
 	bTouchIsAwake = 0;
 
 #if WAKEUP_GESTURE
+#if XIAOMI_PANEL
+	if (enable_gesture_mode) {
+#endif
 	buf[0] = EVENT_MAP_HOST_CMD;
 	buf[1] = 0x13;
 	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 
 	enable_irq_wake(ts->client->irq);
-
+#if XIAOMI_PANEL
+	} else {
+		nvt_irq_enable(false);
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x11;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+	}
+#endif
 #else // WAKEUP_GESTURE
 	buf[0] = EVENT_MAP_HOST_CMD;
 	buf[1] = 0x11;
@@ -944,6 +1068,11 @@ static int32_t nvt_ts_suspend(struct device *dev)
 	input_sync(ts->input_dev);
 
 	msleep(50);
+#if XIAOMI_PANEL
+#if WAKEUP_GESTURE
+	suspend_state = true;
+#endif
+#endif
 
 	return 0;
 }
@@ -963,7 +1092,19 @@ static int32_t nvt_ts_resume(struct device *dev)
 		nvt_bootloader_reset();
 		nvt_check_fw_reset_state(RESET_STATE_REK);
 	}
+	
+#if XIAOMI_PANEL
+#if WAKEUP_GESTURE
+	if (delay_gesture)
+		enable_gesture_mode = !enable_gesture_mode;
 
+	if(!enable_gesture_mode)
+		nvt_irq_enable(true);
+
+	if (delay_gesture)
+		enable_gesture_mode = !enable_gesture_mode;
+#endif
+#endif
 #if !WAKEUP_GESTURE
 	nvt_irq_enable(true);
 #endif
@@ -971,25 +1112,59 @@ static int32_t nvt_ts_resume(struct device *dev)
 	bTouchIsAwake = 1;
 
 	mutex_unlock(&ts->lock);
+#if XIAOMI_PANEL
+#if WAKEUP_GESTURE
+	suspend_state = false;
+	delay_gesture = false;
+#endif
+#endif
+
+#if TOUCHSCREEN_LAVENDER
+	if (g_nvt.usb_plugin)
+		nvt_ts_usb_plugin_work_func(NULL);
+#endif
 
 	return 0;
 }
 
+#if TOUCHSCREEN_LAVENDER
+static void do_nvt_ts_resume_work(struct work_struct *work)
+{
+	int ret = 0;
+
+	mutex_lock(&ts->pm_mutex);
+	ret = nvt_ts_resume(&ts->client->dev);
+	mutex_unlock(&ts->pm_mutex);
+
+	return;
+}
+#endif
+
 static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
-	struct fb_event *evdata = data;
 	int *blank;
-	struct nvt_ts_data *ts =
-		container_of(self, struct nvt_ts_data, fb_notif);
+	struct nvt_ts_data *ts = container_of(self, struct nvt_ts_data, fb_notif);
+	struct fb_event *evdata = data;
 
 	if (evdata && evdata->data && event == FB_EARLY_EVENT_BLANK) {
 		blank = evdata->data;
 		if (*blank == FB_BLANK_POWERDOWN)
+#if TOUCHSCREEN_LAVENDER
+			flush_work(&g_resume_work);
+			mutex_lock(&ts->pm_mutex);
+#endif
 			nvt_ts_suspend(&ts->client->dev);
+#if TOUCHSCREEN_LAVENDER
+			mutex_unlock(&ts->pm_mutex);
+#endif
 	} else if (evdata && evdata->data && event == FB_EVENT_BLANK) {
 		blank = evdata->data;
 		if (*blank == FB_BLANK_UNBLANK)
+#if TOUCHSCREEN_LAVENDER
+			schedule_work(&g_resume_work);
+#else
 			nvt_ts_resume(&ts->client->dev);
+#endif
 	}
 
 	return 0;
@@ -1025,9 +1200,41 @@ static int32_t __init nvt_driver_init(void)
 {
 	int32_t ret = 0;
 
-	ret = i2c_add_driver(&nvt_i2c_driver);
-	if (ret)
+#if TOUCHSCREEN_LAVENDER
+	g_nvt.valid = false;
+
+	if (strstr(saved_command_line, "androidboot.mode=charger") != NULL) {
+		LOGV("androidboot.mode=charger, TP doesn't support!\n");
 		goto err_driver;
+	}
+
+	if (IS_ERR_OR_NULL(g_lcd_id)) {
+		goto err_driver;
+	} else {
+		if (strstr(g_lcd_id, "tianma nt36672a") != NULL) {
+			NVT_LOG("TP info: [Vendor]tianma [IC]nt36672a\n");
+		} else if (strstr(g_lcd_id, "shenchao nt36672a") != NULL) {
+			NVT_LOG("TP info: [Vendor]shenchao [IC] nt36672a\n");
+		} else {
+			NVT_ERR("Touch IC is not nt36672a\n");
+			goto err_driver;
+		}
+	}
+#endif
+
+	ret = i2c_add_driver(&nvt_i2c_driver);
+	if (ret) {
+#if TOUCHSCREEN_LAVENDER
+		ret = -ENODEV;
+		goto err_driver;
+#else
+		goto err_driver;
+#endif
+	}
+
+#if TOUCHSCREEN_LAVENDER
+	goto err_driver;
+#endif
 
 err_driver:
 	return ret;
