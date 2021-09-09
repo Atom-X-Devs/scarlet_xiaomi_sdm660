@@ -2,34 +2,6 @@
 // Copyright (C) 2019 XiaoMi, Inc.
 
 &soc {
-	led_flash0: qcom,camera-flash@0 {
-		status = "ok";
-		cell-index = <0>;
-		compatible = "qcom,camera-flash";
-		qcom,flash-source = <&pm660l_flash0 &pm660l_flash1>;
-		qcom,torch-source = <&pm660l_torch0 &pm660l_torch1>;
-		qcom,switch-source = <&pm660l_switch0>;
-	};
-
-	led_flash1: qcom,camera-flash@1 {
-		status = "ok";
-		cell-index = <1>;
-		compatible = "qcom,camera-flash";
-		qcom,flash-source = <&pm660l_flash2>;
-		qcom,torch-source = <&pm660l_torch2>;
-		qcom,switch-source = <&pm660l_switch1>;
-	};
-
-	cam_avdd_gpio_regulator: cam_avdd_fixed_regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "cam_avdd_gpio_regulator";
-		regulator-min-microvolt = <2800000>;
-		regulator-max-microvolt = <2800000>;
-		enable-active-high;
-		gpio = <&tlmm 51 0>;
-		vin-supply = <&pm660l_bob>;
-	};
-
 	cam_rear_avdd_gpio_regulator: cam_rear_avdd_fixed_regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "cam_rear_avdd_gpio_regulator";
@@ -39,33 +11,19 @@
 		gpio = <&tlmm 46 0>;
 		vin-supply = <&pm660l_bob>;
 	};
+};
 
-	cam_dvdd_gpio_regulator: cam_dvdd_fixed_regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "cam_dvdd_gpio_regulator";
-		regulator-min-microvolt = <1350000>;
-		regulator-max-microvolt = <1350000>;
-		enable-active-high;
-		gpio = <&pm660l_gpios 3 0>;
-		vin-supply = <&pm660_s5>;
-	};
+&cam_avdd_gpio_regulator {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
+};
 
-	cam_rear_dvdd_gpio_regulator: cam_rear_dvdd_fixed_regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "cam_rear_dvdd_gpio_regulator";
-		regulator-min-microvolt = <1200000>;
-		regulator-max-microvolt = <1200000>;
-		enable-active-high;
-		gpio = <&pm660l_gpios 4 0>;
-		vin-supply = <&pm660_s5>;
-	};
+&cam_rear_dvdd_gpio_regulator {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
 };
 
 &cci {
-	/delete-node/ qcom,actuator@0;
-	/delete-node/ qcom,actuator@1;
-	/delete-node/ qcom,actuator@2;
-
 	actuator0: qcom,actuator@0 {
 		cell-index = <0>;
 		reg = <0x0>;
