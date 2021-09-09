@@ -65,6 +65,12 @@ config MSMB_CAMERA_DEBUG
        and postprocessing drivers.
        Enable printk() debug for msm camera 2.0.
 
+config XIAOMI_NEW_CAMERA_BLOBS
+     bool "Xiaomi new camera blobs"
+     depends on MACH_LONGCHEER
+     help
+       Enables the support for xiaomi new camera blobs.
+
 if MSMB_CAMERA
 if MSMB_CAMERA_LEGACY
 source "drivers/media/platform/msm/camera_v2-legacy/Kconfig"
