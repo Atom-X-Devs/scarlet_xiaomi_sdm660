@@ -572,6 +572,7 @@ int msm_camera_enable_vreg(struct device *dev, struct camera_vreg_t *cam_vreg,
 		}
 	}
 	return rc;
+
 disable_vreg:
 	for (i--; i >= 0; i--) {
 		if (vreg_seq) {
@@ -580,7 +581,12 @@ disable_vreg:
 				continue;
 		} else
 			j = i;
+
+#ifdef CONFIG_MACH_LONGCHEER
+		if (reg_ptr[j] != NULL)
+#endif
 		regulator_disable(reg_ptr[j]);
+
 		if (cam_vreg[j].delay > 20)
 			msleep(cam_vreg[j].delay);
 		else if (cam_vreg[j].delay)
