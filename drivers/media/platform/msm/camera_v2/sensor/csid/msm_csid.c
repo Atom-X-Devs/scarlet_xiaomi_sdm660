@@ -63,6 +63,7 @@
 #define SOF_DEBUG_DISABLE                    0
 
 #define SCM_SVC_CAMERASS                     0x18
+#ifdef CONFIG_XIAOMI_OSSCAM
 #define SECURE_SYSCALL_ID                    0x7
 #define TOPOLOGY_SYSCALL_ID                  0x8
 #define STREAM_NOTIF_SYSCALL_ID              0x9
@@ -71,6 +72,9 @@
 #define CSIPHY_1_LANES_MASK                  0x00f0
 #define CSIPHY_2_LANES_MASK                  0x0f00
 #define CSIPHY_3_LANES_MASK                  0xf000
+#else
+#define SECURE_SYSCALL_ID                    0x6
+#endif
 
 #define TRUE   1
 #define FALSE  0
@@ -81,12 +85,14 @@
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
+#ifdef CONFIG_XIAOMI_OSSCAM
 static const uint32_t CSIPHY_LANES_MASKS[] = {
 	CSIPHY_0_LANES_MASK,
 	CSIPHY_1_LANES_MASK,
 	CSIPHY_2_LANES_MASK,
 	CSIPHY_3_LANES_MASK,
 };
+#endif
 
 static struct camera_vreg_t csid_vreg_info[] = {
 	{"qcom,mipi-csi-vdd", 0, 0, 12000},
@@ -356,6 +362,7 @@ static bool msm_csid_find_max_clk_rate(struct csid_device *csid_dev)
 	return ret;
 }
 
+#ifdef CONFIG_XIAOMI_OSSCAM
 static int msm_csid_seccam_send_topology(struct csid_device *csid_dev,
 	struct msm_camera_csid_params *csid_params)
 {
@@ -411,6 +418,7 @@ static int msm_csid_seccam_reset_pipeline(struct csid_device *csid_dev,
 	}
 	return 0;
 }
+#endif
 
 static int msm_csid_config(struct csid_device *csid_dev,
 	struct msm_camera_csid_params *csid_params)
@@ -444,6 +452,7 @@ static int msm_csid_config(struct csid_device *csid_dev,
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_XIAOMI_OSSCAM
 	if (csid_params->is_secure == 1) {
 		struct scm_desc desc = {0};
 
@@ -463,6 +472,7 @@ static int msm_csid_config(struct csid_device *csid_dev,
 			return -EINVAL;
 		}
 	}
+#endif
 
 	csid_dev->csid_lane_cnt = csid_params->lane_cnt;
 	rc = msm_csid_reset(csid_dev);
@@ -827,6 +837,7 @@ static int msm_csid_release(struct csid_device *csid_dev)
 	CDBG("%s:%d, hw_version = 0x%x\n", __func__, __LINE__,
 		csid_dev->hw_version);
 
+#ifdef CONFIG_XIAOMI_OSSCAM
 	if (csid_dev->current_csid_params.is_secure == 1) {
 		struct scm_desc desc = {0};
 
@@ -843,6 +854,7 @@ static int msm_csid_release(struct csid_device *csid_dev)
 		}
 		msm_camera_tz_clear_tzbsp_status();
 	}
+#endif
 
 	irq = msm_camera_vio_r(csid_dev->base,
 		csid_dev->ctrl_reg->csid_reg.csid_irq_status_addr,
@@ -956,6 +968,7 @@ MEM_CLEAN:
 			kfree(csid_params.lut_params.vc_cfg[i]);
 		break;
 	}
+#ifdef CONFIG_XIAOMI_OSSCAM
 	case CSID_SECCAM_TOPOLOGY: {
 		struct msm_camera_csid_params csid_params;
 
@@ -982,6 +995,7 @@ MEM_CLEAN:
 		rc = msm_csid_seccam_reset_pipeline(csid_dev, &csid_params);
 		break;
 	}
+#endif
 	case CSID_RELEASE:
 		rc = msm_csid_release(csid_dev);
 		break;
@@ -1107,7 +1121,9 @@ static int32_t msm_csid_cmd32(struct csid_device *csid_dev, void *arg)
 		csid_params.phy_sel = csid_params32.phy_sel;
 		csid_params.csi_clk = csid_params32.csi_clk;
 		csid_params.csi_3p_sel = csid_params32.csi_3p_sel;
+#ifdef CONFIG_XIAOMI_OSSCAM
 		csid_params.is_secure = csid_params32.is_secure;
+#endif
 
 		lut_par32 = csid_params32.lut_params;
 		csid_params.lut_params.num_cid = lut_par32.num_cid;
@@ -1154,6 +1170,7 @@ MEM_CLEAN32:
 		}
 		break;
 	}
+#ifdef CONFIG_XIAOMI_OSSCAM
 	case CSID_SECCAM_TOPOLOGY: {
 		struct msm_camera_csid_params csid_params;
 		struct msm_camera_csid_params32 csid_params32;
@@ -1189,6 +1206,7 @@ MEM_CLEAN32:
 		rc = msm_csid_seccam_reset_pipeline(csid_dev, &csid_params);
 		break;
 	}
+#endif
 	case CSID_RELEASE:
 		rc = msm_csid_release(csid_dev);
 		break;
@@ -1359,7 +1377,12 @@ static int csid_probe(struct platform_device *pdev)
 	snprintf(new_csid_dev->msm_sd.sd.name,
 			ARRAY_SIZE(new_csid_dev->msm_sd.sd.name), "msm_csid");
 	media_entity_pads_init(&new_csid_dev->msm_sd.sd.entity, 0, NULL);
-	new_csid_dev->msm_sd.sd.entity.function = MSM_CAMERA_SUBDEV_CSID;
+#ifdef CONFIG_XIAOMI_OSSCAM
+	new_csid_dev->msm_sd.sd.entity.function =
+#else
+	new_csid_dev->msm_sd.sd.entity.group_id =
+#endif
+		MSM_CAMERA_SUBDEV_CSID;
 	new_csid_dev->msm_sd.close_seq = MSM_SD_CLOSE_2ND_CATEGORY | 0x5;
 	msm_sd_register(&new_csid_dev->msm_sd);
 

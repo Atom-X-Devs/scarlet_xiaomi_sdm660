@@ -51,11 +51,11 @@
 
 #define MSM_SENSOR_BYPASS_VIDEO_NODE    1
 
+#ifdef CONFIG_XIAOMI_OSSCAM
 #define SENSOR_PROBE_WRITE
-
 #define SECURE_CAMERA
-
 #define SECURE_CAM_RST_MODULES
+#endif
 
 enum msm_sensor_camera_id_t {
 	CAMERA_0,
@@ -316,7 +316,9 @@ struct msm_sensor_id_info_t {
 	unsigned short sensor_id_reg_addr;
 	unsigned short sensor_id;
 	unsigned short sensor_id_mask;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	struct msm_camera_i2c_reg_setting setting;
+#endif
 };
 
 #ifdef CONFIG_XIAOMI_SDM660
@@ -402,9 +404,11 @@ struct msm_camera_csid_params {
 	unsigned int csi_clk;
 	struct msm_camera_csid_lut_params lut_params;
 	unsigned char csi_3p_sel;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	unsigned char is_secure;
 	uint32_t topology;
 	unsigned char is_streamon;
+#endif
 };
 
 struct msm_camera_csid_testmode_parms {

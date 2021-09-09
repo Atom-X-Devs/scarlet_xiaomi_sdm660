@@ -254,7 +254,13 @@ struct msm_mctl_post_proc_cmd {
 #define MSM_CAMERA_STROBE_FLASH_NONE 0
 #define MSM_CAMERA_STROBE_FLASH_XENON 1
 
-#define MSM_MAX_CAMERA_SENSORS  5
+#ifdef CONFIG_XIAOMI_NEWCAM
+#define MSM_MAX_CAMERA_SENSORS 7
+elif defined(CONFIG_XIAOMI_OLDCAM)
+#define MSM_MAX_CAMERA_SENSORS 6
+#else
+#define MSM_MAX_CAMERA_SENSORS 5
+#endif
 #define MAX_SENSOR_NAME 32
 #define MAX_CAM_NAME_SIZE 32
 #define MAX_ACT_MOD_NAME_SIZE 32
@@ -265,7 +271,6 @@ struct msm_mctl_post_proc_cmd {
 #define MAX_ACTUATOR_INIT_SET 12
 #define MAX_ACTUATOR_TYPE_SIZE 32
 #define MAX_ACTUATOR_REG_TBL_SIZE 8
-
 
 #define MSM_MAX_CAMERA_CONFIGS 2
 
@@ -1368,7 +1373,9 @@ struct msm_camera_csid_params {
 	uint8_t lane_cnt;
 	uint16_t lane_assign;
 	uint8_t phy_sel;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	uint32_t topology;
+#endif
 	struct msm_camera_csid_lut_params lut_params;
 };
 
@@ -1413,8 +1420,10 @@ struct csic_cfg_data {
 enum csid_cfg_type_t {
 	CSID_INIT,
 	CSID_CFG,
+#ifdef CONFIG_XIAOMI_OSSCAM
 	CSID_SECCAM_TOPOLOGY,
 	CSID_SECCAM_RESET,
+#endif
 };
 
 struct csid_cfg_data {

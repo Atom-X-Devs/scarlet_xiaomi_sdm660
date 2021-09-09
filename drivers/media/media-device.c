@@ -117,9 +117,17 @@ static long media_device_enum_entities(struct media_device *mdev, void *arg)
 	if (ent->name)
 		strlcpy(entd->name, ent->name, sizeof(entd->name));
 	entd->type = ent->function;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	entd->revision = 0;		/* Unused */
+#else
+	entd->revision = ent->revision;
+#endif
 	entd->flags = ent->flags;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	entd->group_id = 0;		/* Unused */
+#else
+	entd->group_id = ent->group_id;
+#endif
 	entd->pads = ent->num_pads;
 	entd->links = ent->num_links - ent->num_backlinks;
 
@@ -637,6 +645,13 @@ int __must_check media_device_register_entity(struct media_device *mdev,
 	/* Initialize media_gobj embedded at the entity */
 	media_gobj_create(mdev, MEDIA_GRAPH_ENTITY, &entity->graph_obj);
 
+#ifndef CONFIG_XIAOMI_OSSCAM
+	if (!entity->id)
+		entity->id = mdev->entity_id++;
+	else
+		mdev->entity_id = max(entity->id + 1, mdev->entity_id);
+#endif
+
 	/* Initialize objects at the pads */
 	for (i = 0; i < entity->num_pads; i++)
 		media_gobj_create(mdev, MEDIA_GRAPH_PAD,
@@ -727,6 +742,9 @@ int __must_check __media_device_register(struct media_device *mdev,
 		return -ENOMEM;
 
 	/* Register the device node. */
+#ifndef CONFIG_XIAOMI_OSSCAM
+	mdev->entity_id = 1;
+#endif
 	mdev->devnode = devnode;
 	devnode->fops = &media_device_fops;
 	devnode->parent = mdev->dev;

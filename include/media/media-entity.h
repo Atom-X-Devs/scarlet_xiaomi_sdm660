@@ -269,6 +269,11 @@ struct media_entity {
 	const char *name;
 	enum media_entity_type obj_type;
 	u32 function;
+#ifndef CONFIG_XIAOMI_OSSCAM
+	u32 id;
+	u32 revision;
+	u32 group_id;
+#endif
 	unsigned long flags;
 
 	u16 num_pads;
@@ -339,7 +344,11 @@ struct media_intf_devnode {
  */
 static inline u32 media_entity_id(struct media_entity *entity)
 {
+#ifdef CONFIG_XIAOMI_OSSCAM
 	return entity->graph_obj.id;
+#else
+	return entity->id;
+#endif
 }
 
 /**

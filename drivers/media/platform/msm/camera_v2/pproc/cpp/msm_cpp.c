@@ -4698,7 +4698,12 @@ static int cpp_probe(struct platform_device *pdev)
 		goto bus_de_init;
 
 	media_entity_pads_init(&cpp_dev->msm_sd.sd.entity, 0, NULL);
-	cpp_dev->msm_sd.sd.entity.function = MSM_CAMERA_SUBDEV_CPP;
+#ifdef CONFIG_XIAOMI_OSSCAM
+	cpp_dev->msm_sd.sd.entity.function =
+#else
+	cpp_dev->msm_sd.sd.entity.group_id =
+#endif
+		MSM_CAMERA_SUBDEV_CPP;
 	cpp_dev->msm_sd.sd.entity.name = pdev->name;
 	cpp_dev->msm_sd.close_seq = MSM_SD_CLOSE_3RD_CATEGORY;
 	msm_sd_register(&cpp_dev->msm_sd);
@@ -4710,7 +4715,9 @@ static int cpp_probe(struct platform_device *pdev)
 #endif
 
 	cpp_dev->msm_sd.sd.devnode->fops = &msm_cpp_v4l2_subdev_fops;
-
+#ifndef CONFIG_XIAOMI_OSSCAM
+	cpp_dev->msm_sd.sd.entity.revision = cpp_dev->msm_sd.sd.devnode->num;
+#endif
 
 	msm_camera_io_w(0x0, cpp_dev->base +
 					   MSM_CPP_MICRO_IRQGEN_MASK);

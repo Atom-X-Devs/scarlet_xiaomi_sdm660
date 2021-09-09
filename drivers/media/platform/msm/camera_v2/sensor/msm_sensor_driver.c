@@ -104,7 +104,12 @@ static int32_t msm_sensor_driver_create_i2c_v4l_subdev
 	v4l2_set_subdevdata(&s_ctrl->msm_sd.sd, client);
 	s_ctrl->msm_sd.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	media_entity_pads_init(&s_ctrl->msm_sd.sd.entity, 0, NULL);
-	s_ctrl->msm_sd.sd.entity.function = MSM_CAMERA_SUBDEV_SENSOR;
+#ifdef CONFIG_XIAOMI_OSSCAM
+	s_ctrl->msm_sd.sd.entity.function =
+#else
+	s_ctrl->msm_sd.sd.entity.group_id =
+#endif
+		MSM_CAMERA_SUBDEV_SENSOR;
 	s_ctrl->msm_sd.sd.entity.name =	s_ctrl->msm_sd.sd.name;
 	s_ctrl->sensordata->sensor_info->session_id = session_id;
 	s_ctrl->msm_sd.close_seq = MSM_SD_CLOSE_2ND_CATEGORY | 0x3;
@@ -148,7 +153,12 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 	v4l2_set_subdevdata(&s_ctrl->msm_sd.sd, s_ctrl->pdev);
 	s_ctrl->msm_sd.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	media_entity_pads_init(&s_ctrl->msm_sd.sd.entity, 0, NULL);
-	s_ctrl->msm_sd.sd.entity.function = MSM_CAMERA_SUBDEV_SENSOR;
+#ifdef CONFIG_XIAOMI_OSSCAM
+	s_ctrl->msm_sd.sd.entity.function =
+#else
+	s_ctrl->msm_sd.sd.entity.group_id =
+#endif
+		MSM_CAMERA_SUBDEV_SENSOR;
 	s_ctrl->msm_sd.sd.entity.name = s_ctrl->msm_sd.sd.name;
 	s_ctrl->msm_sd.close_seq = MSM_SD_CLOSE_2ND_CATEGORY | 0x3;
 	rc = msm_sd_register(&s_ctrl->msm_sd);
@@ -758,8 +768,10 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 	unsigned long                        mount_pos = 0;
 	uint32_t                             is_yuv;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	struct msm_camera_i2c_reg_array     *reg_setting = NULL;
 	struct msm_sensor_id_info_t         *id_info = NULL;
+#endif
 
 	/* Validate input parameters */
 	if (!setting) {
@@ -808,6 +820,9 @@ int32_t msm_sensor_driver_probe(void *setting,
 		slave_info->camera_id = slave_info32->camera_id;
 
 		slave_info->i2c_freq_mode = slave_info32->i2c_freq_mode;
+#ifdef CONFIG_XIAOMI_OSSCAM
+		slave_info->sensor_id_info = slave_info32->sensor_id_info;
+#else
 		slave_info->sensor_id_info.sensor_id_reg_addr =
 			slave_info32->sensor_id_info.sensor_id_reg_addr;
 		slave_info->sensor_id_info.sensor_id_mask =
@@ -858,6 +873,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			slave_info->sensor_id_info.setting.reg_setting =
 				reg_setting;
 		}
+#endif
 
 		slave_info->slave_addr = slave_info32->slave_addr;
 		slave_info->power_setting_array.size =
@@ -883,7 +899,9 @@ int32_t msm_sensor_driver_probe(void *setting,
 			slave_info32->output_format;
 		slave_info->bypass_video_node_creation =
 			!!slave_info32->bypass_video_node_creation;
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_XIAOMI_NEWCAM
+		slave_info->lens_id_info = slave_info32->lens_id_info;
+#elif defined(CONFIG_XIAOMI_OSSCAM)
 		slave_info->vendor_id_info = slave_info32->vendor_id_info;
 		slave_info->vcm_id_info = slave_info32->vcm_id_info;
 #endif
@@ -897,6 +915,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			rc = -EFAULT;
 			goto free_slave_info;
 		}
+#ifdef CONFIG_XIAOMI_OSSCAM
 		if (!slave_info->sensor_id_info.setting.size ||
 			slave_info->sensor_id_info.setting.size >
 			I2C_REG_DATA_MAX) {
@@ -928,6 +947,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			slave_info->sensor_id_info.setting.reg_setting =
 				reg_setting;
 		}
+#endif
 	}
 
 	if (strlen(slave_info->sensor_name) >= MAX_SENSOR_NAME ||
@@ -1048,9 +1068,8 @@ int32_t msm_sensor_driver_probe(void *setting,
 		slave_info->sensor_id_info.sensor_id_reg_addr;
 	camera_info->sensor_id = slave_info->sensor_id_info.sensor_id;
 	camera_info->sensor_id_mask = slave_info->sensor_id_info.sensor_id_mask;
-	camera_info->setting = &(slave_info->sensor_id_info.setting);
-
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_XIAOMI_OSSCAM
+	camera_info->setting = &slave_info->sensor_id_info.setting;
 	s_ctrl->sensordata->vendor_id_info = &slave_info->vendor_id_info;
 	s_ctrl->sensordata->vcm_id_info = &slave_info->vcm_id_info;
 #endif
@@ -1112,6 +1131,13 @@ CSID_TG:
 	s_ctrl->sensordata->actuator_name = slave_info->actuator_name;
 	s_ctrl->sensordata->ois_name = slave_info->ois_name;
 	s_ctrl->sensordata->flash_name = slave_info->flash_name;
+ifdef CONFIG_XIAOMI_NEWCAM
+	s_ctrl->sensordata->lens_id_info = &slave_info->lens_id_info;
+#endif
+#ifndef CONFIG_XIAOMI_OSSCAM
+	s_ctrl->sensordata->vendor_id_info = &slave_info->vendor_id_info;
+	s_ctrl->sensordata->vcm_id_info = &slave_info->vcm_id_info;
+#endif
 	/*
 	 * Update eeporm subdevice Id by input eeprom name
 	 */
@@ -1214,7 +1240,9 @@ camera_power_down:
 free_camera_info:
 	kfree(camera_info);
 free_slave_info:
+#ifdef CONFIG_XIAOMI_OSSCAM
 	kfree(slave_info->sensor_id_info.setting.reg_setting);
+#endif
 	kfree(slave_info);
 	return rc;
 }

@@ -1374,7 +1374,12 @@ static int msm_probe(struct platform_device *pdev)
 			0, NULL)) < 0))
 		goto entity_fail;
 
-	pvdev->vdev->entity.function = QCAMERA_VNODE_GROUP_ID;
+#ifdef CONFIG_XIAOMI_OSSCAM
+	pvdev->vdev->entity.function =
+#else
+	pvdev->vdev->entity.group_id =
+#endif
+		QCAMERA_VNODE_GROUP_ID;
 #endif
 
 	msm_v4l2_dev->notify = msm_sd_notify;

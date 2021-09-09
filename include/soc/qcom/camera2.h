@@ -48,7 +48,9 @@ struct msm_camera_slave_info {
 	uint16_t sensor_id_reg_addr;
 	uint16_t sensor_id;
 	uint16_t sensor_id_mask;
+#ifdef CONFIG_XIAOMI_OSSCAM
 	struct msm_camera_i2c_reg_setting *setting;
+#endif
 };
 
 struct msm_cam_clk_info {
@@ -154,7 +156,9 @@ struct msm_camera_sensor_board_info {
 	const char *special_support_sensors[MAX_SPECIAL_SUPPORT_SIZE];
 	int32_t special_support_size;
 	struct msm_camera_slave_info *slave_info;
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_XIAOMI_NEWCAM
+	struct msm_lens_id_info_t *lens_id_info;
+#elif defined(CONFIG_XIAOMI_OSSCAM)
 	struct msm_vendor_id_info_t *vendor_id_info;
 	struct msm_vcm_id_info_t *vcm_id_info;
 #endif

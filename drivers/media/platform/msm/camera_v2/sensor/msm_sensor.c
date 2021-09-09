@@ -83,13 +83,17 @@ static void msm_sensor_misc_regulator(
 
 int32_t msm_sensor_free_sensor_data(struct msm_sensor_ctrl_t *s_ctrl)
 {
+#ifdef CONFIG_XIAOMI_OSSCAM
 	struct msm_camera_sensor_slave_info *slave_info = NULL;
+#endif
 
 	if (!s_ctrl->pdev && !s_ctrl->sensor_i2c_client->client)
 		return 0;
 	kfree(s_ctrl->sensordata->slave_info);
+#ifdef CONFIG_XIAOMI_OSSCAM
 	slave_info = s_ctrl->sensordata->cam_slave_info;
 	kfree(slave_info->sensor_id_info.setting.reg_setting);
+#endif
 	kfree(s_ctrl->sensordata->cam_slave_info);
 	kfree(s_ctrl->sensordata->actuator_info);
 	kfree(s_ctrl->sensordata->power_info.gpio_conf->gpio_num_info);
@@ -231,6 +235,10 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	return rc;
 }
 
+//#ifdef CONFIG_XIAOMI_NEWCAM
+//TODO for newcam: msm_sensor_match_vendor_id() needed
+//#endif
+
 static uint16_t msm_sensor_id_by_mask(struct msm_sensor_ctrl_t *s_ctrl,
 	uint16_t chipid)
 {
@@ -258,7 +266,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_XIAOMI_OSSCAM
 	uint16_t vcmid = 0;
 	uint16_t vendorid = 0;
 	struct msm_vendor_id_info_t *vendor_id_info;
@@ -276,7 +284,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	sensor_i2c_client = s_ctrl->sensor_i2c_client;
 	slave_info = s_ctrl->sensordata->slave_info;
 	sensor_name = s_ctrl->sensordata->sensor_name;
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_XIAOMI_OSSCAM
 	vendor_id_info = s_ctrl->sensordata->vendor_id_info;
 	vcm_id_info = s_ctrl->sensordata->vcm_id_info;
 #endif
@@ -288,6 +296,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_XIAOMI_OSSCAM
 	if (slave_info->setting && slave_info->setting->size > 0) {
 		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write_table(
 			s_ctrl->sensor_i2c_client, slave_info->setting);
@@ -297,6 +306,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	} else {
 		CDBG("No writes needed for this sensor before probe\n");
 	}
+#endif
 
 	rc = sensor_i2c_client->i2c_func_tbl->i2c_read(
 		sensor_i2c_client, slave_info->sensor_id_reg_addr,
@@ -314,7 +324,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_XIAOMI_OSSCAM
 	if (vendor_id_info && vendor_id_info->eeprom_slave_addr) {
 		temp_cci_i2c_master =
 			sensor_i2c_client->cci_client->cci_i2c_master;

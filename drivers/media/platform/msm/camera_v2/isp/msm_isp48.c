@@ -31,7 +31,13 @@
 #define MSM_VFE48_BUS_CLIENT_INIT 0xABAB
 #define VFE48_STATS_BURST_LEN 3
 #define VFE48_UB_SIZE_VFE 2048 /* 2048 * 256 bits = 64KB */
-#define VFE48_UB_STATS_SIZE 352
+#ifdef CONFIG_XIAOMI_NEWCAM
+#define VFE48_UB_STATS_SIZE 608
+#elif defined(CONFIG_XIAOMI_OSSCAM)
+#define VFE48_UB_STATS_SIZE 288
+#else
+#define VFE48_UB_STATS_SIZE 144
+#endif
 #define MSM_ISP48_TOTAL_IMAGE_UB_VFE (VFE48_UB_SIZE_VFE - VFE48_UB_STATS_SIZE)
 
 
@@ -322,6 +328,17 @@ void msm_vfe48_stats_cfg_ub(struct vfe_device *vfe_dev)
 	int i;
 	uint32_t ub_offset = 0, stats_burst_len;
 	uint32_t ub_size[VFE47_NUM_STATS_TYPE] = {
+#ifdef CONFIG_XIAOMI_NEWCAM
+		80, /* MSM_ISP_STATS_HDR_BE */
+		64, /* MSM_ISP_STATS_BG */
+		64, /* MSM_ISP_STATS_BF */
+		64, /* MSM_ISP_STATS_HDR_BHIST */
+		64, /* MSM_ISP_STATS_RS */
+		64, /* MSM_ISP_STATS_CS */
+		64, /* MSM_ISP_STATS_IHIST */
+		64, /* MSM_ISP_STATS_BHIST */
+		80, /* MSM_ISP_STATS_AEC_BG */
+#elif defined(CONFIG_XIAOMI_OSSCAM)
 		64, /* MSM_ISP_STATS_HDR_BE */
 		64, /* MSM_ISP_STATS_BG */
 		32, /* MSM_ISP_STATS_BF */
@@ -331,6 +348,17 @@ void msm_vfe48_stats_cfg_ub(struct vfe_device *vfe_dev)
 		32, /* MSM_ISP_STATS_IHIST */
 		32, /* MSM_ISP_STATS_BHIST */
 		32, /* MSM_ISP_STATS_AEC_BG */
+#else
+		16, /* MSM_ISP_STATS_HDR_BE */
+		16, /* MSM_ISP_STATS_BG */
+		16, /* MSM_ISP_STATS_BF */
+		16, /* MSM_ISP_STATS_HDR_BHIST */
+		16, /* MSM_ISP_STATS_RS */
+		16, /* MSM_ISP_STATS_CS */
+		16, /* MSM_ISP_STATS_IHIST */
+		16, /* MSM_ISP_STATS_BHIST */
+		16, /* MSM_ISP_STATS_AEC_BG */
+#endif
 	};
 
 	stats_burst_len = VFE48_STATS_BURST_LEN;

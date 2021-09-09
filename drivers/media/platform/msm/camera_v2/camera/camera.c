@@ -932,8 +932,12 @@ int camera_init_v4l2(struct device *dev, unsigned int *session)
 	rc = media_entity_pads_init(&pvdev->vdev->entity, 0, NULL);
 	if (WARN_ON(rc < 0))
 		goto entity_fail;
-	pvdev->vdev->entity.function = QCAMERA_VNODE_GROUP_ID;
+#ifdef CONFIG_XIAOMI_OSSCAM
+	pvdev->vdev->entity.function =
+#else
+	pvdev->vdev->entity.group_id =
 #endif
+		QCAMERA_VNODE_GROUP_ID;
 
 	v4l2_dev->notify = NULL;
 	pvdev->vdev->v4l2_dev = v4l2_dev;

@@ -156,8 +156,10 @@ enum csid_cfg_type_t {
 	CSID_CFG,
 	CSID_TESTMODE_CFG,
 	CSID_RELEASE,
+#ifdef CONFIG_XIAOMI_OSSCAM
 	CSID_SECCAM_TOPOLOGY,
 	CSID_SECCAM_RESET,
+#endif
 };
 
 enum csiphy_cfg_type_t {
