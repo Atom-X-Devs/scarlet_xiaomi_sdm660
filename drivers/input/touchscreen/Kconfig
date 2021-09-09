@@ -1344,6 +1344,19 @@ config TOUCHSCREEN_SYNAPTICS_DSX
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_dsx.
 
+config TOUCHSCREEN_NVT_D2S
+	tristate "novatek touchscreens"
+	select TOUCHSCREEN_NT36XXX
+	help
+	  Say Y here if you have a nvt touchscreen.
+	  nvt controllers are multi touch controllers which can
+	  report 5 touches at a time.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called nvt.
+
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_TCM

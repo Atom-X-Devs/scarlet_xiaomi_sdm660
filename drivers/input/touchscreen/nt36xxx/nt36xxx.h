@@ -15,9 +15,25 @@
 #include <linux/input.h>
 #include <linux/uaccess.h>
 #include "nt36xxx_mem_map.h"
+#include <linux/regulator/consumer.h>
 
+// Xiaomi Panel specific
+#ifdef CONFIG_MACH_LONGCHEER
+#define XIAOMI_PANEL 1
+#else
+#define XIAOMI_PANEL 0
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_NVT_D2S
+#define TOUCHSCREEN_WAYNE 1
+#else
+#define TOUCHSCREEN_WAYNE 0
+#endif
+
+#if TOUCHSCREEN_WAYNE
 #define NVT_TOUCH_RST_PIN 980
 #define NVT_TOUCH_INT_PIN 943
+#endif
 
 #define INT_TRIGGER_TYPE IRQ_TYPE_EDGE_RISING
 
@@ -28,7 +44,11 @@
 #define NVT_TS_NAME "NVTCapacitiveTouchScreen"
 
 #define TOUCH_DEFAULT_MAX_WIDTH 1080
+#if TOUCHSCREEN_WAYNE
+#define TOUCH_DEFAULT_MAX_HEIGHT 2160
+#else
 #define TOUCH_DEFAULT_MAX_HEIGHT 1920
+#endif
 #define TOUCH_MAX_FINGER_NUM 10
 #define TOUCH_FORCE_NUM 1000
 
@@ -42,12 +62,21 @@ extern const uint16_t gesture_key_array[];
 #define BOOT_UPDATE_FIRMWARE 0
 #else
 #define BOOT_UPDATE_FIRMWARE 1
+#if TOUCHSCREEN_WAYNE
+#define BOOT_UPDATE_FIRMWARE_NAME_TIANMA "novatek/tianma_nt36672_miui_d2s.bin"
+#define BOOT_UPDATE_FIRMWARE_NAME_JDI "novatek/jdi_nt36672_miui_d2s.bin"
+#else
 #define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw.bin"
+#endif
 #endif
 
 #define POINT_DATA_LEN 65
 
 struct nvt_ts_data {
+#if XIAOMI_PANEL
+	struct work_struct nvt_work;
+	struct regulator *vcc_i2c;
+#endif
 	struct i2c_client *client;
 	struct input_dev *input_dev;
 	struct delayed_work nvt_fwu_work;
