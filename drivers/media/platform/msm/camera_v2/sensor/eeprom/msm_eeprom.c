@@ -27,6 +27,10 @@ DEFINE_MSM_MUTEX(msm_eeprom_mutex);
 static struct v4l2_file_operations msm_eeprom_v4l2_subdev_fops;
 #endif
 
+#ifdef CONFIG_MACH_LONGCHEER
+struct vendor_eeprom s_vendor_eeprom[CAMERA_VENDOR_EEPROM_COUNT_MAX];
+#endif
+
 /*
  * msm_get_read_mem_size - Get the total size for allocation
  * @eeprom_map_array:	mem map
@@ -664,7 +668,11 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 		if (e_ctrl->userspace_probe == 0) {
 			pr_err("%s:%d Eeprom already probed at kernel boot\n",
 				__func__, __LINE__);
+#ifdef CONFIG_MACH_LONGCHEER
+			rc = 0;
+#else
 			rc = -EINVAL;
+#endif
 			break;
 		}
 		if (e_ctrl->cal_data.num_data == 0) {
@@ -1637,7 +1645,11 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 		if (e_ctrl->userspace_probe == 0) {
 			pr_err("%s:%d Eeprom already probed at kernel boot\n",
 				__func__, __LINE__);
+#ifdef CONFIG_MACH_LONGCHEER
+			rc = 0;
+#else
 			rc = -EINVAL;
+#endif
 			break;
 		}
 		if (e_ctrl->cal_data.num_data == 0) {
@@ -1693,6 +1705,20 @@ static long msm_eeprom_subdev_fops_ioctl32(struct file *file, unsigned int cmd,
 	return video_usercopy(file, cmd, arg, msm_eeprom_subdev_do_ioctl32);
 }
 
+#endif
+
+#ifdef CONFIG_MACH_LONGCHEER
+static uint8_t get_otp_vendor_module_id(struct msm_eeprom_ctrl_t *e_ctrl, const char *eeprom_name)
+{
+	camera_vendor_module_id module_id = MID_NULL;
+
+	if (module_id >= MID_MAX)
+		module_id = MID_NULL;
+
+	pr_err("%s %d eeprom_name=%s\n", __func__, __LINE__, eeprom_name);
+
+	return ((uint8_t)module_id);
+}
 #endif
 
 static int msm_eeprom_platform_probe(struct platform_device *pdev)
@@ -1839,6 +1865,13 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 		for (j = 0; j < e_ctrl->cal_data.num_data; j++)
 			CDBG("memory_data[%d] = 0x%X\n", j,
 				e_ctrl->cal_data.mapdata[j]);
+
+#ifdef CONFIG_MACH_LONGCHEER
+		if (eb_info->eeprom_name != NULL) {
+			s_vendor_eeprom[pdev->id].module_id = get_otp_vendor_module_id(e_ctrl, eb_info->eeprom_name);
+			strcpy(s_vendor_eeprom[pdev->id].eeprom_name, eb_info->eeprom_name);
+		}
+#endif
 
 		e_ctrl->is_supported |= msm_eeprom_match_crc(&e_ctrl->cal_data);
 
