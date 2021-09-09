@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /* sdm660-mtp.dtsi common diff */
+&mtp_batterydata {
+	/delete-node/ qcom,itech_3000mah;
+	/delete-node/ qcom,ascent_3450mah;
+};
+
 &mdss_dsi1 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
