@@ -882,6 +882,8 @@ static void clk_osm_print_osm_table(struct clk_osm *c)
 			pll_div,
 			lval,
 			table[i].spare_data);
+		pr_info("Frequency: %11lu, Voltage: %5u", table[i].frequency,
+				table[i].open_loop_volt);
 	}
 	pr_debug("APM threshold corner=%d, crossover corner=%d\n",
 			c->apm_threshold_vc, c->apm_crossover_vc);
