@@ -133,3 +133,25 @@
 &dsi_nt36672_tianma_fhd_video {
 	qcom,mdss-brightness-max-level = <4095>;
 };
+
+&pm660l_lpg {
+	qcom,lut-patterns = <0 1 4 10 17 25 35 45 55
+			     65 75 83 90 96 99 100>;
+
+	lpg3 {
+		qcom,ramp-high-index = <15>;
+		qcom,ramp-pause-hi-count = <19>;
+		qcom,ramp-pause-lo-count = <10>;
+		qcom,ramp-step-ms = <62>;
+		qcom,ramp-toggle;
+	};
+};
+
+&pm660l_rgb_led {
+	red {
+		pwms = <&pm660l_lpg 2 1000000>;
+	};
+
+	/delete-node/ green;
+	/delete-node/ blue;
+};
