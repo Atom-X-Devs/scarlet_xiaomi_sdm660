@@ -122,13 +122,8 @@ enum {
 
 static int debug_mask;
 
-#define pl_dbg(chip, reason, fmt, ...)				\
-	do {								\
-		if (debug_mask & (reason))				\
-			pr_info(fmt, ##__VA_ARGS__);	\
-		else							\
-			pr_debug(fmt, ##__VA_ARGS__);		\
-	} while (0)
+#define pl_dbg(chip, reason, fmt, ...)		\
+	pr_debug(fmt, ##__VA_ARGS__);			\
 
 #define IS_USBIN(mode)	((mode == POWER_SUPPLY_PL_USBIN_USBIN) \
 			|| (mode == POWER_SUPPLY_PL_USBIN_USBIN_EXT))
@@ -343,7 +338,7 @@ static int get_settled_split(struct pl_data *chip, int *main_icl_ua,
 		rc = power_supply_get_property(chip->main_psy,
 			       POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't get aicl settled value rc=%d\n", rc);
+			pr_debug("Couldn't get aicl settled value rc=%d\n", rc);
 			return rc;
 		}
 		main_settled_ua = pval.intval;
@@ -358,14 +353,14 @@ static int get_settled_split(struct pl_data *chip, int *main_icl_ua,
 		if (!chip->usb_psy)
 			chip->usb_psy = power_supply_get_by_name("usb");
 		if (!chip->usb_psy) {
-			pr_err("Couldn't get usbpsy while splitting settled\n");
+			pr_debug("Couldn't get usbpsy while splitting settled\n");
 			return -ENOENT;
 		}
 		/* no client is voting, so get the total current from charger */
 		rc = power_supply_get_property(chip->usb_psy,
 			POWER_SUPPLY_PROP_HW_CURRENT_MAX, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't get max current rc=%d\n", rc);
+			pr_debug("Couldn't get max current rc=%d\n", rc);
 			return rc;
 		}
 		total_current_ua = pval.intval;
@@ -393,7 +388,7 @@ static int validate_parallel_icl(struct pl_data *chip, bool *disable)
 
 	rc = get_settled_split(chip, &main_ua, &slave_ua, &total_settled_ua);
 	if (rc < 0) {
-		pr_err("Couldn't  get split current rc=%d\n", rc);
+		pr_debug("Couldn't  get split current rc=%d\n", rc);
 		return rc;
 	}
 
@@ -412,7 +407,7 @@ static void split_settled(struct pl_data *chip)
 
 	rc = get_settled_split(chip, &main_ua, &slave_ua, &total_settled_ua);
 	if (rc < 0) {
-		pr_err("Couldn't  get split current rc=%d\n", rc);
+		pr_debug("Couldn't  get split current rc=%d\n", rc);
 		return;
 	}
 
@@ -430,7 +425,7 @@ static void split_settled(struct pl_data *chip)
 		rc = power_supply_set_property(chip->main_psy,
 				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't change slave suspend state rc=%d\n",
+			pr_debug("Couldn't change slave suspend state rc=%d\n",
 					rc);
 			return;
 		}
@@ -440,7 +435,7 @@ static void split_settled(struct pl_data *chip)
 		rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't set parallel icl, rc=%d\n", rc);
+			pr_debug("Couldn't set parallel icl, rc=%d\n", rc);
 			return;
 		}
 	} else {
@@ -449,16 +444,16 @@ static void split_settled(struct pl_data *chip)
 		rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't set parallel icl, rc=%d\n", rc);
+			pr_debug("Couldn't set parallel icl, rc=%d\n", rc);
 			return;
 		}
 
 		pval.intval = main_ua;
 #ifdef CONFIG_MACH_XIAOMI_WHYRED
 		if (chip->pl_mode == POWER_SUPPLY_PL_USBIN_USBIN) {
-			pr_err("pl_disable_votable effective main_psy current_ua =%d \n", pval.intval);
+			pr_debug("pl_disable_votable effective main_psy current_ua =%d \n", pval.intval);
 			if (get_effective_result_locked(chip->pl_disable_votable) && (pval.intval > ONLY_PM660_CURRENT_UA)) {
-				pr_err("pl_disable_votable effective main_psy force current_ua =%d to %d \n", pval.intval, ONLY_PM660_CURRENT_UA);
+				pr_debug("pl_disable_votable effective main_psy force current_ua =%d to %d \n", pval.intval, ONLY_PM660_CURRENT_UA);
 				pval.intval = ONLY_PM660_CURRENT_UA;
 			}
 		}
@@ -467,7 +462,7 @@ static void split_settled(struct pl_data *chip)
 		rc = power_supply_set_property(chip->main_psy,
 				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't change slave suspend state rc=%d\n",
+			pr_debug("Couldn't change slave suspend state rc=%d\n",
 					rc);
 			return;
 		}
@@ -644,7 +639,7 @@ static void get_fcc_split(struct pl_data *chip, int total_ua,
 		rc = power_supply_get_property(chip->main_psy,
 			       POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't get aicl settled value rc=%d\n", rc);
+			pr_debug("Couldn't get aicl settled value rc=%d\n", rc);
 			return;
 		}
 		icl_ua = pval.intval;
@@ -652,7 +647,7 @@ static void get_fcc_split(struct pl_data *chip, int total_ua,
 		rc = power_supply_get_property(chip->main_psy,
 			       POWER_SUPPLY_PROP_INPUT_VOLTAGE_SETTLED, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't get adaptive voltage rc=%d\n", rc);
+			pr_debug("Couldn't get adaptive voltage rc=%d\n", rc);
 			return;
 		}
 		adapter_uv = pval.intval;
@@ -898,7 +893,7 @@ static void pl_taper_work(struct work_struct *work)
 		rc = power_supply_get_property(chip->batt_psy,
 				       POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't get batt charge type rc=%d\n", rc);
+			pr_debug("Couldn't get batt charge type rc=%d\n", rc);
 			goto done;
 		}
 
@@ -1056,7 +1051,7 @@ static void fcc_stepper_work(struct work_struct *work)
 	rc = power_supply_get_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_PRESENT, &pval);
 	if (rc < 0)
-		pr_err("Couldn't get USB Present status, rc=%d\n", rc);
+		pr_debug("Couldn't get USB Present status, rc=%d\n", rc);
 
 	charger_present = pval.intval;
 
@@ -1085,7 +1080,7 @@ static void fcc_stepper_work(struct work_struct *work)
 			rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
 			if (rc < 0) {
-				pr_err("Couldn't change slave suspend state rc=%d\n",
+				pr_debug("Couldn't change slave suspend state rc=%d\n",
 					rc);
 				goto out;
 			}
@@ -1127,7 +1122,7 @@ static void fcc_stepper_work(struct work_struct *work)
 				rc = power_supply_set_property(chip->pl_psy,
 					POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
 				if (rc < 0) {
-					pr_err("Couldn't change slave suspend state rc=%d\n",
+					pr_debug("Couldn't change slave suspend state rc=%d\n",
 						rc);
 					goto out;
 				}
@@ -1149,7 +1144,7 @@ static void fcc_stepper_work(struct work_struct *work)
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 					&pval);
 				if (rc < 0) {
-					pr_err("Couldn't set parallel charger fcc, rc=%d\n",
+					pr_debug("Couldn't set parallel charger fcc, rc=%d\n",
 						rc);
 					goto out;
 				}
@@ -1169,7 +1164,7 @@ static void fcc_stepper_work(struct work_struct *work)
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 				&pval);
 			if (rc < 0) {
-				pr_err("Couldn't set parallel charger fcc, rc=%d\n",
+				pr_debug("Couldn't set parallel charger fcc, rc=%d\n",
 					rc);
 				goto out;
 			}
@@ -1185,7 +1180,7 @@ static void fcc_stepper_work(struct work_struct *work)
 				rc = power_supply_set_property(chip->pl_psy,
 					POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
 				if (rc < 0) {
-					pr_err("Couldn't change slave suspend state rc=%d\n",
+					pr_debug("Couldn't change slave suspend state rc=%d\n",
 						rc);
 					goto out;
 				}
@@ -1249,7 +1244,7 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 	rc = power_supply_set_property(chip->main_psy,
 			POWER_SUPPLY_PROP_VOLTAGE_MAX, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't set main fv, rc=%d\n", rc);
+		pr_debug("Couldn't set main fv, rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1258,7 +1253,7 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 		rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_VOLTAGE_MAX, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't set float on parallel rc=%d\n", rc);
+			pr_debug("Couldn't set float on parallel rc=%d\n", rc);
 			return rc;
 		}
 	}
@@ -1339,7 +1334,7 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 			       POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED,
 			       &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get aicl settled value rc=%d\n", rc);
+		pr_debug("Couldn't get aicl settled value rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1500,7 +1495,7 @@ static int pl_disable_vote_callback(struct votable *votable,
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 					&pval);
 				if (rc < 0) {
-					pr_err("Couldn't set parallel fcc, rc=%d\n",
+					pr_debug("Couldn't set parallel fcc, rc=%d\n",
 						rc);
 					return rc;
 				}
@@ -1512,7 +1507,7 @@ static int pl_disable_vote_callback(struct votable *votable,
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 					&pval);
 				if (rc < 0) {
-					pr_err("Couldn't set parallel fcc, rc=%d\n",
+					pr_debug("Couldn't set parallel fcc, rc=%d\n",
 						rc);
 					return rc;
 				}
@@ -1531,7 +1526,7 @@ static int pl_disable_vote_callback(struct votable *votable,
 			rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
 			if (rc < 0)
-				pr_err("Couldn't change slave suspend state rc=%d\n",
+				pr_debug("Couldn't change slave suspend state rc=%d\n",
 					rc);
 
 			if (IS_USBIN(chip->pl_mode))
@@ -1545,7 +1540,7 @@ static int pl_disable_vote_callback(struct votable *votable,
 		rc = power_supply_get_property(chip->batt_psy,
 				       POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
 		if (rc < 0) {
-			pr_err("Couldn't get batt charge type rc=%d\n", rc);
+			pr_debug("Couldn't get batt charge type rc=%d\n", rc);
 		} else {
 			if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER
 				&& !chip->taper_work_running) {
@@ -1576,7 +1571,7 @@ static int pl_disable_vote_callback(struct votable *votable,
 				rc = power_supply_set_property(chip->pl_psy,
 					POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
 				if (rc < 0)
-					pr_err("Couldn't change slave suspend state rc=%d\n",
+					pr_debug("Couldn't change slave suspend state rc=%d\n",
 						rc);
 			}
 
@@ -1659,7 +1654,7 @@ static bool is_parallel_available(struct pl_data *chip)
 	rc = power_supply_get_property(chip->pl_psy,
 			       POWER_SUPPLY_PROP_PARALLEL_MODE, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get parallel mode from parallel rc=%d\n",
+		pr_debug("Couldn't get parallel mode from parallel rc=%d\n",
 				rc);
 		return false;
 	}
@@ -1715,7 +1710,7 @@ static void handle_main_charge_type(struct pl_data *chip)
 	rc = power_supply_get_property(chip->batt_psy,
 			       POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get batt charge type rc=%d\n", rc);
+		pr_debug("Couldn't get batt charge type rc=%d\n", rc);
 		return;
 	}
 
@@ -1787,7 +1782,7 @@ static void handle_settled_icl_change(struct pl_data *chip)
 			       POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED,
 			       &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get aicl settled value rc=%d\n", rc);
+		pr_debug("Couldn't get aicl settled value rc=%d\n", rc);
 		return;
 	}
 	main_settled_ua = pval.intval;
@@ -1796,7 +1791,7 @@ static void handle_settled_icl_change(struct pl_data *chip)
 			       POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED,
 			       &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get aicl settled value rc=%d\n", rc);
+		pr_debug("Couldn't get aicl settled value rc=%d\n", rc);
 		return;
 	}
 	main_limited = pval.intval;
@@ -1807,16 +1802,16 @@ static void handle_settled_icl_change(struct pl_data *chip)
 				       POWER_SUPPLY_PROP_TEMP,
 				       &lct_pval);
 		if (rc < 0) {
-			pr_err("Couldn't battery health value rc=%d\n", rc);
+			pr_debug("Couldn't battery health value rc=%d\n", rc);
 			return;
 		}
 		battery_temp = lct_pval.intval;
-		pr_err("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d , battery_temp=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua, battery_temp);
+		pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d , battery_temp=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua, battery_temp);
 		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
 				|| (main_settled_ua == 0)
 				|| ((total_current_ua >= 0) &&
 				(total_current_ua <= 1300000))){
-			pr_err("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
+			pr_debug("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
 			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 			vote(chip->pl_disable_votable, PL_TEMP_VOTER, true, 0);
 		} else {
@@ -1829,18 +1824,18 @@ static void handle_settled_icl_change(struct pl_data *chip)
 			}
 		}
 	} else {
-		pr_err("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
+		pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
 		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
 				|| (main_settled_ua == 0)
 				|| ((total_current_ua >= 0) &&
 				(total_current_ua <= 1300000))){
-			pr_err("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
+			pr_debug("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
 			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 		} else
 			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);
 	}
 #else
-	pr_err("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
+	pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
 #ifdef CONFIG_MACH_LONGCHEER
 	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
 #else
@@ -1902,7 +1897,7 @@ static void handle_parallel_in_taper(struct pl_data *chip)
 	rc = power_supply_get_property(chip->pl_psy,
 			       POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get pl charge type rc=%d\n", rc);
+		pr_debug("Couldn't get pl charge type rc=%d\n", rc);
 		return;
 	}
 
@@ -2009,7 +2004,7 @@ static int pl_register_notifier(struct pl_data *chip)
 	chip->nb.notifier_call = pl_notifier_call;
 	rc = power_supply_reg_notifier(&chip->nb);
 	if (rc < 0) {
-		pr_err("Couldn't register psy notifier rc = %d\n", rc);
+		pr_debug("Couldn't register psy notifier rc = %d\n", rc);
 		return rc;
 	}
 
@@ -2065,7 +2060,7 @@ int qcom_batt_init(struct charger_param *chg_param)
 
 	/* initialize just once */
 	if (the_chip) {
-		pr_err("was initialized earlier. Failing now\n");
+		pr_debug("was initialized earlier. Failing now\n");
 		return -EINVAL;
 	}
 
@@ -2160,13 +2155,13 @@ int qcom_batt_init(struct charger_param *chg_param)
 
 	rc = pl_register_notifier(chip);
 	if (rc < 0) {
-		pr_err("Couldn't register psy notifier rc = %d\n", rc);
+		pr_debug("Couldn't register psy notifier rc = %d\n", rc);
 		goto unreg_notifier;
 	}
 
 	rc = pl_determine_initial_status(chip);
 	if (rc < 0) {
-		pr_err("Couldn't determine initial status rc=%d\n", rc);
+		pr_debug("Couldn't determine initial status rc=%d\n", rc);
 		goto unreg_notifier;
 	}
 
@@ -2178,7 +2173,7 @@ int qcom_batt_init(struct charger_param *chg_param)
 
 	rc = class_register(&chip->qcom_batt_class);
 	if (rc < 0) {
-		pr_err("couldn't register pl_data sysfs class rc = %d\n", rc);
+		pr_debug("couldn't register pl_data sysfs class rc = %d\n", rc);
 		goto unreg_notifier;
 	}
 
