@@ -135,3 +135,19 @@ all.config
 
 # fetched Android config fragments
 kernel/configs/android-*.cfg
+
+# Build scripts
+/build-scripts
+
+# Build directories
+/out
+/work
+/wayne
+/tulip
+/lavender
+/whyred
+/CLANG
+/GCC
+
+# Build log
+log.txt
