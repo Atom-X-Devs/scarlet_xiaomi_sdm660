@@ -2328,7 +2328,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 
 #ifdef CONFIG_MACH_LONGCHEER
 #ifdef THERMAL_CONFIG_FB
-	pr_err("smblib_set_prop_system_temp_level val=%d, chg->system_temp_level=%d, LctThermal=%d, lct_backlight_off= %d, IsInCall=%d, hwc_check_india=%d\n ",
+	pr_debug("smblib_set_prop_system_temp_level val=%d, chg->system_temp_level=%d, LctThermal=%d, lct_backlight_off= %d, IsInCall=%d, hwc_check_india=%d\n ",
 		val->intval,chg->system_temp_level, LctThermal, lct_backlight_off, LctIsInCall, hwc_check_india);
 
 	if (LctThermal == 0)
@@ -3653,14 +3653,14 @@ int smblib_get_charge_current(struct smb_charger *chg,
 	/* QC 3.0 adapter */
 	if (apsd_result->bit & QC_3P0_BIT) {
 		*total_current_ua = HVDCP_CURRENT_UA;
-		pr_info("QC3.0 set icl to 2.9A\n");
+		pr_debug_once("QC3.0 set icl to 2.9A\n");
 		return 0;
 	}
 
 	/* QC 2.0 adapter */
 	if (apsd_result->bit & QC_2P0_BIT) {
 		*total_current_ua = HVDCP2_CURRENT_UA;
-		pr_info("QC2.0 set icl to 1.5A\n");
+		pr_debug_once("QC2.0 set icl to 1.5A\n");
 		return 0;
 	}
 #else
