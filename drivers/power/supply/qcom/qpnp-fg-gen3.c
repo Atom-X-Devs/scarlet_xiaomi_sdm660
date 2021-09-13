@@ -685,7 +685,7 @@ static int fg_get_battery_temp(struct fg_dev *fg, int *val)
 		if (quiet_them)
 			rc = thermal_zone_get_temp(quiet_them, &temp);
 		temp = (temp - 3) * 10;
-		pr_err("LCT USE QUIET_THERM AS BATTERY TEMP \n");
+		pr_debug("LCT USE QUIET_THERM AS BATTERY TEMP \n");
 	}
 #endif
 #endif
