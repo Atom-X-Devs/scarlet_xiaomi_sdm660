@@ -201,12 +201,10 @@ static ssize_t fingerdown_wait_set(struct device *dev,
 	if (!strncmp(buf, "enable", strlen("enable"))) {
 		pr_debug("wait_finger_down enable\n");
 		fpc1020->wait_finger_down = true;
-	}
-	else if (!strncmp(buf, "disable", strlen("disable"))) {
+	} else if (!strncmp(buf, "disable", strlen("disable"))) {
 		pr_debug("wait_finger_down disable\n");
 		fpc1020->wait_finger_down = false;
-	}
-	else
+	} else
 		return -EINVAL;
 
 	return count;
@@ -740,10 +738,11 @@ static int fpc1020_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_MACH_LONGCHEER
-	if(fpsensor != 1){
-                 pr_err("Macle fpc1020_probe failed as fpsensor=%d(1=fp)\n", fpsensor);
-                 return -1;
-         }
+	if (fpsensor != 1) {
+		pr_err("Macle fpc1020_probe failed as fpsensor=%d(1=fp)\n", fpsensor);
+
+		return -1;
+	}
 #endif
 
 	fpc1020->dev = dev;
@@ -926,14 +925,13 @@ static int __init fpc1020_init(void)
 
 	return rc;
 }
+module_init(fpc1020_init);
 
 static void __exit fpc1020_exit(void)
 {
 	pr_info("%s\n", __func__);
 	platform_driver_unregister(&fpc1020_driver);
 }
-
-module_init(fpc1020_init);
 module_exit(fpc1020_exit);
 
 MODULE_LICENSE("GPL v2");
