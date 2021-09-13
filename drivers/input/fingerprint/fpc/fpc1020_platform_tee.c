@@ -585,6 +585,18 @@ static int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
 	return 0;
 }
 
+static void set_fingerprintd_nice(int nice)
+{
+	struct task_struct *p;
+
+	read_lock(&tasklist_lock);
+	for_each_process(p) {
+		if (strstr(p->comm, "erprint"))
+			set_user_nice(p, nice);
+	}
+	read_unlock(&tasklist_lock);
+}
+
 static int fpc_fb_notif_callback(struct notifier_block *nb,
 		unsigned long val, void *data)
 {
@@ -605,6 +617,7 @@ static int fpc_fb_notif_callback(struct notifier_block *nb,
 		blank = *(int *)(evdata->data);
 		switch (blank) {
 		case FB_BLANK_POWERDOWN:
+			set_fingerprintd_nice(MIN_NICE);
 			fpc1020->fb_black = true;
 			/*
 			 * Disable IRQ when screen turns off,
@@ -616,6 +629,7 @@ static int fpc_fb_notif_callback(struct notifier_block *nb,
 			break;
 		case FB_BLANK_UNBLANK:
 		case FB_BLANK_NORMAL:
+			set_fingerprintd_nice(0);
 			fpc1020->fb_black = false;
 			/* Unconditionally enable IRQ when screen turns on */
 			config_irq(fpc1020, true);
