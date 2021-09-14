@@ -672,6 +672,8 @@ DEFINE_DEBUGFS_ATTRIBUTE(loopback_enable_fops, msm_serial_loopback_enable_get,
  * test scripts.
  * writing 0 disables the internal loopback mode. Default is disabled.
  */
+
+#ifdef CONFIG_DEBUG_FS
 static void msm_serial_debugfs_init(struct msm_hs_port *msm_uport,
 					   int id)
 {
@@ -688,6 +690,7 @@ static void msm_serial_debugfs_init(struct msm_hs_port *msm_uport,
 		MSM_HS_ERR("%s(): Cannot create loopback.%d debug entry\n",
 							__func__, id);
 }
+#endif /* CONFIG_DEBUG_FS */
 
 static int msm_hs_remove(struct platform_device *pdev)
 {
@@ -3570,8 +3573,9 @@ static int msm_hs_probe(struct platform_device *pdev)
 		MSM_HS_ERR("Probe Failed as sysfs failed\n");
 		goto err_clock;
 	}
-
+#ifdef CONFIG_DEBUG_FS
 	msm_serial_debugfs_init(msm_uport, pdev->id);
+#endif
 	msm_hs_unconfig_uart_gpios(uport);
 
 	uport->line = pdev->id;
