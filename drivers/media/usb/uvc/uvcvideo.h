@@ -202,6 +202,7 @@
 #define UVC_QUIRK_RESTORE_CTRLS_ON_INIT	0x00000400
 #define UVC_QUIRK_FORCE_Y8		0x00000800
 #define UVC_QUIRK_PRIVACY_DURING_STREAM	0x00002000
+#define UVC_QUIRK_REINIT_ROI			0x80000000
 
 /* Format flags */
 #define UVC_FMT_FLAG_COMPRESSED		0x00000001
@@ -389,6 +390,14 @@ struct uvc_frame {
 	u32 dwDefaultFrameInterval;
 	u32 *dwFrameInterval;
 };
+
+struct uvc_roi {
+	u16 wROI_Top;
+	u16 wROI_Left;
+	u16 wROI_Bottom;
+	u16 wROI_Right;
+	u16 bmAutoControls;
+} __packed;
 
 struct uvc_format {
 	u8 type;
@@ -906,5 +915,7 @@ void uvc_debugfs_cleanup_stream(struct uvc_streaming *stream);
 
 size_t uvc_video_stats_dump(struct uvc_streaming *stream, char *buf,
 			    size_t size);
+
+struct uvc_roi *uvc_ctrl_roi(struct uvc_video_chain *chain, u8 query);
 
 #endif

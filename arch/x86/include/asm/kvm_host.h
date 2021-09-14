@@ -711,6 +711,18 @@ struct kvm_vcpu_arch {
 		struct gfn_to_hva_cache data;
 	} pv_eoi;
 
+	u64 msr_kvm_poll_control;
+
+#ifdef CONFIG_KVM_HETEROGENEOUS_RT
+	struct {
+		bool enabled;
+		bool may_boost;
+		int msr_val;
+		int boost;
+		struct gfn_to_hva_cache data;
+	} preempt_count;
+#endif
+
 	/*
 	 * Indicate whether the access faults on its page table in guest
 	 * which is set when fix page fault and used to detect unhandeable
@@ -838,6 +850,11 @@ struct kvm_arch {
 	bool mwait_in_guest;
 	bool hlt_in_guest;
 	bool pause_in_guest;
+
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+	u64 msr_suspend_time;
+	struct gfn_to_hva_cache suspend_time;
+#endif /* KVM_VIRT_SUSPEND_TIMING */
 
 	unsigned long irq_sources_bitmap;
 	s64 kvmclock_offset;

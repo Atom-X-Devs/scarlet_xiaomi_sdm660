@@ -5279,35 +5279,42 @@ static void hci_le_ext_adv_term_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	if (!ev->handle)
 		hdev->ext_directed_advertising = false;
 
-	if (ev->status)
-		goto cleanup_instance;
+	if (ev->status) {
+		struct adv_info *adv;
+
+		adv = hci_find_adv_instance(hdev, ev->handle);
+		if (!adv)
+			return;
+
+		/* Remove advertising as it has been terminated */
+		hci_remove_adv_instance(hdev, ev->handle);
+		mgmt_advertising_removed(NULL, hdev, ev->handle);
+
+		/* If we are no longer advertising, clear HCI_LE_ADV */
+		if (list_empty(&hdev->adv_instances) &&
+		    !hdev->ext_directed_advertising) {
+			hci_dev_clear_flag(hdev, HCI_LE_ADV);
+		}
+
+		return;
+	}
 
 	conn = hci_conn_hash_lookup_handle(hdev, __le16_to_cpu(ev->conn_handle));
 	if (conn) {
 		struct adv_info *adv_instance;
 
 		if (hdev->adv_addr_type != ADDR_LE_DEV_RANDOM)
-			goto cleanup_instance;
+			return;
 
 		if (!ev->handle) {
 			bacpy(&conn->resp_addr, &hdev->random_addr);
-			goto cleanup_instance;
+			return;
 		}
 
 		adv_instance = hci_find_adv_instance(hdev, ev->handle);
 		if (adv_instance)
 			bacpy(&conn->resp_addr, &adv_instance->random_addr);
 	}
-
-cleanup_instance:
-	/* Since the controller tells us this instance is no longer active, we
-	 * remove it.
-	 */
-	hci_remove_adv_instance(hdev, ev->handle);
-
-	/* If we are no longer advertising, clear HCI_LE_ADV */
-	if (list_empty(&hdev->adv_instances) && !hdev->ext_directed_advertising)
-		hci_dev_clear_flag(hdev, HCI_LE_ADV);
 }
 
 static void hci_le_conn_update_complete_evt(struct hci_dev *hdev,

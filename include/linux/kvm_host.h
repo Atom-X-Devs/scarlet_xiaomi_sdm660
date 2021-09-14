@@ -488,6 +488,10 @@ struct kvm {
 #ifdef CONFIG_HAVE_KVM_PM_NOTIFIER
 	struct notifier_block pm_notifier;
 #endif
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+	u64 suspend_time_ns;
+	bool suspend_injection_requested;
+#endif
 };
 
 #define kvm_err(fmt, ...) \
@@ -1386,5 +1390,13 @@ typedef int (*kvm_vm_thread_fn_t)(struct kvm *kvm, uintptr_t data);
 int kvm_vm_create_worker_thread(struct kvm *kvm, kvm_vm_thread_fn_t thread_fn,
 				uintptr_t data, const char *name,
 				struct task_struct **thread_ptr);
+
+#ifdef CONFIG_HAVE_KVM_MAY_PREEMPT
+bool kvm_arch_may_preempt(struct kvm_vcpu *vcpu, struct task_struct *prev);
+#endif /* CONFIG_HAVE_KVM_MAY_PREEMPT */
+
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+void kvm_arch_timekeeping_inject_sleeptime(const struct timespec64 *delta);
+#endif /* CONFIG_KVM_VIRT_SUSPEND_TIMING */
 
 #endif
