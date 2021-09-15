@@ -271,6 +271,8 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
 			ret = __irq_startup(desc);
 			if (!(d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP))
 				irq_setup_affinity(desc);
+			else if (irqd_has_set(&desc->irq_data, IRQD_PERF_CRITICAL))
+				setup_perf_irq_locked(desc, desc->action->flags);
 			break;
 		case IRQ_STARTUP_MANAGED:
 			irq_do_set_affinity(d, aff, false);
