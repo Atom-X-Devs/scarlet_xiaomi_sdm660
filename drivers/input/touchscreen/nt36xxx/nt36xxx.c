@@ -822,7 +822,7 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	if (client->irq) {
 		ts->irq_enabled = true;
 		ret = request_threaded_irq(client->irq, NULL, nvt_ts_work_func,
-				ts->int_trigger_type | IRQF_ONESHOT
+				ts->int_trigger_type | IRQF_ONESHOT | IRQF_PERF_AFFINE
 #if XIAOMI_PANEL
 #if WAKEUP_GESTURE
 				| IRQF_NO_SUSPEND
