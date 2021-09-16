@@ -15,6 +15,7 @@
 #include <linux/uaccess.h>
 #include <linux/msm-bus.h>
 #include <linux/dma-buf.h>
+#include <uapi/linux/sched/types.h>
 
 #include "mdss.h"
 #include "mdss_panel.h"
