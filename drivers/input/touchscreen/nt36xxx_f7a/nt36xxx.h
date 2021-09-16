@@ -21,6 +21,7 @@
 
 #include <linux/i2c.h>
 #include <linux/input.h>
+#include <uapi/linux/sched/types.h>
 
 #include "nt36xxx_mem_map.h"
 
