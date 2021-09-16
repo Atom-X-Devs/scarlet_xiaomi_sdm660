@@ -16,6 +16,7 @@
 #include <linux/uaccess.h>
 #include "nt36xxx_mem_map.h"
 #include <linux/regulator/consumer.h>
+#include <uapi/linux/sched/types.h>
 
 // Xiaomi Panel specific
 #ifdef CONFIG_MACH_LONGCHEER
