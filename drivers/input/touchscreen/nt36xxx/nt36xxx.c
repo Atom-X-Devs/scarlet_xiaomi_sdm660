@@ -544,6 +544,9 @@ static void nvt_ts_worker(struct work_struct *work)
 	uint32_t position = 0;
 	uint32_t input_x = 0;
 	uint32_t input_y = 0;
+	struct sched_param param = { .sched_priority = MAX_USER_RT_PRIO / 2 };
+
+	sched_setscheduler(current, SCHED_RR, &param);
 
 #if WAKEUP_GESTURE
 	if (bTouchIsAwake == 0) {
