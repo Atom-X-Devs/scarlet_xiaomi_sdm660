@@ -20,27 +20,20 @@
 static unsigned int default_efficient_freq_lp[] = {0};
 static u64 default_up_delay_lp[] = {0};
 
-static unsigned int default_efficient_freq_hp[] = {1766400};
+static unsigned int default_efficient_freq_hp[] = {1958400};
 static u64 default_up_delay_hp[] = {100 * NSEC_PER_MSEC};
-
-static unsigned int default_efficient_freq_pr[] = {2073600};
-static u64 default_up_delay_pr[] = {100 * NSEC_PER_MSEC};
 
 #define DEFAULT_RTG_BOOST_FREQ_LP 0
 #define DEFAULT_RTG_BOOST_FREQ_HP 0
-#define DEFAULT_RTG_BOOST_FREQ_PR 0
 
 #define DEFAULT_HISPEED_LOAD_LP 100
 #define DEFAULT_HISPEED_LOAD_HP 30
-#define DEFAULT_HISPEED_LOAD_PR 100
 
 #define DEFAULT_HISPEED_FREQ_LP 0
-#define DEFAULT_HISPEED_FREQ_HP 1478400
-#define DEFAULT_HISPEED_FREQ_PR 0
+#define DEFAULT_HISPEED_FREQ_HP 1401600
 
 #define DEFAULT_PL_LP 0
 #define DEFAULT_PL_HP 0
-#define DEFAULT_PL_PR 0
 
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
@@ -1077,8 +1070,7 @@ static ssize_t efficient_freq_store(struct gov_attr_set *attr_set,
 	    tunables->nefficient_freq = new_num;
 	    tunables->current_step = 0;
 	    if (old != default_efficient_freq_lp
-	     && old != default_efficient_freq_hp
-	     && old != default_efficient_freq_pr)
+	     && old != default_efficient_freq_hp)
 	        kfree(old);
 	}
 
@@ -1100,8 +1092,7 @@ static ssize_t up_delay_store(struct gov_attr_set *attr_set,
 	    tunables->nup_delay = new_num;
 	    tunables->current_step = 0;
 	    if (old != default_up_delay_lp
-	     && old != default_up_delay_hp
-	     && old != default_up_delay_pr)
+	     && old != default_up_delay_hp)
 	        kfree(old);
 	}
 
@@ -1339,15 +1330,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_HP;
 		tunables->hispeed_freq = DEFAULT_HISPEED_FREQ_HP;
 		tunables->pl = DEFAULT_PL_HP;
-	} else {
-		tunables->efficient_freq = default_efficient_freq_pr;
-    		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_pr);
-		tunables->up_delay = default_up_delay_pr;
-		tunables->nup_delay = ARRAY_SIZE(default_up_delay_pr);
-		tunables->rtg_boost_freq = DEFAULT_RTG_BOOST_FREQ_PR;
-		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_PR;
-		tunables->hispeed_freq = DEFAULT_HISPEED_FREQ_PR;
-		tunables->pl = DEFAULT_PL_PR;
 	}
 
 	policy->governor_data = sg_policy;
