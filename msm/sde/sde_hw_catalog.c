@@ -1323,7 +1323,7 @@ static void _sde_sspp_setup_cursor(struct sde_mdss_cfg *sde_cfg,
 	struct sde_sspp_cfg *sspp, struct sde_sspp_sub_blks *sblk,
 	struct sde_prop_value *prop_value, u32 *cursor_count)
 {
-	if (!IS_SDE_MAJOR_MINOR_SAME(sde_cfg->hwversion, SDE_HW_VER_300) ||
+	if (!IS_SDE_MAJOR_MINOR_SAME(sde_cfg->hwversion, SDE_HW_VER_300) &&
 		!IS_SDE_MAJOR_MINOR_SAME(sde_cfg->hwversion, SDE_HW_VER_320))
 		SDE_ERROR("invalid sspp type %d, xin id %d\n",
 				sspp->type, sspp->xin_id);
