@@ -673,6 +673,16 @@ endif # may-sync-config
 endif # $(dot-config)
 
 ifdef CONFIG_CC_IS_CLANG
+ifdef CONFIG_LLVM_POLLY
+OPT_FLAGS := -mllvm -polly \
+	     -mllvm -polly-run-dce \
+	     -mllvm -polly-run-inliner \
+	     -mllvm -polly-opt-fusion=max \
+	     -mllvm -polly-ast-use-context \
+	     -mllvm -polly-detect-keep-going \
+	     -mllvm -polly-vectorizer=stripmine \
+	     -mllvm -polly-invariant-load-hoisting
+endif
 OPT_FLAGS	:= -mcpu=cortex-a53
 else ifdef CONFIG_CC_IS_GCC
 OPT_FLAGS	:= -mcpu=cortex-a73.cortex-a53
