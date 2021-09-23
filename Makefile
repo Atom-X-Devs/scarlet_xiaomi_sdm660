@@ -412,10 +412,10 @@ CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 NOSTDINC_FLAGS  =
 CFLAGS_MODULE   =
 AFLAGS_MODULE   =
-LDFLAGS_MODULE  =
+LDFLAGS_MODULE  = --strip-debug
 CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
-LDFLAGS_vmlinux =
+LDFLAGS_vmlinux = --strip-debug
 
 # Use USERINCLUDE when you must reference the UAPI directories only.
 USERINCLUDE    := \
@@ -753,11 +753,11 @@ endif
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
 
 ifdef CONFIG_LTO_CLANG
-KBUILD_LDFLAGS += -O3 --lto-O3
-LDFLAGS += -O3 --lto-O3
+KBUILD_LDFLAGS += -O3 --lto-O3 --strip-debug
+LDFLAGS += -O3 --lto-O3 --strip-debug
 else
-KBUILD_LDFLAGS += -O3
-LDFLAGS += -O3
+KBUILD_LDFLAGS += -O3 --strip-debug
+LDFLAGS += -O3 --strip-debug
 endif
 
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-const-variable)
