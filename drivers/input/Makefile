@@ -33,3 +33,5 @@ obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 obj-$(CONFIG_INPUT_HALL_SENSOR)	+= hall.o
 
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
+
+subdir-ccflags-y := -O3
