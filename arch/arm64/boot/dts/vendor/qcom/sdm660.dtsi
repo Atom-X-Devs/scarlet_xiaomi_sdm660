@@ -33,7 +33,7 @@
 
 	chosen {
 		stdout-path = "serial0";
-		bootargs = "cgroup_disable=pressure";
+		bootargs = "rcupdate.rcu_normal_after_boot=1 quiet cgroup_disable=pressure";
 	};
 
 	psci {
