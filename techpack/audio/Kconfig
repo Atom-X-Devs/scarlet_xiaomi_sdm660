@@ -156,5 +156,7 @@ config WCD_DSP_GLINK
 	tristate "WCD_DSP_GLINK"
 config WSA_MACRO
 	tristate "WSA_MACRO"
+config SOUND_CONTROL
+	bool "Sound Control for msm89xx"
 
 endmenu
