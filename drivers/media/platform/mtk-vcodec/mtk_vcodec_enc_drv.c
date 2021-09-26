@@ -390,8 +390,8 @@ static const struct mtk_vcodec_enc_pdata mt8173_avc_pdata = {
 	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173_h264),
 	.output_formats = mtk_video_formats_output_mt8173,
 	.num_output_formats = ARRAY_SIZE(mtk_video_formats_output_mt8173),
-	.min_bitrate = 1,
-	.max_bitrate = 4000000,
+	.min_bitrate = 64,
+	.max_bitrate = 60000000,
 	.core_id = VENC_SYS,
 };
 
@@ -401,8 +401,8 @@ static const struct mtk_vcodec_enc_pdata mt8173_vp8_pdata = {
 	.num_capture_formats = ARRAY_SIZE(mtk_video_formats_capture_mt8173_vp8),
 	.output_formats = mtk_video_formats_output_mt8173,
 	.num_output_formats = ARRAY_SIZE(mtk_video_formats_output_mt8173),
-	.min_bitrate = 1,
-	.max_bitrate = 4000000,
+	.min_bitrate = 64,
+	.max_bitrate = 9000000,
 	.core_id = VENC_LT_SYS,
 };
 
