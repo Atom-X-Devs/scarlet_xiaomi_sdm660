@@ -1397,30 +1397,26 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 
 	PVR_LOG_RETURN_IF_INVALID_PARAM(psDevmemCtx, "psDevmemCtx");
 
-	psDevNode = psDevmemCtx->psDevNode;
-
-	if (bRegister)
-	{
-		OSWRLockAcquireRead(psDevmemCtx->hListLock);
-		/* If this is the first PID in the list, the device memory context
-		 * needs to be registered for notification */
-		if (dllist_is_empty(&psDevmemCtx->sProcessNotifyListHead))
-		{
-			OSWRLockReleaseRead(psDevmemCtx->hListLock);
-			dllist_add_to_tail(&psDevNode->sMemoryContextPageFaultNotifyListHead,
-			                   &psDevmemCtx->sPageFaultNotifyListElem);
-		}
-		else
-		{
-			OSWRLockReleaseRead(psDevmemCtx->hListLock);
-		}
-	}
-
 	/* Acquire write lock for the duration, to avoid resource free
 	 * while trying to read (no need to then also acquire the read lock
 	 * as we have exclusive access while holding the write lock)
 	 */
 	OSWRLockAcquireWrite(psDevmemCtx->hListLock);
+
+	psDevNode = psDevmemCtx->psDevNode;
+
+	if (bRegister)
+	{
+		/* If this is the first PID in the list, the device memory context
+		 * needs to be registered for notification */
+		if (dllist_is_empty(&psDevmemCtx->sProcessNotifyListHead))
+		{
+			OSWRLockAcquireWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
+			dllist_add_to_tail(&psDevNode->sMemoryContextPageFaultNotifyListHead,
+			                   &psDevmemCtx->sPageFaultNotifyListElem);
+			OSWRLockReleaseWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
+		}
+	}
 
 	/* Loop through the registered PIDs and check whether this one is
 	 * present */
@@ -1473,16 +1469,14 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 		dllist_remove_node(psNode);
 		psNotifyNode = IMG_CONTAINER_OF(psNode, DEVMEMINT_PF_NOTIFY, sProcessNotifyListElem);
 		OSFreeMem(psNotifyNode);
-	}
 
-	if (!bRegister)
-	{
 		/* If the last process in the list is being unregistered, then also
 		 * unregister the device memory context from the notify list. */
-		/* Write lock is already held */
 		if (dllist_is_empty(&psDevmemCtx->sProcessNotifyListHead))
 		{
+			OSWRLockAcquireWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
 			dllist_remove_node(&psDevmemCtx->sPageFaultNotifyListElem);
+			OSWRLockReleaseWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
 		}
 	}
 	eError = PVRSRV_OK;
