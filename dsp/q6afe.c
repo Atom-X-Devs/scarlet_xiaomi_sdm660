@@ -416,6 +416,12 @@ static int q6afe_load_avcs_modules(int num_modules, u16 port_id,
 					goto load_unload;
 				}
 
+				if (format_id == ASM_MEDIA_FMT_APTX_ADAPTIVE) {
+					pm[i]->payload->load_unload_info[0].id1 =
+						AVS_MODULE_ID_DEPACKETIZER_COP;
+					goto load_unload;
+				}
+
 				pm[i]->payload->load_unload_info[1].module_type =
 						AMDB_MODULE_TYPE_DECODER;
 				pm[i]->payload->load_unload_info[1].id1 =
@@ -5387,10 +5393,11 @@ static int __afe_port_start(u16 port_id, union afe_port_config *afe_config,
 	union afe_port_config port_cfg;
 	struct param_hdr_v3 param_hdr;
 	int ret = 0;
-	int cfg_type;
+	int cfg_type = 0;
 	int index = 0;
 	enum afe_mad_type mad_type;
 	uint16_t port_index;
+	u16 i;
 
 	memset(&param_hdr, 0, sizeof(param_hdr));
 	memset(&port_cfg, 0, sizeof(port_cfg));
@@ -5777,6 +5784,20 @@ static int __afe_port_start(u16 port_id, union afe_port_config *afe_config,
 	ret = afe_send_cmd_port_start(port_id);
 
 fail_cmd:
+	if (ret) {
+		if ((codec_format != ASM_MEDIA_FMT_NONE) &&
+			(cfg_type == AFE_PARAM_ID_SLIMBUS_CONFIG)) {
+			if ((q6core_get_avcs_api_version_per_service(
+				APRV2_IDS_SERVICE_ID_ADSP_CORE_V) >= AVCS_API_VERSION_V5)) {
+				for (i = 0; i < MAX_ALLOWED_USE_CASES; i++) {
+					if (pm[i] && pm[i]->port_id == port_id) {
+						q6afe_unload_avcs_modules(port_id, i);
+						break;
+					}
+				}
+			}
+		}
+	}
 	mutex_unlock(&this_afe.afe_cmd_lock);
 	return ret;
 }
@@ -9116,7 +9137,7 @@ int afe_set_lpass_clock_v2(u16 port_id, struct afe_clk_set *cfg)
 {
 	int index = 0;
 	int ret = 0;
-	u16 idx = 0;
+	int idx = 0;
 	uint32_t build_major_version = 0;
 	uint32_t build_minor_version = 0;
 	uint32_t build_branch_version = 0;
@@ -9150,12 +9171,9 @@ int afe_set_lpass_clock_v2(u16 port_id, struct afe_clk_set *cfg)
 	}
 	idx = afe_get_port_idx(port_id);
 	if (idx < 0) {
-		pr_err("%s: cannot get clock id for port id 0x%x\n", __func__,
+		pr_debug("%s: cannot get clock id for port id 0x%x\n", __func__,
 			port_id);
-		return -EINVAL;
-	}
-
-	if (clkinfo_per_port[idx].mclk_src_id != MCLK_SRC_INT) {
+	} else if (clkinfo_per_port[idx].mclk_src_id != MCLK_SRC_INT) {
 		pr_debug("%s: ext MCLK src %d\n",
 			__func__, clkinfo_per_port[idx].mclk_src_id);
 
@@ -9185,10 +9203,12 @@ int afe_set_lpass_clock_v2(u16 port_id, struct afe_clk_set *cfg)
 
 		ret = afe_set_lpass_clk_cfg_ext_mclk(index, cfg,
 					clkinfo_per_port[idx].mclk_freq);
-	} else {
-		ret = afe_set_lpass_clk_cfg(index, cfg);
+		goto done;
 	}
 
+	ret = afe_set_lpass_clk_cfg(index, cfg);
+
+done:
 	if (ret)
 		pr_err("%s: afe_set_lpass_clk_cfg_v2 failed %d\n",
 			__func__, ret);
