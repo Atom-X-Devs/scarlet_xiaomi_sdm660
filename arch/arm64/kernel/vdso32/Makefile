@@ -72,8 +72,12 @@ VDSO_CAFLAGS += -DDISABLE_BRANCH_PROFILING
 # Try to compile for ARMv8. If the compiler is too old and doesn't support it,
 # fall back to v7. There is no easy way to check for what architecture the code
 # is being compiled, so define a macro specifying that (see arch/arm/Makefile).
+ifndef CONFIG_ARCH_SDM660
 VDSO_CAFLAGS += $(call cc32-option,-march=armv8-a -D__LINUX_ARM_ARCH__=8,\
                                    -march=armv7-a -D__LINUX_ARM_ARCH__=7)
+else
+VDSO_CAFLAGS += -D__LINUX_ARM_ARCH__=8
+endif
 
 VDSO_CFLAGS := $(VDSO_CAFLAGS)
 VDSO_CFLAGS += -DENABLE_COMPAT_VDSO=1
@@ -104,6 +108,11 @@ VDSO_CFLAGS += -Wno-int-to-pointer-cast
 
 VDSO_AFLAGS := $(VDSO_CAFLAGS)
 VDSO_AFLAGS += -D__ASSEMBLY__
+
+ifdef CONFIG_ARCH_SDM660
+VDSO_CFLAGS += $(OPT_FLAGS)
+VDSO_AFLAGS += $(OPT_FLAGS)
+endif
 
 # Check for binutils support for dmb ishld
 dmbinstr := $(call cc32-as-instr,dmb ishld,-DCONFIG_AS_DMB_ISHLD=1)

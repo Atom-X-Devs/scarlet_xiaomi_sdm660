@@ -672,6 +672,17 @@ include/config/auto.conf:
 endif # may-sync-config
 endif # $(dot-config)
 
+ifdef CONFIG_CC_IS_CLANG
+OPT_FLAGS	:= -mcpu=cortex-a53
+else ifdef CONFIG_CC_IS_GCC
+OPT_FLAGS	:= -mcpu=cortex-a73.cortex-a53
+endif
+
+export OPT_FLAGS
+
+KBUILD_CFLAGS	+= $(OPT_FLAGS)+crc+crypto
+KBUILD_AFLAGS	+= $(OPT_FLAGS)+crc+crypto
+
 KBUILD_CFLAGS	+= $(call cc-option,-fno-delete-null-pointer-checks,)
 KBUILD_CFLAGS	+= $(call cc-disable-warning,frame-address,)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, format-truncation)
@@ -680,9 +691,10 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, int-in-bool-context)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS   += -Os
+KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS   += -O2
+KBUILD_CFLAGS	+= -O3
+KBUILD_AFLAGS	+= -O3
 endif
 
 # Tell gcc to never replace conditional load with a non-conditional one

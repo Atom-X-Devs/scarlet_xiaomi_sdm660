@@ -48,3 +48,8 @@ obj-$(CONFIG_CRYPTO_DEV_BCM_SPU) += bcm/
 obj-$(CONFIG_CRYPTO_DEV_SAFEXCEL) += inside-secure/
 obj-$(CONFIG_CRYPTO_DEV_ARTPEC6) += axis/
 obj-y += hisilicon/
+
+ifdef CONFIG_ARCH_SDM660
+ccflags-y	+= $(OPT_FLAGS)+crc+crypto
+asflags-y	+= $(OPT_FLAGS)+crc+crypto
+endif

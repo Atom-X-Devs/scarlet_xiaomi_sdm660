@@ -54,6 +54,10 @@ KBUILD_CFLAGS	+= -mno-implicit-float
 else
 KBUILD_CFLAGS	+= -mgeneral-regs-only
 endif
+ifdef CONFIG_ARCH_SDM660
+KBUILD_CFLAGS	+= $(OPT_FLAGS)
+KBUILD_AFLAGS	+= $(OPT_FLAGS)
+endif
 KBUILD_CFLAGS	+= $(lseinstr) $(brokengasinst) $(compat_vdso)
 KBUILD_CFLAGS	+= -fno-asynchronous-unwind-tables
 KBUILD_CFLAGS	+= $(call cc-disable-warning, psabi)
