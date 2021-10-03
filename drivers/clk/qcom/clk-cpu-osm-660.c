@@ -3407,8 +3407,10 @@ static int clk_cpu_osm_driver_probe(struct platform_device *pdev)
 	}
 
 	populate_opp_table(pdev);
+#ifdef CONFIG_DEBUG_FS
 	populate_debugfs_dir(&pwrcl_clk);
 	populate_debugfs_dir(&perfcl_clk);
+#endif
 
 	of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 
