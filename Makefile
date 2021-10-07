@@ -685,7 +685,7 @@ OPT_FLAGS := -mllvm -polly \
 	     $(call cc-option, -mllvm -polly-reschedule) \
 	     $(call cc-option, -mllvm -polly-postopts)
 endif
-OPT_FLAGS	:= -mcpu=cortex-a53
+OPT_FLAGS	+= -mcpu=cortex-a53
 else ifdef CONFIG_CC_IS_GCC
 OPT_FLAGS	:= -mcpu=cortex-a73.cortex-a53
 endif
