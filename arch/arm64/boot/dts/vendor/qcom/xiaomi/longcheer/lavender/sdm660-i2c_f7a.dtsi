@@ -10,7 +10,6 @@
  */
 
 &i2c_1 {
-	status = "ok";
 	novatek@62 {
 		compatible = "novatek,NVT-ts";
 		reg = <0x62>;

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 &i2c_1 {
-	status = "ok";
 	focaltech@38{
 		compatible = "focaltech,fts";
 		reg = <0x38>;
@@ -23,7 +22,6 @@
 	};
 
 	novatek@62 {
-		status = "ok";
 		compatible = "novatek,NVT-ts";
 		reg = <0x62>;
 		vcc_i2c-supply = <&pm660_l11>;
