@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 qcom,l6650desay_4000mah {
-	qcom, = <24>;
 	qcom,max-voltage-uv = <4400000>;
 	qcom,fastchg-current-ma = <2500>;
 	qcom,nom-batt-capacity-mah = <4000>;

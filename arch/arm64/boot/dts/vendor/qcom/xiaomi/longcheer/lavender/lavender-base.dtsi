@@ -33,10 +33,6 @@
 	qcom,battery-thermal-coefficients = [d2 50 ff];
 };
 
-&pm660_haptics {
-	qcom,actuator-type = "erm";
-};
-
 /* sdm660-common.dtsi lavender specific diff */
 &qusb_phy0 {
 	qcom,qusb-phy-init-seq = <0xf8 0x80
@@ -80,7 +76,7 @@
 
 		fstab {
 			vendor {
-				fsmgr_flags = "wait,avb";
+				fsmgr_flags = "wait";
 			};
 		};
 	};
