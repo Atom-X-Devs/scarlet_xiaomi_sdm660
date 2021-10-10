@@ -9,7 +9,6 @@
  */
 
 &i2c_1 {
-	status = "ok";
 	synaptics_dsx@20 {
 		compatible = "synaptics,dsx-i2c";
 		reg = <0x20>;
@@ -30,7 +29,6 @@
 	};
 
 	novatek@62 {
-		status = "ok";
 		compatible = "novatek,NVT-ts";
 		reg = <0x62>;
 		interrupt-parent = <&tlmm>;

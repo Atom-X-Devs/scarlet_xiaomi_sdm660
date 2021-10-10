@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 qcom,3383405_longcheer_l6660cos_4000mah_averaged_masterslave_apr2nd2018 {
-	qcom, = <24>;
 	qcom,max-voltage-uv = <4408000>;
 	qcom,fg-cc-cv-threshold-mv = <4398>;
 	qcom,fastchg-current-ma = <2500>;
