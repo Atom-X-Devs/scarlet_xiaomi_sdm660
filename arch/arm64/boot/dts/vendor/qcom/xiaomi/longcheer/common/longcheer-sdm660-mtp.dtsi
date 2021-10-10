@@ -50,6 +50,7 @@
 
 &soc {
 	goodix_fp {
+		status = "ok";
 		compatible = "goodix,fingerprint";
 		interrupt-parent = <&tlmm>;
 		interrupt = <72 0x0>;
@@ -58,7 +59,6 @@
 		vdd_io-supply = <&pm660l_l3>;
 		fp-gpio-irq = <&tlmm 72 0x00>;
 		fp-gpio-reset = <&tlmm 20 0x00>;
-		status = "okay";
 	};
 	
 	fpc1020 {
