@@ -1719,9 +1719,6 @@ void timekeeping_resume(void)
 	if (inject_sleeptime) {
 		suspend_timing_needed = false;
 		__timekeeping_inject_sleeptime(tk, &ts_delta);
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-		kvm_arch_timekeeping_inject_sleeptime(&ts_delta);
-#endif
 	}
 
 	/* Re-base the last cycle value */

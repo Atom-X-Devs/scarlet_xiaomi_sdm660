@@ -1120,9 +1120,6 @@ static u32 emulated_msrs[] = {
 #ifdef CONFIG_KVM_HETEROGENEOUS_RT
 	MSR_KVM_PREEMPT_COUNT,
 #endif
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-	MSR_KVM_HOST_SUSPEND_TIME,
-#endif
 
 	MSR_IA32_TSC_ADJUST,
 	MSR_IA32_TSCDEADLINE,
@@ -1479,23 +1476,6 @@ static void kvm_write_wall_clock(struct kvm *kvm, gpa_t wall_clock)
 	version++;
 	kvm_write_guest(kvm, wall_clock, &version, sizeof(version));
 }
-
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-static void kvm_write_suspend_time(struct kvm *kvm)
-{
-	struct kvm_arch *ka = &kvm->arch;
-	struct kvm_suspend_time st;
-
-	st.suspend_time_ns = kvm->suspend_time_ns;
-	kvm_write_guest_cached(kvm, &ka->suspend_time, &st, sizeof(st));
-}
-
-static void kvm_make_suspend_time_interrupt(struct kvm_vcpu *vcpu)
-{
-	kvm_queue_interrupt(vcpu, VIRT_SUSPEND_TIMING_VECTOR, false);
-	kvm_make_request(KVM_REQ_EVENT, vcpu);
-}
-#endif
 
 static uint32_t div_frac(uint32_t dividend, uint32_t divisor)
 {
@@ -2473,25 +2453,6 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 	kvm_unmap_gfn(vcpu, &map, &vcpu->arch.st.cache, true, false);
 }
 
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-static int set_suspend_time_struct(struct kvm_vcpu *vcpu, u64 data)
-{
-	if (!(data & KVM_MSR_ENABLED)) {
-		vcpu->kvm->arch.msr_suspend_time = data;
-		return 0;
-	}
-
-	if (kvm_gfn_to_hva_cache_init(vcpu->kvm,
-				&vcpu->kvm->arch.suspend_time, data & ~1ULL,
-				sizeof(struct kvm_suspend_time)))
-		return 1;
-
-	kvm_write_suspend_time(vcpu->kvm);
-	vcpu->kvm->arch.msr_suspend_time = data;
-	return 0;
-}
-#endif
-
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 {
 	bool pr = false;
@@ -2658,10 +2619,6 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		    sizeof(int)))
 			vcpu->arch.preempt_count.enabled = 1;
 		break;
-#endif
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-	case MSR_KVM_HOST_SUSPEND_TIME:
-		return set_suspend_time_struct(vcpu, data);
 #endif
 	case MSR_IA32_MCG_CTL:
 	case MSR_IA32_MCG_STATUS:
@@ -2919,11 +2876,6 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 #ifdef CONFIG_KVM_HETEROGENEOUS_RT
 	case MSR_KVM_PREEMPT_COUNT:
 		msr_info->data = vcpu->arch.preempt_count.msr_val;
-		break;
-#endif
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-	case MSR_KVM_HOST_SUSPEND_TIME:
-		msr_info->data = vcpu->kvm->arch.msr_suspend_time;
 		break;
 #endif
 	case MSR_IA32_P5_MC_ADDR:
@@ -8106,14 +8058,7 @@ static int vcpu_run(struct kvm_vcpu *vcpu)
 		kvm_clear_request(KVM_REQ_PENDING_TIMER, vcpu);
 		if (kvm_cpu_has_pending_timer(vcpu))
 			kvm_inject_pending_timer_irqs(vcpu);
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-		if (kvm->suspend_injection_requested &&
-			kvm_vcpu_ready_for_interrupt_injection(vcpu)) {
-			kvm_write_suspend_time(kvm);
-			kvm_make_suspend_time_interrupt(vcpu);
-			kvm->suspend_injection_requested = false;
-		}
-#endif
+
 		if (dm_request_for_irq_injection(vcpu) &&
 			kvm_vcpu_ready_for_interrupt_injection(vcpu)) {
 			r = 0;
@@ -10022,50 +9967,6 @@ bool kvm_vector_hashing_enabled(void)
 	return vector_hashing;
 }
 EXPORT_SYMBOL_GPL(kvm_vector_hashing_enabled);
-
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
-void kvm_arch_timekeeping_inject_sleeptime(const struct timespec64 *delta)
-{
-	struct kvm_vcpu *vcpu;
-	u64 suspend_time_ns;
-	struct kvm *kvm;
-	s64 adj;
-	int i;
-
-	suspend_time_ns = timespec64_to_ns(delta);
-	adj = tsc_khz * (suspend_time_ns / 1000000);
-	/*
-	 * Adjust TSCs on all vcpus and kvmclock as if they are stopped
-	 * during host's suspension.
-	 * Also, cummulative suspend time is recorded in kvm structure and
-	 * the update will be notified via an interrupt for each vcpu.
-	 */
-	mutex_lock(&kvm_lock);
-	list_for_each_entry(kvm, &vm_list, vm_list) {
-		if (!(kvm->arch.msr_suspend_time & KVM_MSR_ENABLED))
-			continue;
-
-		kvm_for_each_vcpu(i, vcpu, kvm)
-			vcpu->arch.tsc_offset_adjustment -= adj;
-
-		/*
-		 * Move the offset of kvm_clock here as if it is stopped
-		 * during the suspension.
-		 */
-		kvm->arch.kvmclock_offset -= suspend_time_ns;
-
-		/* suspend_time is accumulated per VM. */
-		kvm->suspend_time_ns += suspend_time_ns;
-		kvm->suspend_injection_requested = true;
-		/*
-		 * This adjustment will be reflected to the struct provided
-		 * from the guest via MSR_KVM_HOST_SUSPEND_TIME before
-		 * the notification interrupt is injected.
-		 */
-	}
-	mutex_unlock(&kvm_lock);
-}
-#endif
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_exit);
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_fast_mmio);
