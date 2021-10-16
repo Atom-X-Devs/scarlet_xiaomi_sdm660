@@ -88,16 +88,12 @@ static int hdd_close_ndi(struct hdd_adapter *adapter)
 				     WLAN_STOP_ALL_NETIF_QUEUE_N_CARRIER,
 				     WLAN_CONTROL_PATH);
 
-#ifdef WLAN_OPEN_SOURCE
 	cancel_work_sync(&adapter->ipv4_notifier_work);
-#endif
 	hdd_deregister_hl_netdev_fc_timer(adapter);
 	hdd_deregister_tx_flow_control(adapter);
 
 #ifdef WLAN_NS_OFFLOAD
-#ifdef WLAN_OPEN_SOURCE
 	cancel_work_sync(&adapter->ipv6_notifier_work);
-#endif
 #endif
 	errno = hdd_vdev_destroy(adapter);
 	if (errno)
