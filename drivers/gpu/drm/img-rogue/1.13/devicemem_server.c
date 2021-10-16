@@ -1393,6 +1393,7 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 	DLLIST_NODE         *psNode, *psNodeNext;
 	DEVMEMINT_PF_NOTIFY *psNotifyNode;
 	IMG_BOOL            bPresent = IMG_FALSE;
+	PVRSRV_ERROR        eError;
 
 	PVR_LOG_RETURN_IF_INVALID_PARAM(psDevmemCtx, "psDevmemCtx");
 
@@ -1415,9 +1416,14 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 		}
 	}
 
+	/* Acquire write lock for the duration, to avoid resource free
+	 * while trying to read (no need to then also acquire the read lock
+	 * as we have exclusive access while holding the write lock)
+	 */
+	OSWRLockAcquireWrite(psDevmemCtx->hListLock);
+
 	/* Loop through the registered PIDs and check whether this one is
 	 * present */
-	OSWRLockAcquireRead(psDevmemCtx->hListLock);
 	dllist_foreach_node(&(psDevmemCtx->sProcessNotifyListHead), psNode, psNodeNext)
 	{
 		psNotifyNode = IMG_CONTAINER_OF(psNode, DEVMEMINT_PF_NOTIFY, sProcessNotifyListElem);
@@ -1428,7 +1434,6 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 			break;
 		}
 	}
-	OSWRLockReleaseRead(psDevmemCtx->hListLock);
 
 	if (bRegister)
 	{
@@ -1437,7 +1442,8 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: Trying to register a PID that is already registered",
 			         __func__));
-			return PVRSRV_ERROR_PID_ALREADY_REGISTERED;
+			eError = PVRSRV_ERROR_PID_ALREADY_REGISTERED;
+			goto err_already_registered;
 		}
 
 		psNotifyNode = OSAllocMem(sizeof(*psNotifyNode));
@@ -1446,12 +1452,12 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: Unable to allocate memory for the notify list",
 			          __func__));
-			return PVRSRV_ERROR_OUT_OF_MEMORY;
+			eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+			goto err_out_of_mem;
 		}
 		psNotifyNode->ui32PID = ui32PID;
-		OSWRLockAcquireWrite(psDevmemCtx->hListLock);
+		/* Write lock is already held */
 		dllist_add_to_tail(&(psDevmemCtx->sProcessNotifyListHead), &(psNotifyNode->sProcessNotifyListElem));
-		OSWRLockReleaseWrite(psDevmemCtx->hListLock);
 	}
 	else
 	{
@@ -1460,8 +1466,10 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: Trying to unregister a PID that is not registered",
 			         __func__));
-			return PVRSRV_ERROR_PID_NOT_REGISTERED;
+			eError = PVRSRV_ERROR_PID_NOT_REGISTERED;
+			goto err_not_registered;
 		}
+		/* Write lock is already held */
 		dllist_remove_node(psNode);
 		psNotifyNode = IMG_CONTAINER_OF(psNode, DEVMEMINT_PF_NOTIFY, sProcessNotifyListElem);
 		OSFreeMem(psNotifyNode);
@@ -1471,15 +1479,20 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 	{
 		/* If the last process in the list is being unregistered, then also
 		 * unregister the device memory context from the notify list. */
-		OSWRLockAcquireWrite(psDevmemCtx->hListLock);
+		/* Write lock is already held */
 		if (dllist_is_empty(&psDevmemCtx->sProcessNotifyListHead))
 		{
 			dllist_remove_node(&psDevmemCtx->sPageFaultNotifyListElem);
 		}
-		OSWRLockReleaseWrite(psDevmemCtx->hListLock);
 	}
+	eError = PVRSRV_OK;
 
-	return PVRSRV_OK;
+err_already_registered:
+err_out_of_mem:
+err_not_registered:
+
+	OSWRLockReleaseWrite(psDevmemCtx->hListLock);
+	return eError;
 }
 
 /*************************************************************************/ /*!

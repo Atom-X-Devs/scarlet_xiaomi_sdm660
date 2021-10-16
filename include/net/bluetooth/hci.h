@@ -226,8 +226,8 @@ enum {
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
 
-	/* This quirk will be set when running on Intel StP controller */
-	HCI_QUIRK_INTEL_STP_CONTROLLER,
+	/* This quirk will be set when running on Intel SdP/StP controller */
+	HCI_QUIRK_RESTRICT_CONN_PARAMS,
 };
 
 /* HCI device flags */
@@ -312,10 +312,7 @@ enum {
 	HCI_ENABLE_LL_PRIVACY,
 	HCI_CMD_PENDING,
 	HCI_FORCE_NO_MITM,
-
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
 	HCI_QUALITY_REPORT,
-#endif
 
 	__HCI_NUM_FLAGS,
 };

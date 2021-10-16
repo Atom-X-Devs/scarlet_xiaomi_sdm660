@@ -3107,11 +3107,12 @@ static void kvmppc_wait_for_exec(struct kvmppc_vcore *vc,
 
 static void grow_halt_poll_ns(struct kvmppc_vcore *vc)
 {
-	/* 10us base */
-	if (vc->halt_poll_ns == 0 && halt_poll_ns_grow)
-		vc->halt_poll_ns = 10000;
-	else
-		vc->halt_poll_ns *= halt_poll_ns_grow;
+	if (!halt_poll_ns_grow)
+		return;
+
+	vc->halt_poll_ns *= halt_poll_ns_grow;
+	if (vc->halt_poll_ns < halt_poll_ns_grow_start)
+		vc->halt_poll_ns = halt_poll_ns_grow_start;
 }
 
 static void shrink_halt_poll_ns(struct kvmppc_vcore *vc)

@@ -944,8 +944,8 @@ static int uvc_ioctl_g_input(struct file *file, void *fh, unsigned int *input)
 {
 	struct uvc_fh *handle = fh;
 	struct uvc_video_chain *chain = handle->chain;
+	u8 *buf;
 	int ret;
-	u8 i;
 
 	if (chain->selector == NULL ||
 	    (chain->dev->quirks & UVC_QUIRK_IGNORE_SELECTOR_UNIT)) {
@@ -953,22 +953,27 @@ static int uvc_ioctl_g_input(struct file *file, void *fh, unsigned int *input)
 		return 0;
 	}
 
+	buf = kmalloc(1, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
 	ret = uvc_query_ctrl(chain->dev, UVC_GET_CUR, chain->selector->id,
 			     chain->dev->intfnum,  UVC_SU_INPUT_SELECT_CONTROL,
-			     &i, 1);
-	if (ret < 0)
-		return ret;
+			     buf, 1);
+	if (!ret)
+		*input = *buf - 1;
 
-	*input = i - 1;
-	return 0;
+	kfree(buf);
+
+	return ret;
 }
 
 static int uvc_ioctl_s_input(struct file *file, void *fh, unsigned int input)
 {
 	struct uvc_fh *handle = fh;
 	struct uvc_video_chain *chain = handle->chain;
+	u8 *buf;
 	int ret;
-	u32 i;
 
 	ret = uvc_acquire_privileges(handle);
 	if (ret < 0)
@@ -984,10 +989,17 @@ static int uvc_ioctl_s_input(struct file *file, void *fh, unsigned int input)
 	if (input >= chain->selector->bNrInPins)
 		return -EINVAL;
 
-	i = input + 1;
-	return uvc_query_ctrl(chain->dev, UVC_SET_CUR, chain->selector->id,
-			      chain->dev->intfnum, UVC_SU_INPUT_SELECT_CONTROL,
-			      &i, 1);
+	buf = kmalloc(1, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	*buf = input + 1;
+	ret = uvc_query_ctrl(chain->dev, UVC_SET_CUR, chain->selector->id,
+			     chain->dev->intfnum, UVC_SU_INPUT_SELECT_CONTROL,
+			     buf, 1);
+	kfree(buf);
+
+	return ret;
 }
 
 static int uvc_ioctl_queryctrl(struct file *file, void *fh,
@@ -1184,22 +1196,13 @@ static int uvc_ioctl_querymenu(struct file *file, void *fh,
 	return uvc_query_v4l2_menu(chain, qm);
 }
 
-/* UVC 1.5 ROI rectangle is half the size of v4l2_rect */
-struct uvc_roi_rect {
-	__u16			top;
-	__u16			left;
-	__u16			bottom;
-	__u16			right;
-	__u16			auto_controls;
-} __packed;
-
 static int uvc_ioctl_g_roi_target(struct file *file, void *fh,
 				  struct v4l2_selection *sel)
 {
 	struct uvc_fh *handle = fh;
 	struct uvc_streaming *stream = handle->stream;
 	struct uvc_video_chain *chain = handle->chain;
-	struct uvc_roi_rect *roi;
+	struct uvc_roi *roi;
 	u8 query;
 	int ret;
 
@@ -1220,30 +1223,36 @@ static int uvc_ioctl_g_roi_target(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	/* hcd requires transfer buffer to be DMA capable */
-	roi = kzalloc(sizeof(struct uvc_roi_rect), GFP_KERNEL);
-	if (!roi)
-		return -ENOMEM;
-
 	/*
 	 * Synchronize with uvc_ioctl_query_ext_ctrl() that can set
 	 * ROI auto_controls concurrently.
 	 */
 	mutex_lock(&chain->ctrl_mutex);
 
-	ret = uvc_query_ctrl(stream->dev, query, 1, stream->dev->intfnum,
-			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
-			     sizeof(struct uvc_roi_rect));
-	if (!ret) {
-		/* ROI left, top, right, bottom are global coordinates. */
-		sel->r.left	= roi->left;
-		sel->r.top	= roi->top;
-		sel->r.width	= roi->right - roi->left + 1;
-		sel->r.height	= roi->bottom - roi->top + 1;
+	roi = uvc_ctrl_roi(chain, query);
+	if (!roi) {
+		ret = -EINVAL;
+		goto out;
 	}
 
+	/*
+	 * This reads actual configuration from the firmware and at the
+	 * same updates cached UVC control data.
+	 */
+	ret = uvc_query_ctrl(stream->dev, query, 1, stream->dev->intfnum,
+			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
+			     sizeof(struct uvc_roi));
+	if (ret)
+		goto out;
+
+	/* ROI left, top, right, bottom are global coordinates. */
+	sel->r.top	= roi->wROI_Top;
+	sel->r.left	= roi->wROI_Left;
+	sel->r.height	= roi->wROI_Bottom - roi->wROI_Top + 1;
+	sel->r.width	= roi->wROI_Right - roi->wROI_Left + 1;
+
+out:
 	mutex_unlock(&chain->ctrl_mutex);
-	kfree(roi);
 	return ret;
 }
 
@@ -1331,13 +1340,8 @@ static int uvc_ioctl_s_roi(struct file *file, void *fh,
 	struct uvc_fh *handle = fh;
 	struct uvc_streaming *stream = handle->stream;
 	struct uvc_video_chain *chain = handle->chain;
-	struct uvc_roi_rect *roi;
+	struct uvc_roi *roi;
 	int ret;
-
-	/* hcd requires transfer buffer to be DMA capable */
-	roi = kzalloc(sizeof(struct uvc_roi_rect), GFP_KERNEL);
-	if (!roi)
-		return -ENOMEM;
 
 	/*
 	 * Synchronize with uvc_ioctl_query_ext_ctrl() that can set
@@ -1345,20 +1349,28 @@ static int uvc_ioctl_s_roi(struct file *file, void *fh,
 	 */
 	mutex_lock(&chain->ctrl_mutex);
 
+	roi = uvc_ctrl_roi(chain, UVC_GET_CUR);
+	if (!roi) {
+		mutex_unlock(&chain->ctrl_mutex);
+		return -EINVAL;
+	}
+
+	mutex_lock(&stream->mutex);
+
 	/*
-	 * Get current ROI configuration. We are especially interested in
-	 * ->auto_controls, because we will use GET_CUR ->auto_controls
-	 * value for SET_CUR. Some firmwares require sizeof(uvc_roi_rect)
-	 * to be 5 * sizeof(__u16) so we need to set correct rectangle
-	 * dimensions and correct auto_controls value.
+	 * Get current ROI configuration from the firmware. First, we need
+	 * ->auto_controls, which is handled by UVC control code.
+	 *
+	 * Second, the rectangle value, which is passed via v4l2 selection
+	 * API, must also be stored in UVC control data, so that when use
+	 * changes auto_controls, it will use most recent ROI rectangle
+	 * value and new auto_controls value.
 	 */
 	ret = uvc_query_ctrl(stream->dev, UVC_GET_CUR, 1, stream->dev->intfnum,
 			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
-			     sizeof(struct uvc_roi_rect));
+			     sizeof(struct uvc_roi));
 	if (ret)
 		goto out;
-
-	mutex_lock(&stream->mutex);
 
 	validate_roi_bounds(stream, sel);
 
@@ -1366,20 +1378,20 @@ static int uvc_ioctl_s_roi(struct file *file, void *fh,
 	 * ROI left, top, right, bottom are global coordinates.
 	 * Note that we use ->auto_controls value which we read earlier.
 	 */
-	roi->left		= sel->r.left;
-	roi->top		= sel->r.top;
-	roi->right		= sel->r.width + sel->r.left - 1;
-	roi->bottom		= sel->r.height + sel->r.top - 1;
+	roi->wROI_Top		= sel->r.top;
+	roi->wROI_Left		= sel->r.left;
+	roi->wROI_Bottom	= sel->r.height + sel->r.top - 1;
+	roi->wROI_Right		= sel->r.width + sel->r.left - 1;
 
 	ret = uvc_query_ctrl(stream->dev, UVC_SET_CUR, 1, stream->dev->intfnum,
 			     UVC_CT_REGION_OF_INTEREST_CONTROL, roi,
-			     sizeof(struct uvc_roi_rect));
-
-	mutex_unlock(&stream->mutex);
+			     sizeof(struct uvc_roi));
+	if (ret)
+		goto out;
 
 out:
+	mutex_unlock(&stream->mutex);
 	mutex_unlock(&chain->ctrl_mutex);
-	kfree(roi);
 	return ret;
 }
 
