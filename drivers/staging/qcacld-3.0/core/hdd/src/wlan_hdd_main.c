@@ -6299,11 +6299,9 @@ QDF_STATUS hdd_stop_adapter(struct hdd_context *hdd_ctx,
 
 		hdd_deregister_tx_flow_control(adapter);
 
-#ifdef WLAN_OPEN_SOURCE
 		cancel_work_sync(&adapter->ipv4_notifier_work);
 #ifdef WLAN_NS_OFFLOAD
 		cancel_work_sync(&adapter->ipv6_notifier_work);
-#endif
 #endif
 
 		if (adapter->device_mode == QDF_STA_MODE) {
@@ -6482,11 +6480,9 @@ QDF_STATUS hdd_stop_adapter(struct hdd_context *hdd_ctx,
 			hdd_objmgr_put_vdev(vdev);
 		}
 
-#ifdef WLAN_OPEN_SOURCE
 		cancel_work_sync(&adapter->ipv4_notifier_work);
 #ifdef WLAN_NS_OFFLOAD
 		cancel_work_sync(&adapter->ipv6_notifier_work);
-#endif
 #endif
 		if (adapter->device_mode == QDF_SAP_MODE) {
 			ucfg_ipa_flush_pending_vdev_events(hdd_ctx->pdev,
