@@ -38,6 +38,7 @@ config TOOLS_SUPPORT_RELR
 
 config LLVM_POLLY
 	bool "Enable LLVM's polyhedral loop optimizer (Polly)"
+	depends on $(cc-option, -mllvm -polly)
 	help
 	  This option enables LLVM's polyhedral loop optimizer known as Polly.
 	  Polly is able to optimize various loops throughout the kernel for
