@@ -968,6 +968,8 @@ struct kvm_lapic_irq {
 };
 
 struct kvm_x86_ops {
+	const char *name;
+
 	int (*cpu_has_kvm_support)(void);          /* __init */
 	int (*disabled_by_bios)(void);             /* __init */
 	int (*hardware_enable)(void);
