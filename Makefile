@@ -682,7 +682,8 @@ OPT_FLAGS := -mllvm -polly \
 	     -mllvm -polly-vectorizer=stripmine \
 	     -mllvm -polly-invariant-load-hoisting \
 	     $(call cc-option, -mllvm -polly-loopfusion-greedy) \
-	     $(call cc-option, -mllvm -polly-reschedule)
+	     $(call cc-option, -mllvm -polly-reschedule) \
+	     $(call cc-option, -mllvm -polly-postopts)
 endif
 OPT_FLAGS	:= -mcpu=cortex-a53
 else ifdef CONFIG_CC_IS_GCC
