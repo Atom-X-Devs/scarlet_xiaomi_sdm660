@@ -15,7 +15,6 @@ config PSTORE
 
 config PSTORE_DEFLATE_COMPRESS
 	tristate "DEFLATE (ZLIB) compression"
-	default y
 	depends on PSTORE
 	select CRYPTO_DEFLATE
 	help
@@ -31,6 +30,7 @@ config PSTORE_LZO_COMPRESS
 
 config PSTORE_LZ4_COMPRESS
 	tristate "LZ4 compression"
+	default y
 	depends on PSTORE
 	select CRYPTO_LZ4
 	help
