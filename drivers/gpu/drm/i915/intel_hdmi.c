@@ -1857,7 +1857,8 @@ intel_hdmi_dp_dual_mode_detect(struct drm_connector *connector, bool has_edid)
 	 * confusing log messages about DP dual mode adaptors when
 	 * there's nothing connected to the port.
 	 */
-	if (type == DRM_DP_DUAL_MODE_UNKNOWN) {
+	if (!i915_modparams.disable_dualmode_redetection &&
+	    type == DRM_DP_DUAL_MODE_UNKNOWN) {
 		/* An overridden EDID imply that we want this port for testing.
 		 * Make sure not to set limits for that port.
 		 */
@@ -1870,7 +1871,8 @@ intel_hdmi_dp_dual_mode_detect(struct drm_connector *connector, bool has_edid)
 		}
 	}
 
-	if (type == DRM_DP_DUAL_MODE_NONE)
+	if (type == DRM_DP_DUAL_MODE_NONE ||
+	    type == DRM_DP_DUAL_MODE_UNKNOWN)
 		return;
 
 	hdmi->dp_dual_mode.type = type;
