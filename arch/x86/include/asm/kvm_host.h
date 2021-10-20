@@ -851,6 +851,8 @@ struct kvm_arch {
 	bool hlt_in_guest;
 	bool pause_in_guest;
 
+	u64 msr_suspend_time;
+
 	unsigned long irq_sources_bitmap;
 	s64 kvmclock_offset;
 	raw_spinlock_t tsc_write_lock;
