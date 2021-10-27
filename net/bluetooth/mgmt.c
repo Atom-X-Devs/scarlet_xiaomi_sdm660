@@ -5119,13 +5119,6 @@ void mgmt_start_discovery_complete(struct hci_dev *hdev, u8 status)
 	}
 
 	hci_dev_unlock(hdev);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_UNPAUSE_DISCOVERY,
-			       hdev->suspend_tasks)) {
-		bt_dev_dbg(hdev, "Unpaused discovery");
-		wake_up(&hdev->suspend_wait_q);
-	}
 }
 
 static bool discovery_type_is_valid(struct hci_dev *hdev, uint8_t type,
@@ -5164,13 +5157,6 @@ static void start_discovery_complete(struct hci_dev *hdev, void *data, int err)
 	mgmt_cmd_complete(cmd->sk, cmd->index, cmd->opcode, mgmt_status(err),
 			  cmd->param, 1);
 	mgmt_pending_free(cmd);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_UNPAUSE_DISCOVERY,
-			       hdev->suspend_tasks)) {
-		bt_dev_dbg(hdev, "Unpaused discovery");
-		wake_up(&hdev->suspend_wait_q);
-	}
 
 	hci_discovery_set_state(hdev, err ? DISCOVERY_STOPPED :
 				DISCOVERY_FINDING);
@@ -5394,12 +5380,6 @@ void mgmt_stop_discovery_complete(struct hci_dev *hdev, u8 status)
 	}
 
 	hci_dev_unlock(hdev);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_PAUSE_DISCOVERY, hdev->suspend_tasks)) {
-		bt_dev_dbg(hdev, "Paused discovery");
-		wake_up(&hdev->suspend_wait_q);
-	}
 }
 
 static void stop_discovery_complete(struct hci_dev *hdev, void *data, int err)
@@ -5411,12 +5391,6 @@ static void stop_discovery_complete(struct hci_dev *hdev, void *data, int err)
 	mgmt_cmd_complete(cmd->sk, cmd->index, cmd->opcode, mgmt_status(err),
 			  cmd->param, 1);
 	mgmt_pending_free(cmd);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_PAUSE_DISCOVERY, hdev->suspend_tasks)) {
-		bt_dev_dbg(hdev, "Paused discovery");
-		wake_up(&hdev->suspend_wait_q);
-	}
 
 	if (!err)
 		hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
@@ -5656,17 +5630,6 @@ static void set_advertising_complete(struct hci_dev *hdev, void *data, int err)
 
 	if (match.sk)
 		sock_put(match.sk);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_PAUSE_ADVERTISING,
-			       hdev->suspend_tasks)) {
-		bt_dev_dbg(hdev, "Paused advertising");
-		wake_up(&hdev->suspend_wait_q);
-	} else if (test_and_clear_bit(SUSPEND_UNPAUSE_ADVERTISING,
-				      hdev->suspend_tasks)) {
-		bt_dev_dbg(hdev, "Unpaused advertising");
-		wake_up(&hdev->suspend_wait_q);
-	}
 
 	/* If "Set Advertising" was just disabled and instance advertising was
 	 * set up earlier, then re-enable multi-instance advertising.
