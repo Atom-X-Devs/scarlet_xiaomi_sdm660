@@ -120,7 +120,7 @@
 		"MAX";
 
 		qcom,pm-qos-cpu-groups = <0x0F 0xF0>;
-		qcom,pm-qos-cpu-group-latency-us = <26 26>;
+		qcom,pm-qos-cpu-group-latency-us = <100 100>;
 		qcom,pm-qos-default-cpu = <0>;
 
 		resets = <&clock_gcc GCC_UFS_BCR>;
