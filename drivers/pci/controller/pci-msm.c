@@ -7114,7 +7114,7 @@ static void msm_pcie_drv_connect_worker(struct work_struct *work)
 static int __init pcie_init(void)
 {
 	int ret = 0, i;
-	char rc_name[MAX_RC_NAME_LEN];
+	char rc_name[MAX_RC_NAME_LEN] __maybe_unused;
 
 	pr_alert("pcie:%s.\n", __func__);
 
