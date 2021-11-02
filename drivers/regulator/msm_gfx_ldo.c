@@ -1419,7 +1419,7 @@ static const struct file_operations msm_gfx_ldo_debug_info_fops = {
 	.read = msm_gfx_ldo_debug_info_read,
 };
 
-static void msm_gfx_ldo_debugfs_init(struct msm_gfx_ldo *ldo_vreg)
+static void __maybe_unused msm_gfx_ldo_debugfs_init(struct msm_gfx_ldo *ldo_vreg)
 {
 	struct dentry *temp;
 
