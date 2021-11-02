@@ -2905,7 +2905,7 @@ DEFINE_DEBUGFS_ATTRIBUTE(debugfs_acd_debug_reg_addr_fops,
 			debugfs_set_debug_reg_addr,
 			"%llu\n");
 
-static void populate_debugfs_dir(struct clk_osm *c)
+static void __maybe_unused populate_debugfs_dir(struct clk_osm *c)
 {
 	struct dentry *temp;
 
