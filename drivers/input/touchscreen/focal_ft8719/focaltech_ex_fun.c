@@ -460,13 +460,19 @@ static void tp_lockdown_init(void)
 	ret = fts_i2c_write_reg(client, 0x00, 0x40);
 	if(ret < 0)
 		FTS_ERROR("[FTS] i2c write 0x00 err\n");
+
 	msleep(5);
+
 	ret = fts_i2c_write_reg(client, 0x17, 0x20);
 	if (ret < 0)
 		FTS_ERROR("[FTS] i2c write 0x17 err\n");
-		msleep(5);
+
+	msleep(5);
+
 	auc_i2c_write_buf[0] = 0x81;
-		msleep(5);
+
+	msleep(5);
+
 	ret = fts_i2c_read(client, auc_i2c_write_buf, 1, r_buf, 8);
 		tp_maker_cg_lamination = r_buf[0];
 		FTS_INFO("The maker of Touch Panel & CG Lamination: 0x%02X \n", tp_maker_cg_lamination);
@@ -482,12 +488,13 @@ static void tp_lockdown_init(void)
 		FTS_INFO("CG maker: 0x%02X \n", cg_maker);
 		reservation_byte = r_buf[7];
 		FTS_INFO("Reservation byte: 0x%02X \n", reservation_byte);
-	
+
 	ret = fts_i2c_write_reg(client,0x00,0x00);
-		if(ret < 0)
-			FTS_ERROR("[FTS] i2c read 0x00 err \n");
+	if (ret < 0)
+		FTS_ERROR("[FTS] i2c read 0x00 err \n");
 
 }
+
 static int32_t fts_xiaomi_lockdown_info_open(struct inode *inode, struct file *file)
 {
 	tp_lockdown_init();
