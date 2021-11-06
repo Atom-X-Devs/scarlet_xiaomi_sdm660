@@ -51,3 +51,5 @@ obj-$(CONFIG_SND_OSSEMUL)	+= oss/
 obj-$(CONFIG_SND_SEQUENCER)	+= seq/
 
 obj-$(CONFIG_SND_COMPRESS_OFFLOAD)	+= snd-compress.o
+
+ccflags-y += -Os
