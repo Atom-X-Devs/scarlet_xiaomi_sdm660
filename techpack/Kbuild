@@ -8,3 +8,4 @@ techpack-header-dirs := $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1
 header-${TECHPACK} += $(addsuffix /include/uapi/,$(subst $(srctree)/techpack/,,$(techpack-header-dirs)))
 
 subdir-ccflags-y += -Os
+subdir-ccflags-y += -g0

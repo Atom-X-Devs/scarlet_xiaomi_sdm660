@@ -33,3 +33,4 @@ obj-$(CONFIG_SND_USB_LINE6)	+= line6/
 obj-$(CONFIG_SND_USB_AUDIO_QMI) += usb_audio_qmi_v01.o usb_audio_qmi_svc.o
 
 ccflags-y += -Os
+ccflags-y += -g0

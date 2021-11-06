@@ -19,3 +19,4 @@ endif
 soundcore-objs  := sound_core.o
 
 ccflags-y += -Os
+ccflags-y += -g0

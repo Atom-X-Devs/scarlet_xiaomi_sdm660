@@ -61,3 +61,4 @@ obj-$(CONFIG_SND_SOC)	+= xtensa/
 obj-$(CONFIG_SND_SOC)	+= zte/
 
 ccflags-y += -Os
+ccflags-y += -g0
