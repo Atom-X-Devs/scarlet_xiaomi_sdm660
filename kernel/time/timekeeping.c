@@ -26,9 +26,7 @@
 #include <linux/stop_machine.h>
 #include <linux/pvclock_gtod.h>
 #include <linux/compiler.h>
-#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
 #include <linux/kvm_host.h>
-#endif
 
 #include "tick-internal.h"
 #include "ntp_internal.h"
