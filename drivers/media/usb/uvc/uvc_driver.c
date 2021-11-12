@@ -252,7 +252,7 @@ static struct uvc_format_desc *uvc_format_by_guid(const u8 guid[16])
 static u32 uvc_colorspace(const u8 primaries)
 {
 	static const u8 colorprimaries[] = {
-		0,
+		V4L2_COLORSPACE_SRGB,  /* Unspecified */
 		V4L2_COLORSPACE_SRGB,
 		V4L2_COLORSPACE_470_SYSTEM_M,
 		V4L2_COLORSPACE_470_SYSTEM_BG,
@@ -263,7 +263,7 @@ static u32 uvc_colorspace(const u8 primaries)
 	if (primaries < ARRAY_SIZE(colorprimaries))
 		return colorprimaries[primaries];
 
-	return 0;
+	return V4L2_COLORSPACE_SRGB;  /* Reserved */
 }
 
 /* Simplify a fraction using a simple continued fraction decomposition. The
@@ -693,6 +693,8 @@ static int uvc_parse_format(struct uvc_device *dev,
 
 		buflen -= buffer[0];
 		buffer += buffer[0];
+	} else {
+		format->colorspace = V4L2_COLORSPACE_SRGB;
 	}
 
 	return buffer - start;
