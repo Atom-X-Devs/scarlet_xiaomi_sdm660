@@ -5130,11 +5130,17 @@ static bool quality_report_evt(struct hci_dev *hdev, struct sk_buff *skb)
 		if (aosp_has_quality_report(hdev) &&
 		    aosp_pull_quality_report_data(skb))
 			mgmt_quality_report(hdev, skb, QUALITY_SPEC_AOSP_BQR);
-
-		return true;
+	} else if (hdev->is_quality_report_evt &&
+		   hdev->is_quality_report_evt(skb)) {
+		if (hdev->set_quality_report &&
+		    hdev->pull_quality_report_data(skb))
+			mgmt_quality_report(hdev, skb,
+					    QUALITY_SPEC_INTEL_TELEMETRY);
+	} else {
+		return false;
 	}
 
-	return false;
+	return true;
 }
 
 static void le_conn_update_addr(struct hci_conn *conn, bdaddr_t *bdaddr,
