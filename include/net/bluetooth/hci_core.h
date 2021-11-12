@@ -502,7 +502,6 @@ struct hci_dev {
 
 	struct work_struct	start_discov_update;
 	struct work_struct	stop_discov_update;
-	struct work_struct	bg_scan_update;
 	struct work_struct	scan_update;
 	struct delayed_work	le_scan_disable;
 	struct delayed_work	le_scan_restart;
