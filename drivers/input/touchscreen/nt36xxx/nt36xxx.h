@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2010 - 2018 Novatek, Inc.
  *
@@ -62,7 +61,7 @@
 
 //---Touch info.---
 #define TOUCH_DEFAULT_MAX_WIDTH 1080
-#define TOUCH_DEFAULT_MAX_HEIGHT 2408
+#define TOUCH_DEFAULT_MAX_HEIGHT 1920
 #define TOUCH_MAX_FINGER_NUM 10
 #define TOUCH_KEY_NUM 0
 #if TOUCH_KEY_NUM > 0
@@ -71,18 +70,18 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #define TOUCH_FORCE_NUM 1000
 
 /* Enable only when module have tp reset pin and connected to host */
-#define NVT_TOUCH_SUPPORT_HW_RST 1
+#define NVT_TOUCH_SUPPORT_HW_RST 0
 
 //---Customerized func.---
 #define NVT_TOUCH_PROC 1
 #define NVT_TOUCH_EXT_PROC 1
 #define NVT_TOUCH_MP 1
 #define MT_PROTOCOL_B 1
-#define WAKEUP_GESTURE 0
+#define WAKEUP_GESTURE 1
 #if WAKEUP_GESTURE
 extern const uint16_t gesture_key_array[];
 #endif
-#define BOOT_UPDATE_FIRMWARE 1
+#define BOOT_UPDATE_FIRMWARE 0
 #define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw.bin"
 
 //---ESD Protect.---
@@ -95,11 +94,12 @@ struct nvt_ts_data {
 	struct delayed_work nvt_fwu_work;
 	uint16_t addr;
 	int8_t phys[32];
-	const struct i2c_device_id *id;
-#if defined(CONFIG_DRM_PANEL)
+#if defined(CONFIG_FB)
+#ifdef _MSM_DRM_NOTIFY_H_
 	struct notifier_block drm_notif;
-#elif defined(CONFIG_FB)
+#else
 	struct notifier_block fb_notif;
+#endif
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 	struct early_suspend early_suspend;
 #endif
@@ -133,9 +133,9 @@ struct nvt_flash_data{
 
 typedef enum {
 	RESET_STATE_INIT = 0xA0,// IC reset
-	RESET_STATE_REK,        // ReK baseline
-	RESET_STATE_REK_FINISH, // baseline is ready
-	RESET_STATE_NORMAL_RUN, // normal run
+	RESET_STATE_REK,		// ReK baseline
+	RESET_STATE_REK_FINISH,	// baseline is ready
+	RESET_STATE_NORMAL_RUN,	// normal run
 	RESET_STATE_MAX  = 0xAF
 } RST_COMPLETE_STATE;
 
