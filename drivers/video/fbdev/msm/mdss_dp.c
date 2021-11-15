@@ -4456,6 +4456,12 @@ exit:
 	pr_debug("exit\n");
 }
 
+#if defined(CONFIG_MACH_XIAOMI_TULIP) || defined(CONFIG_MACH_XIAOMI_WHYRED)
+#define ENABLE_DP_SETUP 0
+#else
+#define ENABLE_DP_SETUP 1
+#endif
+
 static int mdss_dp_usbpd_setup(struct mdss_dp_drv_pdata *dp_drv)
 {
 	int ret = 0;
@@ -4538,7 +4544,7 @@ static int mdss_dp_probe(struct platform_device *pdev)
 	init_completion(&dp_drv->video_comp);
 	init_completion(&dp_drv->audio_comp);
 
-#if !defined(CONFIG_MACH_XIAOMI_TULIP) || !defined(CONFIG_MACH_XIAOMI_WHYRED)
+#if ENABLE_DP_SETUP
 	if (mdss_dp_usbpd_setup(dp_drv)) {
 		pr_err("Error usbpd setup!\n");
 		dp_drv = NULL;
