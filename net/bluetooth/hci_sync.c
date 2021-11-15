@@ -3902,12 +3902,13 @@ setup_failed:
 	    hci_dev_test_flag(hdev, HCI_VENDOR_DIAG) && hdev->set_diag)
 		ret = hdev->set_diag(hdev, true);
 
-	msft_do_open(hdev);
-	aosp_do_open(hdev);
+	if (!hci_dev_test_flag(hdev, HCI_USER_CHANNEL)) {
+		msft_do_open(hdev);
+		aosp_do_open(hdev);
 
-	if (hci_dev_test_flag(hdev, HCI_QUALITY_REPORT))
-		set_quality_report(hdev, true);
-
+		if (hci_dev_test_flag(hdev, HCI_QUALITY_REPORT))
+			set_quality_report(hdev, true);
+	}
 	clear_bit(HCI_INIT, &hdev->flags);
 
 	if (!ret) {
@@ -3990,11 +3991,12 @@ int hci_dev_close_sync(struct hci_dev *hdev)
 	/* Disable quality report and close aosp before shutdown()
 	 * is called. Otherwise, some chips may panic.
 	 */
-	if (hci_dev_test_flag(hdev, HCI_QUALITY_REPORT))
-		set_quality_report(hdev, false);
+	if (!hci_dev_test_flag(hdev, HCI_USER_CHANNEL)) {
+		if (hci_dev_test_flag(hdev, HCI_QUALITY_REPORT))
+			set_quality_report(hdev, false);
 
-	aosp_do_close(hdev);
-
+		aosp_do_close(hdev);
+	}
 	if (!hci_dev_test_flag(hdev, HCI_UNREGISTER) &&
 	    !hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
 	    test_bit(HCI_UP, &hdev->flags)) {
@@ -4061,7 +4063,8 @@ int hci_dev_close_sync(struct hci_dev *hdev)
 	/* TODO: May be better to close msft early in the beginning of
 	 * hci_dev_do_close before shutdown() is called.
 	 */
-	msft_do_close(hdev);
+	if (!hci_dev_test_flag(hdev, HCI_USER_CHANNEL))
+		msft_do_close(hdev);
 
 	if (hdev->flush)
 		hdev->flush(hdev);
