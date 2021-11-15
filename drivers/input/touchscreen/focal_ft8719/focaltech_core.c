@@ -53,7 +53,7 @@
 * Global variable or extern global variabls/functions
 *****************************************************************************/
 struct fts_ts_data *fts_data;
-
+extern int fts_touch;
 /*****************************************************************************
 * Static function prototypes
 *****************************************************************************/
@@ -1252,6 +1252,11 @@ static int fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
     struct fts_ts_data *ts_data;
 
     FTS_FUNC_ENTER();
+    if (fts_touch != 1) {
+        pr_err("fts_ts_probe: focaltech touch not present probe abort\n");
+        return -ENODEV;
+    }
+
     if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
         FTS_ERROR("I2C not supported");
         return -ENODEV;
