@@ -555,6 +555,9 @@ static void __init mm_init(void)
 }
 
 #ifdef CONFIG_MACH_LONGCHEER
+#ifdef CONFIG_MACH_XIAOMI_TULIP
+int fts_touch = 1;
+#endif
 int fpsensor = 1;
 bool is_poweroff_charge = false;
 #endif
@@ -595,6 +598,13 @@ asmlinkage __visible void __init start_kernel(void)
 	jump_label_init();
 
 #ifdef CONFIG_MACH_LONGCHEER
+#ifdef CONFIG_MACH_XIAOMI_TULIP
+	if (strstr(boot_command_line, "qcom,mdss_dsi_ft8719_e7t_boe_fhdplus_video"))
+		fts_touch = 1;
+	else
+		fts_touch = 2;
+#endif
+
 	if (strstr(boot_command_line, "androidboot.fpsensor=fpc"))
 		fpsensor = 1;
 	else
