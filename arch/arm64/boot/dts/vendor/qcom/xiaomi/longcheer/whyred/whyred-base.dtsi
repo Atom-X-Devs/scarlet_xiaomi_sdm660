@@ -10,6 +10,11 @@
 	qcom,thermal-mitigation = <2500000 2300000 2000000 1500000 1000000 400000 200000>;
 };
 
+&pm660_haptics {
+	qcom,actuator-type = "erm";
+	qcom,lra-resonance-sig-shape = "square";
+};
+
 /* msm-audio.dtsi whyred specific diff */
 &int_codec {
 	qcom,wsa-disable;
