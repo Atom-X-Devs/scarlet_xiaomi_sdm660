@@ -4,40 +4,40 @@
 &tlmm {
 	hall_int_active:hall_int_active {
 		mux {
-            pins = "gpio75";
-            function = "gpio";
+			pins = "gpio75";
+			function = "gpio";
 		};
 
 		config {
-            pins = "gpio75";
-            drive-strength = <6>;
-            bias-pull-up;
-        };
-    };
+			pins = "gpio75";
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+	};
 
 	hall_int_suspend: hall_int_suspend {
 		mux {
-            pins = "gpio75";
-            function = "gpio";
+			pins = "gpio75";
+			function = "gpio";
 		};
 
-        config {
-            pins = "gpio75";
-            drive-strength = <6>;
-            bias-pull-up;
+		config {
+			pins = "gpio75";
+			drive-strength = <6>;
+			bias-pull-up;
 		};
-    };
+	};
 };
 
 &soc {
 	hall_switch {
-	    compatible = "hall-switch,och175";
-	    pinctrl-names = "hall_active","hall_suspend";
-	    pinctrl-0 = <&hall_int_active>;
-	    pinctrl-1 = <&hall_int_suspend>;
-	    vdd-io-supply= <&pm660_l8>;
-	    interrupt-names = "hall_irq";
-	    hall,irq-gpio = <&tlmm 75 0x0>;
+		compatible = "hall-switch,och175";
+		pinctrl-names = "hall_active","hall_suspend";
+		pinctrl-0 = <&hall_int_active>;
+		pinctrl-1 = <&hall_int_suspend>;
+		vdd-io-supply= <&pm660_l8>;
+		interrupt-names = "hall_irq";
+		hall,irq-gpio = <&tlmm 75 0x0>;
 	};
 };
 
@@ -83,16 +83,18 @@
 };
 
 &qusb_phy0 {
-	qcom,qusb-phy-init-seq = <0xf8 0x80
-				0x63 0x84
-				0x83 0x88
-				0xc0 0x8c
-				0x30 0x08
-				0x79 0x0c
-				0x21 0x10
-				0x14 0x9c
-				0x9f 0x1c
-				0x00 0x18>;
+	qcom,qusb-phy-init-seq = <
+		0xf8 0x80
+		0x63 0x84
+		0x83 0x88
+		0xc0 0x8c
+		0x30 0x08
+		0x79 0x0c
+		0x21 0x10
+		0x14 0x9c
+		0x9f 0x1c
+		0x00 0x18
+	>;
 };
 
 /* msm-pm660.dtsi tulip/whyred specific diff */
