@@ -7,55 +7,57 @@
 &tlmm {
 	hall_int_active:hall_int_active {
 		mux {
-            pins = "gpio76";
-            function = "gpio";
+			pins = "gpio76";
+			function = "gpio";
 		};
 
 		config {
-            pins = "gpio76";
-            drive-strength = <6>;
-            bias-pull-up;
-        };
-    };
+			pins = "gpio76";
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+	};
 
 	hall_int_suspend: hall_int_suspend {
 		mux {
-            pins = "gpio76";
-            function = "gpio";
+			pins = "gpio76";
+			function = "gpio";
 		};
 
-        config {
-            pins = "gpio76";
-            drive-strength = <6>;
-            bias-pull-up;
+		config {
+			pins = "gpio76";
+			drive-strength = <6>;
+			bias-pull-up;
 		};
 	};
 };
 
 &soc {
 	hall_switch {
-	    compatible = "hall-switch,och175";
-	    pinctrl-names = "hall_active","hall_suspend";
-	    pinctrl-0 = <&hall_int_active>;
-	    pinctrl-1 = <&hall_int_suspend>;
-	    vdd-io-supply= <&pm660_l8>;
-	    interrupt-names = "hall_irq";
-	    hall,irq-gpio = <&tlmm 76 0x0>;
+		compatible = "hall-switch,och175";
+		pinctrl-names = "hall_active","hall_suspend";
+		pinctrl-0 = <&hall_int_active>;
+		pinctrl-1 = <&hall_int_suspend>;
+		vdd-io-supply= <&pm660_l8>;
+		interrupt-names = "hall_irq";
+		hall,irq-gpio = <&tlmm 76 0x0>;
 	};
 };
 
 /* sdm660-common.dtsi diff wayne - whyred/tulip */
 &qusb_phy0 {
-	qcom,qusb-phy-init-seq = <0xf8 0x80
-				0x33 0x84
-				0x83 0x88
-				0xc0 0x8c
-				0x30 0x08
-				0x79 0x0c
-				0x21 0x10
-				0x14 0x9c
-				0x9f 0x1c
-				0x00 0x18>;
+	qcom,qusb-phy-init-seq = <
+		0xf8 0x80
+		0x33 0x84
+		0x83 0x88
+		0xc0 0x8c
+		0x30 0x08
+		0x79 0x0c
+		0x21 0x10
+		0x14 0x9c
+		0x9f 0x1c
+		0x00 0x18
+	>;
 };
 
 /* msm-pm660.dtsi wayne specific diff */
@@ -68,9 +70,8 @@
 	qcom,otg-cl-ua = <1500000>;
 	qcom,dc-icl-ua = <2900000>;
 	qcom,fcc-max-ua = <2900000>;
-	qcom,fv-max-uv  = <4400000>;
-	qcom,thermal-mitigation
-			= <2900000 2000000 1800000 1500000 1000000 500000 100000>;
+	qcom,fv-max-uv = <4400000>;
+	qcom,thermal-mitigation = <2900000 2000000 1800000 1500000 1000000 500000 100000>;
 };
 
 &pm660_fg {
