@@ -35,15 +35,16 @@
 		qcom,mdss-dsi-lane-1-state;
 		qcom,mdss-dsi-lane-2-state;
 		qcom,mdss-dsi-lane-3-state;
-		qcom,mdss-dsi-panel-timings = [e6 38 26 00 68 6e 2a
-									3c 44 03 04 00];
+		qcom,mdss-dsi-panel-timings = [
+			e6 38 26 00 68 6e 2a
+			3c 44 03 04 00
+		];
 		qcom,mdss-dsi-t-clk-post = <0x0e>;
 		qcom,mdss-dsi-t-clk-pre = <0x34>;
 		qcom,mdss-dsi-bl-min-level = <1>;
 		qcom,mdss-dsi-bl-max-level = <4095>;
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
-
 		qcom,mdss-dsi-on-command = [
 			39 01 00 00 46 00 02 11 00
 			29 01 00 00 00 00 02 B0 04
@@ -54,19 +55,16 @@
 			39 01 00 00 00 00 02 35 00
 			39 01 00 00 14 00 02 29 00
 		];
-
 		qcom,mdss-dsi-off-command = [
 			05 01 00 00 14 00 02 28 00
 			05 01 00 00 78 00 02 10 00
 		];
-
 		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-reset-sequence = <1 1>, <0 5>, <1 35>;
 		qcom,mdss-dsi-tx-eot-append;
 		qcom,mdss-dsi-post-init-delay = <1>;
-
 		qcom,esd-check-enabled;
 		qcom,mdss-dsi-panel-status-command = [06 01 00 01 05 00 01 0A];
 		qcom,mdss-dsi-panel-status-command-state = "dsi_hs_mode";
@@ -74,16 +72,12 @@
 		qcom,mdss-dsi-panel-status-read-length = <1>;
 		qcom,mdss-dsi-panel-status-value = <0x1c>;
 		qcom,mdss-dsi-panel-max-error-count = <3>;
-
 		cm,mdss-livedisplay-cabc-ui-cmd = [
 			15 00 00 00 00 00 02 55 01
 			29 00 00 00 00 00 08 B8 89 51 0d 00 02 00 00
 			29 00 00 00 00 00 1A CE 55 40 4d 6a 75 97 a7 b6 c9 d0 d4 e7 e8 e9 f2 fb ff 04 00 00 04 46 04 69 5a
 			29 01 00 00 00 00 0A F9 64 FF E0 BE 00 8D BF 80 00
 		];
-
-		cm,mdss-livedisplay-cabc-cmd = [
-			15 01 00 00 00 00 02 55 00
-		];
+		cm,mdss-livedisplay-cabc-cmd = [15 01 00 00 00 00 02 55 00];
 	};
 };
