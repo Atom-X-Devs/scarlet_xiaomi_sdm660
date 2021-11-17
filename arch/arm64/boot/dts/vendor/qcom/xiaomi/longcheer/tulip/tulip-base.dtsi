@@ -19,6 +19,11 @@
 	qcom,rradc-fg-reset-wa;
 };
 
+&pm660_haptics {
+	qcom,actuator-type = "erm";
+	qcom,lra-resonance-sig-shape = "square";
+};
+
 /* sdm660-mtp.dtsi tulip specific diff */
 &mtp_batterydata {
 	#include "fg-gen3-batterydata-l6660cos-4000mah.dtsi"
