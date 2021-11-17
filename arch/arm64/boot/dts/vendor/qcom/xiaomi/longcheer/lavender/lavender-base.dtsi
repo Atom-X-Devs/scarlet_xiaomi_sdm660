@@ -23,9 +23,8 @@
 	qcom,otg-cl-ua = <1500000>;
 	qcom,dc-icl-ua = <2900000>;
 	qcom,fcc-max-ua = <2900000>;
-	qcom,fv-max-uv  = <4400000>;
-			qcom,thermal-mitigation
-					= <2900000 2400000 2000000 1500000 800000 500000 100000>;
+	qcom,fv-max-uv = <4400000>;
+	qcom,thermal-mitigation = <2900000 2400000 2000000 1500000 800000 500000 100000>;
 };
 
 &pm660_fg {
@@ -35,7 +34,8 @@
 
 /* sdm660-common.dtsi lavender specific diff */
 &qusb_phy0 {
-	qcom,qusb-phy-init-seq = <0xf8 0x80
+	qcom,qusb-phy-init-seq = <
+		0xf8 0x80
 		0x33 0x84
 		0x83 0x88
 		0xc5 0x8c
@@ -44,7 +44,8 @@
 		0x21 0x10
 		0x14 0x9c
 		0x9f 0x1c
-		0x00 0x18>;
+		0x00 0x18
+	>;
 };
 
 /* sdm660-mtp.dtsi lavender specific diff */
