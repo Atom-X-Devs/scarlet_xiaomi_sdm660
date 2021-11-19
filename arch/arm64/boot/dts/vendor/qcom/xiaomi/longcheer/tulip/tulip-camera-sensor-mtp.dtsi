@@ -287,6 +287,7 @@
 		qcom,mem0 = <7158 0x0000 2 0x0 1 0>;
 		cam_vio-supply = <&pm660_l11>;
 		cam_vana-supply = <&cam_avdd_gpio_regulator>;
+		cam_vdig-supply = <&cam_rear_dvdd_gpio_regulator>;
 		qcom,cam-vreg-name = "cam_vio", "cam_vana", "cam_vdig" ;
 		qcom,cam-vreg-min-voltage = <1780000 0 0>;
 		qcom,cam-vreg-max-voltage = <1950000 0 0>;
@@ -428,6 +429,7 @@
 		qcom,mem0 = <7158 0x0000 2 0x0 1 0>;
 		cam_vio-supply = <&pm660_l11>;
 		cam_vana-supply = <&cam_avdd_gpio_regulator>;
+		cam_vdig-supply = <&cam_rear_dvdd_gpio_regulator>;
 		qcom,cam-vreg-name = "cam_vio", "cam_vana", "cam_vdig";
 		qcom,cam-vreg-min-voltage = <1780000 0 0>;
 		qcom,cam-vreg-max-voltage = <1950000 0 0>;
@@ -700,8 +702,8 @@
 		qcom,mount-angle = <90>;
 		qcom,eeprom-src = <&eeprom0 &eeprom7>;
 		cam_vio-supply = <&pm660_l11>;//1.8
-		cam_vana-supply = <&cam_avdd_gpio_regulator>;//2.8
-		cam_vdig-supply = <&cam_rear_dvdd_gpio_regulator>;//1.2
+		cam_vana-supply = <&cam_avdd_gpio_regulator>;
+		cam_vdig-supply = <&cam_rear_dvdd_gpio_regulator>;
 		qcom,cam-vreg-name = "cam_vio", "cam_vana", "cam_vdig";
 		qcom,cam-vreg-min-voltage = <1780000 0 0>;
 		qcom,cam-vreg-max-voltage = <1950000 0 0>;
@@ -821,6 +823,7 @@
 		qcom,eeprom-src = <&eeprom2 &eeprom5>;
 		cam_vio-supply = <&pm660_l11>;
 		cam_vana-supply = <&cam_avdd_gpio_regulator>;
+		cam_vdig-supply = <&cam_rear_dvdd_gpio_regulator>;
 		qcom,cam-vreg-name = "cam_vio", "cam_vana", "cam_vdig";
 		qcom,cam-vreg-min-voltage = <1780000 0 0>;
 		qcom,cam-vreg-max-voltage = <1950000 0 0>;
