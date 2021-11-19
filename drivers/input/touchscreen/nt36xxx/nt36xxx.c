@@ -745,13 +745,20 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 
 #if XIAOMI_PANEL
 	ts->vcc_i2c = regulator_get(&client->dev, "vcc_i2c-supply");
-	if (IS_ERR(ts->vcc_i2c))
+	if (IS_ERR(ts->vcc_i2c)) {
 		ret = PTR_ERR(ts->vcc_i2c);
+		goto err_regulator_get_failed;
+	}
 
-	if (regulator_count_voltages(ts->vcc_i2c) > 0)
+	if (regulator_count_voltages(ts->vcc_i2c) > 0) {
 		ret = regulator_set_voltage(ts->vcc_i2c, 1800000, 1800000);
+		if (ret)
+			goto err_regulator_put;
+	}
 
 	ret = regulator_enable(ts->vcc_i2c);
+	if (ret)
+		goto err_regulator_put;
 #endif
 
 	ret = nvt_ts_check_chip_ver_trim();
@@ -889,6 +896,11 @@ err_input_register_device_failed:
 		input_free_device(ts->input_dev);
 		ts->input_dev = NULL;
 	}
+#if XIAOMI_PANEL
+err_regulator_put:
+	regulator_put(ts->vcc_i2c);
+err_regulator_get_failed:
+#endif
 err_input_dev_alloc_failed:
 err_chipvertrim_failed:
 	mutex_destroy(&ts->xbuf_lock);
