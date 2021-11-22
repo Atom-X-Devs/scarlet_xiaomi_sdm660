@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2017-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2017-2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -27,7 +28,7 @@
 #include "mali_kbase_ipa.h"
 #include "mali_kbase_ipa_debugfs.h"
 
-#if (KERNEL_VERSION(4, 7, 0) > LINUX_VERSION_CODE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
 #define DEFINE_DEBUGFS_ATTRIBUTE DEFINE_SIMPLE_ATTRIBUTE
 #endif
 
@@ -159,8 +160,7 @@ int kbase_ipa_model_param_add(struct kbase_ipa_model *model, const char *name,
 		return -ENOMEM;
 
 	/* 'name' is stack-allocated for array elements, so copy it into
-	 * heap-allocated storage
-	 */
+	 * heap-allocated storage */
 	param->name = kstrdup(name, GFP_KERNEL);
 
 	if (!param->name) {

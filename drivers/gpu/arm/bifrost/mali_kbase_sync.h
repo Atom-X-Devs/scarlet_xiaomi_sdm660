@@ -1,12 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2012-2016, 2018-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2016, 2018-2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,10 +16,14 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
 
 /**
- * DOC: This file contains our internal "API" for explicit fences.
+ * @file mali_kbase_sync.h
+ *
+ * This file contains our internal "API" for explicit fences.
  * It hides the implementation details of the actual explicit fence mechanism
  * used (Android fences or sync file with DMA fences).
  */
@@ -28,12 +31,11 @@
 #ifndef MALI_KBASE_SYNC_H
 #define MALI_KBASE_SYNC_H
 
-#include <linux/fdtable.h>
 #include <linux/syscalls.h>
-#if IS_ENABLED(CONFIG_SYNC)
+#ifdef CONFIG_SYNC
 #include <sync.h>
 #endif
-#if IS_ENABLED(CONFIG_SYNC_FILE)
+#ifdef CONFIG_SYNC_FILE
 #include "mali_kbase_fence_defs.h"
 #include <linux/sync_file.h>
 #endif
@@ -70,7 +72,6 @@ struct kbase_sync_fence_info {
  */
 int kbase_sync_fence_stream_create(const char *name, int *const out_fd);
 
-#if !MALI_USE_CSF
 /**
  * kbase_sync_fence_out_create Create an explicit output fence to specified atom
  * @katom: Atom to assign the new explicit fence to
@@ -91,7 +92,6 @@ int kbase_sync_fence_out_create(struct kbase_jd_atom *katom, int stream_fd);
  * return: 0 on success, < 0 on error
  */
 int kbase_sync_fence_in_from_fd(struct kbase_jd_atom *katom, int fd);
-#endif /* !MALI_USE_CSF */
 
 /**
  * kbase_sync_fence_validate() - Validate a fd to be a valid fence
@@ -104,7 +104,6 @@ int kbase_sync_fence_in_from_fd(struct kbase_jd_atom *katom, int fd);
  */
 int kbase_sync_fence_validate(int fd);
 
-#if !MALI_USE_CSF
 /**
  * kbase_sync_fence_out_trigger - Signal explicit output fence attached on katom
  * @katom: Atom with an explicit fence to signal
@@ -155,7 +154,6 @@ void kbase_sync_fence_in_remove(struct kbase_jd_atom *katom);
  * This will also release the corresponding reference.
  */
 void kbase_sync_fence_out_remove(struct kbase_jd_atom *katom);
-#endif /* !MALI_USE_CSF */
 
 /**
  * kbase_sync_fence_close_fd() - Close a file descriptor representing a fence
@@ -163,16 +161,13 @@ void kbase_sync_fence_out_remove(struct kbase_jd_atom *katom);
  */
 static inline void kbase_sync_fence_close_fd(int fd)
 {
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
-	close_fd(fd);
-#elif KERNEL_VERSION(4, 17, 0) <= LINUX_VERSION_CODE
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 	ksys_close(fd);
 #else
 	sys_close(fd);
 #endif
 }
 
-#if !MALI_USE_CSF
 /**
  * kbase_sync_fence_in_info_get() - Retrieves information about input fence
  * @katom: Atom to get fence information from
@@ -192,7 +187,6 @@ int kbase_sync_fence_in_info_get(struct kbase_jd_atom *katom,
  */
 int kbase_sync_fence_out_info_get(struct kbase_jd_atom *katom,
 				  struct kbase_sync_fence_info *info);
-#endif /* !MALI_USE_CSF */
 
 #if defined(CONFIG_SYNC_FILE)
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
@@ -213,7 +207,6 @@ void kbase_sync_fence_info_get(struct dma_fence *fence,
 const char *kbase_sync_status_string(int status);
 
 
-#if !MALI_USE_CSF
 /*
  * Internal worker used to continue processing of atom.
  */
@@ -226,6 +219,5 @@ void kbase_sync_fence_wait_worker(struct work_struct *data);
  */
 void kbase_sync_fence_in_dump(struct kbase_jd_atom *katom);
 #endif
-#endif /* !MALI_USE_CSF */
 
 #endif /* MALI_KBASE_SYNC_H */

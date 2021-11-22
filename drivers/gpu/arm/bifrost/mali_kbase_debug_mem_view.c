@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2013-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2013-2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -29,7 +30,11 @@
 #include <linux/list.h>
 #include <linux/file.h>
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
+#ifdef CONFIG_DEBUG_FS
+
+#if (KERNEL_VERSION(4, 1, 0) > LINUX_VERSION_CODE)
+#define get_file_rcu(x) atomic_long_inc_not_zero(&(x)->f_count)
+#endif
 
 struct debug_mem_mapping {
 	struct list_head node;
@@ -224,19 +229,19 @@ static int debug_mem_open(struct inode *i, struct file *file)
 	kbase_gpu_vm_lock(kctx);
 
 	ret = debug_mem_zone_open(&kctx->reg_rbtree_same, mem_data);
-	if (ret != 0) {
+	if (0 != ret) {
 		kbase_gpu_vm_unlock(kctx);
 		goto out;
 	}
 
 	ret = debug_mem_zone_open(&kctx->reg_rbtree_custom, mem_data);
-	if (ret != 0) {
+	if (0 != ret) {
 		kbase_gpu_vm_unlock(kctx);
 		goto out;
 	}
 
 	ret = debug_mem_zone_open(&kctx->reg_rbtree_exec, mem_data);
-	if (ret != 0) {
+	if (0 != ret) {
 		kbase_gpu_vm_unlock(kctx);
 		goto out;
 	}

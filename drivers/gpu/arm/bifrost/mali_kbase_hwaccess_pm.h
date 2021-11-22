@@ -1,12 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2015, 2018-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2015, 2018-2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,10 +16,14 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
 
+
 /**
- * DOC: HW access power manager common APIs
+ * @file mali_kbase_hwaccess_pm.h
+ * HW access power manager common APIs
  */
 
 #ifndef _KBASE_HWACCESS_PM_H_
@@ -29,7 +32,7 @@
 #include <gpu/mali_kbase_gpu_regmap.h>
 #include <linux/atomic.h>
 
-#include <backend/gpu/mali_kbase_pm_defs.h>
+#include <mali_kbase_pm_defs.h>
 
 /* Forward definition - see mali_kbase.h */
 struct kbase_device;
@@ -77,21 +80,24 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev,
  * the time this function returns, regardless of whether or not the active power
  * policy asks for the GPU to be powered off.
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  */
 void kbase_hwaccess_pm_halt(struct kbase_device *kbdev);
 
 /**
  * Perform any backend-specific actions to suspend the GPU
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  */
 void kbase_hwaccess_pm_suspend(struct kbase_device *kbdev);
 
 /**
  * Perform any backend-specific actions to resume the GPU from a suspend
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  */
 void kbase_hwaccess_pm_resume(struct kbase_device *kbdev);
 
@@ -99,7 +105,8 @@ void kbase_hwaccess_pm_resume(struct kbase_device *kbdev);
  * Perform any required actions for activating the GPU. Called when the first
  * context goes active.
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  */
 void kbase_hwaccess_pm_gpu_active(struct kbase_device *kbdev);
 
@@ -107,43 +114,35 @@ void kbase_hwaccess_pm_gpu_active(struct kbase_device *kbdev);
  * Perform any required actions for idling the GPU. Called when the last
  * context goes idle.
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  */
 void kbase_hwaccess_pm_gpu_idle(struct kbase_device *kbdev);
 
-#if MALI_USE_CSF
+
 /**
  * Set the debug core mask.
  *
  * This determines which cores the power manager is allowed to use.
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
- * @new_core_mask: The core mask to use
- */
-void kbase_pm_set_debug_core_mask(struct kbase_device *kbdev,
-				  u64 new_core_mask);
-#else
-/**
- * Set the debug core mask.
- *
- * This determines which cores the power manager is allowed to use.
- *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
- * @new_core_mask_js0: The core mask to use for job slot 0
- * @new_core_mask_js1: The core mask to use for job slot 1
- * @new_core_mask_js2: The core mask to use for job slot 2
+ * @param kbdev         The kbase device structure for the device (must be a
+ *                      valid pointer)
+ * @param new_core_mask_js0 The core mask to use for job slot 0
+ * @param new_core_mask_js0 The core mask to use for job slot 1
+ * @param new_core_mask_js0 The core mask to use for job slot 2
  */
 void kbase_pm_set_debug_core_mask(struct kbase_device *kbdev,
 		u64 new_core_mask_js0, u64 new_core_mask_js1,
 		u64 new_core_mask_js2);
-#endif /* MALI_USE_CSF */
+
 
 /**
  * Get the current policy.
  *
  * Returns the policy that is currently active.
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  *
  * @return The current policy
  */
@@ -153,9 +152,10 @@ const struct kbase_pm_ca_policy
 /**
  * Change the policy to the one specified.
  *
- * @kbdev:  The kbase device structure for the device (must be a valid pointer)
- * @policy: The policy to change to (valid pointer returned from
- *          @ref kbase_pm_ca_list_policies)
+ * @param kbdev  The kbase device structure for the device (must be a valid
+ *               pointer)
+ * @param policy The policy to change to (valid pointer returned from
+ *               @ref kbase_pm_ca_list_policies)
  */
 void kbase_pm_ca_set_policy(struct kbase_device *kbdev,
 				const struct kbase_pm_ca_policy *policy);
@@ -163,20 +163,23 @@ void kbase_pm_ca_set_policy(struct kbase_device *kbdev,
 /**
  * Retrieve a static list of the available policies.
  *
- * @policies: An array pointer to take the list of policies. This may be NULL.
- *            The contents of this array must not be modified.
+ * @param[out] policies An array pointer to take the list of policies. This may
+ *                      be NULL. The contents of this array must not be
+ *                      modified.
  *
  * @return The number of policies
  */
 int
 kbase_pm_ca_list_policies(const struct kbase_pm_ca_policy * const **policies);
 
+
 /**
  * Get the current policy.
  *
  * Returns the policy that is currently active.
  *
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @param kbdev The kbase device structure for the device (must be a valid
+ *              pointer)
  *
  * @return The current policy
  */
@@ -185,9 +188,9 @@ const struct kbase_pm_policy *kbase_pm_get_policy(struct kbase_device *kbdev);
 /**
  * Change the policy to the one specified.
  *
- * @kbdev:  The kbase device structure for the device (must be a valid
+ * @param kbdev  The kbase device structure for the device (must be a valid
  *               pointer)
- * @policy: The policy to change to (valid pointer returned from
+ * @param policy The policy to change to (valid pointer returned from
  *               @ref kbase_pm_list_policies)
  */
 void kbase_pm_set_policy(struct kbase_device *kbdev,

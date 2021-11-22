@@ -1,7 +1,28 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT ARM Limited. All rights reserved.
+ *
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms
+ * of such GNU licence.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ *
+ *//* SPDX-License-Identifier: GPL-2.0 */
+
+/*
+ *
+ * (C) COPYRIGHT 2019-2020 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -17,10 +38,12 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ *
  */
 
 /**
- * DOC: Mali arbiter interface APIs to share GPU between Virtual Machines
+ * @file
+ * Mali arbiter interface APIs to share GPU between Virtual Machines
  */
 
 #ifndef _MALI_KBASE_ARBIF_H_
@@ -57,11 +80,8 @@ enum kbase_arbif_evt {
  * Initialize the arbiter interface and also determines
  * if Arbiter functionality is required.
  *
- * Return:
- * * 0			- the interface was initialized or was not specified
- * *			in the device tree.
- * * -EFAULT		- the interface was specified but failed to initialize.
- * * -EPROBE_DEFER	- module dependencies are not yet available.
+ * Return: 0 if the Arbiter interface was successfully initialized or the
+ *           Arbiter was not required.
  */
 int kbase_arbif_init(struct kbase_device *kbdev);
 
@@ -73,14 +93,6 @@ int kbase_arbif_init(struct kbase_device *kbdev);
  * of the arbif module used
  */
 void kbase_arbif_destroy(struct kbase_device *kbdev);
-
-/**
- * kbase_arbif_get_max_config() - Request max config info
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
- *
- * call back function from arb interface to arbiter requesting max config info
- */
-void kbase_arbif_get_max_config(struct kbase_device *kbdev);
 
 /**
  * kbase_arbif_gpu_request() - Send GPU request message to the arbiter

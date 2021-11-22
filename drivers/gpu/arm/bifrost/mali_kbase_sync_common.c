@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2016, 2018-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2016, 2018-2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,10 +16,12 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
 
 /*
- * @file
+ * @file mali_kbase_sync_common.c
  *
  * Common code for our explicit fence functionality
  */
@@ -29,7 +30,6 @@
 #include "mali_kbase.h"
 #include "mali_kbase_sync.h"
 
-#if !MALI_USE_CSF
 void kbase_sync_fence_wait_worker(struct work_struct *data)
 {
 	struct kbase_jd_atom *katom;
@@ -37,7 +37,6 @@ void kbase_sync_fence_wait_worker(struct work_struct *data)
 	katom = container_of(data, struct kbase_jd_atom, work);
 	kbase_soft_event_wait_callback(katom);
 }
-#endif /* !MALI_USE_CSF */
 
 const char *kbase_sync_status_string(int status)
 {

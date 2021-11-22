@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,6 +16,8 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
 
 #include <linux/bitops.h>
@@ -24,7 +25,8 @@
 #include <mali_kbase_mem.h>
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <tl/mali_kbase_tracepoints.h>
-#include <device/mali_kbase_device.h>
+#include <backend/gpu/mali_kbase_device_internal.h>
+#include <mali_kbase_as_fault_debugfs.h>
 
 /**
  * lock_region() - Generate lockaddr to lock memory region in MMU
@@ -124,32 +126,37 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 	struct kbase_mmu_setup *current_setup = &as->current_setup;
 	u64 transcfg = 0;
 
-	transcfg = current_setup->transcfg;
+	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_AARCH64_MMU)) {
+		transcfg = current_setup->transcfg;
 
-	/* Set flag AS_TRANSCFG_PTW_MEMATTR_WRITE_BACK
-	 * Clear PTW_MEMATTR bits
-	 */
-	transcfg &= ~AS_TRANSCFG_PTW_MEMATTR_MASK;
-	/* Enable correct PTW_MEMATTR bits */
-	transcfg |= AS_TRANSCFG_PTW_MEMATTR_WRITE_BACK;
-	/* Ensure page-tables reads use read-allocate cache-policy in
-	 * the L2
-	 */
-	transcfg |= AS_TRANSCFG_R_ALLOCATE;
-
-	if (kbdev->system_coherency != COHERENCY_NONE) {
-		/* Set flag AS_TRANSCFG_PTW_SH_OS (outer shareable)
-		 * Clear PTW_SH bits
+		/* Set flag AS_TRANSCFG_PTW_MEMATTR_WRITE_BACK
+		 * Clear PTW_MEMATTR bits
 		 */
-		transcfg = (transcfg & ~AS_TRANSCFG_PTW_SH_MASK);
-		/* Enable correct PTW_SH bits */
-		transcfg = (transcfg | AS_TRANSCFG_PTW_SH_OS);
-	}
+		transcfg &= ~AS_TRANSCFG_PTW_MEMATTR_MASK;
+		/* Enable correct PTW_MEMATTR bits */
+		transcfg |= AS_TRANSCFG_PTW_MEMATTR_WRITE_BACK;
+		/* Ensure page-tables reads use read-allocate cache-policy in
+		 * the L2
+		 */
+		transcfg |= AS_TRANSCFG_R_ALLOCATE;
 
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSCFG_LO),
-			transcfg);
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSCFG_HI),
-			(transcfg >> 32) & 0xFFFFFFFFUL);
+		if (kbdev->system_coherency == COHERENCY_ACE) {
+			/* Set flag AS_TRANSCFG_PTW_SH_OS (outer shareable)
+			 * Clear PTW_SH bits
+			 */
+			transcfg = (transcfg & ~AS_TRANSCFG_PTW_SH_MASK);
+			/* Enable correct PTW_SH bits */
+			transcfg = (transcfg | AS_TRANSCFG_PTW_SH_OS);
+		}
+
+		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSCFG_LO),
+				transcfg);
+		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSCFG_HI),
+				(transcfg >> 32) & 0xFFFFFFFFUL);
+	} else {
+		if (kbdev->system_coherency == COHERENCY_ACE)
+			current_setup->transtab |= AS_TRANSTAB_LPAE_SHARE_OUTER;
+	}
 
 	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSTAB_LO),
 			current_setup->transtab & 0xFFFFFFFFUL);
@@ -223,11 +230,10 @@ void kbase_mmu_hw_clear_fault(struct kbase_device *kbdev, struct kbase_as *as,
 
 	/* Clear the page (and bus fault IRQ as well in case one occurred) */
 	pf_bf_mask = MMU_PAGE_FAULT(as->number);
-#if !MALI_USE_CSF
 	if (type == KBASE_MMU_FAULT_TYPE_BUS ||
 			type == KBASE_MMU_FAULT_TYPE_BUS_UNEXPECTED)
 		pf_bf_mask |= MMU_BUS_ERROR(as->number);
-#endif
+
 	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_CLEAR), pf_bf_mask);
 
 unlock:
@@ -255,11 +261,10 @@ void kbase_mmu_hw_enable_fault(struct kbase_device *kbdev, struct kbase_as *as,
 	irq_mask = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK)) |
 			MMU_PAGE_FAULT(as->number);
 
-#if !MALI_USE_CSF
 	if (type == KBASE_MMU_FAULT_TYPE_BUS ||
 			type == KBASE_MMU_FAULT_TYPE_BUS_UNEXPECTED)
 		irq_mask |= MMU_BUS_ERROR(as->number);
-#endif
+
 	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), irq_mask);
 
 unlock:

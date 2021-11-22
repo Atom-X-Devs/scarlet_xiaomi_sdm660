@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,8 +16,9 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
-
 #include <mali_kbase.h>
 #include "debug/mali_kbase_debug_ktrace_internal.h"
 
@@ -26,6 +26,11 @@ int kbase_ktrace_init(struct kbase_device *kbdev)
 {
 #if KBASE_KTRACE_TARGET_RBUF
 	struct kbase_ktrace_msg *rbuf;
+
+	/* See also documentation of enum kbase_ktrace_code */
+	compiletime_assert(sizeof(kbase_ktrace_code_t) == sizeof(unsigned long long) ||
+			KBASE_KTRACE_CODE_COUNT <= (1ull << (sizeof(kbase_ktrace_code_t) * BITS_PER_BYTE)),
+			"kbase_ktrace_code_t not wide enough for KBASE_KTRACE_CODE_COUNT");
 
 	rbuf = kmalloc_array(KBASE_KTRACE_SIZE, sizeof(*rbuf), GFP_KERNEL);
 
@@ -86,25 +91,15 @@ static void kbasep_ktrace_format_msg(struct kbase_ktrace_msg *trace_msg,
 
 	/* Initial part of message:
 	 *
-	 * secs,thread_id,cpu,code,
+	 * secs,thread_id,cpu,code,kctx,
 	 */
 	written += MAX(snprintf(buffer + written, MAX(sz - written, 0),
-			"%d.%.6d,%d,%d,%s,",
+			"%d.%.6d,%d,%d,%s,%p,",
 			(int)trace_msg->timestamp.tv_sec,
 			(int)(trace_msg->timestamp.tv_nsec / 1000),
 			trace_msg->thread_id, trace_msg->cpu,
-			kbasep_ktrace_code_string[trace_msg->backend.gpu.code]),
-			0);
-
-	/* kctx part: */
-	if (trace_msg->kctx_tgid) {
-		written += MAX(snprintf(buffer + written, MAX(sz - written, 0),
-				"%d_%u",
-				trace_msg->kctx_tgid, trace_msg->kctx_id), 0);
-	}
-	/* Trailing comma */
-	written += MAX(snprintf(buffer + written, MAX(sz - written, 0),
-			","), 0);
+			kbasep_ktrace_code_string[trace_msg->backend.code],
+			trace_msg->kctx), 0);
 
 	/* Backend parts */
 	kbasep_ktrace_backend_format_msg(trace_msg, buffer, sz,
@@ -161,19 +156,11 @@ void kbasep_ktrace_msg_init(struct kbase_ktrace *ktrace,
 
 	ktime_get_real_ts64(&trace_msg->timestamp);
 
-	/* No need to store a flag about whether there was a kctx, tgid==0 is
-	 * sufficient
-	 */
-	if (kctx) {
-		trace_msg->kctx_tgid = kctx->tgid;
-		trace_msg->kctx_id = kctx->id;
-	} else {
-		trace_msg->kctx_tgid = 0;
-		trace_msg->kctx_id = 0;
-	}
+	trace_msg->kctx = kctx;
+
 	trace_msg->info_val = info_val;
-	trace_msg->backend.gpu.code = code;
-	trace_msg->backend.gpu.flags = flags;
+	trace_msg->backend.code = code;
+	trace_msg->backend.flags = flags;
 }
 
 void kbasep_ktrace_add(struct kbase_device *kbdev, enum kbase_ktrace_code code,
@@ -183,14 +170,12 @@ void kbasep_ktrace_add(struct kbase_device *kbdev, enum kbase_ktrace_code code,
 	unsigned long irqflags;
 	struct kbase_ktrace_msg *trace_msg;
 
-	WARN_ON((flags & ~KBASE_KTRACE_FLAG_COMMON_ALL));
-
 	spin_lock_irqsave(&kbdev->ktrace.lock, irqflags);
 
 	/* Reserve and update indices */
 	trace_msg = kbasep_ktrace_reserve(&kbdev->ktrace);
 
-	/* Fill the common part of the message (including backend.gpu.flags) */
+	/* Fill the common part of the message (including backend.flags) */
 	kbasep_ktrace_msg_init(&kbdev->ktrace, trace_msg, code, kctx, flags,
 			info_val);
 
@@ -240,7 +225,7 @@ void kbasep_ktrace_dump(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->ktrace.lock, flags);
 }
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
+#ifdef CONFIG_DEBUG_FS
 struct trace_seq_state {
 	struct kbase_ktrace_msg trace_buf[KBASE_KTRACE_SIZE];
 	u32 start;
@@ -348,7 +333,7 @@ void kbase_ktrace_debugfs_init(struct kbase_device *kbdev)
 
 #else /* KBASE_KTRACE_TARGET_RBUF  */
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
+#ifdef CONFIG_DEBUG_FS
 void kbase_ktrace_debugfs_init(struct kbase_device *kbdev)
 {
 	CSTD_UNUSED(kbdev);

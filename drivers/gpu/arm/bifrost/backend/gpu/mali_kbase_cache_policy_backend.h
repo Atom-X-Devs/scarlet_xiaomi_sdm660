@@ -1,12 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2016, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2016 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,13 +16,16 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
+ * SPDX-License-Identifier: GPL-2.0
+ *
  */
+
 
 #ifndef _KBASE_CACHE_POLICY_BACKEND_H_
 #define _KBASE_CACHE_POLICY_BACKEND_H_
 
 #include "mali_kbase.h"
-#include "uapi/mali_base_kernel.h"
+#include "mali_base_kernel.h"
 
 /**
   * kbase_cache_set_coherency_mode() - Sets the system coherency mode
