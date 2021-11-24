@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
  * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
@@ -6,7 +6,7 @@
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -30,12 +28,13 @@
 #include <mali_kbase.h>
 #include <mali_kbase_ctx_sched.h>
 #include <mali_kbase_dma_fence.h>
+#include <mali_kbase_kinstr_jm.h>
 #include <mali_kbase_mem_linux.h>
 #include <mali_kbase_mem_pool_group.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <tl/mali_kbase_timeline.h>
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <mali_kbase_debug_mem_view.h>
 #include <mali_kbase_mem_pool_debugfs.h>
 
@@ -66,6 +65,16 @@ void kbase_context_debugfs_term(struct kbase_context *const kctx)
 }
 KBASE_EXPORT_SYMBOL(kbase_context_debugfs_term);
 #endif /* CONFIG_DEBUG_FS */
+
+static int kbase_context_kbase_kinstr_jm_init(struct kbase_context *kctx)
+{
+	return kbase_kinstr_jm_init(&kctx->kinstr_jm);
+}
+
+static void kbase_context_kbase_kinstr_jm_term(struct kbase_context *kctx)
+{
+	kbase_kinstr_jm_term(kctx->kinstr_jm);
+}
 
 static int kbase_context_kbase_timer_setup(struct kbase_context *kctx)
 {
@@ -110,11 +119,12 @@ static void kbase_context_free(struct kbase_context *kctx)
 
 static const struct kbase_context_init context_init[] = {
 	{ NULL, kbase_context_free, NULL },
-	{ kbase_context_common_init, kbase_context_common_term, NULL },
+	{ kbase_context_common_init, kbase_context_common_term,
+	  "Common context initialization failed" },
 	{ kbase_dma_fence_init, kbase_dma_fence_term,
 	  "DMA fence initialization failed" },
 	{ kbase_context_mem_pool_group_init, kbase_context_mem_pool_group_term,
-	  "Memory pool goup initialization failed" },
+	  "Memory pool group initialization failed" },
 	{ kbase_mem_evictable_init, kbase_mem_evictable_deinit,
 	  "Memory evictable initialization failed" },
 	{ kbase_context_mmu_init, kbase_context_mmu_term,
@@ -126,21 +136,27 @@ static const struct kbase_context_init context_init[] = {
 	{ kbase_sticky_resource_init, kbase_context_sticky_resource_term,
 	  "Sticky resource initialization failed" },
 	{ kbase_jit_init, kbase_jit_term, "JIT initialization failed" },
-	{ kbase_context_kbase_timer_setup, NULL, NULL },
+	{ kbase_context_kbase_kinstr_jm_init,
+	  kbase_context_kbase_kinstr_jm_term,
+	  "JM instrumentation initialization failed" },
+	{ kbase_context_kbase_timer_setup, NULL,
+	  "Timers initialization failed" },
 	{ kbase_event_init, kbase_event_cleanup,
 	  "Event initialization failed" },
 	{ kbasep_js_kctx_init, kbasep_js_kctx_term,
 	  "JS kctx initialization failed" },
 	{ kbase_jd_init, kbase_jd_exit, "JD initialization failed" },
-	{ kbase_context_submit_check, NULL, NULL },
-#ifdef CONFIG_DEBUG_FS
+	{ kbase_context_submit_check, NULL, "Enabling job submission failed" },
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	{ kbase_debug_job_fault_context_init,
-		kbase_debug_job_fault_context_term,
-		"Job fault context initialization failed" },
+	  kbase_debug_job_fault_context_term,
+	  "Job fault context initialization failed" },
 #endif
 	{ NULL, kbase_context_flush_jobs, NULL },
 	{ kbase_context_add_to_dev_list, kbase_context_remove_from_dev_list,
-		"Adding kctx to device failed" },
+	  "Adding kctx to device failed" },
+	{ kbasep_platform_context_init, kbasep_platform_context_term,
+	  "Platform callback for kctx initialization failed" },
 };
 
 static void kbase_context_term_partial(
@@ -226,13 +242,19 @@ void kbase_destroy_context(struct kbase_context *kctx)
 	 * Customer side that a hang could occur if context termination is
 	 * not blocked until the resume of GPU device.
 	 */
+#ifdef CONFIG_MALI_BIFROST_ARBITER_SUPPORT
+	atomic_inc(&kbdev->pm.gpu_users_waiting);
+#endif /* CONFIG_MALI_BIFROST_ARBITER_SUPPORT */
 	while (kbase_pm_context_active_handle_suspend(
 		kbdev, KBASE_PM_SUSPEND_HANDLER_DONT_INCREASE)) {
-		dev_info(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			 "Suspend in progress when destroying context");
 		wait_event(kbdev->pm.resume_wait,
 			   !kbase_pm_is_suspending(kbdev));
 	}
+#ifdef CONFIG_MALI_BIFROST_ARBITER_SUPPORT
+	atomic_dec(&kbdev->pm.gpu_users_waiting);
+#endif /* CONFIG_MALI_BIFROST_ARBITER_SUPPORT */
 
 	kbase_mem_pool_group_mark_dying(&kctx->mem_pools);
 

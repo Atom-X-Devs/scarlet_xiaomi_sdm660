@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,11 +17,7 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
-
-
 
 #ifndef _KBASE_H_
 #define _KBASE_H_
@@ -38,7 +35,7 @@
 #include <linux/mutex.h>
 #include <linux/rwsem.h>
 #include <linux/sched.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
+#if (KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE)
 #include <linux/sched/mm.h>
 #endif
 #include <linux/slab.h>
@@ -46,8 +43,9 @@
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <linux/interrupt.h>
 
-#include "mali_base_kernel.h"
+#include "uapi/mali_base_kernel.h"
 #include <mali_kbase_linux.h>
 
 /*
@@ -66,26 +64,40 @@
 #include "mali_kbase_gpu_memory_debugfs.h"
 #include "mali_kbase_mem_profile_debugfs.h"
 #include "mali_kbase_gpuprops.h"
-#include "mali_kbase_ioctl.h"
+#include "uapi/mali_kbase_ioctl.h"
+#if !MALI_USE_CSF
 #include "mali_kbase_debug_job_fault.h"
 #include "mali_kbase_jd_debugfs.h"
 #include "mali_kbase_jm.h"
 #include "mali_kbase_js.h"
+#endif /* !MALI_USE_CSF */
 
 #include "ipa/mali_kbase_ipa.h"
 
-#ifdef CONFIG_GPU_TRACEPOINTS
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
 #include <trace/events/gpu.h>
 #endif
 
 #include "mali_linux_trace.h"
 
+#if MALI_USE_CSF
+#include "csf/mali_kbase_csf.h"
+#endif
 
 #ifndef u64_to_user_ptr
 /* Introduced in Linux v4.6 */
 #define u64_to_user_ptr(x) ((void __user *)(uintptr_t)x)
 #endif
 
+#if MALI_USE_CSF
+/* Physical memory group ID for CSF user I/O.
+ */
+#define KBASE_MEM_GROUP_CSF_IO BASE_MEM_GROUP_DEFAULT
+
+/* Physical memory group ID for CSF firmware.
+ */
+#define KBASE_MEM_GROUP_CSF_FW BASE_MEM_GROUP_DEFAULT
+#endif
 
 /* Physical memory group ID for a special page which can alias several regions.
  */
@@ -140,9 +152,9 @@ void kbase_release_device(struct kbase_device *kbdev);
  * the flag @ref KBASE_REG_TILER_ALIGN_TOP (check the flags of the kbase
  * region):
  * - alignment offset is set to the difference between the kbase region
- * extent (converted from the original value in pages to bytes) and the kbase
+ * extension (converted from the original value in pages to bytes) and the kbase
  * region initial_commit (also converted from the original value in pages to
- * bytes); alignment mask is set to the kbase region extent in bytes and
+ * bytes); alignment mask is set to the kbase region extension in bytes and
  * decremented by 1.
  *
  * Return: if successful, address of the unmapped area aligned as required;
@@ -184,7 +196,7 @@ void kbase_device_pm_term(struct kbase_device *kbdev);
 int power_control_init(struct kbase_device *kbdev);
 void power_control_term(struct kbase_device *kbdev);
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 void kbase_device_debugfs_term(struct kbase_device *kbdev);
 int kbase_device_debugfs_init(struct kbase_device *kbdev);
 #else /* CONFIG_DEBUG_FS */
@@ -201,11 +213,8 @@ void registers_unmap(struct kbase_device *kbdev);
 
 int kbase_device_coherency_init(struct kbase_device *kbdev);
 
-#ifdef CONFIG_MALI_BIFROST_BUSLOG
-int buslog_init(struct kbase_device *kbdev);
-void buslog_term(struct kbase_device *kbdev);
-#endif
 
+#if !MALI_USE_CSF
 int kbase_jd_init(struct kbase_context *kctx);
 void kbase_jd_exit(struct kbase_context *kctx);
 
@@ -213,9 +222,9 @@ void kbase_jd_exit(struct kbase_context *kctx);
  * kbase_jd_submit - Submit atoms to the job dispatcher
  *
  * @kctx: The kbase context to submit to
- * @user_addr: The address in user space of the struct base_jd_atom_v2 array
+ * @user_addr: The address in user space of the struct base_jd_atom array
  * @nr_atoms: The number of atoms in the array
- * @stride: sizeof(struct base_jd_atom_v2)
+ * @stride: sizeof(struct base_jd_atom)
  * @uk6_atom: true if the atoms are legacy atoms (struct base_jd_atom_v2_uk6)
  *
  * Return: 0 on success or error code
@@ -306,9 +315,12 @@ void kbase_job_check_enter_disjoint(struct kbase_device *kbdev, u32 action,
 void kbase_job_check_leave_disjoint(struct kbase_device *kbdev,
 		struct kbase_jd_atom *target_katom);
 
+#endif /* !MALI_USE_CSF */
 
 void kbase_event_post(struct kbase_context *ctx, struct kbase_jd_atom *event);
+#if !MALI_USE_CSF
 int kbase_event_dequeue(struct kbase_context *ctx, struct base_jd_event_v2 *uevent);
+#endif /* !MALI_USE_CSF */
 int kbase_event_pending(struct kbase_context *ctx);
 int kbase_event_init(struct kbase_context *kctx);
 void kbase_event_close(struct kbase_context *kctx);
@@ -372,6 +384,7 @@ static inline void kbase_free_user_buffer(
  */
 int kbase_mem_copy_from_extres(struct kbase_context *kctx,
 		struct kbase_debug_copy_buffer *buf_data);
+#if !MALI_USE_CSF
 int kbase_process_soft_job(struct kbase_jd_atom *katom);
 int kbase_prepare_soft_job(struct kbase_jd_atom *katom);
 void kbase_finish_soft_job(struct kbase_jd_atom *katom);
@@ -387,18 +400,21 @@ int kbase_soft_event_update(struct kbase_context *kctx,
 
 void kbasep_soft_job_timeout_worker(struct timer_list *timer);
 void kbasep_complete_triggered_soft_events(struct kbase_context *kctx, u64 evt);
+#endif /* !MALI_USE_CSF */
 
 void kbasep_as_do_poke(struct work_struct *work);
 
 /**
  * Check whether a system suspend is in progress, or has already been suspended
+ * @kbdev: The kbase device structure for the device
  *
  * The caller should ensure that either kbdev->pm.active_count_lock is held, or
  * a dmb was executed recently (to ensure the value is most
  * up-to-date). However, without a lock the value could change afterwards.
  *
- * @return false if a suspend is not in progress
- * @return !=false otherwise
+ * Return:
+ * * false if a suspend is not in progress
+ * * !=false otherwise
  */
 static inline bool kbase_pm_is_suspending(struct kbase_device *kbdev)
 {
@@ -419,7 +435,27 @@ static inline bool kbase_pm_is_suspending(struct kbase_device *kbdev)
  */
 static inline bool kbase_pm_is_gpu_lost(struct kbase_device *kbdev)
 {
-	return kbdev->pm.gpu_lost;
+	return (atomic_read(&kbdev->pm.gpu_lost) == 0 ? false : true);
+}
+
+/*
+ * Set or clear gpu lost state
+ *
+ * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ * @gpu_lost: true to activate GPU lost state, FALSE is deactive it
+ *
+ * Puts power management code into gpu lost state or takes it out of the
+ * state.  Once in gpu lost state new GPU jobs will no longer be
+ * scheduled.
+ */
+static inline void kbase_pm_set_gpu_lost(struct kbase_device *kbdev,
+	bool gpu_lost)
+{
+	const int new_val = (gpu_lost ? 1 : 0);
+	const int cur_val = atomic_xchg(&kbdev->pm.gpu_lost, new_val);
+
+	if (new_val != cur_val)
+		KBASE_KTRACE_ADD(kbdev, ARB_GPU_LOST, NULL, new_val);
 }
 #endif
 
@@ -455,9 +491,12 @@ void kbase_pm_metrics_start(struct kbase_device *kbdev);
  */
 void kbase_pm_metrics_stop(struct kbase_device *kbdev);
 
+#if !MALI_USE_CSF
 /**
  * Return the atom's ID, as was originally supplied by userspace in
- * base_jd_atom_v2::atom_number
+ * base_jd_atom::atom_number
+ * @kctx:  KBase context pointer
+ * @katom: Atome for which to return ID
  */
 static inline int kbase_jd_atom_id(struct kbase_context *kctx, struct kbase_jd_atom *katom)
 {
@@ -484,6 +523,7 @@ static inline struct kbase_jd_atom *kbase_jd_atom_from_id(
 {
 	return &kctx->jctx.atoms[id];
 }
+#endif /* !MALI_USE_CSF */
 
 /**
  * Initialize the disjoint state
@@ -508,7 +548,7 @@ static inline struct kbase_jd_atom *kbase_jd_atom_from_id(
  * The disjoint event counter is also incremented immediately whenever a job is soft stopped
  * and during context creation.
  *
- * @param kbdev The kbase device
+ * @kbdev: The kbase device
  *
  * Return: 0 on success and non-zero value on failure.
  */
@@ -518,7 +558,7 @@ void kbase_disjoint_init(struct kbase_device *kbdev);
  * Increase the count of disjoint events
  * called when a disjoint event has happened
  *
- * @param kbdev The kbase device
+ * @kbdev: The kbase device
  */
 void kbase_disjoint_event(struct kbase_device *kbdev);
 
@@ -528,14 +568,14 @@ void kbase_disjoint_event(struct kbase_device *kbdev);
  * This should be called when something happens which could be disjoint if the GPU
  * is in a disjoint state. The state refcount keeps track of this.
  *
- * @param kbdev The kbase device
+ * @kbdev: The kbase device
  */
 void kbase_disjoint_event_potential(struct kbase_device *kbdev);
 
 /**
  * Returns the count of disjoint events
  *
- * @param kbdev The kbase device
+ * @kbdev: The kbase device
  * @return the count of disjoint events
  */
 u32 kbase_disjoint_event_get(struct kbase_device *kbdev);
@@ -547,7 +587,7 @@ u32 kbase_disjoint_event_get(struct kbase_device *kbdev);
  * eventually after the disjoint state has completed @ref kbase_disjoint_state_down
  * should be called
  *
- * @param kbdev The kbase device
+ * @kbdev: The kbase device
  */
 void kbase_disjoint_state_up(struct kbase_device *kbdev);
 
@@ -558,9 +598,33 @@ void kbase_disjoint_state_up(struct kbase_device *kbdev);
  *
  * Called after @ref kbase_disjoint_state_up once the disjoint state is over
  *
- * @param kbdev The kbase device
+ * @kbdev: The kbase device
  */
 void kbase_disjoint_state_down(struct kbase_device *kbdev);
+
+/**
+ * kbase_device_pcm_dev_init() - Initialize the priority control manager device
+ *
+ * @kbdev: Pointer to the structure for the kbase device
+ *
+ * Pointer to the priority control manager device is retrieved from the device
+ * tree and a reference is taken on the module implementing the callbacks for
+ * priority control manager operations.
+ *
+ * Return: 0 if successful, or an error code on failure
+ */
+int kbase_device_pcm_dev_init(struct kbase_device *const kbdev);
+
+/**
+ * kbase_device_pcm_dev_term() - Performs priority control manager device
+ *                               deinitialization.
+ *
+ * @kbdev: Pointer to the structure for the kbase device
+ *
+ * Reference is released on the module implementing the callbacks for priority
+ * control manager operations.
+ */
+void kbase_device_pcm_dev_term(struct kbase_device *const kbdev);
 
 /**
  * If a job is soft stopped and the number of contexts is >= this value
@@ -571,54 +635,5 @@ void kbase_disjoint_state_down(struct kbase_device *kbdev);
 #if !defined(UINT64_MAX)
 	#define UINT64_MAX ((uint64_t)0xFFFFFFFFFFFFFFFFULL)
 #endif
-
-#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_MALI_BIFROST_NO_MALI)
-
-/* kbase_io_history_init - initialize data struct for register access history
- *
- * @kbdev The register history to initialize
- * @n The number of register accesses that the buffer could hold
- *
- * @return 0 if successfully initialized, failure otherwise
- */
-int kbase_io_history_init(struct kbase_io_history *h, u16 n);
-
-/* kbase_io_history_term - uninit all resources for the register access history
- *
- * @h The register history to terminate
- */
-void kbase_io_history_term(struct kbase_io_history *h);
-
-/* kbase_io_history_dump - print the register history to the kernel ring buffer
- *
- * @kbdev Pointer to kbase_device containing the register history to dump
- */
-void kbase_io_history_dump(struct kbase_device *kbdev);
-
-/**
- * kbase_io_history_resize - resize the register access history buffer.
- *
- * @h: Pointer to a valid register history to resize
- * @new_size: Number of accesses the buffer could hold
- *
- * A successful resize will clear all recent register accesses.
- * If resizing fails for any reason (e.g., could not allocate memory, invalid
- * buffer size) then the original buffer will be kept intact.
- *
- * @return 0 if the buffer was resized, failure otherwise
- */
-int kbase_io_history_resize(struct kbase_io_history *h, u16 new_size);
-
-#else /* CONFIG_DEBUG_FS */
-
-#define kbase_io_history_init(...) ((int)0)
-
-#define kbase_io_history_term CSTD_NOP
-
-#define kbase_io_history_dump CSTD_NOP
-
-#define kbase_io_history_resize CSTD_NOP
-
-#endif /* CONFIG_DEBUG_FS */
 
 #endif
