@@ -62,6 +62,8 @@ config MALI_BIFROST_ENABLE_TRACE
 config MALI_BIFROST_DEVFREQ
 	bool "devfreq support for Mali"
 	depends on MALI_BIFROST && PM_DEVFREQ
+	depends on DEVFREQ_GOV_SIMPLE_ONDEMAND
+	depends on DEVFREQ_THERMAL
 	default y
 	help
 	  Support devfreq for Mali.
