@@ -310,13 +310,14 @@ static int cros_ec_light_push_data(
 		s64 timestamp)
 {
 	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
+	s16 *out = (s16 *)st->samples;
 
 	if (!st || !indio_dev->active_scan_mask)
 		return 0;
 
 	/* Save clear channel, will be used when RGB data arrives. */
 	if (test_bit(0, indio_dev->active_scan_mask))
-		st->samples[0] = data[0];
+		*out = data[0];
 
 	/* Wait for RGB callback to send samples upstream. */
 	return 0;

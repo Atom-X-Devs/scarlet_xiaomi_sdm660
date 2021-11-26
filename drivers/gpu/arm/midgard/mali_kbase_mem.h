@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2010-2018 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -97,17 +97,44 @@ struct kbase_aliased {
 #define KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED  (1ul << 0)
 #define KBASE_MEM_PHY_ALLOC_LARGE            (1ul << 1)
 
-/* physical pages tracking object.
+/* struct kbase_mem_phy_alloc - Physical pages tracking object.
+ *
  * Set up to track N pages.
  * N not stored here, the creator holds that info.
  * This object only tracks how many elements are actually valid (present).
- * Changing of nents or *pages should only happen if the kbase_mem_phy_alloc is not
- * shared with another region or client. CPU mappings are OK to exist when changing, as
- * long as the tracked mappings objects are updated as part of the change.
+ * Changing of nents or *pages should only happen if the kbase_mem_phy_alloc
+ * is not shared with another region or client. CPU mappings are OK to
+ * exist when changing, as long as the tracked mappings objects are
+ * updated as part of the change.
+ *
+ * @kref: number of users of this alloc
+ * @gpu_mappings: count number of times mapped on the GPU. Indicates the number
+ *                of references there are to the physical pages from different
+ *                GPU VA regions.
+ * @kernel_mappings: count number of times mapped on the CPU, specifically in
+ *                   the kernel. Indicates the number of references there are
+ *                   to the physical pages to prevent flag changes or shrink
+ *                   while maps are still held.
+ * @nents: 0..N
+ * @pages: N elements, only 0..nents are valid
+ * @mappings: List of CPU mappings of this physical memory allocation.
+ * @evict_node: Node used to store this allocation on the eviction list
+ * @evicted: Physical backing size when the pages where evicted
+ * @reg: Back reference to the region structure which created this
+ *       allocation, or NULL if it has been freed.
+ * @type: type of buffer
+ * @permanent_map: Kernel side mapping of the alloc, shall never be
+ *                 referred directly. kbase_phy_alloc_mapping_get() &
+ *                 kbase_phy_alloc_mapping_put() pair should be used
+ *                 around access to the kernel-side CPU mapping so that
+ *                 mapping doesn't disappear whilst it is being accessed.
+ * @properties: Bitmask of properties, e.g. KBASE_MEM_PHY_ALLOC_LARGE.
+ * @imported: member in union valid based on @a type
  */
 struct kbase_mem_phy_alloc {
 	struct kref           kref; /* number of users of this alloc */
 	atomic_t              gpu_mappings;
+	atomic_t              kernel_mappings;
 	size_t                nents; /* 0..N */
 	struct tagged_addr    *pages; /* N elements, only 0..nents are valid */
 
@@ -196,6 +223,30 @@ static inline void kbase_mem_phy_alloc_gpu_unmapped(struct kbase_mem_phy_alloc *
 			pr_err("Mismatched %s:\n", __func__);
 			dump_stack();
 		}
+}
+
+/**
+ * kbase_mem_phy_alloc_kernel_mapped - Increment kernel_mappings
+ * counter for a memory region to prevent commit and flag changes
+ *
+ * @alloc:  Pointer to physical pages tracking object
+ */
+static inline void
+kbase_mem_phy_alloc_kernel_mapped(struct kbase_mem_phy_alloc *alloc)
+{
+	atomic_inc(&alloc->kernel_mappings);
+}
+
+/**
+ * kbase_mem_phy_alloc_kernel_unmapped - Decrement kernel_mappings
+ * counter for a memory region to allow commit and flag changes
+ *
+ * @alloc:  Pointer to physical pages tracking object
+ */
+static inline void
+kbase_mem_phy_alloc_kernel_unmapped(struct kbase_mem_phy_alloc *alloc)
+{
+	WARN_ON(atomic_dec_return(&alloc->kernel_mappings) < 0);
 }
 
 /**
@@ -302,8 +353,10 @@ struct kbase_va_region {
  * Extent must be a power of 2 */
 #define KBASE_REG_TILER_ALIGN_TOP   (1ul << 23)
 
-/* Memory is handled by JIT - user space should not be able to free it */
-#define KBASE_REG_JIT               (1ul << 24)
+/* Whilst this flag is set the GPU allocation is not supposed to be freed by
+ * user space. The flag will remain set for the lifetime of JIT allocations.
+ */
+#define KBASE_REG_NO_USER_FREE      (1ul << 24)
 
 /* Memory has permanent kernel side mapping */
 #define KBASE_REG_PERMANENT_KERNEL_MAPPING (1ul << 25)
@@ -502,6 +555,7 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(
 
 	kref_init(&alloc->kref);
 	atomic_set(&alloc->gpu_mappings, 0);
+	atomic_set(&alloc->kernel_mappings, 0);
 	alloc->nents = 0;
 	alloc->pages = (void *)(alloc + 1);
 	INIT_LIST_HEAD(&alloc->mappings);

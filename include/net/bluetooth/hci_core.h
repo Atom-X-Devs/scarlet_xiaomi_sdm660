@@ -222,6 +222,7 @@ struct oob_data {
 
 struct adv_info {
 	struct list_head list;
+	bool enabled;
 	bool pending;
 	__u8	instance;
 	__u32	flags;
@@ -566,8 +567,6 @@ struct hci_dev {
 	__u8			cur_adv_instance;
 	__u16			adv_instance_timeout;
 	struct delayed_work	adv_instance_expire;
-	/* We can have a single directed advertisement using adv handle 0 */
-	bool			ext_directed_advertising;
 
 	struct idr		adv_monitors_idr;
 	unsigned int		adv_monitors_cnt;
@@ -607,9 +606,7 @@ struct hci_dev {
 	int (*set_bdaddr)(struct hci_dev *hdev, const bdaddr_t *bdaddr);
 	void (*cmd_timeout)(struct hci_dev *hdev);
 	bool (*prevent_wake)(struct hci_dev *hdev);
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
 	int (*set_quality_report)(struct hci_dev *hdev, bool enable);
-#endif
 };
 
 #define HCI_PHY_HANDLE(handle)	(handle & 0xff)
@@ -633,6 +630,7 @@ struct hci_conn {
 	__u8		init_addr_type;
 	bdaddr_t	resp_addr;
 	__u8		resp_addr_type;
+	__u8		adv_instance;
 	__u16		handle;
 	__u16		state;
 	__u8		mode;
@@ -754,18 +752,12 @@ extern struct mutex hci_cb_list_lock;
 #define hci_dev_test_and_clear_flag(hdev, nr)  test_and_clear_bit((nr), (hdev)->dev_flags)
 #define hci_dev_test_and_change_flag(hdev, nr) test_and_change_bit((nr), (hdev)->dev_flags)
 
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
-#define hci_dev_clear_flag_quality_report(x) { hci_dev_clear_flag(hdev, x); }
-#else
-#define hci_dev_clear_flag_quality_report(x) {}
-#endif
-
-#define hci_dev_clear_volatile_flags(hdev)				\
-	do {								\
-		hci_dev_clear_flag(hdev, HCI_LE_SCAN);			\
-		hci_dev_clear_flag(hdev, HCI_LE_ADV);			\
-		hci_dev_clear_flag(hdev, HCI_PERIODIC_INQ);		\
-		hci_dev_clear_flag_quality_report(HCI_QUALITY_REPORT)	\
+#define hci_dev_clear_volatile_flags(hdev)			\
+	do {							\
+		hci_dev_clear_flag(hdev, HCI_LE_SCAN);		\
+		hci_dev_clear_flag(hdev, HCI_LE_ADV);		\
+		hci_dev_clear_flag(hdev, HCI_PERIODIC_INQ);	\
+		hci_dev_clear_flag(hdev, HCI_QUALITY_REPORT);	\
 	} while (0)
 
 /* ----- HCI interface to upper protocols ----- */
@@ -866,7 +858,7 @@ static inline bool keychron_conn_is_present(struct hci_dev *hdev)
 
 static inline bool restrict_le_conn_params(struct hci_dev *hdev)
 {
-	if (!test_bit(HCI_QUIRK_INTEL_STP_CONTROLLER, &hdev->quirks))
+	if (!test_bit(HCI_QUIRK_RESTRICT_CONN_PARAMS, &hdev->quirks))
 		return false;
 
 	if (!keychron_conn_is_present(hdev))
@@ -1279,6 +1271,7 @@ struct hci_dev *hci_alloc_dev(void);
 void hci_free_dev(struct hci_dev *hdev);
 int hci_register_dev(struct hci_dev *hdev);
 void hci_unregister_dev(struct hci_dev *hdev);
+void hci_cleanup_dev(struct hci_dev *hdev);
 int hci_suspend_dev(struct hci_dev *hdev);
 int hci_resume_dev(struct hci_dev *hdev);
 int hci_reset_dev(struct hci_dev *hdev);
