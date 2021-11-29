@@ -62,9 +62,15 @@ enum base_hw_issue {
 	BASE_HW_ISSUE_END
 };
 
+#ifdef _BASE_HWCONFIG_ISSUES_NEED_STATICS
+
+#ifdef NOTDEF
+
 static const enum base_hw_issue base_hw_issues_generic[] = {
 	BASE_HW_ISSUE_END
 };
+
+#endif
 
 static const enum base_hw_issue base_hw_issues_tMIx_r0p0_05dev0[] = {
 	BASE_HW_ISSUE_9435,
@@ -480,6 +486,8 @@ static const enum base_hw_issue base_hw_issues_tBEx_r1p0[] = {
 	BASE_HW_ISSUE_END
 };
 
+#ifdef NOTDEF
+
 static const enum base_hw_issue base_hw_issues_tBEx_r1p1[] = {
 	BASE_HW_ISSUE_9435,
 	BASE_HW_ISSUE_TSIX_2033,
@@ -492,6 +500,8 @@ static const enum base_hw_issue base_hw_issues_tBEx_r1p1[] = {
 	BASE_HW_ISSUE_TTRX_3464,
 	BASE_HW_ISSUE_END
 };
+
+#endif /* NOTDEF */
 
 static const enum base_hw_issue base_hw_issues_model_tBEx[] = {
 	BASE_HW_ISSUE_5736,
@@ -545,6 +555,8 @@ static const enum base_hw_issue base_hw_issues_tBAx_r0p0[] = {
 	BASE_HW_ISSUE_END
 };
 
+#ifdef NOTDEF
+
 static const enum base_hw_issue base_hw_issues_tBAx_r1p0[] = {
 	BASE_HW_ISSUE_9435,
 	BASE_HW_ISSUE_TSIX_2033,
@@ -557,6 +569,8 @@ static const enum base_hw_issue base_hw_issues_tBAx_r1p0[] = {
 	BASE_HW_ISSUE_TTRX_3464,
 	BASE_HW_ISSUE_END
 };
+
+#endif /* NOTDEF */
 
 static const enum base_hw_issue base_hw_issues_model_tBAx[] = {
 	BASE_HW_ISSUE_5736,
@@ -637,5 +651,6 @@ static const enum base_hw_issue base_hw_issues_model_tVAx[] = {
 	BASE_HW_ISSUE_END
 };
 
+#endif /* _BASE_HWCONFIG_ISSUES_NEED_STATICS */
 
 #endif /* _BASE_HWCONFIG_ISSUES_H_ */

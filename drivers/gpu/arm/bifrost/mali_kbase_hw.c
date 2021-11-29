@@ -24,6 +24,7 @@
  */
 
 #include <mali_base_hwconfig_features.h>
+#define _BASE_HWCONFIG_ISSUES_NEED_STATICS
 #include <mali_base_hwconfig_issues.h>
 #include "gpu/mali_kbase_gpu_regmap.h"
 #include "mali_kbase.h"

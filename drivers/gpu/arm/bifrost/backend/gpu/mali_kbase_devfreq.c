@@ -31,6 +31,8 @@
 #include <linux/version.h>
 #include <linux/pm_opp.h>
 
+#include "mali_kbase_devfreq.h"
+
 /**
  * get_voltage() - Get the voltage value corresponding to the nominal frequency
  *                 used by devfreq.
