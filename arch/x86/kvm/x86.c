@@ -7714,7 +7714,7 @@ static void vcpu_do_suspend_time_adjustment(struct kvm_vcpu *vcpu,
 	}
 
 	adj = __this_cpu_read(cpu_tsc_khz) *
-		(last_suspend_duration / 1000000);
+		div_u64(last_suspend_duration, 1000000);
 	adjust_tsc_offset_host(vcpu, -adj);
 	/*
 	 * This request should be processed before
