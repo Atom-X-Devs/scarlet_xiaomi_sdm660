@@ -136,22 +136,16 @@ struct bdaddr_list {
 	u8 bdaddr_type;
 };
 
-struct bdaddr_list_with_flags {
+struct codec_list {
 	struct list_head list;
-	bdaddr_t bdaddr;
-	u8 bdaddr_type;
-	u32 current_flags;
+	u8	id;
+	__u16	cid;
+	__u16	vid;
+	u8	transport;
+	u8	num_caps;
+	u32	len;
+	struct hci_codec_caps caps[];
 };
-
-enum hci_conn_flags {
-	HCI_CONN_FLAG_REMOTE_WAKEUP,
-	HCI_CONN_FLAG_MAX
-};
-
-#define hci_conn_test_flag(nr, flags) ((flags) & (1U << nr))
-
-/* Make sure number of flags doesn't exceed sizeof(current_flags) */
-static_assert(HCI_CONN_FLAG_MAX < 32);
 
 struct bdaddr_list_with_irk {
 	struct list_head list;
@@ -159,6 +153,22 @@ struct bdaddr_list_with_irk {
 	u8 bdaddr_type;
 	u8 peer_irk[16];
 	u8 local_irk[16];
+};
+
+enum hci_conn_flags {
+	HCI_CONN_FLAG_REMOTE_WAKEUP,
+
+	__HCI_CONN_NUM_FLAGS,
+};
+
+/* Make sure number of flags doesn't exceed sizeof(current_flags) */
+static_assert(__HCI_CONN_NUM_FLAGS < 32);
+
+struct bdaddr_list_with_flags {
+	struct list_head list;
+	bdaddr_t bdaddr;
+	u8 bdaddr_type;
+	DECLARE_BITMAP(flags, __HCI_CONN_NUM_FLAGS);
 };
 
 struct bt_uuid {
@@ -567,6 +577,7 @@ struct hci_dev {
 	struct rfkill		*rfkill;
 
 	DECLARE_BITMAP(dev_flags, __HCI_NUM_FLAGS);
+	DECLARE_BITMAP(conn_flags, __HCI_CONN_NUM_FLAGS);
 
 	__s8			adv_tx_power;
 	__u8			adv_data[HCI_MAX_EXT_AD_LENGTH];
@@ -761,7 +772,7 @@ struct hci_conn_params {
 
 	struct hci_conn *conn;
 	bool explicit_connect;
-	u32 current_flags;
+	DECLARE_BITMAP(flags, __HCI_CONN_NUM_FLAGS);
 };
 
 extern struct list_head hci_dev_list;
