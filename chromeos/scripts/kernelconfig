@@ -87,7 +87,7 @@ build_one() {
 		CXX="${cross}-g++" \
 		CROSS_COMPILE="${cross}-"
 
-	local O="$(pwd)/build/${arch}"
+	local O="${tmpdir}/build/${arch}"
 	mkdir -p "${O}"
 
 	local config
@@ -229,8 +229,6 @@ main() {
 		mode="olddefconfig"
 		mkdir -p CONFIGS
 	fi
-
-	mkdir -p build
 
 	echo "running ${mode} for ${archs[*]}"
 	echo ""
