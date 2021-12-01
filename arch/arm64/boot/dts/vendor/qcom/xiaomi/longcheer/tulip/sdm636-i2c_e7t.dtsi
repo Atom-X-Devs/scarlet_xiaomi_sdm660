@@ -28,12 +28,4 @@
 		focaltech,key-y-coord = <2500>;
 		focaltech,key-x-coords = <200 600 800>;
 	};
-
-	novatek@62 {
-		compatible = "novatek,NVT-ts";
-		reg = <0x62>;
-		vcc_i2c-supply = <&pm660_l11>;
-		novatek,reset-gpio = <&tlmm 66 0x00>;
-		novatek,irq-gpio = <&tlmm 67 0x2001>;
-	};
 };

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include "wayne-camera-sensor-mtp.dtsi"
-#include "sdm660-i2c_d2s.dtsi"
 
 /* Common between jasmine and wayne */
 &tlmm {
