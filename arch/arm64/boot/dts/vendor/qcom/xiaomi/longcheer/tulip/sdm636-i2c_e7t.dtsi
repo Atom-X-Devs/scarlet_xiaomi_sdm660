@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 &i2c_1 {
+	novatek@62 {
+	/delete-property/ interrupt-parent;
+	/delete-property/ interrupts;
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	/delete-property/ pinctrl-1;
+	};
+
 	focaltech@38{
 		compatible = "focaltech,fts";
 		reg = <0x38>;
