@@ -210,13 +210,14 @@ static void rmnet_map_complement_ipv4_txporthdr_csum_field(void *iphdr)
 
 static void
 rmnet_map_ipv4_ul_csumv3_header(void *iphdr,
-							struct rmnet_map_ul_csum_header *ul_header,
-							struct sk_buff *skb)
+				struct rmnet_map_ul_csum_header *ul_header,
+				struct sk_buff *skb)
 {
 	struct iphdr *ip4h = (struct iphdr *)iphdr;
-	__be16 *hdr = (__be16 *)ul_header, offset;
+	__be16 *net_hdr = (__be16 *)ul_header, offset;
+	u16 *host_hdr = (u16 *)ul_header;
 
-	offset = htons((__force u16)(skb_transport_header(skb) -
+	offset = htons((u16)(skb_transport_header(skb) -
 				     (unsigned char *)iphdr));
 	ul_header->csum_start_offset = offset;
 	ul_header->csum_insert_offset = skb->csum_offset;
@@ -227,8 +228,7 @@ rmnet_map_ipv4_ul_csumv3_header(void *iphdr,
 		ul_header->udp_ind = 0;
 
 	/* Changing remaining fields to network order */
-	hdr++;
-	*hdr = htons((__force u16)*hdr);
+	net_hdr[1] = htons(host_hdr[1]);
 
 	skb->ip_summed = CHECKSUM_NONE;
 }
@@ -305,13 +305,14 @@ rmnet_map_ipv6_ul_csum_header(void *ip6hdr,
 
 static void
 rmnet_map_ipv6_ul_csumv3_header(void *ip6hdr,
-							struct rmnet_map_ul_csum_header *ul_header,
-							struct sk_buff *skb)
+				struct rmnet_map_ul_csum_header *ul_header,
+				struct sk_buff *skb)
 {
 	struct ipv6hdr *ip6h = (struct ipv6hdr *)ip6hdr;
-	__be16 *hdr = (__be16 *)ul_header, offset;
+	__be16 *net_hdr = (__be16 *)ul_header, offset;
+	u16 *host_hdr = (u16 *)ul_header;
 
-	offset = htons((__force u16)(skb_transport_header(skb) -
+	offset = htons((u16)(skb_transport_header(skb) -
 				     (unsigned char *)ip6hdr));
 	ul_header->csum_start_offset = offset;
 	ul_header->csum_insert_offset = skb->csum_offset;
@@ -323,8 +324,7 @@ rmnet_map_ipv6_ul_csumv3_header(void *ip6hdr,
 		ul_header->udp_ind = 0;
 
 	/* Changing remaining fields to network order */
-	hdr++;
-	*hdr = htons((__force u16)*hdr);
+	net_hdr[1] = htons(host_hdr[1]);
 
 	skb->ip_summed = CHECKSUM_NONE;
 }
