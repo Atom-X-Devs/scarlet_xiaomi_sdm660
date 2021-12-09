@@ -798,15 +798,15 @@ static int fpc1020_probe(struct platform_device *pdev)
 
 	atomic_set(&fpc1020->wakeup_enabled, 0);
 
-	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
 	if (of_property_read_bool(dev->of_node, "fpc,enable-wakeup")) {
-		irqf |= IRQF_NO_SUSPEND;
+		irqf = IRQF_NO_SUSPEND;
 		device_init_wakeup(dev, 1);
 	}
 
 	mutex_init(&fpc1020->lock);
 	rc = devm_request_threaded_irq(dev, gpio_to_irq(fpc1020->irq_gpio),
-			NULL, fpc1020_irq_handler, irqf,
+			NULL, fpc1020_irq_handler,
+			irqf | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			dev_name(dev), fpc1020);
 	if (rc) {
 		dev_err(dev, "could not request irq %d\n",
