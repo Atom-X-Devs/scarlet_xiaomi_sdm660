@@ -470,22 +470,7 @@ static ssize_t irq_get(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%i\n", irq);
 }
-
-/*
- * writing to the irq node will just drop a printk message
- * and return success, used for latency measurement.
- */
-static ssize_t irq_ack(struct device *dev,
-	struct device_attribute *attr,
-	const char *buf, size_t count)
-{
-	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
-
-	dev_dbg(fpc1020->dev, "%s\n", __func__);
-
-	return count;
-}
-static DEVICE_ATTR(irq, 0600, irq_get, irq_ack);
+static DEVICE_ATTR(irq, 0600, irq_get);
 
 static ssize_t proximity_state_set(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
