@@ -16,6 +16,7 @@ http://dev.chromium.org/chromium-os/how-tos-and-troubleshooting/kernel-configura
 """
 
 import argparse
+import difflib
 import fnmatch
 import glob
 import logging
@@ -27,7 +28,7 @@ import sys
 import tempfile
 from typing import Dict, List
 
-MODES = ['oldconfig', 'olddefconfig', 'editconfig', 'genconfig']
+MODES = ['oldconfig', 'olddefconfig', 'editconfig', 'genconfig', 'checkconfig']
 ARCHES = ['x86_64', 'armel', 'arm64']
 TOOLCHAIN_PREFIXES = {
     'x86_64': 'x86_64-cros-linux-gnu',
@@ -99,10 +100,19 @@ def rerun_in_chroot():
     sys.exit(subprocess.run(cmd, check=False).returncode)
 
 
-def make_toolchain_args(arch: str) -> List[str]:
+def make_toolchain_args(arch: str) -> Dict[str, str]:
+    ret = {
+        'LD': 'ld.lld',
+    }
+
     if in_chroot():
         prefix = TOOLCHAIN_PREFIXES[arch]
         ccompiler = prefix + '-clang'
+        # CrOS build tooling wants us to use these, and avoid a default of
+        # unprefixed 'gcc' or 'clang'. Supply defaults here, but also consider
+        # environment varibles below.
+        ret['HOSTCC'] = 'x86_64-pc-linux-gnu-clang'
+        ret['HOSTCXX'] = 'x86_64-pc-linux-gnu-clang++'
     else:
         prefix = 'x86_64-linux-gnu'
         ccompiler = prefix + '-gcc'
@@ -114,10 +124,19 @@ def make_toolchain_args(arch: str) -> List[str]:
         else:
             die('%s not found. Try running inside chroot.' % ccompiler)
 
-    return ['LD="ld.lld"',
-            'CC=' + ccompiler,
-            'CXX=' + prefix + '-g++',
-            'CROSS_COMPILE=' + prefix + '-']
+    # Propagate a few environment variables as make args.
+    for key in ('HOSTCC', 'HOSTCXX'):
+        val = os.getenv(key)
+        if val:
+            ret[key] = val
+
+    ret.update({
+        'CC': ccompiler,
+        'CXX': prefix + '-g++',
+        'CROSS_COMPILE': prefix + '-',
+    })
+    return ret
+
 
 def getchar() -> str:
     # We don't want line-buffering, and shelling out to bash is much simpler
@@ -146,13 +165,47 @@ def is_editconfig_interactive(arch_flavour: str, prompt: bool,
 
 
 def make_cmd(builddir: str, arch: str, target: str) -> List[str]:
-    make_args = make_toolchain_args(arch)
-    kernelarch = 'arm' if arch == 'armel' else arch
-    return (['make', '-j', 'O=' + builddir, 'ARCH=' + kernelarch] + make_args +
-            [target, 'savedefconfig'])
+    pairs = make_toolchain_args(arch)
+    pairs['ARCH'] = 'arm' if arch == 'armel' else arch
+    pairs['O'] = builddir
+
+    make_args = [k + '=' + v for k, v in pairs.items()]
+
+    return ['make', '-j'] + make_args + [target, 'savedefconfig']
 
 
-def doit(args, tmpdir: str):
+def checkconfig(srcdir: str, outdir: str) -> int:
+    error = 0
+    for src_config in glob.glob(srcdir + '/chromeos/config/**/*.config',
+                                recursive=True):
+        relative = os.path.relpath(src_config, srcdir)
+        out_config = os.path.join(outdir, relative)
+        logging.debug('Compare %s to %s', src_config, out_config)
+        before = open(src_config, 'r').readlines()
+        after = open(out_config, 'r').readlines()
+
+        if before == after:
+            continue
+
+        error = 1
+        diff = difflib.context_diff(before, after, fromfile='a/' + relative,
+                                    tofile='b/' + relative)
+        sys.stdout.writelines(diff)
+        logging.error('checkconfig failed for config %s', relative)
+
+    if error:
+        logging.error("""Consider running `%s olddefconfig` to normalize.
+
+NOTE: chromeos/config changes should always be in a CL by themselves and never
+squashed into the same patch as code changes. If code and config changes need
+to land together, consider using Cq-Depend to make a circular dependency.""",
+                      sys.argv[0])
+    else:
+        logging.info('All good!')
+    return error
+
+
+def doit(args, tmpdir: str) -> int:
     for d in (os.getcwd(),
               os.path.abspath(os.path.join(
                   os.path.dirname(sys.argv[0]), '..', '..'))):
@@ -167,6 +220,9 @@ def doit(args, tmpdir: str):
     if not in_chroot() and not args.force:
         rerun_in_chroot()
         assert False # Should not reach this.
+
+    # Most commands write back to source directory.
+    outdir = srcdir
 
     save_configs = args.mode == 'genconfig'
 
@@ -195,6 +251,9 @@ def doit(args, tmpdir: str):
                                                         not args.yes,
                                                         args.filter)
                 mode = 'menuconfig' if interactive else 'olddefconfig'
+            elif args.mode == 'checkconfig':
+                mode = 'olddefconfig'
+                outdir = tmpdir
             else:
                 if args.mode == 'oldconfig':
                     # 'oldconfig' may run into interactive prompts.
@@ -225,8 +284,6 @@ def doit(args, tmpdir: str):
         os.makedirs(keep_dir, exist_ok=True)
 
     logging.info('Generating splitconfigs')
-    # All commands write to source directory for now.
-    outdir = srcdir
     for arch in ARCHES:
         dest = os.path.join(tmpdir, arch)
         os.makedirs(dest)
@@ -242,6 +299,7 @@ def doit(args, tmpdir: str):
                 shutil.copy(os.path.join(builddir, 'defconfig'),
                             os.path.join(keep_dir, arch + '-' +
                                          flavour + '.def'))
+        os.makedirs(outdir + '/chromeos/config/' + arch, exist_ok=True)
         # Find per-arch common items; flavour-unique options can be written out
         # immediately.
         for config, contents in splitconfig(dest).items():
@@ -263,8 +321,13 @@ def doit(args, tmpdir: str):
             open(outdir + '/chromeos/config/' + arch + '/common.config',
                  'w').write(contents)
 
+    if args.mode == 'checkconfig':
+        return checkconfig(srcdir, outdir)
 
-def main():
+    return 0
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(
             description='Chrome OS kernel configuration script',
             epilog="""
@@ -292,7 +355,7 @@ def main():
                         format='%(levelname)s - %(message)s')
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        doit(args, tmpdir)
+        return doit(args, tmpdir)
 
 
 sys.exit(main())
