@@ -170,16 +170,17 @@ found:
  * backwards compatibility. Only prints a debug print that it is
  * disabled.
  */
-static ssize_t clk_enable_set(struct device *dev, struct device_attribute *attr,
-			       const char *buf, size_t count)
+static ssize_t clk_enable_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
 {
 	return count;
 }
-static DEVICE_ATTR(clk_enable, 0200, NULL, clk_enable_set);
+static DEVICE_ATTR_WO(clk_enable);
 
-static ssize_t fingerdown_wait_set(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
+static ssize_t fingerdown_wait_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
@@ -192,7 +193,7 @@ static ssize_t fingerdown_wait_set(struct device *dev,
 
 	return count;
 }
-static DEVICE_ATTR(fingerdown_wait, S_IWUSR, NULL, fingerdown_wait_set);
+static DEVICE_ATTR_WO(fingerdown_wait);
 
 /*
  * Will try to select the set of pins (GPIOS) defined in a pin control node of
@@ -232,8 +233,9 @@ exit:
 	return rc;
 }
 
-static ssize_t pinctl_set(struct device *dev, struct device_attribute *attr,
-			  const char *buf, size_t count)
+static ssize_t pinctl_set_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -243,11 +245,11 @@ static ssize_t pinctl_set(struct device *dev, struct device_attribute *attr,
 
 	return rc ? rc : count;
 }
-static DEVICE_ATTR(pinctl_set, 0200, NULL, pinctl_set);
+static DEVICE_ATTR_WO(pinctl_set);
 
-static ssize_t regulator_enable_set(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+static ssize_t regulator_enable_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	char name[16];
@@ -270,7 +272,7 @@ static ssize_t regulator_enable_set(struct device *dev,
 
 	return rc ? rc : count;
 }
-static DEVICE_ATTR(regulator_enable, 0200, NULL, regulator_enable_set);
+static DEVICE_ATTR_WO(regulator_enable);
 
 static int hw_reset(struct fpc1020_data *fpc1020)
 {
@@ -302,8 +304,9 @@ exit:
 	return rc;
 }
 
-static ssize_t hw_reset_set(struct device *dev, struct device_attribute *attr,
-			    const char *buf, size_t count)
+static ssize_t hw_reset_store(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -317,7 +320,7 @@ static ssize_t hw_reset_set(struct device *dev, struct device_attribute *attr,
 
 	return rc ? rc : count;
 }
-static DEVICE_ATTR(hw_reset, 0200, NULL, hw_reset_set);
+static DEVICE_ATTR_WO(hw_reset);
 
 static void config_irq(struct fpc1020_data *fpc1020, bool enabled)
 {
@@ -402,9 +405,9 @@ static int device_prepare(struct fpc1020_data *fpc1020, bool enable)
  *
  * @see device_prepare
  */
-static ssize_t device_prepare_set(struct device *dev,
-				  struct device_attribute *attr,
-				  const char *buf, size_t count)
+static ssize_t device_prepare_store(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -418,15 +421,15 @@ static ssize_t device_prepare_set(struct device *dev,
 
 	return rc ? rc : count;
 }
-static DEVICE_ATTR(device_prepare, 0200, NULL, device_prepare_set);
+static DEVICE_ATTR_WO(device_prepare);
 
 /*
  * sysfs node for controlling whether the driver is allowed
  * to wake up the platform on interrupt.
  */
-static ssize_t wakeup_enable_set(struct device *dev,
-				 struct device_attribute *attr, const char *buf,
-				 size_t count)
+static ssize_t wakeup_enable_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	ssize_t ret = count;
@@ -442,7 +445,7 @@ static ssize_t wakeup_enable_set(struct device *dev,
 
 	return ret;
 }
-static DEVICE_ATTR(wakeup_enable, 0200, NULL, wakeup_enable_set);
+static DEVICE_ATTR_WO(wakeup_enable);
 
 /*
  * sysfs node to check the interrupt status of the sensor, the interrupt
@@ -460,18 +463,17 @@ static ssize_t irq_get(struct device *dev, struct device_attribute *attr,
  * writing to the irq node will just drop a printk message
  * and return success, used for latency measurement.
  */
-static ssize_t irq_ack(struct device *dev, struct device_attribute *attr,
+static ssize_t irq_ack(struct device *dev,
+		       struct device_attribute *attr,
 		       const char *buf, size_t count)
 {
-	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
-	dev_dbg(fpc1020->dev, "%s\n", __func__);
 	return count;
 }
 static DEVICE_ATTR(irq, 0600, irq_get, irq_ack);
 
-static ssize_t proximity_state_set(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
+static ssize_t proximity_state_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -493,7 +495,7 @@ static ssize_t proximity_state_set(struct device *dev,
 	}
 	return count;
 }
-static DEVICE_ATTR(proximity_state, S_IWUSR, NULL, proximity_state_set);
+static DEVICE_ATTR_WO(proximity_state);
 
 static struct attribute *attributes[] = {
 	&dev_attr_pinctl_set.attr,
