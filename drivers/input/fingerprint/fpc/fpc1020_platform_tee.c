@@ -46,17 +46,16 @@
 
 #define FPC1020_NAME "fpc1020"
 
-#define FPC_TTW_HOLD_TIME 2000
-#define FP_UNLOCK_REJECTION_TIMEOUT (FPC_TTW_HOLD_TIME - 500)
-
-#define RESET_LOW_SLEEP_MIN_US 5000
-#define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
-#define RESET_HIGH_SLEEP1_MIN_US 100
-#define RESET_HIGH_SLEEP1_MAX_US (RESET_HIGH_SLEEP1_MIN_US + 100)
-#define RESET_HIGH_SLEEP2_MIN_US 5000
-#define RESET_HIGH_SLEEP2_MAX_US (RESET_HIGH_SLEEP2_MIN_US + 100)
-#define PWR_ON_SLEEP_MIN_US 100
-#define PWR_ON_SLEEP_MAX_US (PWR_ON_SLEEP_MIN_US + 900)
+#define FPC_TTW_HOLD_TIME		2000
+#define FP_UNLOCK_REJECTION_TIMEOUT	(FPC_TTW_HOLD_TIME - 500)
+#define RESET_LOW_SLEEP_MIN_US		5000
+#define RESET_LOW_SLEEP_MAX_US		(RESET_LOW_SLEEP_MIN_US + 100)
+#define RESET_HIGH_SLEEP1_MIN_US	100
+#define RESET_HIGH_SLEEP1_MAX_US	(RESET_HIGH_SLEEP1_MIN_US + 100)
+#define RESET_HIGH_SLEEP2_MIN_US	5000
+#define RESET_HIGH_SLEEP2_MAX_US	(RESET_HIGH_SLEEP2_MIN_US + 100)
+#define PWR_ON_SLEEP_MIN_US		100
+#define PWR_ON_SLEEP_MAX_US		(PWR_ON_SLEEP_MIN_US + 900)
 
 #define NUM_PARAMS_REG_ENABLE_SET 2
 
@@ -85,11 +84,9 @@ static const struct vreg_config vreg_conf[] = {
 
 struct fpc1020_data {
 	struct device *dev;
-
 	struct pinctrl *fingerprint_pinctrl;
 	struct pinctrl_state *pinctrl_state[ARRAY_SIZE(pctl_names)];
 	struct regulator *vreg[ARRAY_SIZE(vreg_conf)];
-
 	struct wakeup_source *ttw_wl;
 	int irq_gpio;
 	int rst_gpio;
@@ -118,7 +115,6 @@ static int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
 
 	for (i = 0; i < ARRAY_SIZE(fpc1020->vreg); i++) {
 		const char *n = vreg_conf[i].name;
-
 		if (!strncmp(n, name, strlen(n)))
 			goto found;
 	}
@@ -174,7 +170,7 @@ found:
 	return rc;
 }
 
-/**
+/*
  * sysfs node for controlling clocks.
  *
  * This is disabled in platform variant of this driver but kept for
@@ -211,7 +207,7 @@ static ssize_t fingerdown_wait_set(struct device *dev,
 }
 static DEVICE_ATTR(fingerdown_wait, S_IWUSR, NULL, fingerdown_wait_set);
 
-/**
+/*
  * Will try to select the set of pins (GPIOS) defined in a pin control node of
  * the device tree named @p name.
  *
@@ -231,7 +227,6 @@ static int select_pin_ctl(struct fpc1020_data *fpc1020, const char *name)
 
 	for (i = 0; i < ARRAY_SIZE(fpc1020->pinctrl_state); i++) {
 		const char *n = pctl_names[i];
-
 		if (!strncmp(n, name, strlen(n))) {
 			rc = pinctrl_select_state(fpc1020->fingerprint_pinctrl,
 					fpc1020->pinctrl_state[i]);
@@ -255,7 +250,6 @@ static ssize_t pinctl_set(struct device *dev,
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
-
 	mutex_lock(&fpc1020->lock);
 	rc = select_pin_ctl(fpc1020, buf);
 	mutex_unlock(&fpc1020->lock);
@@ -356,7 +350,7 @@ static void config_irq(struct fpc1020_data *fpc1020, bool enabled)
 	mutex_unlock(&fpc1020->lock);
 }
 
-/**
+/*
  * Will setup GPIOs, and regulators to correctly initialize the touch sensor to
  * be ready for work.
  *
@@ -418,7 +412,7 @@ exit:
 	return rc;
 }
 
-/**
+/*
  * sysfs node to enable/disable (power up/power down) the touch sensor
  *
  * @see device_prepare
@@ -440,7 +434,7 @@ static ssize_t device_prepare_set(struct device *dev,
 }
 static DEVICE_ATTR(device_prepare, 0200, NULL, device_prepare_set);
 
-/**
+/*
  * sysfs node for controlling whether the driver is allowed
  * to wake up the platform on interrupt.
  */
@@ -463,7 +457,7 @@ static ssize_t wakeup_enable_set(struct device *dev,
 }
 static DEVICE_ATTR(wakeup_enable, 0200, NULL, wakeup_enable_set);
 
-/**
+/*
  * sysf node to check the interrupt status of the sensor, the interrupt
  * handler should perform sysf_notify to allow userland to poll the node.
  */
@@ -477,7 +471,7 @@ static ssize_t irq_get(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%i\n", irq);
 }
 
-/**
+/*
  * writing to the irq node will just drop a printk message
  * and return success, used for latency measurement.
  */
