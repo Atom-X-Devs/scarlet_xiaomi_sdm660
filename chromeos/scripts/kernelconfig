@@ -25,7 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import typing
+from typing import Dict, List
 
 MODES = ['oldconfig', 'olddefconfig', 'editconfig', 'genconfig']
 ARCHES = ['x86_64', 'armel', 'arm64']
@@ -36,7 +36,7 @@ TOOLCHAIN_PREFIXES = {
 }
 
 
-def splitconfig(srcdir: str) -> typing.Dict[str, str]:
+def splitconfig(srcdir: str) -> Dict[str, str]:
     """Split and merge common configs
 
     Return dict of filename-to-contents.
@@ -91,7 +91,15 @@ def in_chroot() -> bool:
     return os.path.exists('/etc/cros_chroot_version')
 
 
-def make_toolchain_args(arch: str) -> typing.List[str]:
+def rerun_in_chroot():
+    cmd = ['cros_sdk', '--working-dir', '.', '--',
+           os.path.relpath(sys.argv[0])] + sys.argv[1:]
+    logging.info('Re-running in chroot')
+    logging.debug('Run: %s', cmd)
+    sys.exit(subprocess.run(cmd, check=False).returncode)
+
+
+def make_toolchain_args(arch: str) -> List[str]:
     if in_chroot():
         prefix = TOOLCHAIN_PREFIXES[arch]
         ccompiler = prefix + '-clang'
@@ -137,7 +145,7 @@ def is_editconfig_interactive(arch_flavour: str, prompt: bool,
     return False
 
 
-def make_cmd(builddir: str, arch: str, target: str) -> typing.List[str]:
+def make_cmd(builddir: str, arch: str, target: str) -> List[str]:
     make_args = make_toolchain_args(arch)
     kernelarch = 'arm' if arch == 'armel' else arch
     return (['make', '-j', 'O=' + builddir, 'ARCH=' + kernelarch] + make_args +
@@ -157,7 +165,8 @@ def doit(args, tmpdir: str):
         die('This does not appear to be a kernel source directory.')
 
     if not in_chroot() and not args.force:
-        die('You must run this command inside the chroot')
+        rerun_in_chroot()
+        assert False # Should not reach this.
 
     save_configs = args.mode == 'genconfig'
 
@@ -209,7 +218,7 @@ def doit(args, tmpdir: str):
         if ret:
             assert p.stderr # Remind pytype we captured stderr.
             logging.error(p.stderr.read().decode('utf-8'))
-            die('cmd %s failed' % p)
+            die('cmd "%s" failed' % ' '.join(p.args))
 
     if save_configs:
         keep_dir = 'CONFIGS'
@@ -256,7 +265,13 @@ def doit(args, tmpdir: str):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+            description='Chrome OS kernel configuration script',
+            epilog="""
+               Note that Kbuild will evaluate some features depending on the
+               toolchain, so we try to enter the SDK chroot. This can be
+               overridden, with a potentially degraded experience.
+               """)
 
     log_level_choices = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
     parser.add_argument(
@@ -265,7 +280,7 @@ def main():
         default='INFO'
     )
     parser.add_argument('--force', '-F', action='store_true',
-                        help='Enable running outside the chroot')
+                        help='Force allowing to run outside the chroot')
     parser.add_argument('--filter', '-f', default='',
                         help='Only attempt to edit configs which match filter')
     parser.add_argument('--yes', '-y', action='store_true',
