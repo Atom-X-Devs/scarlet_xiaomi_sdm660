@@ -42,7 +42,7 @@
  * This function will be called only when the opp table which is compatible with
  * "operating-points-v2-mali", is not present in the devicetree for GPU device.
  *
- * Return: Voltage value in milli volts, 0 in case of error.
+ * Return: Voltage value in micro volts, 0 in case of error.
  */
 static unsigned long get_voltage(struct kbase_device *kbdev, unsigned long freq)
 {
@@ -68,8 +68,8 @@ static unsigned long get_voltage(struct kbase_device *kbdev, unsigned long freq)
 	rcu_read_unlock();
 #endif
 
-	/* Return the voltage in milli volts */
-	return voltage / 1000;
+	/* Return the voltage in micro volts */
+	return voltage;
 }
 
 void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,

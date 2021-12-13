@@ -538,10 +538,15 @@ static void opp_translate_freq_voltage(struct kbase_device *kbdev,
 				       unsigned long *volts)
 {
 	u64 core_mask;
+	unsigned int i;
 
 	kbase_devfreq_opp_translate(kbdev, nominal_freq, &core_mask,
 				    freqs, volts);
 	CSTD_UNUSED(core_mask);
+
+	/* Convert micro volts to milli volts */
+	for (i = 0; i < kbdev->nr_clocks; i++)
+		volts[i] /= 1000;
 
 	if (kbdev->nr_clocks == 1) {
 		freqs[KBASE_IPA_BLOCK_TYPE_SHADER_CORES] =
