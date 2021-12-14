@@ -62,7 +62,7 @@ enum base_hw_issue {
 	BASE_HW_ISSUE_END
 };
 
-#ifdef _BASE_HWCONFIG_ISSUES_NEED_STATICS
+#ifdef _MALI_BASE_HWCONFIG_NEED_STATICS
 
 #ifdef NOTDEF
 
@@ -651,6 +651,6 @@ static const enum base_hw_issue base_hw_issues_model_tVAx[] = {
 	BASE_HW_ISSUE_END
 };
 
-#endif /* _BASE_HWCONFIG_ISSUES_NEED_STATICS */
+#endif /* _MALI_BASE_HWCONFIG_NEED_STATICS */
 
 #endif /* _BASE_HWCONFIG_ISSUES_H_ */

@@ -58,6 +58,8 @@ enum base_hw_feature {
 	BASE_HW_FEATURE_END
 };
 
+#ifdef _MALI_BASE_HWCONFIG_NEED_STATICS
+
 static const enum base_hw_feature base_hw_features_generic[] = {
 	BASE_HW_FEATURE_END
 };
@@ -440,5 +442,6 @@ static const enum base_hw_feature base_hw_features_tVAx[] = {
 	BASE_HW_FEATURE_END
 };
 
+#endif /* _MALI_BASE_HWCONFIG_NEED_STATICS */
 
 #endif /* _BASE_HWCONFIG_FEATURES_H_ */
