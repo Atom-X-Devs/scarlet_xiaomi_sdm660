@@ -9,20 +9,21 @@
 #include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset-controller.h>
 #include <linux/slab.h>
+
 #include <dt-bindings/clock/qcom,gpu-sdm660.h>
 
-#include "clk-alpha-pll.h"
 #include "common.h"
-#include "clk-regmap.h"
+#include "clk-alpha-pll.h"
+#include "clk-branch.h"
 #include "clk-pll.h"
 #include "clk-rcg.h"
-#include "clk-branch.h"
+#include "clk-regmap.h"
 #include "vdd-level-660.h"
 
 #define F_GFX(f, s, h, m, n, sf) { (f), (s), (2 * (h) - 1), (m), (n), (sf) }
@@ -558,3 +559,6 @@ static void __exit gpu_660_exit(void)
 	platform_driver_unregister(&gpu_660_driver);
 }
 module_exit(gpu_660_exit);
+
+MODULE_DESCRIPTION("Qualcomm SDM630/SDM660 GPUCC Driver");
+MODULE_LICENSE("GPL v2");
