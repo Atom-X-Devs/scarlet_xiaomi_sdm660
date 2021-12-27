@@ -1446,7 +1446,9 @@ const struct clk_ops clk_alpha_pll_ops = {
 	.round_rate = clk_alpha_pll_round_rate,
 	.set_rate = clk_alpha_pll_set_rate,
 	.list_registers = clk_alpha_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_ops);
 
@@ -1458,7 +1460,9 @@ const struct clk_ops clk_alpha_pll_huayra_ops = {
 	.determine_rate = alpha_pll_huayra_determine_rate,
 	.set_rate = alpha_pll_huayra_set_rate,
 	.list_registers = clk_huayra_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_huayra_ops);
 
@@ -1470,7 +1474,9 @@ const struct clk_ops clk_alpha_pll_hwfsm_ops = {
 	.round_rate = clk_alpha_pll_round_rate,
 	.set_rate = clk_alpha_pll_hwfsm_set_rate,
 	.list_registers = clk_alpha_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_hwfsm_ops);
 
@@ -1482,7 +1488,9 @@ const struct clk_ops clk_alpha_pll_zonda_ops = {
 	.round_rate = clk_alpha_pll_round_rate,
 	.set_rate = clk_zonda_pll_set_rate,
 	.list_registers = clk_zonda_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL(clk_alpha_pll_zonda_ops);
 
@@ -1575,14 +1583,18 @@ const struct clk_ops clk_alpha_pll_postdiv_ops = {
 	.recalc_rate = clk_alpha_pll_postdiv_recalc_rate,
 	.round_rate = clk_alpha_pll_postdiv_round_rate,
 	.set_rate = clk_alpha_pll_postdiv_set_rate,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_postdiv_ops);
 
 const struct clk_ops clk_alpha_pll_postdiv_ro_ops = {
 	.round_rate = clk_alpha_pll_postdiv_round_ro_rate,
 	.recalc_rate = clk_alpha_pll_postdiv_recalc_rate,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_postdiv_ro_ops);
 
@@ -1932,7 +1944,9 @@ const struct clk_ops clk_alpha_pll_fabia_ops = {
 	.recalc_rate = alpha_pll_fabia_recalc_rate,
 	.round_rate = clk_alpha_pll_round_rate,
 	.list_registers = clk_fabia_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_fabia_ops);
 
@@ -1943,7 +1957,9 @@ const struct clk_ops clk_alpha_pll_fixed_fabia_ops = {
 	.recalc_rate = alpha_pll_fabia_recalc_rate,
 	.round_rate = clk_alpha_pll_round_rate,
 	.list_registers = clk_fabia_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_fixed_fabia_ops);
 
@@ -2029,7 +2045,9 @@ const struct clk_ops clk_alpha_pll_postdiv_fabia_ops = {
 	.recalc_rate = clk_alpha_pll_postdiv_fabia_recalc_rate,
 	.round_rate = clk_alpha_pll_postdiv_fabia_round_rate,
 	.set_rate = clk_alpha_pll_postdiv_fabia_set_rate,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_postdiv_fabia_ops);
 
@@ -2037,7 +2055,9 @@ const struct clk_ops clk_alpha_pll_postdiv_zonda_ops = {
 	.recalc_rate = clk_alpha_pll_postdiv_fabia_recalc_rate,
 	.round_rate = clk_alpha_pll_postdiv_fabia_round_rate,
 	.set_rate = clk_alpha_pll_postdiv_fabia_set_rate,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL(clk_alpha_pll_postdiv_zonda_ops);
 
@@ -2401,7 +2421,9 @@ const struct clk_ops clk_alpha_pll_lucid_ops = {
 	.round_rate = clk_alpha_pll_round_rate,
 	.set_rate = alpha_pll_lucid_set_rate,
 	.list_registers = clk_alpha_pll_lucid_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_lucid_ops);
 
@@ -2412,7 +2434,9 @@ const struct clk_ops clk_alpha_pll_fixed_lucid_ops = {
 	.recalc_rate = alpha_pll_lucid_recalc_rate,
 	.round_rate = clk_alpha_pll_round_rate,
 	.list_registers = clk_alpha_pll_lucid_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_fixed_lucid_ops);
 
@@ -2420,7 +2444,9 @@ const struct clk_ops clk_alpha_pll_postdiv_lucid_ops = {
 	.recalc_rate = clk_alpha_pll_postdiv_fabia_recalc_rate,
 	.round_rate = clk_alpha_pll_postdiv_fabia_round_rate,
 	.set_rate = clk_alpha_pll_postdiv_fabia_set_rate,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_postdiv_lucid_ops);
 
@@ -2579,7 +2605,9 @@ const struct clk_ops clk_alpha_pll_agera_ops = {
 	.round_rate = clk_alpha_pll_round_rate,
 	.set_rate = clk_agera_pll_set_rate,
 	.list_registers = clk_agera_pll_list_registers,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.bus_vote = clk_debug_bus_vote,
+#endif
 };
 EXPORT_SYMBOL(clk_alpha_pll_agera_ops);
 
