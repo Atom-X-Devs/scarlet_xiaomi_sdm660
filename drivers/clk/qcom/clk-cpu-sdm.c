@@ -289,7 +289,9 @@ static const struct clk_ops cpucc_clk_ops = {
 	.set_rate_and_parent = cpucc_clk_set_rate_and_parent,
 	.determine_rate = cpucc_clk_determine_rate,
 	.recalc_rate = cpucc_clk_recalc_rate,
+#ifdef CONFIG_QCOM_CLK_DEBUG
 	.debug_init = clk_debug_measure_add,
+#endif
 	.list_registers = cpucc_clk_list_registers,
 };
 
