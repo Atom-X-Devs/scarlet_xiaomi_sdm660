@@ -2292,10 +2292,13 @@ static void hci_cs_disconnect(struct hci_dev *hdev, u8 status)
 
 	conn = hci_conn_hash_lookup_handle(hdev, __le16_to_cpu(cp->handle));
 	if (conn) {
-		u8 type = conn->type;
-
 		mgmt_disconnect_failed(hdev, &conn->dst, conn->type,
 				       conn->dst_type, status);
+
+		if (conn->type == LE_LINK) {
+			hdev->cur_adv_instance = conn->adv_instance;
+			hci_req_reenable_advertising(hdev);
+		}
 
 		/* If the disconnection failed for any reason, the upper layer
 		 * does not retry to disconnect in current implementation.
@@ -2303,8 +2306,6 @@ static void hci_cs_disconnect(struct hci_dev *hdev, u8 status)
 		 * advertising if necessary.
 		 */
 		hci_conn_del(conn);
-		if (type == LE_LINK)
-			hci_req_reenable_advertising(hdev);
 	}
 
 	hci_dev_unlock(hdev);
@@ -2850,7 +2851,6 @@ static void hci_disconn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	struct hci_conn_params *params;
 	struct hci_conn *conn;
 	bool mgmt_connected;
-	u8 type;
 
 	BT_DBG("%s status 0x%2.2x", hdev->name, ev->status);
 
@@ -2905,10 +2905,7 @@ static void hci_disconn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 		}
 	}
 
-	type = conn->type;
-
 	hci_disconn_cfm(conn, ev->reason);
-	hci_conn_del(conn);
 
 	/* The suspend notifier is waiting for all devices to disconnect so
 	 * clear the bit from pending tasks and inform the wait queue.
@@ -2928,8 +2925,12 @@ static void hci_disconn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	 * or until a connection is created or until the Advertising
 	 * is timed out due to Directed Advertising."
 	 */
-	if (type == LE_LINK)
+	if (conn->type == LE_LINK) {
+		hdev->cur_adv_instance = conn->adv_instance;
 		hci_req_reenable_advertising(hdev);
+	}
+
+	hci_conn_del(conn);
 
 unlock:
 	hci_dev_unlock(hdev);
@@ -5241,6 +5242,13 @@ static void le_conn_complete_evt(struct hci_dev *hdev, u8 status,
 	conn->handle = handle;
 	conn->state = BT_CONFIG;
 
+	/* Store current advertising instance as connection advertising instance
+	 * when sotfware rotation is in use so it can be re-enabled when
+	 * disconnected.
+	 */
+	if (!ext_adv_capable(hdev))
+		conn->adv_instance = hdev->cur_adv_instance;
+
 	conn->le_conn_interval = interval;
 	conn->le_conn_latency = latency;
 	conn->le_supv_timeout = supervision_timeout;
@@ -5324,13 +5332,13 @@ static void hci_le_ext_adv_term_evt(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct hci_evt_le_ext_adv_set_term *ev = (void *) skb->data;
 	struct hci_conn *conn;
+	struct adv_info *adv;
 
 	BT_DBG("%s status 0x%2.2x", hdev->name, ev->status);
 
-	if (ev->status) {
-		struct adv_info *adv;
+	adv = hci_find_adv_instance(hdev, ev->handle);
 
-		adv = hci_find_adv_instance(hdev, ev->handle);
+	if (ev->status) {
 		if (!adv)
 			return;
 
@@ -5341,9 +5349,15 @@ static void hci_le_ext_adv_term_evt(struct hci_dev *hdev, struct sk_buff *skb)
 		return;
 	}
 
+	if (adv)
+		adv->enabled = false;
+
 	conn = hci_conn_hash_lookup_handle(hdev, __le16_to_cpu(ev->conn_handle));
 	if (conn) {
-		struct adv_info *adv_instance;
+		/* Store handle in the connection so the correct advertising
+		 * instance can be re-enabled when disconnected.
+		 */
+		conn->adv_instance = ev->handle;
 
 		if (hdev->adv_addr_type != ADDR_LE_DEV_RANDOM)
 			return;
@@ -5353,9 +5367,8 @@ static void hci_le_ext_adv_term_evt(struct hci_dev *hdev, struct sk_buff *skb)
 			return;
 		}
 
-		adv_instance = hci_find_adv_instance(hdev, ev->handle);
-		if (adv_instance)
-			bacpy(&conn->resp_addr, &adv_instance->random_addr);
+		if (adv)
+			bacpy(&conn->resp_addr, &adv->random_addr);
 	}
 }
 
