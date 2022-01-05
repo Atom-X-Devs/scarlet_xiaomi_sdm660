@@ -76,9 +76,9 @@
 		vdd_hf_pll-supply = <&pm8953_l7_ao>;
 	};
 
-	qcom,cpu-clock-8939@b111050 {
+	qcom,clock-cpu@b111050 {
 		/delete-property/ vdd-c0-supply;
-		/delete-property/ vdd-c1-supply;
+		/delete-property/ cpu-vdd-supply;
 		/delete-property/ vdd-cci-supply;
 	};
 
@@ -271,7 +271,7 @@
 	pa-therm0 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&pm8953_adc_tm 0x36>;
+		thermal-sensors = <&pm8953_adc_tm VADC_LR_MUX7_HW_ID>;
 		thermal-governor = "user_space";
 		wake-capable-sensor;
 
@@ -287,7 +287,7 @@
 
 &pm8953_vadc {
 	pinctrl-0 = <&pa_therm1_default>;
-	/delete-node/ chan@13;
+	/delete-node/ case_therm;
 };
 
 &pm8953_mpps {
