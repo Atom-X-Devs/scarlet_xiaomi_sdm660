@@ -5187,6 +5187,10 @@ static int dsi_display_bind(struct device *dev,
 		goto error_host_deinit;
 	}
 
+#ifdef CONFIG_DRM_SDE_SPECIFIC_PANEL
+	primary_display = display;
+#endif /* CONFIG_DRM_SDE_SPECIFIC_PANEL */
+
 	DSI_INFO("Successfully bind display panel '%s'\n", display->name);
 	display->drm_dev = drm;
 
