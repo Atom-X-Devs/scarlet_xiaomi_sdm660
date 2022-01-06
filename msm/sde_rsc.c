@@ -59,7 +59,7 @@
 /* Primary panel worst case VSYNC expected to be no less than 30fps */
 #define PRIMARY_VBLANK_WORST_CASE_MS 34
 
-#define DEFAULT_PANEL_MIN_V_PREFILL	35
+#define DEFAULT_PANEL_MIN_V_PREFILL	25
 
 static struct sde_rsc_priv *rsc_prv_list[MAX_RSC_COUNT];
 static struct device *rpmh_dev[MAX_RSC_COUNT];
