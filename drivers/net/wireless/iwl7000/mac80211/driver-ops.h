@@ -2,7 +2,7 @@
 /*
 * Portions of this file
 * Copyright(c) 2016 Intel Deutschland GmbH
-* Copyright (C) 2018 - 2019, 2021 Intel Corporation
+* Copyright (C) 2018 - 2019, 2021 - 2022 Intel Corporation
 */
 
 #ifndef __MAC80211_DRIVER_OPS
@@ -150,7 +150,7 @@ static inline int drv_config(struct ieee80211_local *local, u32 changed)
 static inline void drv_bss_info_changed(struct ieee80211_local *local,
 					struct ieee80211_sub_if_data *sdata,
 					struct ieee80211_bss_conf *info,
-					u32 changed)
+					u64 changed)
 {
 	might_sleep();
 

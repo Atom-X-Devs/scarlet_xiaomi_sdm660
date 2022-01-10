@@ -1002,8 +1002,12 @@ static void ieee80211_parse_extension_element(u32 *crc,
 		}
 		break;
 	case WLAN_EID_EXT_EHT_OPERATION:
-		if (len >= sizeof(*elems->eht_operation))
-			elems->eht_operation = data;
+		if (len < sizeof(*elems->eht_operation))
+			break;
+		if ((elem->data[3] & IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT) &&
+		    len < sizeof(*elems->eht_operation) + 2)
+			break;
+		elems->eht_operation = data;
 		break;
 	}
 }
@@ -2556,6 +2560,9 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 			if (sdata->vif.bss_conf.max_idle_period ||
 			    sdata->vif.bss_conf.protected_keep_alive)
 				changed |= BSS_CHANGED_KEEP_ALIVE;
+
+			if (sdata->vif.bss_conf.eht_puncturing)
+				changed |= BSS_CHANGED_EHT_PUNCTURING;
 
 			sdata_lock(sdata);
 			ieee80211_bss_info_change_notify(sdata, changed);

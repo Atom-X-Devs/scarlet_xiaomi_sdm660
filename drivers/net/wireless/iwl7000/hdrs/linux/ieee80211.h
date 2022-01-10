@@ -2058,7 +2058,10 @@ struct ieee80211_eht_operation {
 	u8 chan_width;
 	u8 ccfs;
 	u8 present_bm;
+	u8 disable_subchannel_bitmap[];
 } __packed;
+
+#define IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT 0x1
 
 /* 802.11ac VHT Capabilities */
 #define IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_3895			0x00000000

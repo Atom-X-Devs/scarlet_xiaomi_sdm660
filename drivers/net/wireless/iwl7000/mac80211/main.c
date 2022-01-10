@@ -203,7 +203,7 @@ int ieee80211_hw_config(struct ieee80211_local *local, u32 changed)
 }
 
 void ieee80211_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
-				      u32 changed)
+				      u64 changed)
 {
 	struct ieee80211_local *local = sdata->local;
 

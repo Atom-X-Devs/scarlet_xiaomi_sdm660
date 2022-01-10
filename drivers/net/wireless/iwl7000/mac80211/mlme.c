@@ -87,6 +87,99 @@ MODULE_PARM_DESC(probe_wait_ms,
  */
 #define IEEE80211_SIGNAL_AVE_MIN_COUNT	4
 
+struct ieee80211_per_bw_puncturing_values {
+	u8 len;
+	const u16 *valid_values;
+};
+
+static const u16 puncturing_values_80mhz[] = {
+	0x8, 0x4, 0x2, 0x1
+};
+
+static const u16 puncturing_values_160mhz[] = {
+	 0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1, 0xc0, 0x30, 0xc, 0x3
+};
+
+static const u16 puncturing_values_320mhz[] = {
+	0xc000, 0x3000, 0xc00, 0x300, 0xc0, 0x30, 0xc, 0x3, 0xf000, 0xf00,
+	0xf0, 0xf, 0xfc00, 0xf300, 0xf0c0, 0xf030, 0xf00c, 0xf003, 0xc00f,
+	0x300f, 0xc0f, 0x30f, 0xcf, 0x3f
+};
+
+#define IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(_bw) \
+	[IEEE80211_EHT_OPER_CHAN_WIDTH_ ## _bw ## MHZ - IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ] = \
+	{ \
+		.len = ARRAY_SIZE(puncturing_values_ ## _bw ## mhz), \
+		.valid_values = puncturing_values_ ## _bw ## mhz \
+	}
+
+static const struct ieee80211_per_bw_puncturing_values per_bw_puncturing[] = {
+	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(80),
+	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(160),
+	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(320)
+};
+
+static bool ieee80211_valid_disable_subchannel_bitmap(u16 *bitmap, u8 bw)
+{
+	int i;
+
+	if (bw < IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ)
+		*bitmap = 0;
+
+	if (!*bitmap)
+		return true;
+
+	/* Convert the bw to an array index */
+	bw -= IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ;
+	for (i = 0; i < per_bw_puncturing[bw].len; i++)
+		if (per_bw_puncturing[bw].valid_values[i] == *bitmap)
+			return true;
+
+	return false;
+}
+
+static u16 ieee80211_get_disabled_subchannel_bitmap(const struct ieee80211_eht_operation *eht_oper,
+						    struct cfg80211_chan_def *chandef)
+{
+	int sta_center_freq = ieee80211_channel_to_frequency(eht_oper->ccfs,
+							     chandef->chan->band);
+	u32 center_freq = chandef->chan->center_freq;
+	u8 sta_bw = 20 * BIT(u8_get_bits(eht_oper->chan_width,
+					 IEEE80211_EHT_OPER_CHAN_WIDTH));
+	u8 bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
+	int sta_start_freq = sta_center_freq - sta_bw / 2;
+	int start_freq = center_freq - bw / 2;
+	u16 bitmap =  get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
+	u16 shift = (start_freq - sta_start_freq) / 20;
+	u16 mask = BIT(sta_bw / 20) - 1;
+
+	return (bitmap >> shift) & mask;
+}
+
+static u64 ieee80211_set_puncturing_bitmap(struct cfg80211_chan_def *chandef,
+					   const struct ieee80211_eht_operation *eht_oper,
+					   u16 *bitmap, u32 *flags)
+{
+	u64 changed = 0;
+
+	while (chandef->width > NL80211_CHAN_WIDTH_40) {
+		u16 extract_bitmap =
+			ieee80211_get_disabled_subchannel_bitmap(eht_oper, chandef);
+
+		if (ieee80211_valid_disable_subchannel_bitmap(&extract_bitmap, chandef->width)) {
+			*bitmap = extract_bitmap;
+			break;
+		}
+		*flags |= ieee80211_chandef_downgrade(chandef);
+		changed |= BSS_CHANGED_BANDWIDTH;
+	}
+
+	if (chandef->width == NL80211_CHAN_WIDTH_40)
+		*bitmap = 0;
+
+	return changed;
+}
+
 /*
  * We can have multiple work items (and connection probing)
  * scheduling this timer, but we need to take care to only
@@ -3593,6 +3686,7 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 							    sta);
 
 			bss_conf->eht_support = sta->sta.eht_cap.has_eht;
+			changed |= BSS_CHANGED_EHT_PUNCTURING;
 		} else {
 			bss_conf->eht_support = false;
 		}
@@ -4106,6 +4200,37 @@ static bool ieee80211_rx_our_beacon(const u8 *tx_bssid,
 #endif
 }
 
+static bool ieee80211_config_puncturing(const struct ieee80211_eht_operation *eht_oper,
+					struct cfg80211_chan_def *chandef,
+					u16 *current_puncturing, u64 *changed,
+					u16 *bitmap, u8 *bw, u32 *flags)
+{
+	if (!u8_get_bits(eht_oper->present_bm,
+			 IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT))
+		*bitmap = 0;
+	else
+		*bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
+
+	if (*changed & BSS_CHANGED_BANDWIDTH ||
+	    ieee80211_get_disabled_subchannel_bitmap(eht_oper, chandef) !=
+	    *current_puncturing) {
+		*bw = u8_get_bits(eht_oper->chan_width,
+				  IEEE80211_EHT_OPER_CHAN_WIDTH);
+
+		if (!ieee80211_valid_disable_subchannel_bitmap(bitmap, *bw))
+			return false;
+
+		*changed |= ieee80211_set_puncturing_bitmap(chandef, eht_oper,
+							    bitmap, flags);
+		if (*current_puncturing != *bitmap) {
+			*current_puncturing = *bitmap;
+			*changed |= BSS_CHANGED_EHT_PUNCTURING;
+		}
+	}
+
+	return true;
+}
+
 static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 				     struct ieee80211_hdr *hdr, size_t len,
 				     struct ieee80211_rx_status *rx_status)
@@ -4119,7 +4244,7 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_chanctx_conf *chanctx_conf;
 	struct ieee80211_channel *chan;
 	struct sta_info *sta;
-	u32 changed = 0;
+	u64 changed = 0;
 	bool erp_valid;
 	u8 erp_value = 0;
 	u32 ncrc = 0;
@@ -4370,7 +4495,7 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 				elems->vht_cap_elem, elems->ht_operation,
 				elems->vht_operation, elems->he_operation,
 				elems->eht_operation,
-				elems->s1g_oper, bssid, &changed)) {
+				elems->s1g_oper, bssid, (u32 *)&changed)) {
 		mutex_unlock(&local->sta_mtx);
 		sdata_info(sdata,
 			   "failed to follow AP %pM bandwidth change, disconnect\n",
@@ -4395,6 +4520,29 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 					       elems->country_elem_len,
 					       elems->pwr_constr_elem,
 					       elems->cisco_dtpc_elem);
+
+	if (elems->eht_operation &&
+	    !(ifmgd->flags & IEEE80211_STA_DISABLE_EHT)) {
+		u8 bw;
+		u16 bitmap;
+
+		if (!ieee80211_config_puncturing(elems->eht_operation,
+						 &sdata->vif.bss_conf.chandef,
+						 &sdata->vif.bss_conf.eht_puncturing,
+						 &changed, &bitmap, &bw, &ifmgd->flags)) {
+			sdata_info(sdata,
+				   "Got an invalid disable subchannel bitmap from AP %pM: bitmap = 0x%x, bw = 0x%x. disconnect\n",
+				    bssid, bitmap, bw);
+			ieee80211_set_disassoc(sdata, IEEE80211_STYPE_DEAUTH,
+					       WLAN_REASON_DEAUTH_LEAVING,
+					       true, deauth_buf);
+			ieee80211_report_disconnect(sdata, deauth_buf,
+						    sizeof(deauth_buf), true,
+						    WLAN_REASON_DEAUTH_LEAVING,
+						    false);
+			goto free;
+		}
+	}
 
 	ieee80211_bss_info_change_notify(sdata, changed);
 free:
@@ -6191,6 +6339,37 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 	} else {
 		assoc_data->timeout = jiffies;
 		assoc_data->timeout_started = true;
+	}
+
+	sdata->vif.bss_conf.eht_puncturing = 0;
+	if (beacon_ies) {
+		const struct element *elem =
+			cfg80211_find_ext_elem(WLAN_EID_EXT_EHT_OPERATION,
+					       beacon_ies->data, beacon_ies->len);
+
+		/*
+		 * The length should include one byte for the EID
+		 * and 2 for the disabled subchannel bitmap
+		 */
+		if (elem &&
+		    elem->datalen >=
+			sizeof(struct ieee80211_eht_operation) + 1 + 2 &&
+		    elem->data[3] &
+			IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT) {
+			struct ieee80211_eht_operation *eht_oper =
+				(struct ieee80211_eht_operation *)&elem->data[1];
+			u8 bw = u8_get_bits(eht_oper->chan_width,
+					    IEEE80211_EHT_OPER_CHAN_WIDTH);
+			u16 bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
+
+			if (ieee80211_valid_disable_subchannel_bitmap(&bitmap, bw))
+				ieee80211_set_puncturing_bitmap(&sdata->vif.bss_conf.chandef,
+								eht_oper,
+								&sdata->vif.bss_conf.eht_puncturing,
+								&ifmgd->flags);
+			else
+				ifmgd->flags |= IEEE80211_STA_DISABLE_EHT;
+		}
 	}
 	rcu_read_unlock();
 
