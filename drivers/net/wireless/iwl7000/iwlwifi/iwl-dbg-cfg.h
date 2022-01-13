@@ -34,6 +34,7 @@ struct iwl_dbg_cfg {
 #define IWL_MVM_MOD_PARAM(type, name)	type mvm_##name; \
 					bool __mvm_mod_param_##name;
 #define IWL_DBG_CFG_FN(name, fn)	/* nothing */
+#define IWL_DBG_CFG_MAX_PRESET_VALUE 15
 
 #endif /* DBG_CFG_REINCLUDE */
 #if IS_ENABLED(CPTCFG_IWLXVT)
@@ -259,7 +260,7 @@ struct iwl_dbg_cfg {
 	IWL_MOD_PARAM(int, amsdu_size)
 	IWL_MOD_PARAM(int, swcrypto)
 	IWL_MOD_PARAM(uint, disable_11n)
-	IWL_MOD_PARAM(bool, enable_ini)
+	IWL_MOD_PARAM(u32, enable_ini)
 	IWL_DBG_CFG_BIN(he_ppe_thres)
 	IWL_DBG_CFG_NODEF(u8, he_chan_width_dis)
 	IWL_DBG_CFG_NODEF(u32, vht_cap_flip)
