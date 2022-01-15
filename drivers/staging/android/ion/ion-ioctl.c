@@ -59,7 +59,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	unsigned int dir;
-	union ion_ioctl_arg data;
+	union ion_ioctl_arg data = { 0 };
 
 	dir = ion_ioctl_dir(cmd);
 
