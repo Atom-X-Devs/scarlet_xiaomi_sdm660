@@ -34,7 +34,6 @@
 #include <linux/kdev_t.h>
 #include <linux/device.h>
 
-
 #include <linux/kernel.h>
 #include <linux/version.h>
 #include <linux/types.h>
@@ -42,7 +41,6 @@
 #include <linux/wait.h>
 #include <linux/mutex.h>
 #include <asm/atomic.h>
-#include <asm/uaccess.h>
 #include <linux/errno.h>
 
 #include <elliptic/elliptic_data_io.h>
