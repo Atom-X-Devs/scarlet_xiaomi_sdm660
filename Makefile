@@ -778,6 +778,7 @@ KBUILD_CFLAGS += $(call cc-disable-warning, address)
 KBUILD_CFLAGS += $(call cc-disable-warning, array-compare)
 # Harmless warns and too much noisy due to GCC's notorious aggressiveness
 KBUILD_CFLAGS += $(call cc-disable-warning, format)
+KBUILD_CFLAGS += $(call cc-disable-warning, stringop-overread)
 endif
 
 # These warnings generated too much noise in a regular build.
