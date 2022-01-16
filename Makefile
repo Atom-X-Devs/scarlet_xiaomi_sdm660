@@ -752,6 +752,8 @@ ifdef CONFIG_CC_IS_GCC
 # TODO: Find a fix for below warns
 KBUILD_CFLAGS += $(call cc-disable-warning, address)
 KBUILD_CFLAGS += $(call cc-disable-warning, array-compare)
+# Harmless but too much noisy warns due to GCC's notorious aggressiveness
+KBUILD_CFLAGS += $(call cc-disable-warning, stringop-overread)
 endif
 
 # These warnings generated too much noise in a regular build.
