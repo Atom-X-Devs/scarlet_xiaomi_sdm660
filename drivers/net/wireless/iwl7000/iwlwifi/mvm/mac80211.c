@@ -2461,6 +2461,10 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			(vif->bss_conf.uora_ocw_range >> 3) & 0x7;
 	}
 
+	if (vif->bss_conf.eht_puncturing)
+		flags |= STA_CTXT_EHT_PUNCTURE_MASK_VALID;
+	sta_ctxt_cmd.puncture_mask = cpu_to_le16(vif->bss_conf.eht_puncturing);
+
 	if (own_he_cap && !(own_he_cap->he_cap_elem.mac_cap_info[2] &
 			    IEEE80211_HE_MAC_CAP2_ACK_EN))
 		flags |= STA_CTXT_HE_NIC_NOT_ACK_ENABLED;
@@ -2581,6 +2585,7 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	int ret;
+	bool send_he_cmd = false;
 
 	/*
 	 * Re-calculate the tsf id, as the leader-follower relations depend
@@ -2592,7 +2597,7 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 		     !iwlwifi_mod_params.disable_11ax) ||
 		    (vif->bss_conf.eht_support &&
 		     !iwlwifi_mod_params.disable_11be))
-			iwl_mvm_cfg_he_sta(mvm, vif, mvmvif->ap_sta_id);
+			send_he_cmd = true;
 
 		iwl_mvm_mac_ctxt_recalc_tsf_id(mvm, vif);
 	}
@@ -2604,6 +2609,15 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 	      !iwlwifi_mod_params.disable_11ax) ||
 	     (vif->bss_conf.eht_support &&
 	      !iwlwifi_mod_params.disable_11be)))
+		send_he_cmd = true;
+
+	/* Update EHT Puncturing info */
+	if (changes & BSS_CHANGED_EHT_PUNCTURING && mvmvif->associated &&
+	    bss_conf->assoc && vif->bss_conf.eht_support &&
+	    !iwlwifi_mod_params.disable_11be)
+		send_he_cmd = true;
+
+	if (send_he_cmd)
 		iwl_mvm_cfg_he_sta(mvm, vif, mvmvif->ap_sta_id);
 
 	/*
