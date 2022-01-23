@@ -27,6 +27,7 @@
 #include <linux/sched/clock.h>
 #include <linux/sched_clock.h>
 #include <linux/acpi.h>
+#include <linux/ratelimit.h>
 
 #include <asm/arch_timer.h>
 #include <asm/traps.h>
@@ -904,7 +905,7 @@ static void arch_counter_set_user_access(void)
 	 */
 	if (arch_timer_this_cpu_has_cntvct_wa() ||
 	    !IS_ENABLED(CONFIG_ARM_ARCH_TIMER_VCT_ACCESS))
-		pr_info("CPU%d: Trapping CNTVCT access\n", smp_processor_id());
+		pr_info_ratelimited("CPU%d: Trapping CNTVCT access\n", smp_processor_id());
 	else
 		cntkctl |= ARCH_TIMER_USR_VCT_ACCESS_EN;
 
