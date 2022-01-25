@@ -659,8 +659,8 @@ static irqreturn_t qpnp_hap_sc_irq(int irq, void *_hap)
 	if (hap->sc_count < SC_MAX_COUNT) {
 		qpnp_hap_read_reg(hap, QPNP_HAP_STATUS(hap->base), &val);
 		if (val & SC_FOUND_BIT)
-			schedule_delayed_work(&hap->sc_work,
-					QPNP_HAP_SC_IRQ_STATUS_DELAY);
+			queue_delayed_work(system_power_efficient_wq,
+				&hap->sc_work, QPNP_HAP_SC_IRQ_STATUS_DELAY);
 		else
 			hap->sc_count = 0;
 	} else {
