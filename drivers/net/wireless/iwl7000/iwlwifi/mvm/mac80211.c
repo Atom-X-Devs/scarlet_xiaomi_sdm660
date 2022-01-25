@@ -2214,8 +2214,8 @@ static void iwl_mvm_get_optimal_ppe_info(struct iwl_he_pkt_ext_v2 *pkt_ext,
 	}
 }
 
-static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
-			       struct ieee80211_vif *vif, u8 sta_id)
+void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
+			struct ieee80211_vif *vif, u8 sta_id)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_he_sta_context_cmd_v3 sta_ctxt_cmd = {
