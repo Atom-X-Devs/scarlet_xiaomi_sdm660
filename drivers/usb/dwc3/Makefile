@@ -5,7 +5,11 @@ CFLAGS_dwc3-msm.o                       := -Idrivers/usb/host -Idrivers/base/pow
 
 obj-$(CONFIG_USB_DWC3)			+= dwc3.o
 
-dwc3-y					:= core.o debug_ipc.o
+dwc3-y					:= core.o
+
+ifneq ($(CONFIG_DEBUG_KERNEL),)
+	dwc3-y				+= debug_ipc.o
+endif
 
 ifneq ($(CONFIG_TRACING),)
 	dwc3-y				+= trace.o
