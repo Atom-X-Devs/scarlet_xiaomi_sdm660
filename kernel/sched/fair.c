@@ -5648,8 +5648,6 @@ static struct {
 
 #endif /* CONFIG_NO_HZ_COMMON */
 
-}
-
 /* CPU only has SCHED_IDLE tasks enqueued */
 static int sched_idle_cpu(int cpu)
 {
@@ -5659,7 +5657,7 @@ static int sched_idle_cpu(int cpu)
 			rq->nr_running);
 }
 
-static unsigned long cpu_runnable_load(struct rq *rq);
+static unsigned long cpu_runnable_load(struct rq *rq)
 {
 	return cfs_rq_runnable_load_avg(&rq->cfs);
 }
