@@ -344,10 +344,21 @@ struct fuse_file_lock {
 #define FUSE_CACHE_SYMLINKS	(1 << 23)
 #define FUSE_NO_OPENDIR_SUPPORT (1 << 24)
 #define FUSE_EXPLICIT_INVAL_DATA (1 << 25)
-#define FUSE_PASSTHROUGH	(1 << 31)
 #define FUSE_INIT_EXT		(1 << 30)
 #define FUSE_INIT_RESERVED	(1 << 31)
 /* bits 32..63 get shifted down 32 bits into the flags2 field */
+
+/*
+ * For FUSE < 7.36 FUSE_PASSTHROUGH has value (1 << 31).
+ * This condition check is not really required, but would prevent having a
+ * broken commit in the tree.
+ */
+#if FUSE_KERNEL_VERSION > 7 ||                                                 \
+   (FUSE_KERNEL_VERSION == 7 && FUSE_KERNEL_MINOR_VERSION >= 36)
+#define FUSE_PASSTHROUGH (1ULL << 63)
+#else
+#define FUSE_PASSTHROUGH (1 << 31)
+#endif
 
 /**
  * CUSE INIT request/reply flags
