@@ -495,6 +495,10 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		wiphy_ext_feature_set(hw->wiphy,
 				      NL80211_EXT_FEATURE_BEACON_PROTECTION_CLIENT);
 
+	if (mvm->trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_9000)
+		wiphy_ext_feature_set(hw->wiphy,
+				      NL80211_EXT_FEATURE_HW_TIMESTAMP);
+
 	ieee80211_hw_set(hw, SINGLE_SCAN_ON_ALL_BANDS);
 	hw->wiphy->features |=
 		NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
