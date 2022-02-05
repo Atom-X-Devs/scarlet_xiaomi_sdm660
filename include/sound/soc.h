@@ -1169,8 +1169,6 @@ struct snd_soc_card {
 	struct mutex mutex;
 	struct mutex dapm_mutex;
 
-	spinlock_t dpcm_lock;
-
 	bool instantiated;
 	bool topology_shortname_created;
 
@@ -1262,6 +1260,8 @@ struct snd_soc_card {
 	u32 pop_time;
 
 	void *drvdata;
+
+	spinlock_t dpcm_lock;
 };
 #define for_each_card_prelinks(card, i, link)				\
 	for ((i) = 0;							\
