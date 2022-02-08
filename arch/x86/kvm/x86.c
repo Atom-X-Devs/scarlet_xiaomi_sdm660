@@ -1910,27 +1910,6 @@ static int do_monotonic_boot(s64 *t, u64 *tsc_timestamp)
 	return mode;
 }
 
-static int do_realtime(struct timespec64 *ts, u64 *tsc_timestamp)
-{
-	struct pvclock_gtod_data *gtod = &pvclock_gtod_data;
-	unsigned long seq;
-	int mode;
-	u64 ns;
-
-	do {
-		seq = read_seqcount_begin(&gtod->seq);
-		ts->tv_sec = gtod->wall_time_sec;
-		ns = gtod->nsec_base;
-		ns += vgettsc(tsc_timestamp, &mode);
-		ns >>= gtod->clock.shift;
-	} while (unlikely(read_seqcount_retry(&gtod->seq, seq)));
-
-	ts->tv_sec += __iter_div_u64_rem(ns, NSEC_PER_SEC, &ns);
-	ts->tv_nsec = ns;
-
-	return mode;
-}
-
 /* returns true if host is using TSC based clocksource */
 static bool kvm_get_time_and_clockread(s64 *kernel_ns, u64 *tsc_timestamp)
 {
@@ -1942,16 +1921,6 @@ static bool kvm_get_time_and_clockread(s64 *kernel_ns, u64 *tsc_timestamp)
 						      tsc_timestamp));
 }
 
-/* returns true if host is using TSC based clocksource */
-static bool kvm_get_walltime_and_clockread(struct timespec64 *ts,
-					   u64 *tsc_timestamp)
-{
-	/* checked again under seqlock below */
-	if (!gtod_is_based_on_tsc(pvclock_gtod_data.clock.vclock_mode))
-		return false;
-
-	return gtod_is_based_on_tsc(do_realtime(ts, tsc_timestamp));
-}
 #endif
 
 /*
@@ -7061,36 +7030,6 @@ int kvm_emulate_halt(struct kvm_vcpu *vcpu)
 }
 EXPORT_SYMBOL_GPL(kvm_emulate_halt);
 
-#ifdef CONFIG_X86_64
-static int kvm_pv_clock_pairing(struct kvm_vcpu *vcpu, gpa_t paddr,
-			        unsigned long clock_type)
-{
-	struct kvm_clock_pairing clock_pairing;
-	struct timespec64 ts;
-	u64 cycle;
-	int ret;
-
-	if (clock_type != KVM_CLOCK_PAIRING_WALLCLOCK)
-		return -KVM_EOPNOTSUPP;
-
-	if (kvm_get_walltime_and_clockread(&ts, &cycle) == false)
-		return -KVM_EOPNOTSUPP;
-
-	clock_pairing.sec = ts.tv_sec;
-	clock_pairing.nsec = ts.tv_nsec;
-	clock_pairing.tsc = kvm_read_l1_tsc(vcpu, cycle);
-	clock_pairing.flags = 0;
-	memset(&clock_pairing.pad, 0, sizeof(clock_pairing.pad));
-
-	ret = 0;
-	if (kvm_write_guest(vcpu->kvm, paddr, &clock_pairing,
-			    sizeof(struct kvm_clock_pairing)))
-		ret = -KVM_EFAULT;
-
-	return ret;
-}
-#endif
-
 /*
  * kvm_pv_kick_cpu_op:  Kick a vcpu.
  *
@@ -7156,7 +7095,7 @@ int kvm_emulate_hypercall(struct kvm_vcpu *vcpu)
 		break;
 #ifdef CONFIG_X86_64
 	case KVM_HC_CLOCK_PAIRING:
-		ret = kvm_pv_clock_pairing(vcpu, a0, a1);
+		ret = -KVM_EOPNOTSUPP;
 		break;
 #endif
 	case KVM_HC_SEND_IPI:
