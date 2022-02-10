@@ -62,19 +62,19 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 
 #define NL80211_CHAN_WIDTH_320 13
 
-#define IEEE80211_EHT_PPE_THRES_MAX_LEN	61
+#define IEEE80211_EHT_PPE_THRES_MAX_LEN	32
 
-/**
- * struct ieee80211_sta_eht_cap - STA's EHT capabilities
- *
- * This structure describes most essential parameters needed
- * to describe 802.11be EHT capabilities for a STA.
- *
- * @has_he: true iff HE data is valid.
- * @eht_cap_elem: Fixed portion of the eht capabilities element.
- * @eht_mcs_nss_supp: The supported NSS/MCS combinations.
- * @eht_ppe_thres: Holds the PPE Thresholds data.
- */
+struct ieee80211_eht_mcs_nss_supp {
+	union {
+		struct ieee80211_eht_mcs_nss_supp_20mhz_only only_20mhz;
+		struct {
+			struct ieee80211_eht_mcs_nss_supp_bw _80;
+			struct ieee80211_eht_mcs_nss_supp_bw _160;
+			struct ieee80211_eht_mcs_nss_supp_bw _320;
+		} __packed bw;
+	} __packed;
+} __packed;
+
 struct ieee80211_sta_eht_cap {
 	bool has_eht;
 	struct ieee80211_eht_cap_elem_fixed eht_cap_elem;

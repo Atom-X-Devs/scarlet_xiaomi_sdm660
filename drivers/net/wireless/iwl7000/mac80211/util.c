@@ -1011,18 +1011,15 @@ static void ieee80211_parse_extension_element(u32 *crc,
 			elems->he_6ghz_capa = data;
 		break;
 	case WLAN_EID_EXT_EHT_CAPABILITY:
-		if (len >= sizeof(struct ieee80211_eht_cap_elem)) {
+		if (ieee80211_eht_capa_size_ok(elems->he_cap,
+					       data, len)) {
 			elems->eht_cap = data;
 			elems->eht_cap_len = len;
 		}
 		break;
 	case WLAN_EID_EXT_EHT_OPERATION:
-		if (len < sizeof(*elems->eht_operation))
-			break;
-		if ((elem->data[3] & IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT) &&
-		    len < sizeof(*elems->eht_operation) + 2)
-			break;
-		elems->eht_operation = data;
+		if (ieee80211_eht_oper_size_ok(data, len))
+			elems->eht_operation = data;
 		break;
 	}
 }
@@ -4862,33 +4859,8 @@ u8 *ieee80211_ie_build_eht_cap(u8 *pos,
 	memcpy(pos, &eht_cap->eht_cap_elem, sizeof(eht_cap->eht_cap_elem));
 	pos += sizeof(eht_cap->eht_cap_elem);
 
-	if (!(he_cap->he_cap_elem.phy_cap_info[0] &
-	      IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL)) {
-		memcpy(pos, &eht_cap->eht_mcs_nss_supp.only_20mhz,
-		       sizeof(eht_cap->eht_mcs_nss_supp.only_20mhz));
-		pos += sizeof(eht_cap->eht_mcs_nss_supp.only_20mhz);
-	} else {
-		if (he_cap->he_cap_elem.phy_cap_info[0] &
-		    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G) {
-			memcpy(pos, &eht_cap->eht_mcs_nss_supp.bw_80,
-			       sizeof(eht_cap->eht_mcs_nss_supp.bw_80));
-			pos += sizeof(eht_cap->eht_mcs_nss_supp.bw_80);
-		}
-
-		if (he_cap->he_cap_elem.phy_cap_info[0] &
-		    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G) {
-			memcpy(pos, &eht_cap->eht_mcs_nss_supp.bw_160,
-			       sizeof(eht_cap->eht_mcs_nss_supp.bw_160));
-			pos += sizeof(eht_cap->eht_mcs_nss_supp.bw_160);
-		}
-
-		if (eht_cap->eht_cap_elem.phy_cap_info[0] &
-		    IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ) {
-			memcpy(pos, &eht_cap->eht_mcs_nss_supp.bw_320,
-			       sizeof(eht_cap->eht_mcs_nss_supp.bw_320));
-			pos += sizeof(eht_cap->eht_mcs_nss_supp.bw_320);
-		}
-	}
+	memcpy(pos, &eht_cap->eht_mcs_nss_supp, mcs_nss_len);
+	pos += mcs_nss_len;
 
 	if (ppet_len) {
 		memcpy(pos, &eht_cap->eht_ppe_thres, ppet_len);

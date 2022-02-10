@@ -272,11 +272,11 @@ rs_fw_rs_mcs2eht_mcs(enum IWL_TLC_MCS_PER_BW bw,
 {
 	switch (bw) {
 	case IWL_TLC_MCS_PER_BW_80:
-		return &eht_mcs->bw_80;
+		return &eht_mcs->bw._80;
 	case IWL_TLC_MCS_PER_BW_160:
-		return &eht_mcs->bw_160;
+		return &eht_mcs->bw._160;
 	case IWL_TLC_MCS_PER_BW_320:
-		return &eht_mcs->bw_320;
+		return &eht_mcs->bw._320;
 	default:
 		return NULL;
 	}
@@ -302,10 +302,10 @@ static void rs_fw_eht_set_enabled_rates(const struct ieee80211_sta *sta,
 	      IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL)) {
 		mcs_rx_20 = eht_rx_mcs->only_20mhz;
 	} else {
-		mcs_rx_20.rx_tx_mcs7_max_nss = eht_rx_mcs->bw_80.rx_tx_mcs9_max_nss;
-		mcs_rx_20.rx_tx_mcs9_max_nss = eht_rx_mcs->bw_80.rx_tx_mcs9_max_nss;
-		mcs_rx_20.rx_tx_mcs11_max_nss = eht_rx_mcs->bw_80.rx_tx_mcs11_max_nss;
-		mcs_rx_20.rx_tx_mcs13_max_nss = eht_rx_mcs->bw_80.rx_tx_mcs13_max_nss;
+		mcs_rx_20.rx_tx_mcs7_max_nss = eht_rx_mcs->bw._80.rx_tx_mcs9_max_nss;
+		mcs_rx_20.rx_tx_mcs9_max_nss = eht_rx_mcs->bw._80.rx_tx_mcs9_max_nss;
+		mcs_rx_20.rx_tx_mcs11_max_nss = eht_rx_mcs->bw._80.rx_tx_mcs11_max_nss;
+		mcs_rx_20.rx_tx_mcs13_max_nss = eht_rx_mcs->bw._80.rx_tx_mcs13_max_nss;
 	}
 
 	/* nic is 20Mhz only */
@@ -313,10 +313,10 @@ static void rs_fw_eht_set_enabled_rates(const struct ieee80211_sta *sta,
 	      IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL)) {
 		mcs_tx_20 = eht_tx_mcs->only_20mhz;
 	} else {
-		mcs_tx_20.rx_tx_mcs7_max_nss = eht_tx_mcs->bw_80.rx_tx_mcs9_max_nss;
-		mcs_tx_20.rx_tx_mcs9_max_nss = eht_tx_mcs->bw_80.rx_tx_mcs9_max_nss;
-		mcs_tx_20.rx_tx_mcs11_max_nss = eht_tx_mcs->bw_80.rx_tx_mcs11_max_nss;
-		mcs_tx_20.rx_tx_mcs13_max_nss = eht_tx_mcs->bw_80.rx_tx_mcs13_max_nss;
+		mcs_tx_20.rx_tx_mcs7_max_nss = eht_tx_mcs->bw._80.rx_tx_mcs9_max_nss;
+		mcs_tx_20.rx_tx_mcs9_max_nss = eht_tx_mcs->bw._80.rx_tx_mcs9_max_nss;
+		mcs_tx_20.rx_tx_mcs11_max_nss = eht_tx_mcs->bw._80.rx_tx_mcs11_max_nss;
+		mcs_tx_20.rx_tx_mcs13_max_nss = eht_tx_mcs->bw._80.rx_tx_mcs13_max_nss;
 	}
 
 	/* rates for 20/40/80 bw */
