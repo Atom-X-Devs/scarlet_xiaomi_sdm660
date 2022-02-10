@@ -2119,7 +2119,7 @@ void iwl_drv_stop(struct iwl_drv *drv)
 	kfree(drv);
 }
 
-#define ENABLE_INI	(IWL_DBG_CFG_MAX_PRESET_VALUE + 1)
+#define ENABLE_INI	(IWL_DBG_TLV_MAX_PRESET + 1)
 
 /* shared module parameters */
 struct iwl_mod_params iwlwifi_mod_params = {

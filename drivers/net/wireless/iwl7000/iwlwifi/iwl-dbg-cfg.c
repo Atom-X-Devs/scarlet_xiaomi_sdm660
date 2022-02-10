@@ -229,7 +229,7 @@ static void iwl_dbg_cfg_parse_fw_dbg_preset(struct iwl_dbg_cfg *dbgcfg,
 		return;
 	}
 
-	if (preset > IWL_DBG_CFG_MAX_PRESET_VALUE) {
+	if (preset > IWL_DBG_TLV_MAX_PRESET) {
 		printk(KERN_INFO "iwlwifi debug config: Invalid value for FW_DBG_PRESET: %d\n",
 		       preset);
 		return;

@@ -34,7 +34,6 @@ struct iwl_dbg_cfg {
 #define IWL_MVM_MOD_PARAM(type, name)	type mvm_##name; \
 					bool __mvm_mod_param_##name;
 #define IWL_DBG_CFG_FN(name, fn)	/* nothing */
-#define IWL_DBG_CFG_MAX_PRESET_VALUE 15
 
 #endif /* DBG_CFG_REINCLUDE */
 #if IS_ENABLED(CPTCFG_IWLXVT)
