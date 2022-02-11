@@ -2877,9 +2877,6 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 			     struct ieee80211_scan_ies *ies,
 			     int type)
 {
-#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
-	struct cfg80211_sched_scan_plan scan_plan = {};
-#endif
 	struct iwl_host_cmd hcmd = {
 		.len = { iwl_mvm_scan_size(mvm), },
 		.data = { mvm->scan_cmd, },
@@ -2917,20 +2914,11 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 	params.pass_all =  iwl_mvm_scan_pass_all(mvm, req);
 	params.n_match_sets = req->n_match_sets;
 	params.match_sets = req->match_sets;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	if (!req->n_scan_plans)
 		return -EINVAL;
 
 	params.n_scan_plans = req->n_scan_plans;
 	params.scan_plans = req->scan_plans;
-#else
-	params.n_scan_plans = 1;
-	params.scan_plans = &scan_plan;
-	if (req->interval / MSEC_PER_SEC > U16_MAX)
-		scan_plan.interval = U16_MAX;
-	else
-		scan_plan.interval = req->interval / MSEC_PER_SEC;
-#endif
 
 	iwl_mvm_fill_scan_type(mvm, &params, vif);
 	iwl_mvm_fill_respect_p2p_go(mvm, &params, vif);

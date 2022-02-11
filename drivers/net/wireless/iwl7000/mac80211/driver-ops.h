@@ -159,7 +159,7 @@ static inline void drv_bss_info_changed(struct ieee80211_local *local,
 			 sdata->vif.type != NL80211_IFTYPE_AP &&
 			 sdata->vif.type != NL80211_IFTYPE_ADHOC &&
 			 sdata->vif.type != NL80211_IFTYPE_MESH_POINT &&
-			 !ieee80211_viftype_ocb(sdata->vif.type)))
+			 sdata->vif.type != NL80211_IFTYPE_OCB))
 		return;
 
 	if (WARN_ON_ONCE(sdata->vif.type == NL80211_IFTYPE_P2P_DEVICE ||

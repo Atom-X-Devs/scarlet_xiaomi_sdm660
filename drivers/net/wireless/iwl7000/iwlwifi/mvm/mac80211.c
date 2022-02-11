@@ -636,7 +636,6 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	/* we create the 802.11 header and zero length SSID IE. */
 	hw->wiphy->max_sched_scan_ie_len =
 		SCAN_OFFLOAD_PROBE_REQ_SIZE - 24 - 2;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	hw->wiphy->max_sched_scan_plans = IWL_MAX_SCHED_SCAN_PLANS;
 	hw->wiphy->max_sched_scan_plan_interval = U16_MAX;
 
@@ -645,7 +644,6 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	 * infinite loop, so the maximum number of iterations is actually 254.
 	 */
 	hw->wiphy->max_sched_scan_plan_iterations = 254;
-#endif
 
 	hw->wiphy->features |= NL80211_FEATURE_P2P_GO_CTWIN |
 			       NL80211_FEATURE_LOW_PRIORITY_SCAN |
@@ -5361,19 +5359,19 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 
 	switch (rate_n_flags & RATE_MCS_CHAN_WIDTH_MSK) {
 	case RATE_MCS_CHAN_WIDTH_20:
-		set_rate_info_bw(rinfo, RATE_INFO_BW_20);
+		rinfo->bw = RATE_INFO_BW_20;
 		break;
 	case RATE_MCS_CHAN_WIDTH_40:
-		set_rate_info_bw(rinfo, RATE_INFO_BW_40);
+		rinfo->bw = RATE_INFO_BW_40;
 		break;
 	case RATE_MCS_CHAN_WIDTH_80:
-		set_rate_info_bw(rinfo, RATE_INFO_BW_80);
+		rinfo->bw = RATE_INFO_BW_80;
 		break;
 	case RATE_MCS_CHAN_WIDTH_160:
-		set_rate_info_bw(rinfo, RATE_INFO_BW_160);
+		rinfo->bw = RATE_INFO_BW_160;
 		break;
 	case RATE_MCS_CHAN_WIDTH_320:
-		set_rate_info_bw(rinfo, RATE_INFO_BW_320);
+		rinfo->bw = RATE_INFO_BW_320;
 		break;
 	}
 
@@ -5448,7 +5446,7 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 		rinfo->flags |= RATE_INFO_FLAGS_HE_MCS;
 
 		if (rate_n_flags & RATE_MCS_HE_106T_MSK) {
-			set_rate_info_bw(rinfo, RATE_INFO_BW_HE_RU);
+			rinfo->bw = RATE_INFO_BW_HE_RU;
 			rinfo->he_ru_alloc = NL80211_RATE_INFO_HE_RU_ALLOC_106;
 		}
 

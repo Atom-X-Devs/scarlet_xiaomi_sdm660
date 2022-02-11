@@ -1311,10 +1311,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		goto fail_ifa6;
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
-	intel_regulatory_register(local);
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
-
 	return 0;
 
 #if IS_ENABLED(CONFIG_IPV6)
@@ -1422,10 +1418,6 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
 			continue;
 		kfree(local->hw.wiphy->bands[band]);
 	}
-
-#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
-	intel_regulatory_deregister(local);
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
 
 	wiphy_free(local->hw.wiphy);
 }

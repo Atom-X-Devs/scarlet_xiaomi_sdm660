@@ -2,9 +2,7 @@
 /*
  * Copyright (C) 2020-2022 Intel Corporation
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
 #include <net/tso.h>
-#endif
 #include <linux/tcp.h>
 
 #include "iwl-debug.h"

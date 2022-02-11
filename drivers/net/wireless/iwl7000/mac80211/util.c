@@ -1643,7 +1643,7 @@ void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
 		 !(sdata->flags & IEEE80211_SDATA_OPERATING_GMODE);
 	rcu_read_unlock();
 
-	is_ocb = (ieee80211_viftype_ocb(sdata->vif.type));
+	is_ocb = (sdata->vif.type == NL80211_IFTYPE_OCB);
 
 	/* Set defaults according to 802.11-2007 Table 7-37 */
 	aCWmax = 1023;
@@ -2580,10 +2580,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 			ieee80211_bss_info_change_notify(sdata, changed);
 			sdata_unlock(sdata);
 			break;
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 		case NL80211_IFTYPE_OCB:
-			/* keep code in case of fall-through (spatch generated) */
-#endif
 			changed |= BSS_CHANGED_OCB;
 			ieee80211_bss_info_change_notify(sdata, changed);
 			break;
@@ -2612,10 +2609,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 				ieee80211_bss_info_change_notify(sdata, changed);
 			}
 			break;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 		case NL80211_IFTYPE_NAN:
-			/* keep code in case of fall-through (spatch generated) */
-#endif
 			res = ieee80211_reconfig_nan(sdata);
 			if (res < 0) {
 				ieee80211_handle_reconfig_failure(local);
@@ -2693,10 +2687,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		 * scan plan was currently running (and some scan plans may have
 		 * already finished).
 		 */
-		if (
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
-		    sched_scan_req->n_scan_plans > 1 ||
-#endif
+		if (sched_scan_req->n_scan_plans > 1 ||
 		    __ieee80211_request_sched_scan_start(sched_scan_sdata,
 							 sched_scan_req)) {
 			RCU_INIT_POINTER(local->sched_scan_sdata, NULL);
@@ -3914,7 +3905,7 @@ u64 ieee80211_calculate_rx_timestamp(struct ieee80211_local *local,
 
 	memset(&ri, 0, sizeof(ri));
 
-	set_rate_info_bw(&ri, status->bw);
+	ri.bw = status->bw;
 
 	/* Fill cfg80211 rate info */
 	switch (status->encoding) {

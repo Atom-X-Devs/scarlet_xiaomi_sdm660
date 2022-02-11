@@ -365,7 +365,7 @@ ieee80211_add_tx_radiotap_header(struct ieee80211_local *local,
 			 IEEE80211_RADIOTAP_MCS_HAVE_BW;
 		if (status->rate->flags & RATE_INFO_FLAGS_SHORT_GI)
 			pos[1] |= IEEE80211_RADIOTAP_MCS_SGI;
-		if (get_rate_info_bw(status->rate) == RATE_INFO_BW_40)
+		if (status->rate->bw == RATE_INFO_BW_40)
 			pos[1] |= IEEE80211_RADIOTAP_MCS_BW_40;
 		pos[2] = status->rate->mcs;
 		pos += 3;
@@ -390,7 +390,7 @@ ieee80211_add_tx_radiotap_header(struct ieee80211_local *local,
 		pos++;
 
 		/* u8 bandwidth */
-		switch (get_rate_info_bw(status->rate)) {
+		switch (status->rate->bw) {
 		case RATE_INFO_BW_160:
 			*pos = 11;
 			break;
@@ -453,7 +453,7 @@ ieee80211_add_tx_radiotap_header(struct ieee80211_local *local,
 
 		he->data5 |= HE_PREP(DATA5_GI, status->rate->he_gi);
 
-		switch (get_rate_info_bw(status->rate)) {
+		switch (status->rate->bw) {
 		case RATE_INFO_BW_20:
 			he->data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
 					     IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_20MHZ);
@@ -487,8 +487,7 @@ ieee80211_add_tx_radiotap_header(struct ieee80211_local *local,
 					     status->rate->he_ru_alloc + 4);
 			break;
 		default:
-			WARN_ONCE(1, "Invalid SU BW %d\n",
-				  get_rate_info_bw(status->rate));
+			WARN_ONCE(1, "Invalid SU BW %d\n", status->rate->bw);
 		}
 
 		pos += sizeof(struct ieee80211_radiotap_he);

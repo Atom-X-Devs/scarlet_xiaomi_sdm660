@@ -1205,30 +1205,11 @@ struct airtime_sched_info {
 DECLARE_STATIC_KEY_FALSE(aql_disable);
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
-/* private copy of a cfg80211 structure */
-struct cfg80211_registered_device {
-	struct list_head list;
-
-	/*
-	 * the driver requests the regulatory core to set this regulatory
-	 * domain as the wiphy's. Only used for %REGULATORY_WIPHY_SELF_MANAGED
-	 * devices using the regulatory_set_wiphy_regd() API
-	 */
-	const struct ieee80211_regdomain *requested_regd;
-};
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
-
 struct ieee80211_local {
 	/* embed the driver visible part.
 	 * don't cast (use the static inlines below), but we keep
 	 * it first anyway so they become a no-op */
 	struct ieee80211_hw hw;
-
-#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
-	/* used for internal mac80211 LAR implementation */
-	struct cfg80211_registered_device rdev;
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
 
 	struct fq fq;
 	struct codel_vars *cvars;
@@ -2504,12 +2485,6 @@ int ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
 int ieee80211_max_num_channels(struct ieee80211_local *local);
 void ieee80211_recalc_chanctx_chantype(struct ieee80211_local *local,
 				       struct ieee80211_chanctx *ctx);
-
-#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
-/* LAR private implementation */
-void intel_regulatory_deregister(struct ieee80211_local *local);
-void intel_regulatory_register(struct ieee80211_local *local);
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
 
 /* TDLS */
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
