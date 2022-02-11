@@ -2755,6 +2755,12 @@ static inline int ieee80211_data_to_8023(struct sk_buff *skb, const u8 *addr,
 {
 	return ieee80211_data_to_8023_exthdr(skb, NULL, addr, iftype, 0, false);
 }
+
+enum nl80211_eht_gi {
+	NL80211_RATE_INFO_EHT_GI_0_8,
+	NL80211_RATE_INFO_EHT_GI_1_6,
+	NL80211_RATE_INFO_EHT_GI_3_2,
+};
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,18,0) */
 
 #if LINUX_VERSION_IS_LESS(5,15,0)
