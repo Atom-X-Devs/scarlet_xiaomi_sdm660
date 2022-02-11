@@ -5357,6 +5357,7 @@ static int iwl_mvm_mac_get_survey(struct ieee80211_hw *hw, int idx,
 static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 {
 	u32 format = rate_n_flags & RATE_MCS_MOD_TYPE_MSK;
+	u32 gi_ltf;
 
 	switch (rate_n_flags & RATE_MCS_CHAN_WIDTH_MSK) {
 	case RATE_MCS_CHAN_WIDTH_20:
@@ -5427,10 +5428,13 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 		RATE_HT_MCS_INDEX(rate_n_flags) :
 		u32_get_bits(rate_n_flags, RATE_MCS_CODE_MSK);
 
-	if (format == RATE_MCS_HE_MSK) {
+	if (rate_n_flags & RATE_MCS_SGI_MSK)
+		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
+
+	switch (format) {
+	case RATE_MCS_HE_MSK:
 #if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
-		u32 gi_ltf = u32_get_bits(rate_n_flags,
-					  RATE_MCS_HE_GI_LTF_MSK);
+		gi_ltf = u32_get_bits(rate_n_flags, RATE_MCS_HE_GI_LTF_MSK);
 
 		rinfo->flags |= RATE_INFO_FLAGS_HE_MCS;
 
@@ -5469,20 +5473,15 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 
 		if (rate_n_flags & RATE_HE_DUAL_CARRIER_MODE_MSK)
 			rinfo->he_dcm = 1;
-		return;
 #endif
-	}
-
-	if (rate_n_flags & RATE_MCS_SGI_MSK)
-		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
-
-	if (format == RATE_MCS_HT_MSK) {
+		break;
+	case RATE_MCS_HT_MSK:
 		rinfo->flags |= RATE_INFO_FLAGS_MCS;
-
-	} else if (format == RATE_MCS_VHT_MSK) {
+		break;
+	case RATE_MCS_VHT_MSK:
 		rinfo->flags |= RATE_INFO_FLAGS_VHT_MCS;
+		break;
 	}
-
 }
 
 static void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
