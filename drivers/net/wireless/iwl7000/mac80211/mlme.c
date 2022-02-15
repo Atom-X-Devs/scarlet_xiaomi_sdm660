@@ -138,8 +138,14 @@ static bool ieee80211_valid_disable_subchannel_bitmap(u16 *bitmap, u8 bw)
 	return false;
 }
 
-static u16 ieee80211_get_disabled_subchannel_bitmap(const struct ieee80211_eht_operation *eht_oper,
-						    struct cfg80211_chan_def *chandef)
+/*
+ * Extract from the given disabled subchannel bitmap (raw format
+ * from the EHT Operation Element) the bits for the subchannel
+ * we're using right now.
+ */
+static u16
+ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
+				 struct cfg80211_chan_def *chandef, u16 bitmap)
 {
 	int sta_center_freq = ieee80211_channel_to_frequency(eht_oper->ccfs,
 							     chandef->chan->band);
@@ -149,35 +155,47 @@ static u16 ieee80211_get_disabled_subchannel_bitmap(const struct ieee80211_eht_o
 	u8 bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
 	int sta_start_freq = sta_center_freq - sta_bw / 2;
 	int start_freq = center_freq - bw / 2;
-	u16 bitmap =  get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
 	u16 shift = (start_freq - sta_start_freq) / 20;
 	u16 mask = BIT(sta_bw / 20) - 1;
 
 	return (bitmap >> shift) & mask;
 }
 
-static u64 ieee80211_set_puncturing_bitmap(struct cfg80211_chan_def *chandef,
-					   const struct ieee80211_eht_operation *eht_oper,
-					   u16 *bitmap, u32 *flags)
+/*
+ * Handle the puncturing bitmap, possibly downgrading bandwidth to get a
+ * valid bitmap.
+ */
+static void
+ieee80211_handle_puncturing_bitmap(struct ieee80211_sub_if_data *sdata,
+				   const struct ieee80211_eht_operation *eht_oper,
+				   u16 bitmap, u64 *changed)
 {
-	u64 changed = 0;
+	struct cfg80211_chan_def *chandef = &sdata->vif.bss_conf.chandef;
+	u16 extracted;
+	u64 _changed = 0;
+
+	if (!changed)
+		changed = &_changed;
 
 	while (chandef->width > NL80211_CHAN_WIDTH_40) {
-		u16 extract_bitmap =
-			ieee80211_get_disabled_subchannel_bitmap(eht_oper, chandef);
+		extracted =
+			ieee80211_extract_dis_subch_bmap(eht_oper, chandef,
+							 bitmap);
 
-		if (ieee80211_valid_disable_subchannel_bitmap(&extract_bitmap, chandef->width)) {
-			*bitmap = extract_bitmap;
+		if (ieee80211_valid_disable_subchannel_bitmap(&bitmap,
+							      chandef->width))
 			break;
-		}
-		*flags |= ieee80211_chandef_downgrade(chandef);
-		changed |= BSS_CHANGED_BANDWIDTH;
+		sdata->u.mgd.flags |= ieee80211_chandef_downgrade(chandef);
+		*changed |= BSS_CHANGED_BANDWIDTH;
 	}
 
 	if (chandef->width == NL80211_CHAN_WIDTH_40)
-		*bitmap = 0;
+		extracted = 0;
 
-	return changed;
+	if (sdata->vif.bss_conf.eht_puncturing != extracted) {
+		sdata->vif.bss_conf.eht_puncturing = extracted;
+		*changed |= BSS_CHANGED_EHT_PUNCTURING;
+	}
 }
 
 /*
@@ -4209,34 +4227,38 @@ static bool ieee80211_rx_our_beacon(const u8 *tx_bssid,
 #endif
 }
 
-static bool ieee80211_config_puncturing(const struct ieee80211_eht_operation *eht_oper,
-					struct cfg80211_chan_def *chandef,
-					u16 *current_puncturing, u64 *changed,
-					u16 *bitmap, u8 *bw, u32 *flags)
+static bool ieee80211_config_puncturing(struct ieee80211_sub_if_data *sdata,
+					const struct ieee80211_eht_operation *eht_oper,
+					u64 *changed)
 {
+	u16 bitmap, extracted;
+	u8 bw;
+
 	if (!u8_get_bits(eht_oper->present_bm,
 			 IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT))
-		*bitmap = 0;
+		bitmap = 0;
 	else
-		*bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
+		bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
 
-	if (*changed & BSS_CHANGED_BANDWIDTH ||
-	    ieee80211_get_disabled_subchannel_bitmap(eht_oper, chandef) !=
-	    *current_puncturing) {
-		*bw = u8_get_bits(eht_oper->chan_width,
-				  IEEE80211_EHT_OPER_CHAN_WIDTH);
+	extracted = ieee80211_extract_dis_subch_bmap(eht_oper,
+						     &sdata->vif.bss_conf.chandef,
+						     bitmap);
 
-		if (!ieee80211_valid_disable_subchannel_bitmap(bitmap, *bw))
-			return false;
+	/* accept if there are no changes */
+	if (!(*changed & BSS_CHANGED_BANDWIDTH) &&
+	    extracted == sdata->vif.bss_conf.eht_puncturing)
+		return true;
 
-		*changed |= ieee80211_set_puncturing_bitmap(chandef, eht_oper,
-							    bitmap, flags);
-		if (*current_puncturing != *bitmap) {
-			*current_puncturing = *bitmap;
-			*changed |= BSS_CHANGED_EHT_PUNCTURING;
-		}
+	bw = u8_get_bits(eht_oper->chan_width, IEEE80211_EHT_OPER_CHAN_WIDTH);
+
+	if (!ieee80211_valid_disable_subchannel_bitmap(&bitmap, bw)) {
+		sdata_info(sdata,
+			   "Got an invalid disable subchannel bitmap from AP %pM: bitmap = 0x%x, bw = 0x%x. disconnect\n",
+			    sdata->u.mgd.associated->bssid, bitmap, bw);
+		return false;
 	}
 
+	ieee80211_handle_puncturing_bitmap(sdata, eht_oper, bitmap, changed);
 	return true;
 }
 
@@ -4532,16 +4554,8 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 
 	if (elems->eht_operation &&
 	    !(ifmgd->flags & IEEE80211_STA_DISABLE_EHT)) {
-		u8 bw;
-		u16 bitmap;
-
-		if (!ieee80211_config_puncturing(elems->eht_operation,
-						 &sdata->vif.bss_conf.chandef,
-						 &sdata->vif.bss_conf.eht_puncturing,
-						 &changed, &bitmap, &bw, &ifmgd->flags)) {
-			sdata_info(sdata,
-				   "Got an invalid disable subchannel bitmap from AP %pM: bitmap = 0x%x, bw = 0x%x. disconnect\n",
-				    bssid, bitmap, bw);
+		if (!ieee80211_config_puncturing(sdata, elems->eht_operation,
+						 &changed)) {
 			ieee80211_set_disassoc(sdata, IEEE80211_STYPE_DEAUTH,
 					       WLAN_REASON_DEAUTH_LEAVING,
 					       true, deauth_buf);
@@ -6358,27 +6372,29 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		const struct element *elem =
 			cfg80211_find_ext_elem(WLAN_EID_EXT_EHT_OPERATION,
 					       beacon_ies->data, beacon_ies->len);
+		const struct ieee80211_eht_operation *eht_oper;
+
+		eht_oper = (const void *)(elem->data + 1);
 
 		/*
 		 * The length should include one byte for the EID
 		 * and 2 for the disabled subchannel bitmap
 		 */
 		if (elem &&
-		    elem->datalen >=
-			sizeof(struct ieee80211_eht_operation) + 1 + 2 &&
-		    elem->data[3] &
-			IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT) {
-			struct ieee80211_eht_operation *eht_oper =
-				(struct ieee80211_eht_operation *)&elem->data[1];
+		    elem->datalen >= sizeof(*eht_oper) + 1 + 2 &&
+		    eht_oper->present_bm &
+				IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT) {
 			u8 bw = u8_get_bits(eht_oper->chan_width,
 					    IEEE80211_EHT_OPER_CHAN_WIDTH);
-			u16 bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
+			u16 bitmap;
+
+			bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
 
 			if (ieee80211_valid_disable_subchannel_bitmap(&bitmap, bw))
-				ieee80211_set_puncturing_bitmap(&sdata->vif.bss_conf.chandef,
-								eht_oper,
-								&sdata->vif.bss_conf.eht_puncturing,
-								&ifmgd->flags);
+				ieee80211_handle_puncturing_bitmap(sdata,
+								   eht_oper,
+								   bitmap,
+								   NULL);
 			else
 				ifmgd->flags |= IEEE80211_STA_DISABLE_EHT;
 		}
