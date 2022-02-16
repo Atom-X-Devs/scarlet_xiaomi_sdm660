@@ -1110,9 +1110,6 @@ static int fg_save_learned_cap_to_sram(struct fg_dev *fg)
 	if (fg->battery_missing || !chip->cl.learned_cc_uah)
 		return -EPERM;
 
-#if defined(CONFIG_MACH_XIAOMI_LAVENDER) || defined(CONFIG_MACH_XIAOMI_TULIP) || defined(CONFIG_MACH_XIAOMI_WHYRED)
-	chip->cl.learned_cc_uah = 4000000;
-#endif
 	cc_mah = div64_s64(chip->cl.learned_cc_uah, 1000);
 	/* Write to a backup register to use across reboot */
 	rc = fg_sram_write(fg, fg->sp[FG_SRAM_ACT_BATT_CAP].addr_word,
