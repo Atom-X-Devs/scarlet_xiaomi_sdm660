@@ -265,7 +265,6 @@ static const struct iwl_ht_params iwl_22000_ht_params = {
 	.dccm2_len = IWL_22000_DCCM2_LEN,				\
 	.smem_offset = IWL_22000_SMEM_OFFSET,				\
 	.smem_len = IWL_22000_SMEM_LEN,					\
-	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,	\
 	.apmg_not_supported = true,					\
 	.trans.mq_rx_supported = true,					\
 	.vht_mu_mimo_supported = true,					\
@@ -905,6 +904,7 @@ const struct iwl_cfg iwl_cfg_bz_a0_hr_b0 = {
 	.fw_name_pre = IWL_BZ_A_HR_B_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -912,6 +912,7 @@ const struct iwl_cfg iwl_cfg_bz_a0_gf_a0 = {
 	.fw_name_pre = IWL_BZ_A_GF_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -919,6 +920,7 @@ const struct iwl_cfg iwl_cfg_bz_a0_gf4_a0 = {
 	.fw_name_pre = IWL_BZ_A_GF4_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -926,6 +928,7 @@ const struct iwl_cfg iwl_cfg_bz_a0_mr_a0 = {
 	.fw_name_pre = IWL_BZ_A_MR_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -933,6 +936,7 @@ const struct iwl_cfg iwl_cfg_bz_a0_fm_a0 = {
 	.fw_name_pre = IWL_BZ_A_FM_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -940,6 +944,7 @@ const struct iwl_cfg iwl_cfg_bz_a0_fm4_a0 = {
 	.fw_name_pre = IWL_BZ_A_FM4_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -947,6 +952,7 @@ const struct iwl_cfg iwl_cfg_gl_a0_fm_a0 = {
 	.fw_name_pre = IWL_GL_A_FM_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -954,6 +960,7 @@ const struct iwl_cfg iwl_cfg_gl_b0_fm_a0 = {
 	.fw_name_pre = IWL_GL_B_FM_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -961,6 +968,7 @@ const struct iwl_cfg iwl_cfg_bz_z0_gf_a0 = {
 	.fw_name_pre = IWL_BZ_Z_GF_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -968,6 +976,7 @@ const struct iwl_cfg iwl_cfg_bnj_a0_fm_a0 = {
 	.fw_name_pre = IWL_BNJ_A_FM_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -975,6 +984,7 @@ const struct iwl_cfg iwl_cfg_bnj_a0_fm4_a0 = {
 	.fw_name_pre = IWL_BNJ_A_FM4_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -982,6 +992,7 @@ const struct iwl_cfg iwl_cfg_bnj_a0_gf_a0 = {
 	.fw_name_pre = IWL_BNJ_A_GF_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -989,6 +1000,7 @@ const struct iwl_cfg iwl_cfg_bnj_a0_gf4_a0 = {
 	.fw_name_pre = IWL_BNJ_A_GF4_A_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -996,6 +1008,7 @@ const struct iwl_cfg iwl_cfg_bnj_a0_hr_b0 = {
 	.fw_name_pre = IWL_BNJ_A_HR_B_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
@@ -1003,6 +1016,7 @@ const struct iwl_cfg iwl_cfg_bnj_b0_fm_b0 = {
 	.fw_name_pre = IWL_BNJ_B_FM_B_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_BZ,
+	.features = IWL_TX_CSUM_NETIF_FLAGS_BZ | NETIF_F_RXCSUM,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 MODULE_FIRMWARE(IWL_QU_B_HR_B_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
