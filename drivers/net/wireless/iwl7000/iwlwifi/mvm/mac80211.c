@@ -3493,7 +3493,7 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 		 * blocklist the AP...
 		 */
 		if (vif->type == NL80211_IFTYPE_STATION &&
-		    vif->bss_conf.beacon_int < 16) {
+		    vif->bss_conf.beacon_int < IWL_MVM_MIN_BEACON_INTERVAL_TU) {
 			IWL_ERR(mvm,
 				"AP %pM beacon interval is %d, refusing due to firmware bug!\n",
 				sta->addr, vif->bss_conf.beacon_int);

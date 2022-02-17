@@ -181,6 +181,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, system_features_control_3)
 	IWL_DBG_CFG_NODEF(u32, system_features_control_4)
 	IWL_DBG_CFG(bool, MVM_MEI_REPORT_RFKILL)
+	IWL_DBG_CFG(u8, MVM_MIN_BEACON_INTERVAL_TU)
 #endif /* CPTCFG_IWLMVM */
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	IWL_DBG_CFG_NODEF(u32, dnt_out_mode)
