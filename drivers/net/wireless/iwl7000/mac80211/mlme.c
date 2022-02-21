@@ -771,7 +771,6 @@ static void ieee80211_add_he_ie(struct ieee80211_sub_if_data *sdata,
 	if (WARN_ON(!he_cap || !chanctx_conf || !reg_cap))
 		return;
 
-	/* get a max size estimate */
 	he_cap_size =
 		2 + 1 + sizeof(he_cap->he_cap_elem) +
 		ieee80211_he_mcs_nss_size(&he_cap->he_cap_elem) +
@@ -829,7 +828,7 @@ static void ieee80211_add_eht_ie(struct ieee80211_sub_if_data *sdata,
 	ieee80211_ie_build_eht_cap(pos, he_cap, eht_cap, pos + eht_cap_size);
 }
 
-static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
+static int ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
@@ -849,6 +848,7 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 	enum nl80211_iftype iftype = ieee80211_vif_type_p2p(&sdata->vif);
 	const struct ieee80211_sband_iftype_data *iftd;
 	struct ieee80211_prep_tx_info info = {};
+	int ret;
 
 	/* we know it's writable, cast away the const */
 	if (assoc_data->ie_len)
@@ -862,7 +862,7 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
 	if (WARN_ON(!chanctx_conf)) {
 		rcu_read_unlock();
-		return;
+		return -EINVAL;
 	}
 	chan = chanctx_conf->def.chan;
 	rcu_read_unlock();
@@ -917,7 +917,7 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 #endif
 			GFP_KERNEL);
 	if (!skb)
-		return;
+		return -ENOMEM;
 
 	skb_reserve(skb, local->hw.extra_tx_headroom);
 
@@ -1216,15 +1216,22 @@ skip_rates:
 		skb_put_data(skb, assoc_data->ie + offset, noffset - offset);
 	}
 
-	if (assoc_data->fils_kek_len &&
-	    fils_encrypt_assoc_req(skb, assoc_data) < 0) {
-		dev_kfree_skb(skb);
-		return;
+	if (assoc_data->fils_kek_len) {
+		ret = fils_encrypt_assoc_req(skb, assoc_data);
+		if (ret < 0) {
+			dev_kfree_skb(skb);
+			return ret;
+		}
 	}
 
 	pos = skb_tail_pointer(skb);
 	kfree(ifmgd->assoc_req_ies);
 	ifmgd->assoc_req_ies = kmemdup(ie_start, pos - ie_start, GFP_ATOMIC);
+	if (!ifmgd->assoc_req_ies) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+
 	ifmgd->assoc_req_ies_len = pos - ie_start;
 
 	drv_mgd_prepare_tx(local, sdata, &info);
@@ -1234,6 +1241,8 @@ skip_rates:
 		IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_CTL_REQ_TX_STATUS |
 						IEEE80211_TX_INTFL_MLME_CONN_TX;
 	ieee80211_tx_skb(sdata, skb);
+
+	return 0;
 }
 
 void ieee80211_send_pspoll(struct ieee80211_local *local,
@@ -4762,6 +4771,7 @@ static int ieee80211_do_assoc(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_mgd_assoc_data *assoc_data = sdata->u.mgd.assoc_data;
 	struct ieee80211_local *local = sdata->local;
+	int ret;
 
 	sdata_assert_lock(sdata);
 
@@ -4782,7 +4792,9 @@ static int ieee80211_do_assoc(struct ieee80211_sub_if_data *sdata)
 	sdata_info(sdata, "associate with %pM (try %d/%d)\n",
 		   assoc_data->bss->bssid, assoc_data->tries,
 		   IEEE80211_ASSOC_MAX_TRIES);
-	ieee80211_send_assoc(sdata);
+	ret = ieee80211_send_assoc(sdata);
+	if (ret)
+		return ret;
 
 	if (!ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS)) {
 		assoc_data->timeout = jiffies + IEEE80211_ASSOC_TIMEOUT;
@@ -5174,7 +5186,7 @@ static u8 ieee80211_max_rx_chains(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_he_mcs_nss_supp *he_mcs_nss_supp;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	const u8 *ht_cap_ie, *vht_cap_ie;
+	const struct element *ht_cap_elem, *vht_cap_elem;
 	const struct cfg80211_bss_ies *ies;
 	const struct ieee80211_ht_cap *ht_cap;
 	const struct ieee80211_vht_cap *vht_cap;
@@ -5188,9 +5200,9 @@ static u8 ieee80211_max_rx_chains(struct ieee80211_sub_if_data *sdata,
 	if (ifmgd->flags & IEEE80211_STA_DISABLE_HT)
 		return chains;
 
-	ht_cap_ie = ieee80211_bss_get_ie(cbss, WLAN_EID_HT_CAPABILITY);
-	if (ht_cap_ie && ht_cap_ie[1] >= sizeof(*ht_cap)) {
-		ht_cap = (void *)(ht_cap_ie + 2);
+	ht_cap_elem = ieee80211_bss_get_elem(cbss, WLAN_EID_HT_CAPABILITY);
+	if (ht_cap_elem && ht_cap_elem->datalen >= sizeof(*ht_cap)) {
+		ht_cap = (void *)ht_cap_elem->data;
 		chains = ieee80211_mcs_to_chains(&ht_cap->mcs);
 		/*
 		 * TODO: use "Tx Maximum Number Spatial Streams Supported" and
@@ -5201,12 +5213,12 @@ static u8 ieee80211_max_rx_chains(struct ieee80211_sub_if_data *sdata,
 	if (ifmgd->flags & IEEE80211_STA_DISABLE_VHT)
 		return chains;
 
-	vht_cap_ie = ieee80211_bss_get_ie(cbss, WLAN_EID_VHT_CAPABILITY);
-	if (vht_cap_ie && vht_cap_ie[1] >= sizeof(*vht_cap)) {
+	vht_cap_elem = ieee80211_bss_get_elem(cbss, WLAN_EID_VHT_CAPABILITY);
+	if (vht_cap_elem && vht_cap_elem->datalen >= sizeof(*vht_cap)) {
 		u8 nss;
 		u16 tx_mcs_map;
 
-		vht_cap = (void *)(vht_cap_ie + 2);
+		vht_cap = (void *)vht_cap_elem->data;
 		tx_mcs_map = le16_to_cpu(vht_cap->supp_mcs.tx_mcs_map);
 		for (nss = 8; nss > 0; nss--) {
 			if (((tx_mcs_map >> (2 * (nss - 1))) & 3) !=

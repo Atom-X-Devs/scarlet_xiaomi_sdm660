@@ -5,6 +5,7 @@
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
 #include <linux/module.h>
+#include <linux/rtnetlink.h>
 #include <linux/vmalloc.h>
 #include <uapi/linux/rfkill.h>
 #include <net/mac80211.h>
@@ -883,11 +884,9 @@ static int iwl_mvm_start_post_nvm(struct iwl_mvm *mvm)
 
 	iwl_mvm_dbgfs_register(mvm);
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	wiphy_rfkill_set_hw_state_reason(mvm->hw->wiphy,
 					 mvm->mei_rfkill_blocked,
 					 RFKILL_HARD_BLOCK_NOT_OWNER);
-#endif
 
 	iwl_mvm_mei_set_sw_rfkill_state(mvm);
 
@@ -1193,7 +1192,6 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	static const u8 no_reclaim_cmds[] = {
 		TX_CMD,
 	};
-
 	u32 max_agg = trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ ?
 			   IEEE80211_MAX_AMPDU_BUF_EHT : IEEE80211_MAX_AMPDU_BUF_HE;
 	int scan_size;

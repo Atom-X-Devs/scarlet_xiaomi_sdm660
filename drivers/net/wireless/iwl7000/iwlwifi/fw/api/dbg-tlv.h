@@ -526,4 +526,5 @@ enum iwl_fw_ini_dump_type {
 	IWL_FW_INI_DUMP_MEDIUM,
 	IWL_FW_INI_DUMP_VERBOSE,
 };
+
 #endif

@@ -1688,7 +1688,6 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	bool load_module = false;
 	bool usniffer_images = false;
 	bool failure = true;
-
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	const struct firmware *fw_dbg_config;
 	int load_fw_dbg_err = -ENOENT;

@@ -449,7 +449,6 @@ static int ccmp_encrypt_skb(struct ieee80211_tx_data *tx, struct sk_buff *skb,
 	    (info->control.hw_key->flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE))
 		return 0;
 
-	hdr = (struct ieee80211_hdr *) pos;
 	pos += hdrlen;
 
 	pn64 = atomic64_inc_return(&key->conf.tx_pn);
@@ -686,7 +685,6 @@ static int gcmp_encrypt_skb(struct ieee80211_tx_data *tx, struct sk_buff *skb)
 	    (info->control.hw_key->flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE))
 		return 0;
 
-	hdr = (struct ieee80211_hdr *)pos;
 	pos += hdrlen;
 
 	pn64 = atomic64_inc_return(&key->conf.tx_pn);

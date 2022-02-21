@@ -1112,8 +1112,7 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 		      IWL_CFG_MAC_TYPE_SNJ, IWL_CFG_ANY,
 		      IWL_CFG_RF_TYPE_MS, IWL_CFG_ANY,
 		      IWL_CFG_160, IWL_CFG_ANY, IWL_CFG_NO_CDB, IWL_CFG_ANY,
-		      iwl_cfg_snj_a0_ms_a0, iwl_ax204_name)
-
+		      iwl_cfg_snj_a0_ms_a0, iwl_ax204_name),
 #endif /* CPTCFG_IWLMVM */
 };
 
@@ -1365,9 +1364,7 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (cfg_7265d &&
 	    (iwl_trans->hw_rev & CSR_HW_REV_TYPE_MSK) == CSR_HW_REV_TYPE_7265D)
 		iwl_trans->cfg = cfg_7265d;
-#endif
 
-#if IS_ENABLED(CPTCFG_IWLMVM)
 	/*
 	 * This is a hack to switch from Qu B0 to Qu C0.  We need to
 	 * do this for all cfgs that use Qu B0, except for those using

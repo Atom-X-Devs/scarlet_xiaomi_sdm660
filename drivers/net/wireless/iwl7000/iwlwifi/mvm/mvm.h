@@ -2050,6 +2050,12 @@ void iwl_mvm_enter_ctkill(struct iwl_mvm *mvm);
 int iwl_mvm_send_temp_report_ths_cmd(struct iwl_mvm *mvm);
 int iwl_mvm_ctdp_command(struct iwl_mvm *mvm, u32 op, u32 budget);
 
+/* vendor commands */
+void iwl_mvm_vendor_cmd_init(void);
+void iwl_mvm_vendor_cmd_exit(void);
+void iwl_mvm_vendor_cmds_register(struct iwl_mvm *mvm);
+void iwl_mvm_vendor_cmds_unregister(struct iwl_mvm *mvm);
+
 /* Location Aware Regulatory */
 struct iwl_mcc_update_resp *
 iwl_mvm_update_mcc(struct iwl_mvm *mvm, const char *alpha2,
@@ -2069,12 +2075,6 @@ void iwl_mvm_update_changed_regdom(struct iwl_mvm *mvm);
 /* smart fifo */
 int iwl_mvm_sf_update(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		      bool added_vif);
-
-/* vendor commands */
-void iwl_mvm_vendor_cmd_init(void);
-void iwl_mvm_vendor_cmd_exit(void);
-void iwl_mvm_vendor_cmds_register(struct iwl_mvm *mvm);
-void iwl_mvm_vendor_cmds_unregister(struct iwl_mvm *mvm);
 
 /* FTM responder */
 int iwl_mvm_ftm_start_responder(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
