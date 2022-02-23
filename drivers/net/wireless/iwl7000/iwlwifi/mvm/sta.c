@@ -320,6 +320,7 @@ static int iwl_mvm_invalidate_sta_queue(struct iwl_mvm *mvm, int queue,
 static int iwl_mvm_disable_txq(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 			       u16 *queueptr, u8 tid)
 {
+	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	int queue = *queueptr;
 	struct iwl_scd_txq_cfg_cmd cmd = {
 		.scd_queue = queue,
@@ -335,7 +336,9 @@ static int iwl_mvm_disable_txq(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 					     SCD_QUEUE_CONFIG_CMD);
 			struct iwl_scd_queue_cfg_cmd remove_cmd = {
 				.operation = cpu_to_le32(IWL_SCD_QUEUE_REMOVE),
-				.u.remove.queue = cpu_to_le32(queue),
+				.u.remove.tid = cpu_to_le32(tid),
+				.u.remove.sta_mask =
+					cpu_to_le32(BIT(mvmsta->sta_id)),
 			};
 
 			ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0,

@@ -1827,15 +1827,21 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt, u32 sta_mask,
 }
 
 static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
-			      struct iwl_scd_txq_cfg_cmd *cmd)
+			      struct iwl_scd_txq_cfg_cmd *cmd,
+			      u32 sta_mask /* only for new MLD API */)
 {
 	u32 new_cmd_id = WIDE_ID(DATA_PATH_GROUP, SCD_QUEUE_CONFIG_CMD);
 	int ret = 0;
 
+	/* for old API */
+	if (!sta_mask)
+		sta_mask = BIT(cmd->sta_id);
+
 	if (iwl_fw_lookup_cmd_ver(xvt->fw, new_cmd_id, 0) == 3) {
 		struct iwl_scd_queue_cfg_cmd remove_cmd = {
 			.operation = cpu_to_le32(IWL_SCD_QUEUE_REMOVE),
-			.u.remove.queue = cpu_to_le32(cmd->scd_queue),
+			.u.remove.sta_mask = cpu_to_le32(sta_mask),
+			.u.remove.tid = cpu_to_le32(cmd->tid),
 		};
 
 		ret = iwl_xvt_send_cmd_pdu(xvt, new_cmd_id, 0,
@@ -1893,7 +1899,7 @@ static int iwl_xvt_config_txq_old(struct iwl_xvt *xvt,
 		return -ENOBUFS;
 
 	if (conf->action == TX_QUEUE_CFG_REMOVE) {
-		error = iwl_xvt_remove_txq(xvt, &cmd);
+		error = iwl_xvt_remove_txq(xvt, &cmd, 0);
 		if (WARN(error, "failed to remove queue"))
 			return error;
 	} else {
@@ -1912,14 +1918,16 @@ static int iwl_xvt_config_txq_old(struct iwl_xvt *xvt,
 	return 0;
 }
 
-static int iwl_xvt_modify_txq(struct iwl_xvt *xvt, u32 queue, u32 sta_mask)
+static int iwl_xvt_modify_txq(struct iwl_xvt *xvt, u32 tid,
+			      u32 old_sta_mask, u32 new_sta_mask)
 {
 	u32 new_cmd_id = WIDE_ID(DATA_PATH_GROUP, SCD_QUEUE_CONFIG_CMD);
 
 	struct iwl_scd_queue_cfg_cmd modify_cmd = {
 		.operation = cpu_to_le32(IWL_SCD_QUEUE_MODIFY),
-		.u.modify.queue = cpu_to_le32(queue),
-		.u.modify.sta_mask = cpu_to_le32(sta_mask),
+		.u.modify.tid = cpu_to_le32(tid),
+		.u.modify.old_sta_mask = cpu_to_le32(old_sta_mask),
+		.u.modify.new_sta_mask = cpu_to_le32(new_sta_mask),
 	};
 
 	return iwl_xvt_send_cmd_pdu(xvt, new_cmd_id, 0,
@@ -1935,19 +1943,24 @@ static int iwl_xvt_config_txq_mld(struct iwl_xvt *xvt,
 	struct iwl_xvt_txq_cfg_mld_resp txq_resp = {
 		.sta_mask = conf->sta_mask,
 		.tid = conf->tid,
-		.queue_id = conf->queue_id,
+		.queue_id = U16_MAX,
 	};
 	struct iwl_scd_txq_cfg_cmd legacy_cmd = {
-		.scd_queue = conf->queue_id,
+		.tid = conf->tid,
 	};
 	int ret;
+
+	if (!conf->sta_mask)
+		return -EINVAL;
+
+	legacy_cmd.sta_id = ffs(conf->sta_mask) - 1;
 
 	if (req->max_out_length < sizeof(txq_resp))
 		return -ENOBUFS;
 
 	switch (conf->action) {
 	case TX_QUEUE_CFG_REMOVE:
-		ret = iwl_xvt_remove_txq(xvt, &legacy_cmd);
+		ret = iwl_xvt_remove_txq(xvt, &legacy_cmd, 0);
 		if (ret)
 			return ret;
 		break;
@@ -1959,7 +1972,8 @@ static int iwl_xvt_config_txq_mld(struct iwl_xvt *xvt,
 		txq_resp.queue_id = ret;
 		break;
 	case TX_QUEUE_CFG_MODIFY:
-		ret = iwl_xvt_modify_txq(xvt, conf->queue_id, conf->sta_mask);
+		ret = iwl_xvt_modify_txq(xvt, conf->tid, conf->sta_mask,
+					 conf->new_sta_mask);
 		if (ret < 0)
 			return ret;
 		break;
