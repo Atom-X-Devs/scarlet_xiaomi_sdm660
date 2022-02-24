@@ -1829,27 +1829,6 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 			IWL_ERR(mvm, "failed to update TX power\n");
 	}
 
-	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status) &&
-	    mvm->time_msmt_cfg != IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_NONE) {
-		int err;
-		struct iwl_time_sync_cfg_cmd cmd = {};
-
-		if (mvm->time_msmt_cfg & IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_TM)
-			cmd.protocols |= cpu_to_le32(IWL_TIME_SYNC_PROTOCOL_TM);
-		if (mvm->time_msmt_cfg & IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_FTM)
-			cmd.protocols |= cpu_to_le32(IWL_TIME_SYNC_PROTOCOL_FTM);
-
-		ether_addr_copy(cmd.peer_addr, mvm->time_msmt_peer_addr);
-
-		err = iwl_mvm_send_cmd_pdu(mvm,
-					   WIDE_ID(DATA_PATH_GROUP,
-						   WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD),
-					   0, sizeof(cmd), &cmd);
-		if (err)
-			IWL_ERR(mvm, "Failed to re-configure time sync on FW restart: %d\n",
-				err);
-	}
-
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
