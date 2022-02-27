@@ -1429,7 +1429,7 @@ struct iwl_wowlan_status_data {
 		u8 flags;
 	} igtk;
 
-	u8 wake_packet[];
+	u8 *wake_packet;
 };
 
 static void iwl_mvm_report_wakeup_reasons(struct iwl_mvm *mvm,
@@ -1482,7 +1482,7 @@ static void iwl_mvm_report_wakeup_reasons(struct iwl_mvm *mvm,
 	if (reasons & IWL_WOWLAN_WAKEUP_BY_REM_WAKE_WAKEUP_PACKET)
 		wakeup.tcp_match = true;
 
-	if (status->wake_packet_bufsize) {
+	if (status->wake_packet) {
 		int pktsize = status->wake_packet_bufsize;
 		int pktlen = status->wake_packet_length;
 		const u8 *pktdata = status->wake_packet;
@@ -1967,7 +1967,7 @@ iwl_mvm_parse_wowlan_status_common_ ## _ver(struct iwl_mvm *mvm,	\
 		return NULL;						\
 	}								\
 									\
-	status = kzalloc(sizeof(*status) + data_size, GFP_KERNEL);	\
+	status = kzalloc(sizeof(*status), GFP_KERNEL);			\
 	if (!status)							\
 		return NULL;						\
 									\
@@ -1986,8 +1986,18 @@ iwl_mvm_parse_wowlan_status_common_ ## _ver(struct iwl_mvm *mvm,	\
 		le32_to_cpu(data->wake_packet_length);			\
 	status->wake_packet_bufsize =					\
 		le32_to_cpu(data->wake_packet_bufsize);			\
-	memcpy(status->wake_packet, data->wake_packet,			\
-	       status->wake_packet_bufsize);				\
+	if (status->wake_packet_bufsize) {				\
+		status->wake_packet =					\
+			kmemdup(data->wake_packet,			\
+				status->wake_packet_bufsize,		\
+				GFP_KERNEL);				\
+		if (!status->wake_packet) {				\
+			kfree(status);					\
+			return NULL;					\
+		}							\
+	} else {							\
+		status->wake_packet = NULL;				\
+	}								\
 									\
 	return status;							\
 }
@@ -2527,9 +2537,11 @@ static bool iwl_mvm_check_rt_status(struct iwl_mvm *mvm,
 /**
  * enum iwl_d3_notif - d3 notifications
  * @IWL_D3_NOTIF_WOWLAN_INFO: WOWLAN_INFO_NOTIF was received
+ * @IWL_D3_NOTIF_WOWLAN_WAKE_PKT: WOWLAN_WAKE_PKT_NOTIF was received
  */
 enum iwl_d3_notif {
 	IWL_D3_NOTIF_WOWLAN_INFO =	BIT(0),
+	IWL_D3_NOTIF_WOWLAN_WAKE_PKT =	BIT(1),
 };
 
 /* manage d3 resume data */
@@ -2580,6 +2592,55 @@ static void iwl_mvm_choose_query_wakeup_reasons(struct iwl_mvm *mvm,
 	}
 }
 
+#define IWL_WOWLAN_WAKEUP_REASON_HAS_WAKEUP_PKT (IWL_WOWLAN_WAKEUP_BY_MAGIC_PACKET | \
+						 IWL_WOWLAN_WAKEUP_BY_PATTERN | \
+						 IWL_WAKEUP_BY_PATTERN_IPV4_TCP_SYN |\
+						 IWL_WAKEUP_BY_PATTERN_IPV4_TCP_SYN_WILDCARD |\
+						 IWL_WAKEUP_BY_PATTERN_IPV6_TCP_SYN |\
+						 IWL_WAKEUP_BY_PATTERN_IPV6_TCP_SYN_WILDCARD)
+
+static int iwl_mvm_wowlan_store_wake_pkt(struct iwl_mvm *mvm,
+					 struct iwl_wowlan_wake_pkt_notif *notif,
+					 struct iwl_wowlan_status_data *status,
+					 u32 len)
+{
+	u32 data_size, packet_len = le32_to_cpu(notif->wake_packet_length);
+
+	if (len < sizeof(*notif)) {
+		IWL_ERR(mvm, "Invalid WoWLAN wake packet notification!\n");
+		return -EIO;
+	}
+
+	if (WARN_ON(!status)) {
+		IWL_ERR(mvm, "Got wake packet notification but wowlan status data is NULL\n");
+		return -EIO;
+	}
+
+	if (WARN_ON(!(status->wakeup_reasons &
+		      IWL_WOWLAN_WAKEUP_REASON_HAS_WAKEUP_PKT))) {
+		IWL_ERR(mvm, "Got wakeup packet but wakeup reason is %x\n",
+			status->wakeup_reasons);
+		return -EIO;
+	}
+
+	data_size = len - offsetof(struct iwl_wowlan_wake_pkt_notif, wake_packet);
+
+	/* data_size got the padding from the notification, remove it. */
+	if (packet_len < data_size)
+		data_size = packet_len;
+
+	status->wake_packet = kmemdup(notif->wake_packet, data_size,
+				      GFP_KERNEL);
+
+	if (!status->wake_packet)
+		return -ENOMEM;
+
+	status->wake_packet_length = packet_len;
+	status->wake_packet_bufsize = data_size;
+
+	return 0;
+}
+
 static bool iwl_mvm_wait_d3_notif(struct iwl_notif_wait_data *notif_wait,
 				  struct iwl_rx_packet *pkt, void *data)
 {
@@ -2587,6 +2648,7 @@ static bool iwl_mvm_wait_d3_notif(struct iwl_notif_wait_data *notif_wait,
 		container_of(notif_wait, struct iwl_mvm, notif_wait);
 	struct iwl_d3_data *d3_data = data;
 	u32 len;
+	int ret;
 
 	switch (WIDE_ID(pkt->hdr.group_id, pkt->hdr.cmd)) {
 	case WIDE_ID(PROT_OFFLOAD_GROUP, WOWLAN_INFO_NOTIFICATION): {
@@ -2603,6 +2665,31 @@ static bool iwl_mvm_wait_d3_notif(struct iwl_notif_wait_data *notif_wait,
 		len = iwl_rx_packet_payload_len(pkt);
 		iwl_mvm_parse_wowlan_info_notif(mvm, notif, d3_data->status,
 						len);
+		if (d3_data->status &&
+		    d3_data->status->wakeup_reasons & IWL_WOWLAN_WAKEUP_REASON_HAS_WAKEUP_PKT)
+			/* We are supposed to get also wake packet notif */
+			d3_data->notif_expected |= IWL_D3_NOTIF_WOWLAN_WAKE_PKT;
+
+		break;
+	}
+	case WIDE_ID(PROT_OFFLOAD_GROUP, WOWLAN_WAKE_PKT_NOTIFICATION): {
+		struct iwl_wowlan_wake_pkt_notif *notif = (void *)pkt->data;
+
+		if (d3_data->notif_received & IWL_D3_NOTIF_WOWLAN_WAKE_PKT) {
+			/* We shouldn't get two wake packet notifications */
+			IWL_ERR(mvm,
+				"Got additional wowlan wake packet notification\n");
+		} else {
+			d3_data->notif_received |= IWL_D3_NOTIF_WOWLAN_WAKE_PKT;
+			len =  iwl_rx_packet_payload_len(pkt);
+			ret = iwl_mvm_wowlan_store_wake_pkt(mvm, notif,
+							    d3_data->status,
+							    len);
+			if (ret)
+				IWL_ERR(mvm,
+					"Can't parse WOWLAN_WAKE_PKT_NOTIFICATION\n");
+		}
+
 		break;
 	}
 	default:
@@ -2620,7 +2707,8 @@ static int iwl_mvm_d3_notif_wait(struct iwl_mvm *mvm,
 				 bool test)
 {
 	static const u16 d3_resume_notif[] = {
-		WIDE_ID(PROT_OFFLOAD_GROUP, WOWLAN_INFO_NOTIFICATION)
+		WIDE_ID(PROT_OFFLOAD_GROUP, WOWLAN_INFO_NOTIFICATION),
+		WIDE_ID(PROT_OFFLOAD_GROUP, WOWLAN_WAKE_PKT_NOTIFICATION)
 	};
 	struct iwl_notification_wait wait_d3_notif;
 	int ret;
@@ -2753,6 +2841,8 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 err:
 	mutex_unlock(&mvm->mutex);
 out:
+	if (d3_data.status)
+		kfree(d3_data.status->wake_packet);
 	kfree(d3_data.status);
 	iwl_mvm_free_nd(mvm);
 
