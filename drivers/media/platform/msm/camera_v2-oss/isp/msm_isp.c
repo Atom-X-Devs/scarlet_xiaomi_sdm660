@@ -545,6 +545,7 @@ static int vfe_probe(struct platform_device *pdev)
 	char name[10] = "\0";
 	uint32_t num_hw_sd;
 
+	memset(&vfe_common_data, 0, sizeof(vfe_common_data));
 	mutex_init(&vfe_common_data.vfe_common_mutex);
 	spin_lock_init(&vfe_common_data.common_dev_data_lock);
 	spin_lock_init(&vfe_common_data.vfe_irq_dump.common_dev_irq_dump_lock);
