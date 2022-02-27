@@ -117,6 +117,10 @@ static int32_t qtee_shmbridge_enable(bool enable)
 	int32_t ret = 0;
 	struct scm_desc desc = {0};
 
+#ifdef CONFIG_ARCH_SDM660
+	return ret;
+#endif
+
 	qtee_shmbridge_enabled = false;
 	if (!enable) {
 		pr_warn("shmbridge isn't enabled\n");
