@@ -1181,7 +1181,6 @@ struct iwl_mvm {
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 		u8 csi_notif;
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
-		u8 d0i3_resp;
 		u8 range_resp;
 	} cmd_ver;
 

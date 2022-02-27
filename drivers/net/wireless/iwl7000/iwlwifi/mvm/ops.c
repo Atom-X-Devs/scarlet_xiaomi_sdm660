@@ -1348,13 +1348,6 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	if (WARN_ON_ONCE(mvm->cmd_ver.csi_notif > 2))
 		goto out_free;
 #endif
-	mvm->cmd_ver.d0i3_resp =
-		iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP, D0I3_END_CMD,
-					0);
-	/* we only support version 1 */
-	if (WARN_ON_ONCE(mvm->cmd_ver.d0i3_resp > 1))
-		goto out_free;
-
 	mvm->cmd_ver.range_resp =
 		iwl_fw_lookup_notif_ver(mvm->fw, LOCATION_GROUP,
 					TOF_RANGE_RESPONSE_NOTIF, 5);
