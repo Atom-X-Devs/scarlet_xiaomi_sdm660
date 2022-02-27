@@ -1204,6 +1204,7 @@ struct iwl_mvm {
 	bool sta_remove_requires_queue_remove;
 
 	struct iwl_time_sync_data time_sync;
+
 };
 
 /* Extract MVM priv from op_mode and _hw */
