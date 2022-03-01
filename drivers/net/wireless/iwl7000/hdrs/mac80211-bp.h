@@ -54,7 +54,7 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 	return s->counter_offsets_presp;
 }
 
-#if CFG80211_VERSION <= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION < KERNEL_VERSION(5,18,0)
 #define IEEE80211_CHAN_NO_HE 0
 #define IEEE80211_CHAN_NO_EHT 0
 
