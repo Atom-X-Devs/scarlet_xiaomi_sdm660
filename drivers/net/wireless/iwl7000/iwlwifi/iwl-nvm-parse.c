@@ -894,17 +894,21 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 	case NL80211_BAND_2GHZ:
 		iftype_data->he_cap.he_cap_elem.phy_cap_info[0] |=
 			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 		cfg_eht_cap(iftype_data)->eht_cap_elem.mac_cap_info[0] |=
 			u8_encode_bits(IEEE80211_EHT_MAC_CAP0_MAX_AMPDU_LEN_11454,
 					       IEEE80211_EHT_MAC_CAP0_MAX_AMPDU_LEN_MASK);
+#endif
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
 	case NL80211_BAND_6GHZ:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 		if (!is_ap || iwlwifi_mod_params.nvm_file)
 			cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[0] |=
 				IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ;
+#endif
 		fallthrough;
 	case NL80211_BAND_5GHZ:
 		iftype_data->he_cap.he_cap_elem.phy_cap_info[0] |=
