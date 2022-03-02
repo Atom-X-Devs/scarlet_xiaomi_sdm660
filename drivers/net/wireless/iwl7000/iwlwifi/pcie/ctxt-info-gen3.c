@@ -343,3 +343,15 @@ int iwl_trans_pcie_ctx_info_gen3_set_reduce_power(struct iwl_trans *trans,
 
 	return 0;
 }
+
+int iwl_trans_pcie_ctx_info_gen3_set_step(struct iwl_trans *trans, u32 mbx_addr_0_step,
+					  u32 mbx_addr_1_step)
+{
+	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
+	struct iwl_prph_scratch_ctrl_cfg *prph_sc_ctrl =
+		&trans_pcie->prph_scratch->ctrl_cfg;
+
+	prph_sc_ctrl->step_cfg.mbx_addr_0 = cpu_to_le32(mbx_addr_0_step);
+	prph_sc_ctrl->step_cfg.mbx_addr_1 = cpu_to_le32(mbx_addr_1_step);
+	return 0;
+}

@@ -634,6 +634,8 @@ struct iwl_trans_ops {
 	int (*set_pnvm)(struct iwl_trans *trans, const void *data, u32 len);
 	int (*set_reduce_power)(struct iwl_trans *trans,
 				const void *data, u32 len);
+	int (*set_step)(struct iwl_trans *trans, u32 mbx_addr_0_step, u32 mbx_addr_1_step);
+
 	void (*interrupts)(struct iwl_trans *trans, bool enable);
 	int (*imr_dma_data)(struct iwl_trans *trans,
 			    u32 dst_addr, u64 src_addr,
@@ -1584,6 +1586,17 @@ static inline int iwl_trans_set_reduce_power(struct iwl_trans *trans,
 	return 0;
 }
 
+static inline int iwl_trans_set_step(struct iwl_trans *trans, u32 mbx_addr_0_step,
+				     u32 mbx_addr_1_step)
+{
+	if (trans->ops->set_step) {
+		int ret = trans->ops->set_step(trans, mbx_addr_0_step, mbx_addr_1_step);
+
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
 static inline bool iwl_trans_dbg_ini_valid(struct iwl_trans *trans)
 {
 	return trans->dbg.internal_ini_cfg != IWL_INI_CFG_STATE_NOT_LOADED ||
