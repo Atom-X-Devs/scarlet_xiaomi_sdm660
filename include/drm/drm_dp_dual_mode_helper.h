@@ -102,6 +102,14 @@ enum drm_dp_dual_mode_type {
 	DRM_DP_DUAL_MODE_TYPE2_HDMI,
 	DRM_DP_DUAL_MODE_LSPCON,
 };
+#define DRM_DP_DUAL_MODE_STR_TABLE \
+	"DRM_DP_DUAL_MODE_NONE: No DP dual mode adaptor", \
+	"DRM_DP_DUAL_MODE_UNKNOWN: Could be either none or type 1 DVI adaptor",\
+	"DRM_DP_DUAL_MODE_TYPE1_DVI: Type 1 DVI adaptor", \
+	"DRM_DP_DUAL_MODE_TYPE1_HDMI: Type 1 HDMI adaptor", \
+	"DRM_DP_DUAL_MODE_TYPE2_DVI: Type 2 DVI adaptor", \
+	"DRM_DP_DUAL_MODE_TYPE2_HDMI: Type 2 HDMI adaptor", \
+	"DRM_DP_DUAL_MODE_LSPCON: Level shifter / protocol converter"
 
 enum drm_dp_dual_mode_type drm_dp_dual_mode_detect(struct i2c_adapter *adapter);
 int drm_dp_dual_mode_max_tmds_clock(enum drm_dp_dual_mode_type type,

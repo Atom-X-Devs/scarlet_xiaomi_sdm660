@@ -3043,10 +3043,16 @@ static void intel_dp_mst_info(struct seq_file *m,
 static void intel_hdmi_info(struct seq_file *m,
 			    struct intel_connector *intel_connector)
 {
+	static const char * const dp_dual_mode_str[] = {
+		DRM_DP_DUAL_MODE_STR_TABLE };
 	struct intel_encoder *intel_encoder = intel_connector->encoder;
 	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(&intel_encoder->base);
 
 	seq_printf(m, "\taudio support: %s\n", yesno(intel_hdmi->has_audio));
+	seq_printf(m, "\tDP dual mode type: %s\n",
+		dp_dual_mode_str[intel_hdmi->dp_dual_mode.type]);
+	seq_printf(m, "\tDP dual mode redetection: %s\n",
+		enableddisabled(!i915_modparams.disable_dualmode_redetection));
 }
 
 static void intel_lvds_info(struct seq_file *m,

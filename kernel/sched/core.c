@@ -2249,6 +2249,9 @@ out:
 
 bool cpus_share_cache(int this_cpu, int that_cpu)
 {
+	if (this_cpu == that_cpu)
+		return true;
+
 	return per_cpu(sd_llc_id, this_cpu) == per_cpu(sd_llc_id, that_cpu);
 }
 #endif /* CONFIG_SMP */
@@ -2954,6 +2957,21 @@ fire_sched_out_preempt_notifiers(struct task_struct *curr,
 		__fire_sched_out_preempt_notifiers(curr, next);
 }
 
+#ifdef CONFIG_KVM_HETEROGENEOUS_RT
+static bool
+fire_may_preempt_notifiers(struct task_struct *prev)
+{
+	struct preempt_notifier *notifier;
+
+	if (static_branch_unlikely(&preempt_notifier_key))
+		hlist_for_each_entry(notifier, &prev->preempt_notifiers, link)
+			if (notifier->ops->may_preempt &&
+			    !notifier->ops->may_preempt(notifier, prev))
+				return false;
+	return true;
+}
+#endif
+
 #else /* !CONFIG_PREEMPT_NOTIFIERS */
 
 static inline void fire_sched_in_preempt_notifiers(struct task_struct *curr)
@@ -2964,6 +2982,12 @@ static inline void
 fire_sched_out_preempt_notifiers(struct task_struct *curr,
 				 struct task_struct *next)
 {
+}
+
+static inline bool
+fire_may_preempt_notifiers(struct task_struct *curr)
+{
+	return true;
 }
 
 #endif /* CONFIG_PREEMPT_NOTIFIERS */
@@ -4478,6 +4502,15 @@ static void __sched notrace __schedule(bool preempt)
 
 	if (sched_feat(HRTICK))
 		hrtick_clear(rq);
+
+#ifdef CONFIG_KVM_HETEROGENEOUS_RT
+	if (preempt && prev->sched_class == &fair_sched_class &&
+	    !fire_may_preempt_notifiers(prev)) {
+		clear_tsk_need_resched(prev);
+		clear_preempt_need_resched();
+		return;
+	}
+#endif
 
 	local_irq_disable();
 	rcu_note_context_switch(preempt);

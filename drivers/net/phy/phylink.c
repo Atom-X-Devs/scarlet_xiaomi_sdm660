@@ -72,33 +72,6 @@ struct phylink {
 	struct sfp_bus *sfp_bus;
 };
 
-static inline void linkmode_zero(unsigned long *dst)
-{
-	bitmap_zero(dst, __ETHTOOL_LINK_MODE_MASK_NBITS);
-}
-
-static inline void linkmode_copy(unsigned long *dst, const unsigned long *src)
-{
-	bitmap_copy(dst, src, __ETHTOOL_LINK_MODE_MASK_NBITS);
-}
-
-static inline void linkmode_and(unsigned long *dst, const unsigned long *a,
-				const unsigned long *b)
-{
-	bitmap_and(dst, a, b, __ETHTOOL_LINK_MODE_MASK_NBITS);
-}
-
-static inline void linkmode_or(unsigned long *dst, const unsigned long *a,
-				const unsigned long *b)
-{
-	bitmap_or(dst, a, b, __ETHTOOL_LINK_MODE_MASK_NBITS);
-}
-
-static inline bool linkmode_empty(const unsigned long *src)
-{
-	return bitmap_empty(src, __ETHTOOL_LINK_MODE_MASK_NBITS);
-}
-
 /**
  * phylink_set_port_modes() - set the port type modes in the ethtool mask
  * @mask: ethtool link mode mask
@@ -552,6 +525,11 @@ static int phylink_register_sfp(struct phylink *pl,
 		netdev_err(pl->netdev, "unable to parse \"sfp\" node: %d\n",
 			   ret);
 		return ret;
+	}
+
+	if (!fwnode_device_is_available(ref.fwnode)) {
+		fwnode_handle_put(ref.fwnode);
+		return 0;
 	}
 
 	pl->sfp_bus = sfp_register_upstream(ref.fwnode, pl->netdev, pl,
@@ -1259,7 +1237,7 @@ int phylink_ethtool_set_pauseparam(struct phylink *pl,
 		return -EOPNOTSUPP;
 
 	if (!phylink_test(pl->supported, Asym_Pause) &&
-	    !pause->autoneg && pause->rx_pause != pause->tx_pause)
+	    pause->rx_pause != pause->tx_pause)
 		return -EINVAL;
 
 	config->pause &= ~(MLO_PAUSE_AN | MLO_PAUSE_TXRX_MASK);

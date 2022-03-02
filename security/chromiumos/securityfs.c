@@ -126,6 +126,12 @@ static int chromiumos_resolve_path(const char __user *buf, size_t len,
 	if (ret)
 		goto out;
 
+	/* Make sure exception directory is not a symlink. */
+	if (d_is_symlink(path->dentry)) {
+		ret = -EMLINK;
+		goto out;
+	}
+
 	/*
 	 * Make sure the path is canonical, i.e. it didn't contain symlinks. To
 	 * check this we convert |path| back to an absolute path (within the

@@ -362,4 +362,6 @@ static inline bool kvm_pat_valid(u64 data)
 void kvm_load_guest_xcr0(struct kvm_vcpu *vcpu);
 void kvm_put_guest_xcr0(struct kvm_vcpu *vcpu);
 
+int kvm_vcpu_dont_preempt(struct kvm_vcpu *vcpu);
+
 #endif

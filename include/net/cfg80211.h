@@ -4973,6 +4973,17 @@ cfg80211_inform_bss_frame(struct wiphy *wiphy,
 }
 
 /**
+ * cfg80211_get_ies_channel_number - returns the channel number from ies
+ * @ie: IEs
+ * @ielen: length of IEs
+ * @band: enum nl80211_band of the channel
+ *
+ * Returns the channel number, or -1 if none could be determined.
+ */
+int cfg80211_get_ies_channel_number(const u8 *ie, size_t ielen,
+				    enum nl80211_band band);
+
+/**
  * enum cfg80211_bss_frame_type - frame type that the BSS data came from
  * @CFG80211_BSS_FTYPE_UNKNOWN: driver doesn't know whether the data is
  *	from a beacon or probe response

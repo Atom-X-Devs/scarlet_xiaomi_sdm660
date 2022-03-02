@@ -2361,6 +2361,7 @@ static void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		kctx->pid);
 
 	/* hardware counters dump fault handling */
+	spin_lock_irqsave(&kbdev->hwcnt.lock, flags);
 	if ((kbdev->hwcnt.kctx) && (kbdev->hwcnt.kctx->as_nr == as_no) &&
 			(kbdev->hwcnt.backend.state ==
 						KBASE_INSTR_STATE_DUMPING)) {
@@ -2371,6 +2372,7 @@ static void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 						(num_core_groups * 2048))))
 			kbdev->hwcnt.backend.state = KBASE_INSTR_STATE_FAULT;
 	}
+	spin_unlock_irqrestore(&kbdev->hwcnt.lock, flags);
 
 	/* Stop the kctx from submitting more jobs and cause it to be scheduled
 	 * out/rescheduled - this will occur on releasing the context's refcount */
@@ -2570,6 +2572,7 @@ void kbase_as_poking_timer_release_atom(struct kbase_device *kbdev, struct kbase
 
 void kbase_mmu_interrupt_process(struct kbase_device *kbdev, struct kbase_context *kctx, struct kbase_as *as)
 {
+	unsigned long flags;
 	struct kbasep_js_device_data *js_devdata = &kbdev->js_data;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
@@ -2618,12 +2621,13 @@ void kbase_mmu_interrupt_process(struct kbase_device *kbdev, struct kbase_contex
 		 * hw counters dumping in progress, signal the
 		 * other thread that it failed
 		 */
+		spin_lock_irqsave(&kbdev->hwcnt.lock, flags);
 		if ((kbdev->hwcnt.kctx == kctx) &&
 		    (kbdev->hwcnt.backend.state ==
 					KBASE_INSTR_STATE_DUMPING))
 			kbdev->hwcnt.backend.state =
 						KBASE_INSTR_STATE_FAULT;
-
+		spin_unlock_irqrestore(&kbdev->hwcnt.lock, flags);
 		/*
 		 * Stop the kctx from submitting more jobs and cause it
 		 * to be scheduled out/rescheduled when all references
