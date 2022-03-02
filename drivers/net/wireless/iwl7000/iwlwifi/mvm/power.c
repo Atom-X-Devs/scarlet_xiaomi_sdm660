@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2019, 2021 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2019, 2021-2022 Intel Corporation
  * Copyright (C) 2013-2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
@@ -942,7 +942,7 @@ int iwl_mvm_power_update_mac(struct iwl_mvm *mvm)
 
 	/* get vifs info */
 	ieee80211_iterate_active_interfaces_atomic(mvm->hw,
-					IEEE80211_IFACE_ITER_NORMAL,
+					IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVER,
 					iwl_mvm_power_get_vifs_iterator, &vifs);
 
 	iwl_mvm_power_set_pm(mvm, &vifs);
