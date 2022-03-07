@@ -205,11 +205,11 @@ PVRSRVBridgeReleaseGlobalEventObject(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psReleaseGlobalEventObjectOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE)
-					    psReleaseGlobalEventObjectIN->
-					    hGlobalEventObject,
-					    PVRSRV_HANDLE_TYPE_SHARED_EVENT_OBJECT);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE)
+					      psReleaseGlobalEventObjectIN->
+					      hGlobalEventObject,
+					      PVRSRV_HANDLE_TYPE_SHARED_EVENT_OBJECT);
 	if (unlikely
 	    ((psReleaseGlobalEventObjectOUT->eError != PVRSRV_OK)
 	     && (psReleaseGlobalEventObjectOUT->eError != PVRSRV_ERROR_RETRY)))
@@ -398,10 +398,10 @@ PVRSRVBridgeEventObjectClose(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psEventObjectCloseOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE) psEventObjectCloseIN->
-					    hOSEventKM,
-					    PVRSRV_HANDLE_TYPE_EVENT_OBJECT_CONNECT);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE)
+					      psEventObjectCloseIN->hOSEventKM,
+					      PVRSRV_HANDLE_TYPE_EVENT_OBJECT_CONNECT);
 	if (unlikely
 	    ((psEventObjectCloseOUT->eError != PVRSRV_OK)
 	     && (psEventObjectCloseOUT->eError != PVRSRV_ERROR_RETRY)))
@@ -994,11 +994,11 @@ PVRSRVBridgeReleaseInfoPage(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psProcessHandleBase->psHandleBase);
 
 	psReleaseInfoPageOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psProcessHandleBase->
-					    psHandleBase,
-					    (IMG_HANDLE) psReleaseInfoPageIN->
-					    hPMR,
-					    PVRSRV_HANDLE_TYPE_DEVMEM_MEM_IMPORT);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->
+					      psProcessHandleBase->psHandleBase,
+					      (IMG_HANDLE) psReleaseInfoPageIN->
+					      hPMR,
+					      PVRSRV_HANDLE_TYPE_DEVMEM_MEM_IMPORT);
 	if (unlikely
 	    ((psReleaseInfoPageOUT->eError != PVRSRV_OK)
 	     && (psReleaseInfoPageOUT->eError != PVRSRV_ERROR_RETRY)))

@@ -213,7 +213,7 @@ TLOpenStream_exit:
 			LockHandle(psConnection->psHandleBase);
 
 			eError =
-			    PVRSRVReleaseHandleUnlocked(psConnection->
+			    PVRSRVDestroyHandleUnlocked(psConnection->
 							psHandleBase,
 							(IMG_HANDLE)
 							psTLOpenStreamOUT->hSD,
@@ -275,11 +275,13 @@ PVRSRVBridgeTLCloseStream(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psTLCloseStreamOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE) psTLCloseStreamIN->hSD,
-					    PVRSRV_HANDLE_TYPE_PVR_TL_SD);
-	if (unlikely((psTLCloseStreamOUT->eError != PVRSRV_OK) &&
-		     (psTLCloseStreamOUT->eError != PVRSRV_ERROR_RETRY)))
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE) psTLCloseStreamIN->
+					      hSD,
+					      PVRSRV_HANDLE_TYPE_PVR_TL_SD);
+	if (unlikely
+	    ((psTLCloseStreamOUT->eError != PVRSRV_OK)
+	     && (psTLCloseStreamOUT->eError != PVRSRV_ERROR_RETRY)))
 	{
 		PVR_DPF((PVR_DBG_ERROR,
 			 "%s: %s",

@@ -161,7 +161,7 @@ AllocSyncPrimitiveBlock_exit:
 			LockHandle(psConnection->psHandleBase);
 
 			eError =
-			    PVRSRVReleaseHandleUnlocked(psConnection->
+			    PVRSRVDestroyHandleUnlocked(psConnection->
 							psHandleBase,
 							(IMG_HANDLE)
 							psAllocSyncPrimitiveBlockOUT->
@@ -214,11 +214,11 @@ PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psFreeSyncPrimitiveBlockOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE)
-					    psFreeSyncPrimitiveBlockIN->
-					    hSyncHandle,
-					    PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE)
+					      psFreeSyncPrimitiveBlockIN->
+					      hSyncHandle,
+					      PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 	if (unlikely
 	    ((psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_OK)
 	     && (psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_ERROR_RETRY)))
