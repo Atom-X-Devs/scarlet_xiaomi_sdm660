@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 # auto-detect subdirs
-ifeq ($(CONFIG_ARCH_KONA), y)
+ifeq ($(CONFIG_ARCH_SDM660), y)
 include $(srctree)/techpack/display/config/konadisp.conf
 endif
 
-ifeq ($(CONFIG_ARCH_KONA), y)
+ifeq ($(CONFIG_ARCH_SDM660), y)
 LINUXINCLUDE    += -include $(srctree)/techpack/display/config/konadispconf.h
 endif
 
