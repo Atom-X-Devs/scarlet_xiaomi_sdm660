@@ -29,6 +29,12 @@
 #define ARCH_SUPPORTS_FTRACE_OPS 0
 #endif
 
+#ifdef CONFIG_TRACING
+extern void ftrace_boot_snapshot(void);
+#else
+static inline void ftrace_boot_snapshot(void) { }
+#endif
+
 /*
  * If the arch's mcount caller does not support all of ftrace's
  * features, then it must call an indirect function that
@@ -173,7 +179,10 @@ struct ftrace_ops_hash {
 void ftrace_free_init_mem(void);
 void ftrace_free_mem(struct module *mod, void *start, void *end);
 #else
-static inline void ftrace_free_init_mem(void) { }
+static inline void ftrace_free_init_mem(void)
+{
+	ftrace_boot_snapshot();
+}
 static inline void ftrace_free_mem(struct module *mod, void *start, void *end) { }
 #endif
 
