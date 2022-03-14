@@ -985,7 +985,7 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 		      IWL_CFG_MAC_TYPE_GL, SILICON_B_STEP,
 		      IWL_CFG_RF_TYPE_FM, IWL_CFG_ANY,
 		      IWL_CFG_ANY, IWL_CFG_ANY, IWL_CFG_NO_CDB, IWL_CFG_NO_JACKET,
-		      iwl_cfg_gl_b0_fm_a0, iwl_bz_name),
+		      iwl_cfg_gl_b0_fm_b0, iwl_bz_name),
 
 /* BZ Z step */
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
