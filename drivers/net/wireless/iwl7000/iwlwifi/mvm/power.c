@@ -942,7 +942,7 @@ int iwl_mvm_power_update_mac(struct iwl_mvm *mvm)
 
 	/* get vifs info */
 	ieee80211_iterate_active_interfaces_atomic(mvm->hw,
-					IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVER,
+					IEEE80211_IFACE_ITER_NORMAL,
 					iwl_mvm_power_get_vifs_iterator, &vifs);
 
 	iwl_mvm_power_set_pm(mvm, &vifs);
