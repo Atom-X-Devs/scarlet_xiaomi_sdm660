@@ -4097,6 +4097,8 @@ pick_task(struct rq *rq, const struct sched_class *class, struct task_struct *ma
 	return cookie_pick;
 }
 
+static void queue_core_balance(struct rq *rq);
+
 static struct task_struct *
 pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
@@ -4128,7 +4130,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 			put_prev_task(rq, prev);
 			set_next_task(rq, next);
 		}
-		return next;
+		goto out;
 	}
 
 
@@ -4230,7 +4232,7 @@ again:
 			 */
 			if (i == cpu && !need_sync && !p->core_cookie) {
 				next = p;
-				goto done;
+				goto out_set_next;
 			}
 
 			if (!is_idle_task(p))
@@ -4324,8 +4326,12 @@ next_class:;
 			rq_i->cfs.min_vruntime_fi = rq_i->cfs.min_vruntime;
 		}
 	}
-done:
+out_set_next:
 	set_next_task(rq, next);
+out:
+	if (rq->core->core_forceidle && next == rq->idle)
+		queue_core_balance(rq);
+
 	return next;
 }
 
@@ -4423,7 +4429,7 @@ static void sched_core_balance(struct rq *rq)
 
 static DEFINE_PER_CPU(struct callback_head, core_balance_head);
 
-void queue_core_balance(struct rq *rq)
+static void queue_core_balance(struct rq *rq)
 {
 	if (!sched_core_enabled(rq))
 		return;
