@@ -979,6 +979,30 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 		break;
 	}
 
+	if (CSR_HW_REV_TYPE(trans->hw_rev) == IWL_CFG_MAC_TYPE_GL) {
+		cfg_eht_cap(iftype_data)->eht_cap_elem.mac_cap_info[0] &=
+				~(IEEE80211_EHT_MAC_CAP0_NSEP_PRIO_ACCESS |
+				  IEEE80211_EHT_MAC_CAP0_TRIG_TXOP_SHARING_MODE1 |
+				  IEEE80211_EHT_MAC_CAP0_TRIG_TXOP_SHARING_MODE2);
+		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[3] &=
+				~(IEEE80211_EHT_PHY_CAP0_PARTIAL_BW_UL_MU_MIMO |
+				  IEEE80211_EHT_PHY_CAP3_NG_16_SU_FEEDBACK |
+				  IEEE80211_EHT_PHY_CAP3_NG_16_MU_FEEDBACK |
+				  IEEE80211_EHT_PHY_CAP3_CODEBOOK_4_2_SU_FDBK |
+				  IEEE80211_EHT_PHY_CAP3_CODEBOOK_7_5_MU_FDBK |
+				  IEEE80211_EHT_PHY_CAP3_TRIG_MU_BF_PART_BW_FDBK);
+		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[4] &=
+				~(IEEE80211_EHT_PHY_CAP4_PART_BW_DL_MU_MIMO |
+				  IEEE80211_EHT_PHY_CAP4_POWER_BOOST_FACT_SUPP);
+		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[5] &=
+				~IEEE80211_EHT_PHY_CAP5_NON_TRIG_CQI_FEEDBACK;
+		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[6] &=
+				~(IEEE80211_EHT_PHY_CAP6_MCS15_SUPP_MASK |
+				  IEEE80211_EHT_PHY_CAP6_EHT_DUP_6GHZ_SUPP);
+		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[7] &=
+				~IEEE80211_EHT_PHY_CAP7_20MHZ_STA_RX_NDP_WIDER_BW;
+	}
+
 	if (fw_has_capa(&fw->ucode_capa, IWL_UCODE_TLV_CAPA_BROADCAST_TWT))
 		iftype_data->he_cap.he_cap_elem.mac_cap_info[2] |=
 			IEEE80211_HE_MAC_CAP2_BCAST_TWT;
