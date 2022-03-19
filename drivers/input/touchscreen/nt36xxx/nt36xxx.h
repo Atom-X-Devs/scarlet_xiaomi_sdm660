@@ -140,6 +140,7 @@ struct nvt_ts_data {
 	int32_t reset_gpio;
 	uint32_t reset_flags;
 	struct mutex lock;
+	struct mutex pm_mutex;
 	const struct nvt_ts_mem_map *mmap;
 	uint8_t carrier_system;
 	uint16_t nvt_pid;
