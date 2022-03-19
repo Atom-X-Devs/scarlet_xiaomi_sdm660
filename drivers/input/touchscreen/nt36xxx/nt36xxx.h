@@ -108,10 +108,6 @@ extern const uint16_t gesture_key_array[];
 #define TOUCH_STATE_WORKING 0x00
 #define POINT_DATA_LEN 65
 
-#if TOUCHSCREEN_LAVENDER
-#define NVT_LOG(fmt, args...) pr_debug("[%s] %s %d: " fmt, NVT_I2C_NAME, __func__, __LINE__, ##args)
-#endif
-
 struct nvt_ts_data {
 #if TOUCHSCREEN_LAVENDER
 	uint8_t touch_state;

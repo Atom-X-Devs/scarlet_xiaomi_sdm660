@@ -402,7 +402,7 @@ int32_t Erase_Flash(void)
 		}
 	}
 
-	NVT_LOG("Erase OK \n");
+	pr_debug("Erase OK \n");
 	return 0;
 }
 
