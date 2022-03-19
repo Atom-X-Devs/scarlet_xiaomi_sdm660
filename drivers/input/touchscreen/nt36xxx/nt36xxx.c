@@ -855,6 +855,10 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	if(ret)
 		goto err_register_fb_notif_failed;
 
+#if TOUCHSCREEN_LAVENDER
+	INIT_WORK(&g_resume_work, do_nvt_ts_resume_work);
+#endif
+
 	bTouchIsAwake = 1;
 	nvt_irq_enable(true);
 
