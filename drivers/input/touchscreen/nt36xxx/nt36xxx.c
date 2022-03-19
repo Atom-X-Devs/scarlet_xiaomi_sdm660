@@ -1149,7 +1149,7 @@ static int32_t __init nvt_driver_init(void)
 	g_nvt.valid = false;
 
 	if (strstr(saved_command_line, "androidboot.mode=charger") != NULL) {
-		LOGV("androidboot.mode=charger, TP doesn't support!\n");
+		pr_debug("androidboot.mode=charger, TP doesn't support!\n");
 		goto err_driver;
 	}
 
@@ -1157,11 +1157,11 @@ static int32_t __init nvt_driver_init(void)
 		goto err_driver;
 	} else {
 		if (strstr(g_lcd_id, "tianma nt36672a") != NULL) {
-			NVT_LOG("TP info: [Vendor]tianma [IC]nt36672a\n");
+			pr_debug("TP info: [Vendor]tianma [IC]nt36672a\n");
 		} else if (strstr(g_lcd_id, "shenchao nt36672a") != NULL) {
-			NVT_LOG("TP info: [Vendor]shenchao [IC] nt36672a\n");
+			pr_debug("TP info: [Vendor]shenchao [IC] nt36672a\n");
 		} else {
-			NVT_ERR("Touch IC is not nt36672a\n");
+			pr_debug("Touch IC is not nt36672a\n");
 			goto err_driver;
 		}
 	}
