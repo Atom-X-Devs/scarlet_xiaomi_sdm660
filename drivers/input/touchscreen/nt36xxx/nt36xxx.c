@@ -1153,18 +1153,8 @@ static int32_t __init nvt_driver_init(void)
 		goto err_driver;
 	}
 
-	if (IS_ERR_OR_NULL(g_lcd_id)) {
+	if ((strstr(g_lcd_id, "tianma nt36672a") == NULL) || (strstr(g_lcd_id, "shenchao nt36672a") == NULL))
 		goto err_driver;
-	} else {
-		if (strstr(g_lcd_id, "tianma nt36672a") != NULL) {
-			pr_debug("TP info: [Vendor]tianma [IC]nt36672a\n");
-		} else if (strstr(g_lcd_id, "shenchao nt36672a") != NULL) {
-			pr_debug("TP info: [Vendor]shenchao [IC] nt36672a\n");
-		} else {
-			pr_debug("Touch IC is not nt36672a\n");
-			goto err_driver;
-		}
-	}
 #endif
 
 	ret = i2c_add_driver(&nvt_i2c_driver);
