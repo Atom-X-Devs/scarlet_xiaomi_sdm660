@@ -105,6 +105,7 @@ extern const uint16_t gesture_key_array[];
 #endif
 #endif
 
+#define TOUCH_STATE_WORKING 0x00
 #define POINT_DATA_LEN 65
 
 #if TOUCHSCREEN_LAVENDER
