@@ -2646,7 +2646,7 @@ static int iwl_mvm_wowlan_store_wake_pkt(struct iwl_mvm *mvm,
 		data_size = packet_len;
 
 	status->wake_packet = kmemdup(notif->wake_packet, data_size,
-				      GFP_KERNEL);
+				      GFP_ATOMIC);
 
 	if (!status->wake_packet)
 		return -ENOMEM;
