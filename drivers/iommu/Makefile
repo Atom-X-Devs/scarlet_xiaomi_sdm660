@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_IOMMU_API) += iommu.o
-ifdef CONFIG_DEBUG_KERNEL
+ifdef CONFIG_TRACEPOINTS
 obj-$(CONFIG_IOMMU_API) += iommu-traces.o
 endif
 obj-$(CONFIG_IOMMU_API) += iommu-sysfs.o
