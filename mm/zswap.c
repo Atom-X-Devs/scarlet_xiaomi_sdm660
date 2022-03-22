@@ -107,9 +107,17 @@ static const struct kernel_param_ops zswap_zpool_param_ops = {
 };
 module_param_cb(zpool, &zswap_zpool_param_ops, &zswap_zpool_type, 0644);
 
-/* Enable/disable handling same-value filled pages (enabled by default) */
+/*
+ * Enable/disable handling same-value filled pages (enabled by default).
+ * If disabled every page is considered non-same-value filled.
+ */
 static bool zswap_same_filled_pages_enabled = true;
 module_param_named(same_filled_pages_enabled, zswap_same_filled_pages_enabled,
+		   bool, 0644);
+
+/* Enable/disable handling non-same-value filled pages (enabled by default) */
+static bool zswap_non_same_filled_pages_enabled = true;
+module_param_named(non_same_filled_pages_enabled, zswap_non_same_filled_pages_enabled,
 		   bool, 0644);
 
 /* zpool is shared by all of zswap backend  */
@@ -807,6 +815,11 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 			goto insert_entry;
 		}
 		kunmap_atomic(src);
+	}
+
+	if (!zswap_non_same_filled_pages_enabled) {
+		ret = -EINVAL;
+		goto freepage;
 	}
 
 	/* if entry is successfully added, it keeps the reference */
