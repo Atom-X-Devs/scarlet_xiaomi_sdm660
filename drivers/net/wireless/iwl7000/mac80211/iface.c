@@ -859,7 +859,6 @@ static const struct net_device_ops ieee80211_monitorif_ops = {
 
 };
 
-#if LINUX_VERSION_IS_GEQ(5,13,0)
 static int ieee80211_netdev_fill_forward_path(struct net_device_path_ctx *ctx,
 					      struct net_device_path *path)
 {
@@ -917,7 +916,6 @@ out:
 
 	return ret;
 }
-#endif /* LINUX_VERSION_IS_GEQ(5,13,0) */
 
 static const struct net_device_ops ieee80211_dataif_8023_ops = {
 #if LINUX_VERSION_IS_LESS(4,10,0)
@@ -937,9 +935,7 @@ static const struct net_device_ops ieee80211_dataif_8023_ops = {
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
 #endif
 
-#if LINUX_VERSION_IS_GEQ(5,13,0)
 	.ndo_fill_forward_path	= ieee80211_netdev_fill_forward_path,
-#endif
 };
 
 static bool ieee80211_iftype_supports_hdr_offload(enum nl80211_iftype iftype)
