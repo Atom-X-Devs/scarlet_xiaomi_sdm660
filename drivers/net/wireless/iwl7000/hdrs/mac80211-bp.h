@@ -1002,12 +1002,6 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 	return crypto->cipher_group;
 }
 
-static inline void
-cfg80211_assoc_comeback(struct net_device *netdev,
-			struct cfg80211_bss *bss, u32 timeout)
-{
-}
-
 #else
 static inline int
 cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
@@ -2045,6 +2039,14 @@ static inline void __iwl7000_cfg80211_unregister_wdev(struct wireless_dev *wdev)
 #else
 #define lockdep_is_wiphy_held(wiphy) lockdep_is_held(&(wiphy)->mtx)
 #endif /* < 5.12 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,17,0)
+static inline void
+cfg80211_assoc_comeback(struct net_device *netdev,
+			struct cfg80211_bss *bss, u32 timeout)
+{
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,17,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,18,0)
 #define ieee80211_data_to_8023_exthdr iwl7000_ieee80211_data_to_8023_exthdr
