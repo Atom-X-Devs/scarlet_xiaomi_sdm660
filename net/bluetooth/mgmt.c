@@ -9667,7 +9667,6 @@ void mgmt_remote_name(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 	struct sk_buff *skb;
 	struct mgmt_ev_device_found *ev;
 	u16 eir_len;
-	u32 flags;
 
 	if (name_len)
 		skb = mgmt_alloc_skb(hdev, MGMT_EV_DEVICE_FOUND, 2 + name_len);
@@ -9679,17 +9678,10 @@ void mgmt_remote_name(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 	ev->addr.type = link_to_bdaddr(link_type, addr_type);
 	ev->rssi = rssi;
 
-	if (name) {
-		eir_len = eir_append_data(ev->eir, 0, EIR_NAME_COMPLETE, name,
-					  name_len);
-		flags = 0;
-	} else {
-		eir_len = 0;
-		flags = MGMT_DEV_FOUND_NAME_REQUEST_FAILED;
-	}
+	eir_len = eir_append_data(ev->eir, 0, EIR_NAME_COMPLETE, name,
+				  name_len);
 
 	ev->eir_len = cpu_to_le16(eir_len);
-	ev->flags = cpu_to_le32(flags);
 
 	mgmt_event_skb(skb, NULL);
 }
