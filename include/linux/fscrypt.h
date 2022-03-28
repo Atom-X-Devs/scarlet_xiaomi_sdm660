@@ -143,7 +143,7 @@ static inline void fscrypt_handle_d_move(struct dentry *dentry)
  */
 static inline bool fscrypt_is_nokey_name(const struct dentry *dentry)
 {
-	return dentry->d_flags & DCACHE_ENCRYPTED_NAME;
+	return dentry->d_flags & DCACHE_NOKEY_NAME;
 }
 
 /* crypto.c */
