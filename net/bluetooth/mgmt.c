@@ -3905,12 +3905,11 @@ static int read_exp_features_info(struct sock *sk, struct hci_dev *hdev,
 		idx++;
 	}
 #endif
-
 	if (hdev && hci_dev_le_state_simultaneous(hdev)) {
-		if (hci_dev_test_flag(hdev, HCI_LE_SIMULTANEOUS_ROLES))
-			flags = BIT(0);
-		else
-			flags = 0;
+		// This is temporary until the kernel is brought up to date
+		// with upstream and has the remaining controller flags
+		// preceding HCI_LE_SIMULTANEOUS_ROLES.
+		flags = BIT(0);
 
 		memcpy(rp->features[idx].uuid, le_simultaneous_roles_uuid, 16);
 		rp->features[idx].flags = cpu_to_le32(flags);
