@@ -3812,6 +3812,7 @@ struct wiphy_iftype_ext_capab {
 
 /**
  * struct wiphy - wireless hardware description
+ * @mtx: mutex for the data (structures) of this device
  * @reg_notifier: the driver's regulatory notification callback,
  *	note that if your driver uses wiphy_apply_custom_regulatory()
  *	the reg_notifier's request can be passed as NULL
@@ -3977,6 +3978,8 @@ struct wiphy_iftype_ext_capab {
  * @txq_quantum: configuration of internal TX queue scheduler quantum
  */
 struct wiphy {
+	struct mutex mtx;
+
 	/* assign these fields before you register the wiphy */
 
 	/* permanent MAC address(es) */
@@ -4971,6 +4974,17 @@ cfg80211_inform_bss_frame(struct wiphy *wiphy,
 
 	return cfg80211_inform_bss_frame_data(wiphy, &data, mgmt, len, gfp);
 }
+
+/**
+ * cfg80211_get_ies_channel_number - returns the channel number from ies
+ * @ie: IEs
+ * @ielen: length of IEs
+ * @band: enum nl80211_band of the channel
+ *
+ * Returns the channel number, or -1 if none could be determined.
+ */
+int cfg80211_get_ies_channel_number(const u8 *ie, size_t ielen,
+				    enum nl80211_band band);
 
 /**
  * enum cfg80211_bss_frame_type - frame type that the BSS data came from

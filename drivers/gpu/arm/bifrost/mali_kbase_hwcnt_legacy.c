@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018, 2020-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,15 +17,13 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
 
 #include "mali_kbase_hwcnt_legacy.h"
 #include "mali_kbase_hwcnt_virtualizer.h"
 #include "mali_kbase_hwcnt_types.h"
 #include "mali_kbase_hwcnt_gpu.h"
-#include "mali_kbase_ioctl.h"
+#include "uapi/mali_kbase_ioctl.h"
 
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -69,7 +68,7 @@ int kbase_hwcnt_legacy_client_create(
 		goto error;
 
 	/* Translate from the ioctl enable map to the internal one */
-	phys_em.jm_bm = enable->jm_bm;
+	phys_em.fe_bm = enable->fe_bm;
 	phys_em.shader_bm = enable->shader_bm;
 	phys_em.tiler_bm = enable->tiler_bm;
 	phys_em.mmu_l2_bm = enable->mmu_l2_bm;

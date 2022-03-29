@@ -74,11 +74,6 @@ err:
 	return ret;
 }
 
-void evdi_driver_setup_late(struct drm_device *dev)
-{
-	evdi_stats_init(dev->dev_private);
-}
-
 void evdi_driver_unload(struct drm_device *dev)
 {
 	struct evdi_device *evdi = dev->dev_private;
@@ -111,4 +106,3 @@ void evdi_driver_preclose(struct drm_device *drm_dev, struct drm_file *file)
 	if (evdi)
 		evdi_painter_close(evdi, file);
 }
-

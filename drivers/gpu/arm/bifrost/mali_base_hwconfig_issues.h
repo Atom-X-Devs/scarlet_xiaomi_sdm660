@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -59,12 +58,19 @@ enum base_hw_issue {
 	BASE_HW_ISSUE_TTRX_3470,
 	BASE_HW_ISSUE_TTRX_3464,
 	BASE_HW_ISSUE_TTRX_3485,
+	BASE_HW_ISSUE_GPU2019_3212,
 	BASE_HW_ISSUE_END
 };
+
+#ifdef _MALI_BASE_HWCONFIG_NEED_STATICS
+
+#ifdef NOTDEF
 
 static const enum base_hw_issue base_hw_issues_generic[] = {
 	BASE_HW_ISSUE_END
 };
+
+#endif
 
 static const enum base_hw_issue base_hw_issues_tMIx_r0p0_05dev0[] = {
 	BASE_HW_ISSUE_9435,
@@ -480,6 +486,8 @@ static const enum base_hw_issue base_hw_issues_tBEx_r1p0[] = {
 	BASE_HW_ISSUE_END
 };
 
+#ifdef NOTDEF
+
 static const enum base_hw_issue base_hw_issues_tBEx_r1p1[] = {
 	BASE_HW_ISSUE_9435,
 	BASE_HW_ISSUE_TSIX_2033,
@@ -492,6 +500,8 @@ static const enum base_hw_issue base_hw_issues_tBEx_r1p1[] = {
 	BASE_HW_ISSUE_TTRX_3464,
 	BASE_HW_ISSUE_END
 };
+
+#endif /* NOTDEF */
 
 static const enum base_hw_issue base_hw_issues_model_tBEx[] = {
 	BASE_HW_ISSUE_5736,
@@ -532,6 +542,48 @@ static const enum base_hw_issue base_hw_issues_lBEx_r1p1[] = {
 	BASE_HW_ISSUE_END
 };
 
+static const enum base_hw_issue base_hw_issues_tBAx_r0p0[] = {
+	BASE_HW_ISSUE_9435,
+	BASE_HW_ISSUE_TSIX_2033,
+	BASE_HW_ISSUE_TTRX_1337,
+	BASE_HW_ISSUE_TTRX_2968_TTRX_3162,
+	BASE_HW_ISSUE_TTRX_921,
+	BASE_HW_ISSUE_TTRX_3414,
+	BASE_HW_ISSUE_TTRX_3083,
+	BASE_HW_ISSUE_TTRX_3470,
+	BASE_HW_ISSUE_TTRX_3464,
+	BASE_HW_ISSUE_END
+};
+
+#ifdef NOTDEF
+
+static const enum base_hw_issue base_hw_issues_tBAx_r1p0[] = {
+	BASE_HW_ISSUE_9435,
+	BASE_HW_ISSUE_TSIX_2033,
+	BASE_HW_ISSUE_TTRX_1337,
+	BASE_HW_ISSUE_TTRX_2968_TTRX_3162,
+	BASE_HW_ISSUE_TTRX_921,
+	BASE_HW_ISSUE_TTRX_3414,
+	BASE_HW_ISSUE_TTRX_3083,
+	BASE_HW_ISSUE_TTRX_3470,
+	BASE_HW_ISSUE_TTRX_3464,
+	BASE_HW_ISSUE_END
+};
+
+#endif /* NOTDEF */
+
+static const enum base_hw_issue base_hw_issues_model_tBAx[] = {
+	BASE_HW_ISSUE_5736,
+	BASE_HW_ISSUE_9435,
+	BASE_HW_ISSUE_TSIX_2033,
+	BASE_HW_ISSUE_TTRX_1337,
+	BASE_HW_ISSUE_TTRX_3414,
+	BASE_HW_ISSUE_TTRX_3083,
+	BASE_HW_ISSUE_TTRX_3470,
+	BASE_HW_ISSUE_TTRX_3464,
+	BASE_HW_ISSUE_END
+};
+
 static const enum base_hw_issue base_hw_issues_tDUx_r0p0[] = {
 	BASE_HW_ISSUE_9435,
 	BASE_HW_ISSUE_TSIX_2033,
@@ -556,6 +608,7 @@ static const enum base_hw_issue base_hw_issues_tODx_r0p0[] = {
 	BASE_HW_ISSUE_9435,
 	BASE_HW_ISSUE_TSIX_2033,
 	BASE_HW_ISSUE_TTRX_1337,
+	BASE_HW_ISSUE_GPU2019_3212,
 	BASE_HW_ISSUE_END
 };
 
@@ -564,6 +617,7 @@ static const enum base_hw_issue base_hw_issues_model_tODx[] = {
 	BASE_HW_ISSUE_9435,
 	BASE_HW_ISSUE_TSIX_2033,
 	BASE_HW_ISSUE_TTRX_1337,
+	BASE_HW_ISSUE_GPU2019_3212,
 	BASE_HW_ISSUE_END
 };
 
@@ -597,39 +651,6 @@ static const enum base_hw_issue base_hw_issues_model_tVAx[] = {
 	BASE_HW_ISSUE_END
 };
 
-static const enum base_hw_issue base_hw_issues_tTUx_r0p0[] = {
-	BASE_HW_ISSUE_9435,
-	BASE_HW_ISSUE_TSIX_2033,
-	BASE_HW_ISSUE_TTRX_1337,
-	BASE_HW_ISSUE_END
-};
-
-static const enum base_hw_issue base_hw_issues_model_tTUx[] = {
-	BASE_HW_ISSUE_5736,
-	BASE_HW_ISSUE_9435,
-	BASE_HW_ISSUE_TSIX_2033,
-	BASE_HW_ISSUE_TTRX_1337,
-	BASE_HW_ISSUE_END
-};
-
-static const enum base_hw_issue base_hw_issues_tE2x_r0p0[] = {
-	BASE_HW_ISSUE_9435,
-	BASE_HW_ISSUE_TSIX_2033,
-	BASE_HW_ISSUE_TTRX_1337,
-	BASE_HW_ISSUE_TTRX_921,
-	BASE_HW_ISSUE_TTRX_3414,
-	BASE_HW_ISSUE_TTRX_3083,
-	BASE_HW_ISSUE_END
-};
-
-static const enum base_hw_issue base_hw_issues_model_tE2x[] = {
-	BASE_HW_ISSUE_5736,
-	BASE_HW_ISSUE_9435,
-	BASE_HW_ISSUE_TSIX_2033,
-	BASE_HW_ISSUE_TTRX_1337,
-	BASE_HW_ISSUE_TTRX_3414,
-	BASE_HW_ISSUE_TTRX_3083,
-	BASE_HW_ISSUE_END
-};
+#endif /* _MALI_BASE_HWCONFIG_NEED_STATICS */
 
 #endif /* _BASE_HWCONFIG_ISSUES_H_ */

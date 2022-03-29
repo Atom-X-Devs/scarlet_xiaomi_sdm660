@@ -1,24 +1,4 @@
 /*
- *
- * (C) COPYRIGHT ARM Limited. All rights reserved.
- *
- * This program is free software and is provided to you under the terms of the
- * GNU General Public License version 2 as published by the Free Software
- * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, you can access it online at
- * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
- *
- *//*
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
@@ -30,7 +10,7 @@
  */
 
 #include "linux/mman.h"
-#include "../mali_kbase.h"
+#include <mali_kbase.h>
 
 /* mali_kbase_mmap.c
  *
@@ -209,7 +189,8 @@ check_current:
 			return -ENOMEM;
 		if (gap_start <= high_limit && gap_end - gap_start >= length) {
 			/* We found a suitable gap. Clip it with the original
-			 * high_limit. */
+			 * high_limit.
+			 */
 			if (gap_end > info->high_limit)
 				gap_end = info->high_limit;
 
@@ -294,7 +275,7 @@ unsigned long kbase_context_get_unmapped_area(struct kbase_context *const kctx,
 	if ((flags & MAP_FIXED) || addr)
 		return -EINVAL;
 
-#ifdef CONFIG_64BIT
+#if IS_ENABLED(CONFIG_64BIT)
 	/* too big? */
 	if (len > TASK_SIZE - SZ_2M)
 		return -ENOMEM;
@@ -336,19 +317,25 @@ unsigned long kbase_context_get_unmapped_area(struct kbase_context *const kctx,
 					align_mask = align_offset - 1;
 					is_shader_code = true;
 				}
+#if !MALI_USE_CSF
 			} else if (reg->flags & KBASE_REG_TILER_ALIGN_TOP) {
-				unsigned long extent_bytes =
-				     (unsigned long)(reg->extent << PAGE_SHIFT);
+				unsigned long extension_bytes =
+					(unsigned long)(reg->extension
+							<< PAGE_SHIFT);
 				/* kbase_check_alloc_sizes() already satisfies
 				 * these checks, but they're here to avoid
 				 * maintenance hazards due to the assumptions
-				 * involved */
-				WARN_ON(reg->extent > (ULONG_MAX >> PAGE_SHIFT));
+				 * involved
+				 */
+				WARN_ON(reg->extension >
+					(ULONG_MAX >> PAGE_SHIFT));
 				WARN_ON(reg->initial_commit > (ULONG_MAX >> PAGE_SHIFT));
-				WARN_ON(!is_power_of_2(extent_bytes));
-				align_mask = extent_bytes - 1;
+				WARN_ON(!is_power_of_2(extension_bytes));
+				align_mask = extension_bytes - 1;
 				align_offset =
-				      extent_bytes - (reg->initial_commit << PAGE_SHIFT);
+					extension_bytes -
+					(reg->initial_commit << PAGE_SHIFT);
+#endif /* !MALI_USE_CSF */
 			} else if (reg->flags & KBASE_REG_GPU_VA_SAME_4GB_PAGE) {
 				is_same_4gb_page = true;
 			}
