@@ -129,6 +129,10 @@ int iwl_mvm_time_sync_config(struct iwl_mvm *mvm, u8 *addr, u32 protocols)
 
 	lockdep_assert_held(&mvm->mutex);
 
+	if (!fw_has_capa(&mvm->fw->ucode_capa,
+			 IWL_UCODE_TLV_CAPA_TIME_SYNC_BOTH_FTM_TM))
+		return -EINVAL;
+
 	/*
 	 * The fw only supports one peer. We do allow reconfiguration of the
 	 * same peer for cases of fw reset etc.

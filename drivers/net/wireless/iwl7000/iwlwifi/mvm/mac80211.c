@@ -498,7 +498,8 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		wiphy_ext_feature_set(hw->wiphy,
 				      NL80211_EXT_FEATURE_BEACON_PROTECTION_CLIENT);
 
-	if (mvm->trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_9000)
+	if (fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_TIME_SYNC_BOTH_FTM_TM))
 		wiphy_ext_feature_set(hw->wiphy,
 				      NL80211_EXT_FEATURE_HW_TIMESTAMP);
 
