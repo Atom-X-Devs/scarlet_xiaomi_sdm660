@@ -2243,6 +2243,76 @@ static void iwl_mvm_get_optimal_ppe_info(struct iwl_he_pkt_ext_v2 *pkt_ext,
 	}
 }
 
+/*
+ * This function sets the MU EDCA parameters ans returns whether MU EDCA
+ * is enabled or not
+ */
+static bool iwl_mvm_set_fw_mu_edca_params(struct iwl_mvm *mvm,
+					  struct iwl_mvm_vif *mvmvif,
+					  struct iwl_he_backoff_conf
+					  *trig_based_txf)
+{
+	int i;
+	/* Mark MU EDCA as enabled, unless none detected on some AC */
+	bool mu_edca_enabled = true;
+
+	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
+		struct ieee80211_he_mu_edca_param_ac_rec *mu_edca =
+			&mvmvif->queue_params[i].mu_edca_param_rec;
+		u8 ac = iwl_mvm_mac80211_ac_to_ucode_ac(i);
+
+		if (!mvmvif->queue_params[i].mu_edca) {
+			mu_edca_enabled = false;
+			break;
+		}
+
+		trig_based_txf[ac].cwmin =
+			cpu_to_le16(mu_edca->ecw_min_max & 0xf);
+		trig_based_txf[ac].cwmax =
+			cpu_to_le16((mu_edca->ecw_min_max & 0xf0) >> 4);
+		trig_based_txf[ac].aifsn =
+			cpu_to_le16(mu_edca->aifsn & 0xf);
+		trig_based_txf[ac].mu_time =
+			cpu_to_le16(mu_edca->mu_edca_timer);
+	}
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	/* MU EDCA override */
+	if (mvm->trans->dbg_cfg.mu_edca) {
+		u32 mu_edca = mvm->trans->dbg_cfg.mu_edca;
+
+		for (i = 0; i < IEEE80211_NUM_ACS; i++) {
+			trig_based_txf[i].aifsn =
+				cpu_to_le16(mu_edca & 0xf);
+			trig_based_txf[i].cwmin =
+				cpu_to_le16((mu_edca >> 4) & 0xf);
+			trig_based_txf[i].cwmax =
+				cpu_to_le16((mu_edca >> 8) & 0xf);
+			trig_based_txf[i].mu_time =
+				cpu_to_le16((mu_edca >> 12) & 0xff);
+		}
+	}
+#endif
+	return mu_edca_enabled;
+}
+
+static bool iwl_mvm_is_nic_ack_enabled(struct iwl_mvm *mvm,
+				       struct ieee80211_vif *vif)
+{
+	const struct ieee80211_supported_band *sband;
+	const struct ieee80211_sta_he_cap *own_he_cap = NULL;
+
+	/* This capability is the same for all bands,
+	 * so take it from one of them.
+	 */
+	sband = mvm->hw->wiphy->bands[NL80211_BAND_2GHZ];
+	own_he_cap = ieee80211_get_he_iftype_cap(sband,
+						 ieee80211_vif_type_p2p(vif));
+
+	return (own_he_cap && (own_he_cap->he_cap_elem.mac_cap_info[2] &
+			       IEEE80211_HE_MAC_CAP2_ACK_EN));
+}
+
 void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			struct ieee80211_vif *vif, u8 sta_id)
 {
@@ -2262,9 +2332,6 @@ void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	struct ieee80211_sta *sta;
 	u32 flags;
 	int i;
-	const struct ieee80211_sta_he_cap *own_he_cap = NULL;
-	struct ieee80211_chanctx_conf *chanctx_conf;
-	const struct ieee80211_supported_band *sband;
 	void *cmd;
 	u8 nominal_padding;
 
@@ -2291,16 +2358,6 @@ void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	}
 
 	rcu_read_lock();
-
-	chanctx_conf = rcu_dereference(vif->chanctx_conf);
-	if (WARN_ON(!chanctx_conf)) {
-		rcu_read_unlock();
-		return;
-	}
-
-	sband = mvm->hw->wiphy->bands[chanctx_conf->def.chan->band];
-	own_he_cap = ieee80211_get_he_iftype_cap(sband,
-						 ieee80211_vif_type_p2p(vif));
 
 	sta = rcu_dereference(mvm->fw_id_to_mac_id[sta_ctxt_cmd.sta_id]);
 	if (IS_ERR_OR_NULL(sta)) {
@@ -2458,28 +2515,9 @@ void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 
 	rcu_read_unlock();
 
-	/* Mark MU EDCA as enabled, unless none detected on some AC */
-	flags |= STA_CTXT_HE_MU_EDCA_CW;
-	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
-		struct ieee80211_he_mu_edca_param_ac_rec *mu_edca =
-			&mvmvif->queue_params[i].mu_edca_param_rec;
-		u8 ac = iwl_mvm_mac80211_ac_to_ucode_ac(i);
-
-		if (!mvmvif->queue_params[i].mu_edca) {
-			flags &= ~STA_CTXT_HE_MU_EDCA_CW;
-			break;
-		}
-
-		sta_ctxt_cmd.trig_based_txf[ac].cwmin =
-			cpu_to_le16(mu_edca->ecw_min_max & 0xf);
-		sta_ctxt_cmd.trig_based_txf[ac].cwmax =
-			cpu_to_le16((mu_edca->ecw_min_max & 0xf0) >> 4);
-		sta_ctxt_cmd.trig_based_txf[ac].aifsn =
-			cpu_to_le16(mu_edca->aifsn & 0xf);
-		sta_ctxt_cmd.trig_based_txf[ac].mu_time =
-			cpu_to_le16(mu_edca->mu_edca_timer);
-	}
-
+	if (iwl_mvm_set_fw_mu_edca_params(mvm, mvmvif,
+					  &sta_ctxt_cmd.trig_based_txf[0]))
+		flags |= STA_CTXT_HE_MU_EDCA_CW;
 
 	if (vif->bss_conf.uora_exists) {
 		flags |= STA_CTXT_HE_TRIG_RND_ALLOC;
@@ -2494,29 +2532,12 @@ void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 		flags |= STA_CTXT_EHT_PUNCTURE_MASK_VALID;
 	sta_ctxt_cmd.puncture_mask = cpu_to_le16(vif->bss_conf.eht_puncturing);
 
-	if (own_he_cap && !(own_he_cap->he_cap_elem.mac_cap_info[2] &
-			    IEEE80211_HE_MAC_CAP2_ACK_EN))
+	if (!iwl_mvm_is_nic_ack_enabled(mvm, vif))
 		flags |= STA_CTXT_HE_NIC_NOT_ACK_ENABLED;
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	if (mvm->trans->dbg_cfg.no_ack_en & 0x2)
 		flags &= ~STA_CTXT_HE_ACK_ENABLED;
-
-	/* MU EDCA override */
-	if (mvm->trans->dbg_cfg.mu_edca) {
-		u32 mu_edca = mvm->trans->dbg_cfg.mu_edca;
-
-		for (i = 0; i < IEEE80211_NUM_ACS; i++) {
-			sta_ctxt_cmd.trig_based_txf[i].aifsn =
-				cpu_to_le16(mu_edca & 0xf);
-			sta_ctxt_cmd.trig_based_txf[i].cwmin =
-				cpu_to_le16((mu_edca >> 4) & 0xf);
-			sta_ctxt_cmd.trig_based_txf[i].cwmax =
-				cpu_to_le16((mu_edca >> 8) & 0xf);
-			sta_ctxt_cmd.trig_based_txf[i].mu_time =
-				cpu_to_le16((mu_edca >> 12) & 0xff);
-		}
-	}
 #endif
 
 	if (vif->bss_conf.nontransmitted) {
