@@ -111,7 +111,6 @@ PVRSRV_ERROR TLClientOpenStream(SHARED_DEV_CONNECTION hDevConnection,
 	IMG_HANDLE hTLPMR;
 	IMG_HANDLE hTLImportHandle;
 	IMG_DEVMEM_SIZE_T uiImportSize;
-	IMG_UINT32 ui32MemFlags = PVRSRV_MEMALLOCFLAG_CPU_READABLE;
 
 	PVR_ASSERT(hDevConnection);
 	PVR_ASSERT(pszName);
@@ -143,8 +142,6 @@ PVRSRV_ERROR TLClientOpenStream(SHARED_DEV_CONNECTION hDevConnection,
 			hTLPMR, &hTLImportHandle);
 	PVR_LOG_GOTO_IF_ERROR(eError, "DevmemMakeLocalImportHandle", e2);
 
-	ui32MemFlags |= ui32Mode & PVRSRV_STREAM_FLAG_OPEN_WO ?
-	        PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE : 0;
 	/* Now convert client cookie into a client handle on the buffer's
 	 * physical memory region */
 	eError = DevmemLocalImport(hDevConnection,

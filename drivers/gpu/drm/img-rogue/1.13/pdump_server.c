@@ -564,17 +564,22 @@ static INLINE IMG_BOOL PDumpCtrlInitPhaseComplete(void)
 
 static INLINE void PDumpCtrlSetInitPhaseComplete(IMG_BOOL bIsComplete)
 {
+#if defined(PDUMP_TRACE)
 	PDUMP_HERE_VAR;
-
+#endif
 	if (bIsComplete)
 	{
 		UNSET_PDUMP_CONTROL_FLAG(FLAG_IS_DRIVER_IN_INIT_PHASE);
+#if defined(PDUMP_TRACE)
 		PDUMP_HEREA(102);
+#endif
 	}
 	else
 	{
 		SET_PDUMP_CONTROL_FLAG(FLAG_IS_DRIVER_IN_INIT_PHASE);
+#if defined(PDUMP_TRACE)
 		PDUMP_HEREA(103);
+#endif
 	}
 }
 
@@ -856,7 +861,6 @@ static IMG_UINT32 PDumpWriteToBuffer(PDUMP_STREAM* psStream, IMG_UINT8 *pui8Data
 	IMG_UINT32	ui32Off = 0;
 	IMG_BYTE *pbyDataBuffer;
 	IMG_UINT32 ui32BytesAvailable = 0;
-	static IMG_UINT32 ui32TotalBytesWritten;
 	PVRSRV_ERROR eError;
 	IMG_UINT32 uiRetries = 0;
 
@@ -931,8 +935,6 @@ static IMG_UINT32 PDumpWriteToBuffer(PDUMP_STREAM* psStream, IMG_UINT8 *pui8Data
 
 		if (eError == PVRSRV_OK)
 		{
-			ui32TotalBytesWritten += ui32BytesToBeWritten;
-
 			PVR_ASSERT(pbyDataBuffer != NULL);
 
 			OSDeviceMemCopy((void*)pbyDataBuffer, pui8Data + ui32Off, ui32BytesToBeWritten);
@@ -1006,9 +1008,6 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 		IMG_UINT8* pui8Data, IMG_UINT32 ui32Size, IMG_UINT32 ui32Flags)
 {
 	IMG_UINT32 ui32BytesWritten = 0;
-	PDUMP_HERE_VAR;
-
-	PDUMP_HERE(210);
 
 	/* At this point, PDumpWriteAllowed() has returned TRUE (or called from
 	 * PDumpParameterChannelZeroedPageBlock() during driver init) we know the
@@ -1026,12 +1025,10 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 	/* Dump data to deinit buffer when flagged as deinit */
 	if (ui32Flags & PDUMP_FLAGS_DEINIT)
 	{
-		PDUMP_HERE(211);
 		ui32BytesWritten = PDumpWriteToBuffer(&psChannel->sDeinitStream, pui8Data, ui32Size, ui32Flags);
 		if (ui32BytesWritten != ui32Size)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "PDumpWriteToChannel: DEINIT Written length (%d) does not match data length (%d), PDump incomplete!", ui32BytesWritten, ui32Size));
-			PDUMP_HERE(212);
 			return IMG_FALSE;
 		}
 
@@ -1052,12 +1049,10 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 		 * subsequent app runs, but also to the main stream if client connected */
 		if (ui32Flags & PDUMP_FLAGS_PERSISTENT)
 		{
-			PDUMP_HERE(213);
 			ui32BytesWritten = PDumpWriteToBuffer(&psChannel->sInitStream, pui8Data, ui32Size, ui32Flags);
 			if (ui32BytesWritten != ui32Size)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "PDumpWriteToChannel: PERSIST Written length (%d) does not match data length (%d), PDump incomplete!", ui32BytesWritten, ui32Size));
-				PDUMP_HERE(214);
 				return IMG_FALSE;
 			}
 
@@ -1081,7 +1076,6 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 		PDumpCtrlLockAcquire();
 		if (!PDumpCtrlInitPhaseComplete() && !bDumpedToInitAlready)
 		{
-			PDUMP_HERE(215);
 			psStream = &psChannel->sInitStream;
 			if (psWOff)
 			{
@@ -1090,7 +1084,6 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 		}
 		else
 		{
-			PDUMP_HERE(216);
 			psStream = &psChannel->sMainStream;
 			if (psWOff)
 			{
@@ -1106,12 +1099,10 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 			/* if PDUMP_FLAGS_BLKDATA flag is set in Blocked mode, Make copy of Main script stream data to Block script stream as well */
 			if (ui32Flags & PDUMP_FLAGS_BLKDATA)
 			{
-				PDUMP_HERE(217);
 				ui32BytesWritten = PDumpWriteToBuffer(&psChannel->sBlockStream, pui8Data, ui32Size, ui32Flags);
 				if (ui32BytesWritten != ui32Size)
 				{
 					PVR_DPF((PVR_DBG_ERROR, "PDumpWriteToChannel: BLOCK Written length (%d) does not match data length (%d), PDump incomplete!", ui32BytesWritten, ui32Size));
-					PDUMP_HERE(218);
 					return IMG_FALSE;
 				}
 			}
@@ -1122,7 +1113,6 @@ static IMG_BOOL PDumpWriteToChannel(PDUMP_CHANNEL* psChannel, PDUMP_CHANNEL_WOFF
 		if (ui32BytesWritten != ui32Size)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "PDumpWriteToChannel: MAIN Written length (%d) does not match data length (%d), PDump incomplete!", ui32BytesWritten, ui32Size));
-			PDUMP_HERE(219);
 			return IMG_FALSE;
 		}
 
@@ -1270,13 +1260,9 @@ errExit:
 
 IMG_BOOL PDumpWriteScript(IMG_HANDLE hString, IMG_UINT32 ui32Flags)
 {
-	PDUMP_HERE_VAR;
-
 	PVR_ASSERT(hString);
 
 	PDumpAssertWriteLockHeld();
-
-	PDUMP_HERE(201);
 
 #if defined(DEBUG)
 	/* Since buffer sizes and buffer writing/reading are a balancing act to
@@ -1616,9 +1602,6 @@ void PDumpGetParameterZeroPageInfo(PDUMP_FILEOFFSET_T *puiZeroPageOffset,
 PVRSRV_ERROR PDumpInitCommon(void)
 {
 	PVRSRV_ERROR eError;
-	PDUMP_HERE_VAR;
-
-	PDUMP_HEREA(2010);
 
 	/* Initialised with default initial value */
 	OSAtomicWrite(&g_sConnectionCount, 0);
@@ -1642,8 +1625,6 @@ PVRSRV_ERROR PDumpInitCommon(void)
 	/* PDump now ready for write calls */
 	PDumpModuleTransitionState(PDUMP_SM_READY);
 
-	PDUMP_HEREA(2011);
-
 	/* Test PDump initialised and ready by logging driver details */
 	eError = PDumpCommentWithFlags(PDUMP_FLAGS_CONTINUOUS, "Driver Product Version: %s - %s (%s)", PVRVERSION_STRING, PVR_BUILD_DIR, PVR_BUILD_TYPE);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PDumpCommentWithFlags", errRetState);
@@ -1654,7 +1635,6 @@ PVRSRV_ERROR PDumpInitCommon(void)
 	eError = PDumpParameterChannelZeroedPageBlock();
 	PVR_LOG_GOTO_IF_ERROR(eError, "PDumpParameterChannelZeroedPageBlock", errRetState);
 
-	PDUMP_HEREA(2012);
 ret:
 	return eError;
 
@@ -1666,16 +1646,11 @@ errRetCtrl:
 	PDumpCtrlDeInit();
 errRetLock:
 	OSLockDestroy(g_hPDumpWriteLock);
-	PDUMP_HEREA(2013);
 errRet:
 	goto ret;
 }
 void PDumpDeInitCommon(void)
 {
-	PDUMP_HERE_VAR;
-
-	PDUMP_HEREA(2020);
-
 	/* Suspend PDump as we want PDumpWriteAllowed to deliberately fail during PDump deinit */
 	PDumpModuleTransitionState(PDUMP_SM_DEINITIALISED);
 

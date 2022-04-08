@@ -2717,7 +2717,6 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	IMG_UINT32 uiFlushEnd = 0, uiFlushStart = 0;
 
 	IMG_UINT64 uiProtFlags = 0, uiProtFlagsReadOnly = 0, uiDefProtFlags=0;
-	IMG_UINT64 uiDummyProtFlags = 0;
 	MMU_PROTFLAGS_T uiMMUProtFlags = 0;
 
 	const MMU_PxE_CONFIG *psConfig;
@@ -2826,7 +2825,6 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	{
 		PVR_LOG_GOTO_WITH_ERROR("psConfig->uiBytesPerEntry", eError, PVRSRV_ERROR_INVALID_PARAMS, e2);
 	}
-	uiDummyProtFlags = uiProtFlags;
 
 	if (PMR_IsSparse(psPMR))
 	{
@@ -2848,16 +2846,7 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 									psMMUContext);
 			PVR_GOTO_IF_ERROR(eError, e2);
 
-			/* Callback to get device specific protection flags */
-			if (psConfig->uiBytesPerEntry == 8)
-			{
-				uiDummyProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUProtFlags , uiLog2HeapPageSize);
-			}
-			else if (psConfig->uiBytesPerEntry == 4)
-			{
-				uiDummyProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt4(uiMMUProtFlags);
-			}
-			else
+			if (psConfig->uiBytesPerEntry != 4 && psConfig->uiBytesPerEntry != 8)
 			{
 				PVR_DPF((PVR_DBG_ERROR,
 				         "%s: The page table entry byte length is not supported",

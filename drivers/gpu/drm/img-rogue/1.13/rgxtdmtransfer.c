@@ -486,7 +486,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 	RGX_CLIENT_CCB      *psClientCCB = FWCommonContextGetClientCCB(psTransferContext->sTDMData.psServerCommonContext);
 	IMG_UINT32          ui32IntJobRef = OSAtomicIncrement(&psDevInfo->iCCBSubmissionOrdinal);
 
-	IMG_UINT32 ui32CmdOffset = 0;
 	IMG_BOOL bCCBStateOpen;
 
 	IMG_UINT64               uiCheckFenceUID = 0;
@@ -497,6 +496,7 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 	IMG_UINT32 ui32TDMCmdHeaderOffset = 0;
 	IMG_UINT32 ui32TDMCmdOffsetWrapCheck = 0;
 	RGX_WORKLOAD sWorkloadCharacteristics = {0};
+	IMG_UINT32 ui32CmdOffset = 0;
 #endif
 
 #if defined(SUPPORT_BUFFER_SYNC)
@@ -937,7 +937,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 		Only do the command helper release (which takes the server sync
 		operations if the acquire succeeded
 	*/
-	ui32CmdOffset = RGXGetHostWriteOffsetCCB(FWCommonContextGetClientCCB(psTransferContext->sTDMData.psServerCommonContext));
 	RGXCmdHelperReleaseCmdCCB(1,
 	                          psCmdHelper,
 	                          "TQ_TDM",
@@ -945,6 +944,7 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 
 
 #if defined(SUPPORT_WORKLOAD_ESTIMATION)
+	ui32CmdOffset = RGXGetHostWriteOffsetCCB(FWCommonContextGetClientCCB(psTransferContext->sTDMData.psServerCommonContext));
 	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, FASTRENDER_DM))
 	{
 		/* The following is used to determine the offset of the command header containing
