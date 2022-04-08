@@ -358,6 +358,7 @@ pvr_fence_context_debug_request(void *data, u32 verbosity,
 /**
  * pvr_fence_context_create - creates a PVR fence context
  * @dev_cookie: services device cookie
+ * @fence_status_wq: work queue reference to attach
  * @name: context name (used for debugging)
  *
  * Creates a PVR fence context that can be used to create PVR fences or to
@@ -1060,6 +1061,7 @@ pvr_fence_get_checkpoint(struct pvr_fence *update_fence)
  * pvr_sync_file.c if the driver determines any GPU work
  * is stuck waiting for a sync checkpoint representing a
  * foreign sync to be signalled.
+ * @fctx:    fence context
  * @nr_ufos: number of ufos in vaddrs
  * @vaddrs:  array of FW addresses of UFOs which the
  *           driver is waiting on.
