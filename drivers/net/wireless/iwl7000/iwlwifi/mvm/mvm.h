@@ -811,6 +811,8 @@ struct ptp_data {
 	struct ptp_clock_info ptp_clock_info;
 	/* keeps track of GP2 wrap-around */
 	u32 last_gp2;
+	u32 wrap_counter;
+	struct delayed_work dwork;
 };
 #endif
 
