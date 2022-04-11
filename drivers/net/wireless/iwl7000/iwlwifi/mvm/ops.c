@@ -116,6 +116,12 @@ static void iwl_mvm_nic_config(struct iwl_op_mode *op_mode)
 	radio_cfg_dash = (phy_config & FW_PHY_CFG_RADIO_DASH) >>
 			 FW_PHY_CFG_RADIO_DASH_POS;
 
+	IWL_DEBUG_INFO(mvm, "Radio type=0x%x-0x%x-0x%x\n", radio_cfg_type,
+		       radio_cfg_step, radio_cfg_dash);
+
+	if (mvm->trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210)
+		return;
+
 	/* SKU control */
 	reg_val = CSR_HW_REV_STEP_DASH(mvm->trans->hw_rev);
 
@@ -150,9 +156,6 @@ static void iwl_mvm_nic_config(struct iwl_op_mode *op_mode)
 				CSR_HW_IF_CONFIG_REG_BIT_MAC_SI   |
 				CSR_HW_IF_CONFIG_REG_D3_DEBUG,
 				reg_val);
-
-	IWL_DEBUG_INFO(mvm, "Radio type=0x%x-0x%x-0x%x\n", radio_cfg_type,
-		       radio_cfg_step, radio_cfg_dash);
 
 	/*
 	 * W/A : NIC is stuck in a reset state after Early PCIe power off
