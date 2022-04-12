@@ -140,7 +140,8 @@ static int iwl_trans_pcie_sw_reset(struct iwl_trans *trans,
 	else
 		iwl_set_bit(trans, CSR_RESET,
 			    CSR_RESET_REG_FLAG_SW_RESET);
-	usleep_range(5000, 6000);
+	usleep_range(5000 * CPTCFG_IWL_DELAY_FACTOR,
+		     6000 * CPTCFG_IWL_DELAY_FACTOR);
 
 	if (retake_ownership)
 		return iwl_pcie_prepare_card_hw(trans);
