@@ -25,6 +25,7 @@
 #include "iwl-dnt-cfg.h"
 #include "fw/testmode.h"
 #endif
+#include "time-sync.h"
 
 #define MVM_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 #define MVM_UCODE_CALIB_TIMEOUT	(2 * HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
@@ -1850,8 +1851,12 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
-	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
+	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
 		iwl_mvm_send_recovery_cmd(mvm, ERROR_RECOVERY_UPDATE_DB);
+		iwl_mvm_time_sync_config(mvm, mvm->time_sync.peer_addr,
+					 IWL_TIME_SYNC_PROTOCOL_TM |
+					 IWL_TIME_SYNC_PROTOCOL_FTM);
+	}
 
 	if (iwl_acpi_get_eckv(mvm->dev, &mvm->ext_clock_valid))
 		IWL_DEBUG_INFO(mvm, "ECKV table doesn't exist in BIOS\n");

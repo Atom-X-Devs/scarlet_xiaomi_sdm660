@@ -2222,3 +2222,9 @@ struct cfg80211_set_hw_timestamp {
 #else
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#define hw_timestamp_max_peers(hw)	0
+#else
+#define hw_timestamp_max_peers(hw)	((hw)->wiphy->hw_timestamp_max_peers)
+#endif
