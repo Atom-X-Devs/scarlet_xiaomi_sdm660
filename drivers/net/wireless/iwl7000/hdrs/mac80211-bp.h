@@ -2208,6 +2208,11 @@ void cfg80211_mgmt_tx_status_ext(struct wireless_dev *wdev,
 				status->ack, gfp);
 }
 
+struct cfg80211_set_hw_timestamp {
+	const u8 *macaddr;
+	bool enable;
+};
+
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
