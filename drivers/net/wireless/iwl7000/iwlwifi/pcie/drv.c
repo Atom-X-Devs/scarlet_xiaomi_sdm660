@@ -1175,8 +1175,8 @@ out:
 static int map_crf_id(struct iwl_trans *iwl_trans)
 {
 	int ret = 0;
-	u32 cdb = iwl_trans->hw_crf_id;
-	u32 val = iwl_trans->hw_cdb_id;
+	u32 val = iwl_trans->hw_crf_id;
+	u32 cdb = iwl_trans->hw_cdb_id;
 
 	/* Map between crf id to rf id */
 	switch (REG_CRF_ID_TYPE(val)) {
