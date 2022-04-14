@@ -29,7 +29,6 @@ import tempfile
 from typing import Dict, List
 
 MODES = ['oldconfig', 'olddefconfig', 'editconfig', 'genconfig', 'checkconfig']
-ARCHES = ['x86_64', 'armel', 'arm64']
 FAMILIES = ['.']
 TOOLCHAIN_PREFIXES = {
     'x86_64': 'x86_64-cros-linux-gnu',
@@ -306,6 +305,13 @@ def do_splitconfig(tmpdir: str, srcdir: str, outdir: str,
                  'w').write(contents)
 
 
+# Arches relevant to this family.
+def family_arches(family: str) -> List[str]:
+    return [os.path.basename(p)
+            for p in glob.glob('chromeos/config/' + family + '/*')
+            if os.path.isdir(p)]
+
+
 def doit(args, tmpdir: str) -> int:
     for d in (os.getcwd(),
               os.path.abspath(os.path.join(
@@ -331,16 +337,10 @@ def doit(args, tmpdir: str) -> int:
     save_configs = args.mode == 'genconfig'
 
     procs = []
-    # Arches relevant for this family.
-    family_arches = []
-    family_cfg_dir = 'chromeos/config/' + args.family
-    for arch in ARCHES:
-        family_arch_dir = family_cfg_dir + '/' + arch
 
-        if not os.path.isdir(os.path.join(srcdir, family_arch_dir)):
-            continue
-
-        family_arches.append(arch)
+    for arch in family_arches(args.family):
+        if not arch in TOOLCHAIN_PREFIXES:
+            die('Unexpected arch: %s' % arch)
         procs += build_one_arch(args, tmpdir, srcdir, args.family, arch)
 
     for p in procs:
@@ -352,7 +352,7 @@ def doit(args, tmpdir: str) -> int:
 
     logging.info('Generating splitconfigs')
     do_splitconfig(tmpdir, srcdir, outdir,
-                   args.family, family_arches, save_configs)
+                   args.family, family_arches(args.family), save_configs)
 
     if args.mode == 'checkconfig':
         return checkconfig(srcdir, outdir)
