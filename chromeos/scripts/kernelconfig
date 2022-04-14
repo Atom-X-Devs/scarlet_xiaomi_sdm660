@@ -257,6 +257,55 @@ def build_one_arch(args, tmpdir: str, srcdir: str, family: str,
     return procs
 
 
+def do_splitconfig(tmpdir: str, srcdir: str, outdir: str,
+                   family: str, arches: List[str], save_configs: bool):
+    family_cfg_dir = 'chromeos/config/' + family
+
+    if save_configs:
+        keep_dir = 'CONFIGS'
+        os.makedirs(keep_dir, exist_ok=True)
+
+    for arch in arches:
+        dest = os.path.join(tmpdir, arch)
+        family_arch_dir = family_cfg_dir + '/' + arch
+        os.makedirs(dest)
+        for flavourconfig in glob.glob(os.path.join(srcdir, family_arch_dir,
+                                       '*.flavour.config')):
+            flavour = os.path.basename(flavourconfig)
+            builddir = os.path.join(tmpdir, 'build', arch, flavour)
+            shutil.copy(os.path.join(builddir, 'defconfig'),
+                        os.path.join(dest, flavour))
+            if save_configs:
+                shutil.copy(os.path.join(builddir, '.config'),
+                            os.path.join(keep_dir, arch + '-' + flavour))
+                shutil.copy(os.path.join(builddir, 'defconfig'),
+                            os.path.join(keep_dir, arch + '-' +
+                                         flavour + '.def'))
+        os.makedirs(os.path.join(outdir, family_arch_dir), exist_ok=True)
+        # Find per-arch common items; flavour-unique options can be written out
+        # immediately.
+        for config, contents in splitconfig(dest).items():
+            if config == 'common.config':
+                open(os.path.join(tmpdir, family, arch + '.config'),
+                     'w').write(contents)
+            else:
+                open(os.path.join(outdir, family_arch_dir, config),
+                     'w').write(contents)
+
+    # Find cross-arch common items; common ones go to base.config, and unique
+    # ones to <arch>/common.config.
+    for config, contents in splitconfig(tmpdir + '/' + family).items():
+        if config == 'common.config':
+            open(os.path.join(outdir, family_cfg_dir, 'base.config'),
+                 'w').write(contents)
+        else:
+            assert config.endswith('.config')
+            # Python3.9: arch = config.removesuffix('.config')
+            arch = config[:-len('.config')]
+            open(os.path.join(outdir, family_cfg_dir, arch, 'common.config'),
+                 'w').write(contents)
+
+
 def doit(args, tmpdir: str) -> int:
     for d in (os.getcwd(),
               os.path.abspath(os.path.join(
@@ -301,49 +350,9 @@ def doit(args, tmpdir: str) -> int:
             logging.error(p.stderr.read().decode('utf-8'))
             die('cmd "%s" failed' % ' '.join(p.args))
 
-    if save_configs:
-        keep_dir = 'CONFIGS'
-        os.makedirs(keep_dir, exist_ok=True)
-
     logging.info('Generating splitconfigs')
-    for arch in family_arches:
-        dest = os.path.join(tmpdir, arch)
-        family_arch_dir = family_cfg_dir + '/' + arch
-        os.makedirs(dest)
-        for flavourconfig in glob.glob(os.path.join(srcdir, family_arch_dir,
-                                       '*.flavour.config')):
-            flavour = os.path.basename(flavourconfig)
-            builddir = os.path.join(tmpdir, 'build', arch, flavour)
-            shutil.copy(os.path.join(builddir, 'defconfig'),
-                        os.path.join(dest, flavour))
-            if save_configs:
-                shutil.copy(os.path.join(builddir, '.config'),
-                            os.path.join(keep_dir, arch + '-' + flavour))
-                shutil.copy(os.path.join(builddir, 'defconfig'),
-                            os.path.join(keep_dir, arch + '-' +
-                                         flavour + '.def'))
-        os.makedirs(os.path.join(outdir, family_arch_dir), exist_ok=True)
-        # Find per-arch common items; flavour-unique options can be written out
-        # immediately.
-        for config, contents in splitconfig(dest).items():
-            if config == 'common.config':
-                open(tmpdir + '/' + arch + '.config', 'w').write(contents)
-            else:
-                open(os.path.join(outdir, family_arch_dir, config),
-                     'w').write(contents)
-
-    # Find cross-arch common items; common ones go to base.config, and unique
-    # ones to <arch>/common.config.
-    for config, contents in splitconfig(tmpdir).items():
-        if config == 'common.config':
-            open(os.path.join(outdir, family_cfg_dir, 'base.config'),
-                 'w').write(contents)
-        else:
-            assert config.endswith('.config')
-            # Python3.9: arch = config.removesuffix('.config')
-            arch = config[:-len('.config')]
-            open(os.path.join(outdir, family_cfg_dir, arch, 'common.config'),
-                 'w').write(contents)
+    do_splitconfig(tmpdir, srcdir, outdir,
+                   args.family, family_arches, save_configs)
 
     if args.mode == 'checkconfig':
         return checkconfig(srcdir, outdir)
