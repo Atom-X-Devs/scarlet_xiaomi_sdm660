@@ -29,7 +29,6 @@ import tempfile
 from typing import Dict, List
 
 MODES = ['oldconfig', 'olddefconfig', 'editconfig', 'genconfig', 'checkconfig']
-FAMILIES = ['.']
 TOOLCHAIN_PREFIXES = {
     'x86_64': 'x86_64-cros-linux-gnu',
     'armel': 'armv7a-cros-linux-gnueabihf',
@@ -215,7 +214,7 @@ def build_one_arch(args, tmpdir: str, srcdir: str, family: str,
     for flavourconfig in glob.glob(os.path.join(srcdir, config_arch_dir,
         '*.flavour.config')):
         flavour = os.path.basename(flavourconfig)
-        builddir = os.path.join(tmpdir, 'build', arch, flavour)
+        builddir = os.path.join(tmpdir, 'build', family, arch, flavour)
         os.makedirs(builddir)
 
         # Merge base.config, common.config, <flavour>.flavour.config
@@ -230,9 +229,9 @@ def build_one_arch(args, tmpdir: str, srcdir: str, family: str,
         if args.mode == 'genconfig':
             mode = 'olddefconfig'
         elif args.mode == 'editconfig':
-            interactive = is_editconfig_interactive(arch + '/' + flavour,
-                                                    not args.yes,
-                                                    args.filter)
+            interactive = is_editconfig_interactive(
+                    family + '/' + arch + '/' + flavour,
+                    not args.yes, args.filter)
             mode = 'menuconfig' if interactive else 'olddefconfig'
         elif args.mode == 'checkconfig':
             mode = 'olddefconfig'
@@ -261,17 +260,17 @@ def do_splitconfig(tmpdir: str, srcdir: str, outdir: str,
     family_cfg_dir = 'chromeos/config/' + family
 
     if save_configs:
-        keep_dir = 'CONFIGS'
+        keep_dir = 'CONFIGS/' + family
         os.makedirs(keep_dir, exist_ok=True)
 
     for arch in arches:
-        dest = os.path.join(tmpdir, arch)
+        dest = os.path.join(tmpdir, family, arch)
         family_arch_dir = family_cfg_dir + '/' + arch
         os.makedirs(dest)
         for flavourconfig in glob.glob(os.path.join(srcdir, family_arch_dir,
                                        '*.flavour.config')):
             flavour = os.path.basename(flavourconfig)
-            builddir = os.path.join(tmpdir, 'build', arch, flavour)
+            builddir = os.path.join(tmpdir, 'build', family, arch, flavour)
             shutil.copy(os.path.join(builddir, 'defconfig'),
                         os.path.join(dest, flavour))
             if save_configs:
@@ -338,10 +337,12 @@ def doit(args, tmpdir: str) -> int:
 
     procs = []
 
-    for arch in family_arches(args.family):
-        if not arch in TOOLCHAIN_PREFIXES:
-            die('Unexpected arch: %s' % arch)
-        procs += build_one_arch(args, tmpdir, srcdir, args.family, arch)
+    families = ['.']
+    for family in families:
+        for arch in family_arches(family):
+            if not arch in TOOLCHAIN_PREFIXES:
+                die('Unexpected arch: %s' % arch)
+            procs += build_one_arch(args, tmpdir, srcdir, family, arch)
 
     for p in procs:
         ret = p.wait()
@@ -351,8 +352,9 @@ def doit(args, tmpdir: str) -> int:
             die('cmd "%s" failed' % ' '.join(p.args))
 
     logging.info('Generating splitconfigs')
-    do_splitconfig(tmpdir, srcdir, outdir,
-                   args.family, family_arches(args.family), save_configs)
+    for family in families:
+        do_splitconfig(tmpdir, srcdir, outdir,
+                       family, family_arches(family), save_configs)
 
     if args.mode == 'checkconfig':
         return checkconfig(srcdir, outdir)
@@ -375,11 +377,6 @@ def main() -> int:
         choices=log_level_choices,
         default='INFO'
     )
-    parser.add_argument(
-        '--family',
-        default='chromeos',
-        choices=FAMILIES,
-        help='Only attempt to edit configs for the specified family')
     parser.add_argument('--force', '-F', action='store_true',
                         help='Force allowing to run outside the chroot')
     parser.add_argument('--filter', '-f', default='',
