@@ -208,6 +208,55 @@ to land together, consider using Cq-Depend to make a circular dependency.""",
     return error
 
 
+def build_one_arch(args, tmpdir: str, srcdir: str, family: str,
+                   arch: str) -> List[subprocess.Popen]:
+    procs = []
+    config_base_dir = srcdir + '/chromeos/config/' + family
+    config_arch_dir = config_base_dir + '/' + arch
+    for flavourconfig in glob.glob(os.path.join(srcdir, config_arch_dir,
+        '*.flavour.config')):
+        flavour = os.path.basename(flavourconfig)
+        builddir = os.path.join(tmpdir, 'build', arch, flavour)
+        os.makedirs(builddir)
+
+        # Merge base.config, common.config, <flavour>.flavour.config
+        conf = '\n'.join(open(os.path.join(srcdir, f)).read() for f in [
+                config_base_dir + '/base.config',
+                config_arch_dir + '/common.config',
+                config_arch_dir + '/' + flavour,
+        ])
+        open(os.path.join(builddir, '.config'), 'w').write(conf)
+
+        interactive = False
+        if args.mode == 'genconfig':
+            mode = 'olddefconfig'
+        elif args.mode == 'editconfig':
+            interactive = is_editconfig_interactive(arch + '/' + flavour,
+                                                    not args.yes,
+                                                    args.filter)
+            mode = 'menuconfig' if interactive else 'olddefconfig'
+        elif args.mode == 'checkconfig':
+            mode = 'olddefconfig'
+        else:
+            if args.mode == 'oldconfig':
+                # 'oldconfig' may run into interactive prompts.
+                interactive = True
+            mode = args.mode
+
+        cmd = make_cmd(builddir, arch, mode)
+        if interactive:
+            logging.info('Starting interactive cmd: %s', ' '.join(cmd))
+            ret = subprocess.run(cmd, check=False, cwd=srcdir)
+            if ret.returncode:
+                die('cmd "%s" failed' % ' '.join(cmd))
+        else:
+            logging.info('Starting background cmd: %s', ' '.join(cmd))
+            procs += [subprocess.Popen(cmd, cwd=srcdir,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)]
+    return procs
+
+
 def doit(args, tmpdir: str) -> int:
     for d in (os.getcwd(),
               os.path.abspath(os.path.join(
@@ -225,7 +274,10 @@ def doit(args, tmpdir: str) -> int:
         assert False # Should not reach this.
 
     # Most commands write back to source directory.
-    outdir = srcdir
+    if args.mode == 'checkconfig':
+        outdir = tmpdir
+    else:
+        outdir = srcdir
 
     save_configs = args.mode == 'genconfig'
 
@@ -240,48 +292,7 @@ def doit(args, tmpdir: str) -> int:
             continue
 
         family_arches.append(arch)
-        for flavourconfig in glob.glob(os.path.join(srcdir, family_arch_dir,
-                                                    '*.flavour.config')):
-            flavour = os.path.basename(flavourconfig)
-            builddir = os.path.join(tmpdir, 'build', arch, flavour)
-            os.makedirs(builddir)
-
-            # Merge base.config, common.config, <flavour>.flavour.config
-            conf = '\n'.join(open(os.path.join(srcdir, f)).read() for f in [
-                    family_cfg_dir + '/base.config',
-                    family_arch_dir + '/common.config',
-                    family_arch_dir + '/' + flavour,
-            ])
-            open(os.path.join(builddir, '.config'), 'w').write(conf)
-
-            interactive = False
-            if args.mode == 'genconfig':
-                mode = 'olddefconfig'
-            elif args.mode == 'editconfig':
-                interactive = is_editconfig_interactive(arch + '/' + flavour,
-                                                        not args.yes,
-                                                        args.filter)
-                mode = 'menuconfig' if interactive else 'olddefconfig'
-            elif args.mode == 'checkconfig':
-                mode = 'olddefconfig'
-                outdir = tmpdir
-            else:
-                if args.mode == 'oldconfig':
-                    # 'oldconfig' may run into interactive prompts.
-                    interactive = True
-                mode = args.mode
-
-            cmd = make_cmd(builddir, arch, mode)
-            if interactive:
-                logging.info('Starting interactive cmd: %s', ' '.join(cmd))
-                ret = subprocess.run(cmd, check=False, cwd=srcdir)
-                if ret.returncode:
-                    die('cmd "%s" failed' % ' '.join(cmd))
-            else:
-                logging.info('Starting background cmd: %s', ' '.join(cmd))
-                procs += [subprocess.Popen(cmd, cwd=srcdir,
-                                           stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE)]
+        procs += build_one_arch(args, tmpdir, srcdir, args.family, arch)
 
     for p in procs:
         ret = p.wait()
