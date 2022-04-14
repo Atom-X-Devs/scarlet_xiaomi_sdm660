@@ -190,7 +190,7 @@ ieee80211_handle_puncturing_bitmap(struct ieee80211_sub_if_data *sdata,
 		*changed |= BSS_CHANGED_BANDWIDTH;
 	}
 
-	if (chandef->width == NL80211_CHAN_WIDTH_40)
+	if (chandef->width <= NL80211_CHAN_WIDTH_40)
 		extracted = 0;
 
 	if (sdata->vif.bss_conf.eht_puncturing != extracted) {
