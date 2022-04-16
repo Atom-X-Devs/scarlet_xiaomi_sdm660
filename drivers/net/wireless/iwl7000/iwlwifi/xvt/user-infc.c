@@ -1245,6 +1245,18 @@ static int iwl_xvt_send_tx_done_notif(struct iwl_xvt *xvt, u32 status)
 	return err;
 }
 
+static void iwl_xvt_flush_sta_tids(struct iwl_xvt *xvt)
+{
+	int sta_id, i;
+	unsigned long sta_mask = 0;
+
+	for (i = 0; i < ARRAY_SIZE(xvt->queue_data); i++)
+		sta_mask |= xvt->queue_data[i].sta_mask;
+
+	for_each_set_bit(sta_id, &sta_mask, sizeof(sta_mask))
+		iwl_xvt_txpath_flush_send_cmd(xvt, sta_id, 0xFFFF);
+}
+
 static int iwl_xvt_start_tx_handler(void *data)
 {
 	struct iwl_xvt_enhanced_tx_data *task_data = data;
@@ -1335,8 +1347,10 @@ static int iwl_xvt_start_tx_handler(void *data)
 				sent_packets++;
 				++frag_idx;
 
-				if (kthread_should_stop())
+				if (kthread_should_stop()) {
+					iwl_xvt_flush_sta_tids(xvt);
 					goto on_exit;
+				}
 			}
 		}
 	}
@@ -1821,6 +1835,7 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt, u32 sta_mask,
 	}
 
 	xvt->queue_data[queue_id].allocated_queue = true;
+	xvt->queue_data[queue_id].sta_mask = sta_mask;
 	init_waitqueue_head(&xvt->queue_data[queue_id].tx_wq);
 
 	return queue_id;
@@ -1869,6 +1884,7 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 		return ret;
 
 	xvt->queue_data[cmd->scd_queue].allocated_queue = false;
+	xvt->queue_data[cmd->scd_queue].sta_mask = 0;
 
 	return 0;
 }
