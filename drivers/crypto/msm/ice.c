@@ -517,6 +517,8 @@ static int qcom_ice_parse_clock_info(struct platform_device *pdev,
 		list_add_tail(&clki->list, &ice_dev->clk_list_head);
 	}
 out:
+	if (clkfreq)
+		devm_kfree(dev, (void *)clkfreq);
 	return ret;
 }
 
