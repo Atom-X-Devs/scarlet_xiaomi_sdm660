@@ -288,9 +288,9 @@ static ssize_t iwl_dbgfs_set_nic_temperature_read(struct file *file,
 	int pos;
 
 	if (!mvm->temperature_test)
-		pos = scnprintf(buf , sizeof(buf), "disabled\n");
+		pos = scnprintf(buf, sizeof(buf), "disabled\n");
 	else
-		pos = scnprintf(buf , sizeof(buf), "%d\n", mvm->temperature);
+		pos = scnprintf(buf, sizeof(buf), "%d\n", mvm->temperature);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
@@ -335,7 +335,7 @@ static ssize_t iwl_dbgfs_set_nic_temperature_write(struct iwl_mvm *mvm,
 		mvm->temperature = temperature;
 	}
 	IWL_DEBUG_TEMP(mvm, "%sabling debug set temperature (temp = %d)\n",
-		       mvm->temperature_test ? "En" : "Dis" ,
+		       mvm->temperature_test ? "En" : "Dis",
 		       mvm->temperature);
 	/* handle the temperature change */
 	iwl_mvm_tt_handler(mvm);
@@ -365,7 +365,7 @@ static ssize_t iwl_dbgfs_nic_temp_read(struct file *file,
 	if (ret)
 		return -EIO;
 
-	pos = scnprintf(buf , sizeof(buf), "%d\n", temp);
+	pos = scnprintf(buf, sizeof(buf), "%d\n", temp);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
