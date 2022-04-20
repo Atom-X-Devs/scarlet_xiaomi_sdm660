@@ -92,6 +92,9 @@ ieee80211_get_eht_iftype_cap(const struct ieee80211_supported_band *sband,
 #define cfg_eht_cap_has_eht(obj) (false && (obj))
 #define cfg_eht_cap_set_has_eht(obj, val) do { (void)obj; (void)val; } while (0)
 #define cfg_eht_cap(obj) ((struct ieee80211_sta_eht_cap *)((obj) ? NULL : NULL))
+
+/* mbssid was added in 5.18.0, so it's safe to return 0 prior to that version */
+#define ieee80211_get_mbssid_beacon_len(...) 0
 #else
 #define cfg_eht_cap_has_eht(obj) (obj)->eht_cap.has_eht
 #define cfg_eht_cap_set_has_eht(obj, val) (obj)->eht_cap.has_eht = val
