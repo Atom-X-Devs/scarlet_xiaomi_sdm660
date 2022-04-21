@@ -80,14 +80,6 @@ struct msft_rp_le_set_advertisement_filter_enable {
 	__u8 sub_opcode;
 } __packed;
 
-#define MSFT_EV_LE_MONITOR_DEVICE	0x02
-struct msft_ev_le_monitor_device {
-	__u8     addr_type;
-	bdaddr_t bdaddr;
-	__u8     monitor_handle;
-	__u8     monitor_state;
-} __packed;
-
 struct msft_monitor_advertisement_handle_data {
 	__u8  msft_handle;
 	__u16 mgmt_handle;
@@ -543,7 +535,6 @@ void msft_do_close(struct hci_dev *hdev)
 	struct msft_data *msft = hdev->msft_data;
 	struct msft_monitor_advertisement_handle_data *handle_data, *tmp;
 	struct adv_monitor *monitor;
-	struct monitored_device *dev, *tmp_dev;
 
 	if (!msft)
 		return;
@@ -563,16 +554,6 @@ void msft_do_close(struct hci_dev *hdev)
 		list_del(&handle_data->list);
 		kfree(handle_data);
 	}
-
-	hci_dev_lock(hdev);
-
-	/* Clear any devices that are being monitored */
-	list_for_each_entry_safe(dev, tmp_dev, &hdev->monitored_devices, list) {
-		list_del(&dev->list);
-		kfree(dev);
-	}
-
-	hci_dev_unlock(hdev);
 }
 
 void msft_register(struct hci_dev *hdev)
@@ -606,105 +587,10 @@ void msft_unregister(struct hci_dev *hdev)
 	kfree(msft);
 }
 
-/* This function requires the caller holds hdev->lock */
-static void msft_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr,
-			      __u8 addr_type, __u16 mgmt_handle)
-{
-	struct monitored_device *dev;
-
-	dev = kmalloc(sizeof(*dev), GFP_KERNEL);
-	if (!dev) {
-		bt_dev_err(hdev, "MSFT vendor event %u: no memory",
-			   MSFT_EV_LE_MONITOR_DEVICE);
-		return;
-	}
-
-	bacpy(&dev->bdaddr, bdaddr);
-	dev->addr_type = addr_type;
-	dev->handle = mgmt_handle;
-	dev->notified = false;
-
-	INIT_LIST_HEAD(&dev->list);
-	list_add(&dev->list, &hdev->monitored_devices);
-}
-
-/* This function requires the caller holds hdev->lock */
-static void msft_device_lost(struct hci_dev *hdev, bdaddr_t *bdaddr,
-			     __u8 addr_type, __u16 mgmt_handle)
-{
-	struct monitored_device *dev, *tmp;
-
-	list_for_each_entry_safe(dev, tmp, &hdev->monitored_devices, list) {
-		if (dev->handle == mgmt_handle) {
-			list_del(&dev->list);
-			kfree(dev);
-
-			break;
-		}
-	}
-}
-
-static void *msft_skb_pull(struct hci_dev *hdev, struct sk_buff *skb,
-			   u8 ev, size_t len)
-{
-	void *data;
-
-	data = skb_pull_data(skb, len);
-	if (!data)
-		bt_dev_err(hdev, "Malformed MSFT vendor event: 0x%02x", ev);
-
-	return data;
-}
-
-/* This function requires the caller holds hdev->lock */
-static void msft_monitor_device_evt(struct hci_dev *hdev, struct sk_buff *skb)
-{
-	struct msft_ev_le_monitor_device *ev;
-	struct msft_monitor_advertisement_handle_data *handle_data;
-	u8 addr_type;
-
-	ev = msft_skb_pull(hdev, skb, MSFT_EV_LE_MONITOR_DEVICE, sizeof(*ev));
-	if (!ev)
-		return;
-
-	bt_dev_dbg(hdev,
-		   "MSFT vendor event 0x%02x: handle 0x%04x state %d addr %pMR",
-		   MSFT_EV_LE_MONITOR_DEVICE, ev->monitor_handle,
-		   ev->monitor_state, &ev->bdaddr);
-
-	handle_data = msft_find_handle_data(hdev, ev->monitor_handle, false);
-	if (!handle_data)
-		return;
-
-	switch (ev->addr_type) {
-	case ADDR_LE_DEV_PUBLIC:
-		addr_type = BDADDR_LE_PUBLIC;
-		break;
-
-	case ADDR_LE_DEV_RANDOM:
-		addr_type = BDADDR_LE_RANDOM;
-		break;
-
-	default:
-		bt_dev_err(hdev,
-			   "MSFT vendor event 0x%02x: unknown addr type 0x%02x",
-			   MSFT_EV_LE_MONITOR_DEVICE, ev->addr_type);
-		return;
-	}
-
-	if (ev->monitor_state)
-		msft_device_found(hdev, &ev->bdaddr, addr_type,
-				  handle_data->mgmt_handle);
-	else
-		msft_device_lost(hdev, &ev->bdaddr, addr_type,
-				 handle_data->mgmt_handle);
-}
-
 void msft_vendor_evt(struct hci_dev *hdev, void *data, struct sk_buff *skb)
 {
 	struct msft_data *msft = hdev->msft_data;
-	u8 *evt_prefix;
-	u8 *evt;
+	u8 event;
 
 	if (!msft)
 		return;
@@ -713,12 +599,13 @@ void msft_vendor_evt(struct hci_dev *hdev, void *data, struct sk_buff *skb)
 	 * matches, and otherwise just return.
 	 */
 	if (msft->evt_prefix_len > 0) {
-		evt_prefix = msft_skb_pull(hdev, skb, 0, msft->evt_prefix_len);
-		if (!evt_prefix)
+		if (skb->len < msft->evt_prefix_len)
 			return;
 
-		if (memcmp(evt_prefix, msft->evt_prefix, msft->evt_prefix_len))
+		if (memcmp(skb->data, msft->evt_prefix, msft->evt_prefix_len))
 			return;
+
+		skb_pull(skb, msft->evt_prefix_len);
 	}
 
 	/* Every event starts at least with an event code and the rest of
@@ -727,23 +614,10 @@ void msft_vendor_evt(struct hci_dev *hdev, void *data, struct sk_buff *skb)
 	if (skb->len < 1)
 		return;
 
-	evt = msft_skb_pull(hdev, skb, 0, sizeof(*evt));
-	if (!evt)
-		return;
+	event = *skb->data;
+	skb_pull(skb, 1);
 
-	hci_dev_lock(hdev);
-
-	switch (*evt) {
-	case MSFT_EV_LE_MONITOR_DEVICE:
-		msft_monitor_device_evt(hdev, skb);
-		break;
-
-	default:
-		bt_dev_dbg(hdev, "MSFT vendor event 0x%02x", *evt);
-		break;
-	}
-
-	hci_dev_unlock(hdev);
+	bt_dev_dbg(hdev, "MSFT vendor event %u", event);
 }
 
 __u64 msft_get_features(struct hci_dev *hdev)
