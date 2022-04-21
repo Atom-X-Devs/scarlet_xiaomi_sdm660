@@ -117,6 +117,7 @@ struct iwl_xvt_reorder_buffer {
  * @txq_full: Set to true when tx_wq is full
  * @allocated_queue: Whether queue is allocated
  * @sta_mask: Station id mask
+ * @tid: TID
  */
 struct tx_queue_data {
 	wait_queue_head_t tx_wq;
@@ -124,6 +125,7 @@ struct tx_queue_data {
 	bool txq_full;
 	bool allocated_queue;
 	u32 sta_mask;
+	u16 tid;
 };
 
 /**

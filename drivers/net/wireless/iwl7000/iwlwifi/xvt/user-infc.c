@@ -1836,6 +1836,7 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt, u32 sta_mask,
 
 	xvt->queue_data[queue_id].allocated_queue = true;
 	xvt->queue_data[queue_id].sta_mask = sta_mask;
+	xvt->queue_data[queue_id].tid = cmd->tid;
 	init_waitqueue_head(&xvt->queue_data[queue_id].tx_wq);
 
 	return queue_id;
@@ -1885,6 +1886,7 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 
 	xvt->queue_data[cmd->scd_queue].allocated_queue = false;
 	xvt->queue_data[cmd->scd_queue].sta_mask = 0;
+	xvt->queue_data[cmd->scd_queue].tid = 0;
 
 	return 0;
 }
@@ -1934,6 +1936,21 @@ static int iwl_xvt_config_txq_old(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_config_sta_mask(struct iwl_xvt *xvt, u32 tid,
+				   u32 old_sta_mask, u32 new_sta_mask)
+{
+	int queue_id;
+
+	for (queue_id = 0; queue_id < ARRAY_SIZE(xvt->queue_data); queue_id++) {
+		if (xvt->queue_data[queue_id].tid == tid &&
+		    xvt->queue_data[queue_id].sta_mask & old_sta_mask) {
+			xvt->queue_data[queue_id].sta_mask = new_sta_mask;
+			return 0;
+		}
+	}
+	return -1;
+}
+
 static int iwl_xvt_modify_txq(struct iwl_xvt *xvt, u32 tid,
 			      u32 old_sta_mask, u32 new_sta_mask)
 {
@@ -1976,7 +1993,7 @@ static int iwl_xvt_config_txq_mld(struct iwl_xvt *xvt,
 
 	switch (conf->action) {
 	case TX_QUEUE_CFG_REMOVE:
-		ret = iwl_xvt_remove_txq(xvt, &legacy_cmd, 0);
+		ret = iwl_xvt_remove_txq(xvt, &legacy_cmd, conf->sta_mask);
 		if (ret)
 			return ret;
 		break;
@@ -1990,6 +2007,12 @@ static int iwl_xvt_config_txq_mld(struct iwl_xvt *xvt,
 	case TX_QUEUE_CFG_MODIFY:
 		ret = iwl_xvt_modify_txq(xvt, conf->tid, conf->sta_mask,
 					 conf->new_sta_mask);
+		if (ret < 0)
+			return ret;
+		IWL_DEBUG_INFO(xvt, "TXQ modified, configuring sta_mask to %d from %d\n",
+			       conf->new_sta_mask, conf->sta_mask);
+		ret = iwl_xvt_config_sta_mask(xvt, conf->tid, conf->sta_mask,
+					      conf->new_sta_mask);
 		if (ret < 0)
 			return ret;
 		break;
