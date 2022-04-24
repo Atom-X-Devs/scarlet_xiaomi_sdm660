@@ -84,6 +84,20 @@ static u32 iwl_mvm_get_sec_flags(struct iwl_mvm *mvm,
 	return flags;
 }
 
+static int __iwl_mvm_sec_key_del(struct iwl_mvm *mvm, u32 sta_mask,
+				 u32 key_flags, u32 keyidx, u32 flags)
+{
+	u32 cmd_id = WIDE_ID(DATA_PATH_GROUP, SEC_KEY_CMD);
+	struct iwl_sec_key_cmd cmd = {
+		.action = cpu_to_le32(FW_CTXT_ACTION_REMOVE),
+		.u.remove.sta_mask = cpu_to_le32(sta_mask),
+		.u.remove.key_id = cpu_to_le32(keyidx),
+		.u.remove.key_flags = cpu_to_le32(key_flags),
+	};
+
+	return iwl_mvm_send_cmd_pdu(mvm, cmd_id, flags, sizeof(cmd), &cmd);
+}
+
 int iwl_mvm_sec_key_add(struct iwl_mvm *mvm,
 			struct ieee80211_vif *vif,
 			struct ieee80211_sta *sta,
@@ -99,11 +113,18 @@ int iwl_mvm_sec_key_add(struct iwl_mvm *mvm,
 		.u.add.key_flags = cpu_to_le32(key_flags),
 		.u.add.tx_seq = cpu_to_le64(atomic64_read(&keyconf->tx_pn)),
 	};
+	int ret;
 
 	if (WARN_ON(keyconf->keylen > sizeof(cmd.u.add.key)))
 		return -EINVAL;
 
-	memcpy(cmd.u.add.key, keyconf->key, keyconf->keylen);
+	if (keyconf->cipher == WLAN_CIPHER_SUITE_WEP40 ||
+	    keyconf->cipher == WLAN_CIPHER_SUITE_WEP104)
+		memcpy(cmd.u.add.key + IWL_SEC_WEP_KEY_OFFSET, keyconf->key,
+		       keyconf->keylen);
+	else
+		memcpy(cmd.u.add.key, keyconf->key, keyconf->keylen);
+
 	if (keyconf->cipher == WLAN_CIPHER_SUITE_TKIP) {
 		memcpy(cmd.u.add.tkip_mic_rx_key,
 		       keyconf->key + NL80211_TKIP_DATA_OFFSET_RX_MIC_KEY,
@@ -113,7 +134,24 @@ int iwl_mvm_sec_key_add(struct iwl_mvm *mvm,
 		       8);
 	}
 
-	return iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, sizeof(cmd), &cmd);
+	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, sizeof(cmd), &cmd);
+	if (ret)
+		return ret;
+
+	/*
+	 * For WEP, the same key is used for multicast and unicast so need to
+	 * upload it again. If this fails, remove the original as well.
+	 */
+	if (keyconf->cipher == WLAN_CIPHER_SUITE_WEP40 ||
+	    keyconf->cipher == WLAN_CIPHER_SUITE_WEP104) {
+		cmd.u.add.key_flags ^= cpu_to_le32(IWL_SEC_KEY_FLAG_MCAST_KEY);
+		ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, sizeof(cmd), &cmd);
+		if (ret)
+			__iwl_mvm_sec_key_del(mvm, sta_mask, key_flags,
+					      keyconf->keyidx, 0);
+	}
+
+	return ret;
 }
 
 static int _iwl_mvm_sec_key_del(struct iwl_mvm *mvm,
@@ -124,15 +162,22 @@ static int _iwl_mvm_sec_key_del(struct iwl_mvm *mvm,
 {
 	u32 sta_mask = iwl_mvm_get_sec_sta_mask(mvm, vif, sta, keyconf);
 	u32 key_flags = iwl_mvm_get_sec_flags(mvm, vif, sta, keyconf);
-	u32 cmd_id = WIDE_ID(DATA_PATH_GROUP, SEC_KEY_CMD);
-	struct iwl_sec_key_cmd cmd = {
-		.action = cpu_to_le32(FW_CTXT_ACTION_REMOVE),
-		.u.remove.sta_mask = cpu_to_le32(sta_mask),
-		.u.remove.key_id = cpu_to_le32(keyconf->keyidx),
-		.u.remove.key_flags = cpu_to_le32(key_flags),
-	};
+	int ret;
 
-	return iwl_mvm_send_cmd_pdu(mvm, cmd_id, flags, sizeof(cmd), &cmd);
+	ret = __iwl_mvm_sec_key_del(mvm, sta_mask, key_flags, keyconf->keyidx,
+				    flags);
+	if (ret)
+		return ret;
+
+	/* For WEP, delete the key again as unicast */
+	if (keyconf->cipher == WLAN_CIPHER_SUITE_WEP40 ||
+	    keyconf->cipher == WLAN_CIPHER_SUITE_WEP104) {
+		key_flags ^= IWL_SEC_KEY_FLAG_MCAST_KEY;
+		ret = __iwl_mvm_sec_key_del(mvm, sta_mask, key_flags,
+					    keyconf->keyidx, flags);
+	}
+
+	return ret;
 }
 
 int iwl_mvm_sec_key_del(struct iwl_mvm *mvm,
