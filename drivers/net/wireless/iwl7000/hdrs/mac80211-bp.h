@@ -989,37 +989,6 @@ reg_query_regdb_wmm(char *alpha2, int freq, u32 *ptr,
 }
 #endif /* >= 4.5.0 && < 4.17.0 */
 
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
-/* not yet upstream */
-static inline int
-cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
-{
-	return 1;
-}
-
-static inline u32
-cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
-			      int idx)
-{
-	WARN_ON(idx != 0);
-	return crypto->cipher_group;
-}
-
-#else
-static inline int
-cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
-{
-	return crypto->n_ciphers_group;
-}
-
-static inline u32
-cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
-			      int idx)
-{
-	return crypto->cipher_groups[idx];
-}
-#endif
-
 #ifndef VHT_MUMIMO_GROUPS_DATA_LEN
 #define VHT_MUMIMO_GROUPS_DATA_LEN (WLAN_MEMBERSHIP_LEN +\
 				    WLAN_USER_POSITION_LEN)
