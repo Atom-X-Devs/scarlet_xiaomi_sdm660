@@ -108,7 +108,6 @@ static const u16 puncturing_values_320mhz[] = {
 };
 
 #define IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(_bw) \
-	[IEEE80211_EHT_OPER_CHAN_WIDTH_ ## _bw ## MHZ - IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ] = \
 	{ \
 		.len = ARRAY_SIZE(puncturing_values_ ## _bw ## mhz), \
 		.valid_values = puncturing_values_ ## _bw ## mhz \
@@ -120,20 +119,33 @@ static const struct ieee80211_per_bw_puncturing_values per_bw_puncturing[] = {
 	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(320)
 };
 
-static bool ieee80211_valid_disable_subchannel_bitmap(u16 *bitmap, u8 bw)
+static bool ieee80211_valid_disable_subchannel_bitmap(u16 *bitmap,
+						      enum nl80211_chan_width bw)
 {
-	int i;
+	u32 idx, i;
 
-	if (bw < IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ)
+	switch (bw) {
+	case NL80211_CHAN_WIDTH_80:
+		idx = 0;
+		break;
+	case NL80211_CHAN_WIDTH_160:
+		idx = 1;
+		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
+	case NL80211_CHAN_WIDTH_320:
+		idx = 2;
+		break;
+#endif
+	default:
 		*bitmap = 0;
+		break;
+	}
 
 	if (!*bitmap)
 		return true;
 
-	/* Convert the bw to an array index */
-	bw -= IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ;
-	for (i = 0; i < per_bw_puncturing[bw].len; i++)
-		if (per_bw_puncturing[bw].valid_values[i] == *bitmap)
+	for (i = 0; i < per_bw_puncturing[idx].len; i++)
+		if (per_bw_puncturing[idx].valid_values[i] == *bitmap)
 			return true;
 
 	return false;
@@ -148,16 +160,28 @@ static u16
 ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 				 struct cfg80211_chan_def *chandef, u16 bitmap)
 {
-	int sta_center_freq = ieee80211_channel_to_frequency(eht_oper->ccfs,
-							     chandef->chan->band);
-	u32 center_freq = chandef->chan->center_freq;
-	u8 sta_bw = 20 * BIT(u8_get_bits(eht_oper->chan_width,
-					 IEEE80211_EHT_OPER_CHAN_WIDTH));
-	u8 bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
-	int sta_start_freq = sta_center_freq - sta_bw / 2;
-	int start_freq = center_freq - bw / 2;
-	u16 shift = (sta_start_freq - start_freq) / 20;
-	u16 mask = BIT(sta_bw / 20) - 1;
+	struct ieee80211_eht_operation_info *info = (void *)eht_oper->optional;
+	u32 sta_center_freq, center_freq;
+	u8 sta_bw, bw;
+	int sta_start_freq, start_freq;
+	u16 shift, mask;
+
+	if (!(eht_oper->params & IEEE80211_EHT_OPER_INFO_PRESENT) ||
+	    !(eht_oper->params &
+	      IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT))
+		return 0;
+
+	sta_center_freq = ieee80211_channel_to_frequency(info->ccfs1,
+							 chandef->chan->band);
+	sta_bw = 20 * BIT(u8_get_bits(info->control,
+				      IEEE80211_EHT_OPER_CHAN_WIDTH));
+
+	center_freq = chandef->chan->center_freq;
+	bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
+	sta_start_freq = sta_center_freq - sta_bw / 2;
+	start_freq = center_freq - bw / 2;
+	shift = (sta_start_freq - start_freq) / 20;
+	mask = BIT(sta_bw / 20) - 1;
 
 	return (bitmap >> shift) & mask;
 }
@@ -414,6 +438,38 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 	}
 
 	*chandef = vht_chandef;
+
+	/*
+	 * handle the case that the EHT operation indicates that it holds EHT
+	 * operation information (in case that the channel width differs from
+	 * the channel width reported in HT/VHT/HE).
+	 */
+	if (eht_oper && (eht_oper->params & IEEE80211_EHT_OPER_INFO_PRESENT)) {
+		struct cfg80211_chan_def eht_chandef = *chandef;
+
+		ieee80211_chandef_eht_oper(sdata, eht_oper,
+					   eht_chandef.width ==
+					   NL80211_CHAN_WIDTH_160,
+					   false, &eht_chandef);
+
+		if (!cfg80211_chandef_valid(&eht_chandef)) {
+			if (!(ifmgd->flags & IEEE80211_STA_DISABLE_EHT))
+				sdata_info(sdata,
+					   "AP EHT information is invalid, disabling EHT\n");
+			ret = IEEE80211_STA_DISABLE_EHT;
+			goto out;
+		}
+
+		if (!cfg80211_chandef_compatible(chandef, &eht_chandef)) {
+			if (!(ifmgd->flags & IEEE80211_STA_DISABLE_EHT))
+				sdata_info(sdata,
+					   "AP EHT information is incompatible, disabling EHT\n");
+			ret = IEEE80211_STA_DISABLE_EHT;
+			goto out;
+		}
+
+		*chandef = eht_chandef;
+	}
 
 	ret = 0;
 
@@ -4238,14 +4294,17 @@ static bool ieee80211_config_puncturing(struct ieee80211_sub_if_data *sdata,
 					const struct ieee80211_eht_operation *eht_oper,
 					u64 *changed)
 {
-	u16 bitmap, extracted;
-	u8 bw;
+	u16 bitmap = 0, extracted;
 
-	if (!u8_get_bits(eht_oper->present_bm,
-			 IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT))
-		bitmap = 0;
-	else
-		bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
+	if ((eht_oper->params & IEEE80211_EHT_OPER_INFO_PRESENT) &&
+	    (eht_oper->params &
+	     IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT)) {
+		const struct ieee80211_eht_operation_info *info =
+			(void *)eht_oper->optional;
+		const u8 *disable_subchannel_bitmap = info->optional;
+
+		bitmap = get_unaligned_le16(disable_subchannel_bitmap);
+	}
 
 	extracted = ieee80211_extract_dis_subch_bmap(eht_oper,
 						     &sdata->vif.bss_conf.chandef,
@@ -4256,12 +4315,13 @@ static bool ieee80211_config_puncturing(struct ieee80211_sub_if_data *sdata,
 	    extracted == sdata->vif.bss_conf.eht_puncturing)
 		return true;
 
-	bw = u8_get_bits(eht_oper->chan_width, IEEE80211_EHT_OPER_CHAN_WIDTH);
-
-	if (!ieee80211_valid_disable_subchannel_bitmap(&bitmap, bw)) {
+	if (!ieee80211_valid_disable_subchannel_bitmap(&bitmap,
+						       sdata->vif.bss_conf.chandef.width)) {
 		sdata_info(sdata,
 			   "Got an invalid disable subchannel bitmap from AP %pM: bitmap = 0x%x, bw = 0x%x. disconnect\n",
-			    sdata->deflink.u.mgd.bssid, bitmap, bw);
+			    sdata->deflink.u.mgd.bssid,
+			    bitmap,
+			    sdata->vif.bss_conf.chandef.width);
 		return false;
 	}
 
@@ -6414,21 +6474,19 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 
 		eht_oper = (const void *)(elem->data + 1);
 
-		/*
-		 * The length should include one byte for the EID
-		 * and 2 for the disabled subchannel bitmap
-		 */
 		if (elem &&
-		    elem->datalen >= sizeof(*eht_oper) + 1 + 2 &&
-		    eht_oper->present_bm &
-				IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT) {
-			u8 bw = u8_get_bits(eht_oper->chan_width,
-					    IEEE80211_EHT_OPER_CHAN_WIDTH);
+		    ieee80211_eht_oper_size_ok((const void *)(elem->data + 1),
+					       elem->datalen - 1) &&
+		    (eht_oper->params & IEEE80211_EHT_OPER_INFO_PRESENT) &&
+		    (eht_oper->params & IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT)) {
+			const struct ieee80211_eht_operation_info *info =
+				(void *)eht_oper->optional;
+			const u8 *disable_subchannel_bitmap = info->optional;
 			u16 bitmap;
 
-			bitmap = get_unaligned_le16(eht_oper->disable_subchannel_bitmap);
-
-			if (ieee80211_valid_disable_subchannel_bitmap(&bitmap, bw))
+			bitmap = get_unaligned_le16(disable_subchannel_bitmap);
+			if (ieee80211_valid_disable_subchannel_bitmap(&bitmap,
+								      sdata->vif.bss_conf.chandef.width))
 				ieee80211_handle_puncturing_bitmap(sdata,
 								   eht_oper,
 								   bitmap,

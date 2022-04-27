@@ -895,8 +895,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
 #if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 		cfg_eht_cap(iftype_data)->eht_cap_elem.mac_cap_info[0] |=
-			u8_encode_bits(IEEE80211_EHT_MAC_CAP0_MAX_AMPDU_LEN_11454,
-					       IEEE80211_EHT_MAC_CAP0_MAX_AMPDU_LEN_MASK);
+			u8_encode_bits(IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_11454,
+					       IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_MASK);
 #endif
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
