@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -33,29 +33,53 @@
 #include <linux/kthread.h>
 
 /*
+ * Set to 1 to enable Ultra High Speed Mode,
+ * which could be considered less random,
+ * but still passes dieharder.
+ */
+#define ULTRA_HIGH_SPEED_MODE 0
+/*
+ * Dev name as it appears in /proc/devices
+ */
+#define SDEVICE_NAME "srandom"
+#define APP_VERSION "1.41.0"
+/*
+ * Amount of time in seconds, worker thread
+ * should sleep between each operation.
+ * Recommended prime.
+ */
+#define THREAD_SLEEP_VALUE 11
+#define PAID 0
+
+#if ULTRA_HIGH_SPEED_MODE
+/*
  * Size of Array.
- * Must be >= 64.
- * (actual size used will be 64
+ * Must be >= 65
+ * (actual size used will be 65,
+ * anything greater is thrown away).
+ */
+#define rndArraySize 65
+/*
+ * Number of 512b Array
+ * (Must be power of 2).
+ */
+#define numberOfRndArrays 32
+#else
+/*
+ * Size of Array.
+ * Must be >= 65
+ * (actual size used will be 65,
  * anything greater is thrown away).
  * Recommended prime.
  */
 #define rndArraySize 67
 /*
  * Number of 512b Array
- * (Must be power of 2)
+ * (Must be power of 2).
  */
-#define numberOfRndArrays  16
-/*
- * Dev name as it appears in /proc/devices
- */
-#define SDEVICE_NAME "srandom"
-#define APP_VERSION "1.40.0"
-/*
- * Amount of time worker thread should sleep between each operation.
- * Recommended prime
- */
-#define THREAD_SLEEP_VALUE 11
-#define PAID 0
+#define numberOfRndArrays 16
+#endif
+
 #define COPY_TO_USER raw_copy_to_user
 #define COPY_FROM_USER raw_copy_from_user
 #define KTIME_GET_NS ktime_get_real_ts64
@@ -70,21 +94,26 @@ static uint64_t xorshft64(void);
 static uint64_t xorshft128(void);
 static int nextbuffer(void);
 static void update_sarray(int);
+#if ULTRA_HIGH_SPEED_MODE
+static void update_sarray_uhs(int);
+#endif
 static void seed_PRND_s0(void);
 static void seed_PRND_s1(void);
 static void seed_PRND_x(void);
 static int proc_read(struct seq_file *m, void *v);
-static int proc_open(struct inode *inode, struct  file *file);
+static int proc_open(struct inode *inode, struct file *file);
+#if !ULTRA_HIGH_SPEED_MODE
 static int work_thread(void *data);
+#endif
 
 /*
  * Global variables are declared as static, so are global within the file.
  */
 const struct file_operations sfops = {
-	.owner   = THIS_MODULE,
-	.open	= device_open,
-	.read	= sdevice_read,
-	.write   = sdevice_write,
+	.owner	 = THIS_MODULE,
+	.open	 = device_open,
+	.read	 = sdevice_read,
+	.write	 = sdevice_write,
 	.release = device_release
 };
 
@@ -94,12 +123,11 @@ static struct miscdevice srandom_dev = {
 	&sfops
 };
 
-
 static const struct file_operations proc_fops = {
-	.owner   = THIS_MODULE,
-	.read	= seq_read,
-	.open	= proc_open,
-	.llseek  = seq_lseek,
+	.owner	 = THIS_MODULE,
+	.read	 = seq_read,
+	.open	 = proc_open,
+	.llseek	 = seq_lseek,
 	.release = single_release,
 };
 
@@ -108,7 +136,9 @@ static struct mutex Open_mutex;
 static struct mutex ArrBusy_mutex;
 static struct mutex UpPos_mutex;
 
+#if !ULTRA_HIGH_SPEED_MODE
 static struct task_struct *kthread;
+#endif
 
 /*
  * Global variables
@@ -130,12 +160,15 @@ struct TIMESPEC tsp;
 /*
  * Global counters
  */
-int16_t sdevOpenCurrent; /* srandom device current open count */
-int32_t sdevOpenTotal;	/* srandom device total open count */
-uint64_t generatedCount; /* Total generated (512byte) */
+/* srandom device current open count */
+int16_t sdevOpenCurrent;
+/* srandom device total open count */
+int32_t sdevOpenTotal;
+/* Total generated (512 bytes) */
+uint64_t generatedCount;
 
 /*
- * This function is called when the module is loaded
+ * Called when the module is loaded
  */
 int mod_init(void)
 {
@@ -174,7 +207,11 @@ int mod_init(void)
 	else
 		pr_debug("/proc/srandom registration registered..\n");
 
+#if ULTRA_HIGH_SPEED_MODE
+	pr_debug("Module version: "APP_VERSION" UHS Mode\n");
+#else
 	pr_debug("Module version: "APP_VERSION"\n");
+#endif
 
 	prngArrays = kzalloc((numberOfRndArrays + 1) * rndArraySize * sizeof(uint64_t), GFP_KERNEL);
 	while (!prngArrays) {
@@ -198,26 +235,28 @@ int mod_init(void)
 		update_sarray(arraysPosition);
 	}
 
+#if !ULTRA_HIGH_SPEED_MODE
 	kthread = kthread_create(work_thread, NULL, "mykthread");
 	wake_up_process(kthread);
-
+#endif
 	return 0;
 }
 
 /*
- * This function is called when the module is unloaded
+ * Called when the module is unloaded
  */
 void mod_exit(void)
 {
+#if !ULTRA_HIGH_SPEED_MODE
 	kthread_stop(kthread);
+#endif
 	misc_deregister(&srandom_dev);
 	remove_proc_entry("srandom", NULL);
 	pr_debug("srandom deregistered..\n");
 }
 
-
 /*
- * This function is called when a process tries to open the device file.
+ * Called when a process tries to open the device file.
  * "dd if=/dev/srandom"
  */
 static int device_open(struct inode *inode, struct file *file)
@@ -234,9 +273,8 @@ static int device_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-
 /*
- * Called when a process closes the device file.
+ * Called when a process closes the device file
  */
 static int device_release(struct inode *inode, struct file *file)
 {
@@ -251,10 +289,10 @@ static int device_release(struct inode *inode, struct file *file)
 }
 
 /*
- * Called when a process reads from the device.
+ * Called when a process reads from the device
  */
-ssize_t sdevice_read(struct file *file, char *buf,
-size_t requestedCount, loff_t *ppos)
+ssize_t sdevice_read(struct file *file, char *buf, size_t requestedCount,
+		     loff_t *ppos)
 {
 	int arraysPosition;
 	int Block, ret;
@@ -297,7 +335,11 @@ size_t requestedCount, loff_t *ppos)
 		pr_debug("Block:%u\n", Block);
 
 		memcpy(new_buf + (Block * 512), prngArrays[arraysPosition], 512);
+#if ULTRA_HIGH_SPEED_MODE
+		update_sarray_uhs(arraysPosition);
+#else
 		update_sarray(arraysPosition);
+#endif
 	}
 
 	/*
@@ -323,7 +365,7 @@ size_t requestedCount, loff_t *ppos)
 	mutex_unlock(&ArrBusy_mutex);
 
 	/*
-	 * return how many chars we sent
+	 * Return the number of chars we sent
 	 */
 	return requestedCount;
 }
@@ -332,8 +374,8 @@ EXPORT_SYMBOL(sdevice_read);
 /*
  * Called when someone tries to write to /dev/srandom device
  */
-ssize_t sdevice_write(struct file *file,
-const char __user *buf, size_t receivedCount, loff_t *ppos)
+ssize_t sdevice_write(struct file *file, const char __user *buf,
+		      size_t receivedCount, loff_t *ppos)
 {
 	char *newdata;
 	int result;
@@ -379,7 +421,7 @@ void update_sarray(int arraysPosition)
 	Z3 = xorshft64();
 	if ((Z1 & 1) == 0) {
 		pr_debug("0\n");
-		for (C = 0; C < (rndArraySize - 4) ; C = C + 4) {
+		for (C = 0; C < (rndArraySize - 4); C = C + 4) {
 			X = xorshft128();
 			Y = xorshft128();
 			prngArrays[arraysPosition][C] = prngArrays[arraysPosition][C + 1] ^ X ^ Y;
@@ -389,7 +431,7 @@ void update_sarray(int arraysPosition)
 		}
 	} else {
 		pr_debug("1\n");
-		for (C = 0; C < (rndArraySize - 4) ; C = C + 4) {
+		for (C = 0; C < (rndArraySize - 4); C = C + 4) {
 			X = xorshft128();
 			Y = xorshft128();
 			prngArrays[arraysPosition][C] = prngArrays[arraysPosition][C + 1] ^ X ^ Z2;
@@ -407,30 +449,69 @@ void update_sarray(int arraysPosition)
 EXPORT_SYMBOL(sdevice_write);
 
 /*
- *  Seeding the xorshft's
+ * Update the sarray with new random numbers.
+ * Ultra High speed mode
+ */
+void update_sarray_uhs(int arraysPosition)
+{
+	int16_t C;
+	int64_t X, Z1;
+
+	/*
+	 * This function must run exclusively
+	 */
+	while (mutex_lock_interruptible(&UpArr_mutex));
+
+	generatedCount++;
+
+	Z1 = xorshft64();
+	if ((Z1 & 1) == 0) {
+		pr_debug("0\n");
+		for (C = 0; C < (rndArraySize - 4); C = C + 4) {
+			X = xorshft64();
+			prngArrays[arraysPosition][C] = prngArrays[arraysPosition][C + 1] ^ X;
+			prngArrays[arraysPosition][C + 1] = prngArrays[arraysPosition][C + 2] ^ X ^ Z1;
+			prngArrays[arraysPosition][C + 2] = prngArrays[arraysPosition][C + 3] ^ X ^ Z1;
+			prngArrays[arraysPosition][C + 3] = X ^ Z1;
+		}
+	} else {
+		pr_debug("1\n");
+		for (C = 0; C < (rndArraySize - 4); C = C + 4) {
+			X = xorshft64();
+			prngArrays[arraysPosition][C] = prngArrays[arraysPosition][C + 1] ^ X ^ Z1;
+			prngArrays[arraysPosition][C + 1] = prngArrays[arraysPosition][C + 2] ^ X;
+			prngArrays[arraysPosition][C + 2] = prngArrays[arraysPosition][C + 3] ^ X ^ Z1;
+			prngArrays[arraysPosition][C + 3] = X ^ Z1;
+		}
+	}
+
+	mutex_unlock(&UpArr_mutex);
+
+	pr_debug("arraysPosition:%d, X:%llu, Z1:%llu\n", arraysPosition, X, Z1);
+}
+
+/*
+ * Seeding the xorshft's
  */
 void seed_PRND_s0(void)
 {
-	 KTIME_GET_NS(&tsp);
-	 s[0] = (s[0] << 31) ^ (uint64_t)tsp.tv_nsec;
-	 pr_debug("x:%llu, s[0]:%llu, s[1]:%llu\n",
-		x, s[0], s[1]);
+	KTIME_GET_NS(&tsp);
+	s[0] = (s[0] << 31) ^ (uint64_t)tsp.tv_nsec;
+	pr_debug("x:%llu, s[0]:%llu, s[1]:%llu\n", x, s[0], s[1]);
 }
 
 void seed_PRND_s1(void)
 {
 	KTIME_GET_NS(&tsp);
 	s[1] = (s[1] << 24) ^ (uint64_t)tsp.tv_nsec;
-	pr_debug("x:%llu, s[0]:%llu, s[1]:%llu\n",
-		x, s[0], s[1]);
+	pr_debug("x:%llu, s[0]:%llu, s[1]:%llu\n", x, s[0], s[1]);
 }
 
 void seed_PRND_x(void)
 {
 	KTIME_GET_NS(&tsp);
 	x = (x << 32) ^ (uint64_t)tsp.tv_nsec;
-	pr_debug("x:%llu, s[0]:%llu, s[1]:%llu\n",
-		x, s[0], s[1]);
+	pr_debug("x:%llu, s[0]:%llu, s[1]:%llu\n", x, s[0], s[1]);
 }
 
 /*
@@ -456,7 +537,7 @@ uint64_t xorshft128(void)
 }
 
 /*
- *  This function returns the next sarray to use/read.
+ * Returns the next sarray to use/read
  */
 int nextbuffer(void)
 {
@@ -466,16 +547,16 @@ int nextbuffer(void)
 				& (numberOfRndArrays -1);
 
 	pr_debug("raw:%lld",
-			"position:%d",
-			"roll:%d",
-			"%s:%d",
-			"arraysBufferPosition:%d\n",
-			prngArrays[numberOfRndArrays][position],
-			position,
-			roll,
-			__func__,
-			nextbuffer,
-			arraysBufferPosition);
+		 "position:%d",
+		 "roll:%d",
+		 "%s:%d",
+		 "arraysBufferPosition:%d\n",
+		 prngArrays[numberOfRndArrays][position],
+		 position,
+		 roll,
+		 __func__,
+		 nextbuffer,
+		 arraysBufferPosition);
 
 	while (mutex_lock_interruptible(&UpPos_mutex));
 	arraysBufferPosition++;
@@ -492,7 +573,7 @@ int nextbuffer(void)
 }
 
 /*
- *  The Kernel thread doing background tasks.
+ * The Kernel thread doing background tasks.
  */
 int work_thread(void *data)
 {
@@ -519,35 +600,35 @@ int work_thread(void *data)
 }
 
 /*
- * This function is called when reading /proc filesystem
+ * Called when reading /proc filesystem
  */
 int proc_read(struct seq_file *m, void *v)
 {
-	seq_puts(m, "-----------------------:----------------------\n");
-	seq_puts(m, "Device                 : /dev/"SDEVICE_NAME"\n");
-	seq_puts(m, "Module version         : "APP_VERSION"\n");
-	seq_printf(m, "Current open count     : %d\n", sdevOpenCurrent);
-	seq_printf(m, "Total open count       : %d\n", sdevOpenTotal);
-	seq_printf(m, "Total K bytes          : %llu\n", generatedCount / 2);
+	seq_puts(m, "---------------------------:---------------------------\n");
+	seq_puts(m, "Device			: /dev/"SDEVICE_NAME"\n");
+	seq_puts(m, "Module version		: "APP_VERSION"\n");
+	seq_printf(m, "Current open count	: %d\n", sdevOpenCurrent);
+	seq_printf(m, "Total open count		: %d\n", sdevOpenTotal);
+	seq_printf(m, "Total K bytes		: %llu\n", generatedCount / 2);
 	if (PAID == 0) {
-		seq_puts(m, "-----------------------:----------------------\n");
+		seq_puts(m, "-----------------------:-----------------------\n");
 		seq_puts(m, "Please support my work and efforts contributing\n");
-		seq_puts(m, "to the Linux community.  A $25 payment per\n");
+		seq_puts(m, "to the Linux community. A $25 payment per\n");
 		seq_puts(m, "server would be highly appreciated.\n");
 	}
-	seq_puts(m, "-----------------------:----------------------\n");
-	seq_puts(m, "Author                 : Jonathan Senkerik\n");
-	seq_puts(m, "Website                : http://www.jintegrate.co\n");
-	seq_puts(m, "github                 : http://github.com/josenk/srandom\n");
+	seq_puts(m, "-------------------:-------------------\n");
+	seq_puts(m, "Author		: Jonathan Senkerik\n");
+	seq_puts(m, "Website		: https://www.jintegrate.co\n");
+	seq_puts(m, "GitHub		: https://github.com/josenk/srandom\n");
 	if (PAID == 0) {
-		seq_puts(m, "Paypal                 : josenk@jintegrate.co\n");
-		seq_puts(m, "Bitcoin                : 1GEtkAm97DphwJbJTPyywv6NbqJKLMtDzA\n");
-		seq_puts(m, "Commercial Invoice     : Avail on request.\n");
+		seq_puts(m, "Paypal		: josenk@jintegrate.co\n");
+		seq_puts(m, "Bitcoin		: 1GEtkAm97DphwJbJTPyywv6NbqJKLMtDzA\n");
+		seq_puts(m, "Commercial Invoice	: Avail on request.\n");
 	}
 	return 0;
 }
 
-int proc_open(struct inode *inode, struct  file *file)
+int proc_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, proc_read, NULL);
 }
