@@ -37,7 +37,7 @@
  * which could be considered less random,
  * but still passes dieharder.
  */
-#define ULTRA_HIGH_SPEED_MODE 0
+#define ULTRA_HIGH_SPEED_MODE 1
 /*
  * Dev name as it appears in /proc/devices
  */
