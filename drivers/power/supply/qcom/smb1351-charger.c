@@ -800,7 +800,7 @@ static int smb1351_fastchg_current_set(struct smb1351_charger *chip,
 }
 
 #define MIN_FLOAT_MV		3500
-#define MAX_FLOAT_MV		4500
+#define MAX_FLOAT_MV		4508
 #define VFLOAT_STEP_MV		20
 
 static int smb1351_float_voltage_set(struct smb1351_charger *chip,
