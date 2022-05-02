@@ -2190,6 +2190,18 @@ static void iwl_mvm_rx_fill_status(struct iwl_mvm *mvm,
 	}
 }
 
+/* On FPGA, AP sends beacons/probe resp on all channels causing the station
+ * to (wrongly) accept these superfluous frames and update BSS info on all scanned
+ * channels. This results in connection failure since the BSS is updated
+ * wrongly. Discard frames which the Rx frequency does not match the frame
+ * payload information.
+ */
+static bool iwl_mvm_is_valid_packet_channel(struct ieee80211_rx_status *rx_status,
+					    struct sk_buff *skb)
+{
+	return true;
+}
+
 void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			struct iwl_rx_cmd_buffer *rxb, int queue)
 {
@@ -2497,7 +2509,8 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	}
 
 	if (!iwl_mvm_reorder(mvm, napi, queue, sta, skb, desc) &&
-	    (likely(!iwl_mvm_time_sync_frame(mvm, skb, hdr->addr2)))
+	    (likely(!iwl_mvm_time_sync_frame(mvm, skb, hdr->addr2))) &&
+	    iwl_mvm_is_valid_packet_channel(rx_status, skb)
 	   )
 		iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue, sta);
 out:
