@@ -2208,7 +2208,6 @@ void cfg80211_mgmt_tx_status_ext(struct wireless_dev *wdev,
 				status->ack, gfp);
 }
 
-#define NL80211_EXT_FEATURE_HW_TIMESTAMP -1
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)

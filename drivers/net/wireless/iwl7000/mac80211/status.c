@@ -647,10 +647,8 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 			.ack = acked,
 		};
 
-		if (wiphy_ext_feature_isset(local->hw.wiphy,
-					    NL80211_EXT_FEATURE_HW_TIMESTAMP) &&
-		    (ieee80211_is_timing_measurement(orig_skb) ||
-		     ieee80211_is_ftm(orig_skb))) {
+		if (ieee80211_is_timing_measurement(orig_skb) ||
+		    ieee80211_is_ftm(orig_skb)) {
 			status.tx_tstamp =
 				ktime_to_ns(skb_hwtstamps(orig_skb)->hwtstamp);
 			status.ack_tstamp = ktime_to_ns(ack_hwtstamp);

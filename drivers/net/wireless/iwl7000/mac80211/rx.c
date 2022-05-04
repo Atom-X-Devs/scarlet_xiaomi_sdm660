@@ -3577,10 +3577,8 @@ ieee80211_rx_h_userspace_mgmt(struct ieee80211_rx_data *rx)
 	    !(status->flag & RX_FLAG_NO_SIGNAL_VAL))
 		info.sig_dbm = status->signal;
 
-	if (wiphy_ext_feature_isset(rx->local->hw.wiphy,
-				    NL80211_EXT_FEATURE_HW_TIMESTAMP) &&
-	    (ieee80211_is_timing_measurement(rx->skb) ||
-	     ieee80211_is_ftm(rx->skb))) {
+	if (ieee80211_is_timing_measurement(rx->skb) ||
+	    ieee80211_is_ftm(rx->skb)) {
 		info.rx_tstamp = ktime_to_ns(skb_hwtstamps(rx->skb)->hwtstamp);
 		info.ack_tstamp = ktime_to_ns(status->ack_tx_hwtstamp);
 	}
