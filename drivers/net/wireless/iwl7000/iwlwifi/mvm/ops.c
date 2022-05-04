@@ -938,7 +938,7 @@ static void iwl_mvm_mei_rfkill(void *priv, bool blocked,
 {
 	struct iwl_mvm *mvm = priv;
 
-	if (!IWL_MVM_MEI_REPORT_RFKILL && !csme_taking_ownership)
+	if (blocked && !IWL_MVM_MEI_REPORT_RFKILL && !csme_taking_ownership)
 		return;
 
 	mvm->mei_rfkill_blocked = blocked;
