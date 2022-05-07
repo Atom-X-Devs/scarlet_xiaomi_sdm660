@@ -188,7 +188,7 @@ int erofs_namei(struct inode *dir,
 	ndirents = 0;
 	page = find_target_block_classic(dir, &qn, &ndirents);
 
-	if (unlikely(IS_ERR(page)))
+	if (IS_ERR(page))
 		return PTR_ERR(page);
 
 	data = kmap_atomic(page);
