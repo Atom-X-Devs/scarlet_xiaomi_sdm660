@@ -2453,4 +2453,5 @@ void iwl_mvm_send_roaming_forbidden_event(struct iwl_mvm *mvm,
 					  struct ieee80211_vif *vif,
 					  bool forbidden);
 
+void iwl_mvm_get_tas_approved_list(char *tas_approved_list, int size);
 #endif /* __IWL_MVM_H__ */

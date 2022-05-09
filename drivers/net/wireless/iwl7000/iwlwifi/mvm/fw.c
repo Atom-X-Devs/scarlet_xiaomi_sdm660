@@ -1195,6 +1195,16 @@ static const struct dmi_system_id dmi_tas_approved_list[] = {
 	{}
 };
 
+void iwl_mvm_get_tas_approved_list(char *tas_approved_list, int size)
+{
+	int i;
+	char *pos = tas_approved_list;
+	char *endpos = tas_approved_list + size;
+
+	for (i = 0; i < ARRAY_SIZE(dmi_tas_approved_list) - 1; i++)
+		pos += scnprintf(pos, endpos - pos, "%s ", dmi_tas_approved_list[i].ident);
+}
+
 static bool iwl_mvm_add_to_tas_block_list(__le32 *list, __le32 *le_size, unsigned int mcc)
 {
 	int i;

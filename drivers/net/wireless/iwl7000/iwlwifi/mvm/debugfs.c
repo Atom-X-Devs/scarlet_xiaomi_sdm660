@@ -8,6 +8,7 @@
 #include <linux/err.h>
 #include <linux/ieee80211.h>
 #include <linux/netdevice.h>
+#include <linux/dmi.h>
 
 #include "mvm.h"
 #include "sta.h"
@@ -15,6 +16,7 @@
 #include "debugfs.h"
 #include "iwl-modparams.h"
 #include "fw/error-dump.h"
+#include "fw/api/phy-ctxt.h"
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
 static ssize_t iwl_dbgfs_tt_tx_backoff_write(struct iwl_mvm *mvm, char *buf,
@@ -909,6 +911,136 @@ static ssize_t iwl_dbgfs_fw_ver_read(struct file *file, char __user *user_buf,
 	ret = simple_read_from_buffer(user_buf, count, ppos, buff, pos - buff);
 	kfree(buff);
 
+	return ret;
+}
+
+static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
+					     char __user *user_buf,
+					     size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	struct iwl_mvm_tas_status_resp tas_rsp;
+	struct iwl_mvm_tas_status_resp *rsp = &tas_rsp;
+	static const size_t bufsz = 1024;
+	char *buff, *pos, *endpos;
+	char tas_approved_list[256];
+	const char * const tas_dis_reason[TAS_DISABLED_REASON_MAX] = {
+		[TAS_DISABLED_DUE_TO_BIOS] = "due to BIOS",
+		[TAS_DISABLED_DUE_TO_SAR_6DBM] = "due to SAR limit less than 6dBm",
+		[TAS_DISABLED_REASON_INVALID] = "INVALID",
+	};
+	const char * const tas_current_status[TAS_DYNA_STATUS_MAX] = {
+		[TAS_DYNA_INACTIVE] = "INACTIVE",
+		[TAS_DYNA_INACTIVE_MVM_MODE] = "inactive due to mvm mode",
+		[TAS_DYNA_INACTIVE_TRIGGER_MODE] = "inactive due to trigger mode",
+		[TAS_DYNA_INACTIVE_BLOCK_LISTED] = "inactive due to block listed",
+		[TAS_DYNA_INACTIVE_UHB_NON_US] = "inactive due to uhb non US",
+		[TAS_DYNA_ACTIVE] = "ACTIVE",
+	};
+	struct iwl_host_cmd hcmd = {
+		.id = WIDE_ID(DEBUG_GROUP, GET_TAS_STATUS),
+		.flags = CMD_WANT_SKB,
+		.len = { 0, },
+		.data = { NULL, },
+	};
+	int ret, i, tmp;
+	unsigned long dyn_status;
+
+	if (!iwl_mvm_firmware_running(mvm))
+		return -ENODEV;
+
+	mutex_lock(&mvm->mutex);
+	ret = iwl_mvm_send_cmd(mvm, &hcmd);
+	mutex_unlock(&mvm->mutex);
+	if (ret < 0)
+		return ret;
+
+	buff = kzalloc(bufsz, GFP_KERNEL);
+	if (!buff)
+		return -ENOMEM;
+	pos = buff;
+	endpos = pos + bufsz;
+
+	rsp = (void *)hcmd.resp_pkt->data;
+	pos += scnprintf(pos, endpos - pos, "TAS Report\n");
+	pos += scnprintf(pos, endpos - pos, "TAS FW version: %d\n", rsp->tas_fw_version);
+	pos += scnprintf(pos, endpos - pos, "Is UHB enabled for USA?: %s\n",
+			 rsp->is_uhb_for_usa_enable ? "True" : "False");
+	pos += scnprintf(pos, endpos - pos, "Current MCC: 0x%x\n", le16_to_cpu(rsp->curr_mcc));
+
+	pos += scnprintf(pos, endpos - pos, "Block list entries:");
+	for (i = 0; i < APCI_WTAS_BLACK_LIST_MAX; i++)
+		pos += scnprintf(pos, endpos - pos, " 0x%x", le16_to_cpu(rsp->block_list[i]));
+
+	pos += scnprintf(pos, endpos - pos, "\nOEM name: %s\n",
+			 dmi_get_system_info(DMI_SYS_VENDOR));
+	iwl_mvm_get_tas_approved_list(tas_approved_list, ARRAY_SIZE(tas_approved_list));
+	pos += scnprintf(pos, endpos - pos, "OEM approved list: %s\n",
+			 tas_approved_list);
+	pos += scnprintf(pos, endpos - pos, "Do TAS support dual radio?: %s\n",
+			 rsp->in_dual_radio ? "True" : "False");
+
+	for (i = 0; i < rsp->in_dual_radio + 1; i++) {
+		if (rsp->tas_status_mac[i].static_status == 0) {
+			pos += scnprintf(pos, endpos - pos, "Static status: disabled\n");
+			pos += scnprintf(pos, endpos - pos, "Static disabled reason: %s (0)\n",
+					 tas_dis_reason[0]);
+			goto out;
+		}
+
+		pos += scnprintf(pos, endpos - pos, "TAS status for ");
+		switch (rsp->tas_status_mac[i].band) {
+		case TAS_LMAC_BAND_HB:
+			pos += scnprintf(pos, endpos - pos, "High band\n");
+			break;
+		case TAS_LMAC_BAND_LB:
+			pos += scnprintf(pos, endpos - pos, "Low band\n");
+			break;
+		case TAS_LMAC_BAND_UHB:
+			pos += scnprintf(pos, endpos - pos, "Ultra high band\n");
+			break;
+		case TAS_LMAC_BAND_INVALID:
+			pos += scnprintf(pos, endpos - pos, "INVALID band\n");
+			break;
+		default:
+			IWL_ERR(mvm, "Unsupported band (%d)\n", rsp->tas_status_mac[i].band);
+			ret = -EIO;
+			goto out;
+		}
+		pos += scnprintf(pos, endpos - pos, "Static status: %sabled\n",
+				 rsp->tas_status_mac[i].static_status ? "En" : "Dis");
+		pos += scnprintf(pos, endpos - pos, "Static disabled reason: ");
+		if (rsp->tas_status_mac[i].static_dis_reason >= 0 &&
+		    rsp->tas_status_mac[i].static_dis_reason < TAS_DISABLED_REASON_MAX)
+			pos += scnprintf(pos, endpos - pos, "%s (%d)\n",
+					 tas_dis_reason[rsp->tas_status_mac[i].static_dis_reason],
+					 rsp->tas_status_mac[i].static_dis_reason);
+		else
+			pos += scnprintf(pos, endpos - pos, "unsupported value (%d)\n",
+					 rsp->tas_status_mac[i].static_dis_reason);
+
+		pos += scnprintf(pos, endpos - pos, "Dynamic status:\n");
+		dyn_status = (rsp->tas_status_mac[i].dynamic_status);
+		for_each_set_bit(tmp, &dyn_status, sizeof(dyn_status)) {
+			if (tmp >= 0 && tmp < TAS_DYNA_STATUS_MAX)
+				pos += scnprintf(pos, endpos - pos, "\t%s (%d)\n",
+						 tas_current_status[tmp], tmp);
+		}
+
+		pos += scnprintf(pos, endpos - pos, "Is near disconnection?: %s\n",
+				 rsp->tas_status_mac[i].near_disconnection ? "True" : "False");
+		tmp = le16_to_cpu(rsp->tas_status_mac[i].max_reg_pwr_limit);
+		pos += scnprintf(pos, endpos - pos, "Max. regulatory pwr limit (dBm): %d.%03d\n",
+				 tmp / 8, 125 * (tmp % 8));
+		tmp = le16_to_cpu(rsp->tas_status_mac[i].sar_limit);
+		pos += scnprintf(pos, endpos - pos, "SAR limit (dBm): %d.%03d\n",
+				 tmp / 8, 125 * (tmp % 8));
+	}
+
+out:
+	ret = simple_read_from_buffer(user_buf, count, ppos, buff, pos - buff);
+	kfree(buff);
+	iwl_free_resp(&hcmd);
 	return ret;
 }
 
@@ -2181,6 +2313,7 @@ MVM_DEBUGFS_READ_FILE_OPS(fw_rx_stats);
 MVM_DEBUGFS_READ_FILE_OPS(drv_rx_stats);
 MVM_DEBUGFS_READ_FILE_OPS(fw_ver);
 MVM_DEBUGFS_READ_FILE_OPS(phy_integration_ver);
+MVM_DEBUGFS_READ_FILE_OPS(tas_get_status);
 MVM_DEBUGFS_WRITE_FILE_OPS(fw_restart, 10);
 MVM_DEBUGFS_WRITE_FILE_OPS(fw_nmi, 10);
 MVM_DEBUGFS_WRITE_FILE_OPS(bt_tx_prio, 10);
@@ -2417,6 +2550,7 @@ void iwl_mvm_dbgfs_register(struct iwl_mvm *mvm)
 	if (mvm->fw->phy_integration_ver)
 		MVM_DEBUGFS_ADD_FILE(phy_integration_ver, mvm->debugfs_dir, 0400);
 	MVM_DEBUGFS_ADD_FILE(iwl_tlc_dhc, mvm->debugfs_dir, 0400);
+	MVM_DEBUGFS_ADD_FILE(tas_get_status, mvm->debugfs_dir, 0400);
 #ifdef CONFIG_ACPI
 	MVM_DEBUGFS_ADD_FILE(sar_geo_profile, mvm->debugfs_dir, 0400);
 #endif
