@@ -368,7 +368,7 @@ enum iwl_rx_phy_eht_data1 {
 	/* number of EHT-LTF symbols 0 - 1 EHT-LTF, 1 - 2 EHT-LTFs, 2 - 4 EHT-LTFs,
 	 * 3 - 6 EHT-LTFs, 4 - 8 EHT-LTFs */
 	IWL_RX_PHY_DATA1_EHT_SIG_LTF_NUM		= 0x000000e0,
-	IWL_RX_PHY_DATA1_EHT_RU_ALLOC			= 0x00000f00,
+	IWL_RX_PHY_DATA1_EHT_RU_ALLOC			= 0x0000ff00,
 };
 
 /* goes into Metadata DW 7 */
