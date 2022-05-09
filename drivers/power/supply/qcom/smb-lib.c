@@ -3630,14 +3630,14 @@ int smblib_get_charge_current(struct smb_charger *chg,
 	/* QC 3.0 adapter */
 	if (apsd_result->bit & QC_3P0_BIT) {
 		*total_current_ua = HVDCP_CURRENT_UA;
-		pr_info_ratelimited("QC3.0 set icl to 2.9A\n");
+		pr_debug_once("QC3.0 set icl to 2.9A\n");
 		return 0;
 	}
 
 	/* QC 2.0 adapter */
 	if (apsd_result->bit & QC_2P0_BIT) {
 		*total_current_ua = HVDCP2_CURRENT_UA;
-		pr_info_ratelimited("QC2.0 set icl to 1.5A\n");
+		pr_debug_once("QC2.0 set icl to 1.5A\n");
 		return 0;
 	}
 #else
