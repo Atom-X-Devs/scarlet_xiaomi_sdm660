@@ -951,7 +951,9 @@ struct ieee80211_sub_if_data {
 	bool csa_block_tx; /* write-protected by sdata_lock and local->mtx */
 	struct cfg80211_chan_def csa_chandef;
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,15,0)
 	struct work_struct color_change_finalize_work;
+#endif
 
 	struct list_head assigned_chanctx_list; /* protected by chanctx_mtx */
 	struct list_head reserved_chanctx_list; /* protected by chanctx_mtx */
