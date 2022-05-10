@@ -402,7 +402,8 @@ struct ieee80211_radiotap_vendor_tlv {
  */
 struct ieee80211_radiotap_eht_usig {
 	__le32 common;
-	__le32 mask_value;
+	__le32 value;
+	__le32 mask;
 } __packed;
 
 /* ieee80211_radiotap_eht - content of EHT tlv (type 34)
