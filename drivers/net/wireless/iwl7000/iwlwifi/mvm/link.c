@@ -95,7 +95,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	cmd.beacon_template = cpu_to_le32(mvmvif->id);
 
 	if (!vif->bss_conf.he_support || iwlwifi_mod_params.disable_11ax ||
-	    !vif->bss_conf.assoc) {
+	    !vif->cfg.assoc) {
 		changes &= ~LINK_CONTEXT_MODIFY_HE_PARAMS;
 		goto send_cmd;
 	}

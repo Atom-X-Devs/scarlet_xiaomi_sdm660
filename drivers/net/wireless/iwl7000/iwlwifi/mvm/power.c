@@ -245,7 +245,7 @@ static void iwl_mvm_allow_uapsd_iterator(void *_data, u8 *mac,
 		/* allow UAPSD if P2P interface and BSS station interface share
 		 * the same channel.
 		 */
-		if (vif->bss_conf.assoc && other_mvmvif->phy_ctxt &&
+		if (vif->cfg.assoc && other_mvmvif->phy_ctxt &&
 		    curr_mvmvif->phy_ctxt &&
 		    (other_mvmvif->phy_ctxt->id != curr_mvmvif->phy_ctxt->id))
 			data->allow_uapsd = false;
