@@ -3053,15 +3053,15 @@ out_unlock:
 	return ret;
 }
 
-static void iwl_mvm_stop_ap_ibss(struct ieee80211_hw *hw,
+/* Common part for MLD and non-MLD ops */
+void iwl_mvm_stop_ap_ibss_common(struct iwl_mvm *mvm,
 				 struct ieee80211_vif *vif)
 {
-	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
-	iwl_mvm_prepare_mac_removal(mvm, vif);
+	lockdep_assert_held(&mvm->mutex);
 
-	mutex_lock(&mvm->mutex);
+	iwl_mvm_prepare_mac_removal(mvm, vif);
 
 	/* Handle AP stop while in CSA */
 	if (rcu_access_pointer(mvm->csa_vif) == vif) {
@@ -3086,6 +3086,16 @@ static void iwl_mvm_stop_ap_ibss(struct ieee80211_hw *hw,
 	}
 
 	iwl_mvm_bt_coex_vif_change(mvm);
+}
+
+static void iwl_mvm_stop_ap_ibss(struct ieee80211_hw *hw,
+				 struct ieee80211_vif *vif)
+{
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+
+	mutex_lock(&mvm->mutex);
+
+	iwl_mvm_stop_ap_ibss_common(mvm, vif);
 
 	/* Need to update the P2P Device MAC (only GO, IBSS is single vif) */
 	if (vif->p2p && mvm->p2p_device_vif)
