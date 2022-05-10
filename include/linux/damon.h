@@ -321,6 +321,7 @@ struct damon_primitive {
  * struct damon_callback - Monitoring events notification callbacks.
  *
  * @before_start:	Called before starting the monitoring.
+ * @after_wmarks_check:	Called after each schemes' watermarks check.
  * @after_sampling:	Called after each sampling.
  * @after_aggregation:	Called after each aggregation.
  * @before_terminate:	Called before terminating the monitoring.
@@ -330,6 +331,11 @@ struct damon_primitive {
  * @before_terminate just before starting and finishing the monitoring,
  * respectively.  Therefore, those are good places for installing and cleaning
  * @private.
+ *
+ * The monitoring thread calls @after_wmarks_check after each DAMON-based
+ * operation schemes' watermarks check.  If users need to make changes to the
+ * attributes of the monitoring context while it's deactivated due to the
+ * watermarks, this is the good place to do.
  *
  * The monitoring thread calls @after_sampling and @after_aggregation for each
  * of the sampling intervals and aggregation intervals, respectively.
@@ -343,6 +349,7 @@ struct damon_callback {
 	void *private;
 
 	int (*before_start)(struct damon_ctx *context);
+	int (*after_wmarks_check)(struct damon_ctx *context);
 	int (*after_sampling)(struct damon_ctx *context);
 	int (*after_aggregation)(struct damon_ctx *context);
 	void (*before_terminate)(struct damon_ctx *context);
