@@ -1647,14 +1647,97 @@ static int iwl_mvm_add_int_sta_common(struct iwl_mvm *mvm,
 	return ret;
 }
 
+/* Initialize driver data of a new sta */
+static int iwl_mvm_sta_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			    struct ieee80211_sta *sta, int sta_id, u8 sta_type)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+	struct iwl_mvm_rxq_dup_data *dup_data;
+	int i, ret = 0;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	mvm_sta->sta_id = sta_id;
+	mvm_sta->mac_id_n_color = FW_CMD_ID_AND_COLOR(mvmvif->id,
+						      mvmvif->color);
+	mvm_sta->vif = vif;
+	if (!mvm->trans->trans_cfg->gen2)
+		mvm_sta->max_agg_bufsize = LINK_QUAL_AGG_FRAME_LIMIT_DEF;
+	else
+		mvm_sta->max_agg_bufsize = LINK_QUAL_AGG_FRAME_LIMIT_GEN2_DEF;
+	mvm_sta->tt_tx_protection = false;
+	mvm_sta->sta_type = sta_type;
+
+	mvm_sta->tid_disable_agg = 0xffff; /* No aggs at first */
+
+	for (i = 0; i <= IWL_MAX_TID_COUNT; i++) {
+		/*
+		 * Mark all queues for this STA as unallocated and defer TX
+		 * frames until the queue is allocated
+		 */
+		mvm_sta->tid_data[i].txq_id = IWL_MVM_INVALID_QUEUE;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(sta->txq); i++) {
+		struct iwl_mvm_txq *mvmtxq =
+			iwl_mvm_txq_from_mac80211(sta->txq[i]);
+
+		mvmtxq->txq_id = IWL_MVM_INVALID_QUEUE;
+		INIT_LIST_HEAD(&mvmtxq->list);
+		atomic_set(&mvmtxq->tx_request, 0);
+	}
+
+	if (iwl_mvm_has_new_rx_api(mvm)) {
+		int q;
+
+		dup_data = kcalloc(mvm->trans->num_rx_queues,
+				   sizeof(*dup_data), GFP_KERNEL);
+		if (!dup_data)
+			return -ENOMEM;
+		/*
+		 * Initialize all the last_seq values to 0xffff which can never
+		 * compare equal to the frame's seq_ctrl in the check in
+		 * iwl_mvm_is_dup() since the lower 4 bits are the fragment
+		 * number and fragmented packets don't reach that function.
+		 *
+		 * This thus allows receiving a packet with seqno 0 and the
+		 * retry bit set as the very first packet on a new TID.
+		 */
+		for (q = 0; q < mvm->trans->num_rx_queues; q++)
+			memset(dup_data[q].last_seq, 0xff,
+			       sizeof(dup_data[q].last_seq));
+		mvm_sta->dup_data = dup_data;
+	}
+
+	if (!iwl_mvm_has_new_tx_api(mvm)) {
+		ret = iwl_mvm_reserve_sta_stream(mvm, sta,
+						 ieee80211_vif_type_p2p(vif));
+		if (ret)
+			return ret;
+	}
+
+	/*
+	 * if rs is registered with mac80211, then "add station" will be handled
+	 * via the corresponding ops, otherwise need to notify rate scaling here
+	 */
+	if (iwl_mvm_has_tlc_offload(mvm))
+		iwl_mvm_rs_add_sta(mvm, mvm_sta);
+	else
+		spin_lock_init(&mvm_sta->lq_sta.rs_drv.pers.lock);
+
+	iwl_mvm_toggle_tx_ant(mvm, &mvm_sta->tx_ant);
+
+	return 0;
+}
+
 int iwl_mvm_add_sta(struct iwl_mvm *mvm,
 		    struct ieee80211_vif *vif,
 		    struct ieee80211_sta *sta)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
-	struct iwl_mvm_rxq_dup_data *dup_data;
-	int i, ret, sta_id;
+	int ret, sta_id;
 	bool sta_update = false;
 	unsigned int sta_flags = 0;
 
@@ -1693,76 +1776,8 @@ int iwl_mvm_add_sta(struct iwl_mvm *mvm,
 		goto update_fw;
 	}
 
-	mvm_sta->sta_id = sta_id;
-	mvm_sta->mac_id_n_color = FW_CMD_ID_AND_COLOR(mvmvif->id,
-						      mvmvif->color);
-	mvm_sta->vif = vif;
-	if (!mvm->trans->trans_cfg->gen2)
-		mvm_sta->max_agg_bufsize = LINK_QUAL_AGG_FRAME_LIMIT_DEF;
-	else
-		mvm_sta->max_agg_bufsize = LINK_QUAL_AGG_FRAME_LIMIT_GEN2_DEF;
-	mvm_sta->tt_tx_protection = false;
-	mvm_sta->sta_type = sta->tdls ? IWL_STA_TDLS_LINK : IWL_STA_LINK;
-
-	mvm_sta->tid_disable_agg = 0xffff; /* No aggs at first */
-
-	for (i = 0; i <= IWL_MAX_TID_COUNT; i++) {
-		/*
-		 * Mark all queues for this STA as unallocated and defer TX
-		 * frames until the queue is allocated
-		 */
-		mvm_sta->tid_data[i].txq_id = IWL_MVM_INVALID_QUEUE;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(sta->txq); i++) {
-		struct iwl_mvm_txq *mvmtxq =
-			iwl_mvm_txq_from_mac80211(sta->txq[i]);
-
-		mvmtxq->txq_id = IWL_MVM_INVALID_QUEUE;
-		INIT_LIST_HEAD(&mvmtxq->list);
-		atomic_set(&mvmtxq->tx_request, 0);
-	}
-
-	if (iwl_mvm_has_new_rx_api(mvm) &&
-	    !test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
-		int q;
-
-		dup_data = kcalloc(mvm->trans->num_rx_queues,
-				   sizeof(*dup_data), GFP_KERNEL);
-		if (!dup_data)
-			return -ENOMEM;
-		/*
-		 * Initialize all the last_seq values to 0xffff which can never
-		 * compare equal to the frame's seq_ctrl in the check in
-		 * iwl_mvm_is_dup() since the lower 4 bits are the fragment
-		 * number and fragmented packets don't reach that function.
-		 *
-		 * This thus allows receiving a packet with seqno 0 and the
-		 * retry bit set as the very first packet on a new TID.
-		 */
-		for (q = 0; q < mvm->trans->num_rx_queues; q++)
-			memset(dup_data[q].last_seq, 0xff,
-			       sizeof(dup_data[q].last_seq));
-		mvm_sta->dup_data = dup_data;
-	}
-
-	if (!iwl_mvm_has_new_tx_api(mvm)) {
-		ret = iwl_mvm_reserve_sta_stream(mvm, sta,
-						 ieee80211_vif_type_p2p(vif));
-		if (ret)
-			goto err;
-	}
-
-	/*
-	 * if rs is registered with mac80211, then "add station" will be handled
-	 * via the corresponding ops, otherwise need to notify rate scaling here
-	 */
-	if (iwl_mvm_has_tlc_offload(mvm))
-		iwl_mvm_rs_add_sta(mvm, mvm_sta);
-	else
-		spin_lock_init(&mvm_sta->lq_sta.rs_drv.pers.lock);
-
-	iwl_mvm_toggle_tx_ant(mvm, &mvm_sta->tx_ant);
+	ret = iwl_mvm_sta_init(mvm, vif, sta, sta_id,
+			       sta->tdls ? IWL_STA_TDLS_LINK : IWL_STA_LINK);
 
 update_fw:
 	ret = iwl_mvm_sta_send_to_fw(mvm, sta, sta_update, sta_flags);
@@ -1909,13 +1924,77 @@ int iwl_mvm_wait_sta_queues_empty(struct iwl_mvm *mvm,
 	return 0;
 }
 
-int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
-		   struct ieee80211_vif *vif,
-		   struct ieee80211_sta *sta)
+/* Execute the common part for both MLD and non-MLD modes */
+static bool iwl_mvm_sta_del(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			    struct ieee80211_sta *sta, int *ret)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
 	u8 sta_id = mvm_sta->sta_id;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	/* If there is a TXQ still marked as reserved - free it */
+	if (mvm_sta->reserved_queue != IEEE80211_INVAL_HW_QUEUE) {
+		u8 reserved_txq = mvm_sta->reserved_queue;
+		enum iwl_mvm_queue_status *status;
+
+		/*
+		 * If no traffic has gone through the reserved TXQ - it
+		 * is still marked as IWL_MVM_QUEUE_RESERVED, and
+		 * should be manually marked as free again
+		 */
+		status = &mvm->queue_info[reserved_txq].status;
+		if (WARN((*status != IWL_MVM_QUEUE_RESERVED) &&
+			 (*status != IWL_MVM_QUEUE_FREE),
+			 "sta_id %d reserved txq %d status %d",
+			 sta_id, reserved_txq, *status)) {
+			*ret = -EINVAL;
+			return true;
+		}
+
+		*status = IWL_MVM_QUEUE_FREE;
+	}
+
+	if (vif->type == NL80211_IFTYPE_STATION &&
+	    mvmvif->ap_sta_id == sta_id) {
+		/* if associated - we can't remove the AP STA now */
+		if (vif->cfg.assoc)
+			return true;
+
+		/* first remove remaining keys */
+		iwl_mvm_sec_key_remove_ap(mvm, vif);
+
+		/* unassoc - go ahead - remove the AP STA now */
+		mvmvif->ap_sta_id = IWL_MVM_INVALID_STA;
+	}
+
+	/*
+	 * This shouldn't happen - the TDLS channel switch should be canceled
+	 * before the STA is removed.
+	 */
+	if (WARN_ON_ONCE(mvm->tdls_cs.peer.sta_id == sta_id)) {
+		mvm->tdls_cs.peer.sta_id = IWL_MVM_INVALID_STA;
+		cancel_delayed_work(&mvm->tdls_cs.dwork);
+	}
+
+	/*
+	 * Make sure that the tx response code sees the station as -EBUSY and
+	 * calls the drain worker.
+	 */
+	spin_lock_bh(&mvm_sta->lock);
+	spin_unlock_bh(&mvm_sta->lock);
+
+	iwl_mvm_time_sync_sta_rm(mvm, sta);
+
+	return false;
+}
+
+int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
+		   struct ieee80211_vif *vif,
+		   struct ieee80211_sta *sta)
+{
+	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
 	int ret;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -1946,56 +2025,8 @@ int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
 
 	iwl_mvm_disable_sta_queues(mvm, vif, sta);
 
-	/* If there is a TXQ still marked as reserved - free it */
-	if (mvm_sta->reserved_queue != IEEE80211_INVAL_HW_QUEUE) {
-		u8 reserved_txq = mvm_sta->reserved_queue;
-		enum iwl_mvm_queue_status *status;
-
-		/*
-		 * If no traffic has gone through the reserved TXQ - it
-		 * is still marked as IWL_MVM_QUEUE_RESERVED, and
-		 * should be manually marked as free again
-		 */
-		status = &mvm->queue_info[reserved_txq].status;
-		if (WARN((*status != IWL_MVM_QUEUE_RESERVED) &&
-			 (*status != IWL_MVM_QUEUE_FREE),
-			 "sta_id %d reserved txq %d status %d",
-			 sta_id, reserved_txq, *status))
-			return -EINVAL;
-
-		*status = IWL_MVM_QUEUE_FREE;
-	}
-
-	if (vif->type == NL80211_IFTYPE_STATION &&
-	    mvmvif->ap_sta_id == sta_id) {
-		/* if associated - we can't remove the AP STA now */
-		if (vif->cfg.assoc)
-			return ret;
-
-		/* first remove remaining keys */
-		iwl_mvm_sec_key_remove_ap(mvm, vif);
-
-		/* unassoc - go ahead - remove the AP STA now */
-		mvmvif->ap_sta_id = IWL_MVM_INVALID_STA;
-	}
-
-	/*
-	 * This shouldn't happen - the TDLS channel switch should be canceled
-	 * before the STA is removed.
-	 */
-	if (WARN_ON_ONCE(mvm->tdls_cs.peer.sta_id == sta_id)) {
-		mvm->tdls_cs.peer.sta_id = IWL_MVM_INVALID_STA;
-		cancel_delayed_work(&mvm->tdls_cs.dwork);
-	}
-
-	/*
-	 * Make sure that the tx response code sees the station as -EBUSY and
-	 * calls the drain worker.
-	 */
-	spin_lock_bh(&mvm_sta->lock);
-	spin_unlock_bh(&mvm_sta->lock);
-
-	iwl_mvm_time_sync_sta_rm(mvm, sta);
+	if (iwl_mvm_sta_del(mvm, vif, sta, &ret))
+		return ret;
 
 	ret = iwl_mvm_rm_sta_common(mvm, mvm_sta->sta_id);
 	RCU_INIT_POINTER(mvm->fw_id_to_mac_id[mvm_sta->sta_id], NULL);
