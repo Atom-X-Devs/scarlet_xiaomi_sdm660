@@ -1854,11 +1854,11 @@ ieee80211_rx_get_bigtk(struct ieee80211_rx_data *rx, int idx)
 	if (rx->sta)
 		key = rcu_dereference(rx->sta->deflink.gtk[idx]);
 	if (!key)
-		key = rcu_dereference(sdata->keys[idx]);
+		key = rcu_dereference(sdata->deflink.gtk[idx]);
 	if (!key && rx->sta)
 		key = rcu_dereference(rx->sta->deflink.gtk[idx2]);
 	if (!key)
-		key = rcu_dereference(sdata->keys[idx2]);
+		key = rcu_dereference(sdata->deflink.gtk[idx2]);
 
 	return key;
 }
@@ -1972,7 +1972,7 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 			rx->key = rcu_dereference(rx->sta->deflink.gtk[mmie_keyidx]);
 		}
 		if (!rx->key)
-			rx->key = rcu_dereference(rx->sdata->keys[mmie_keyidx]);
+			rx->key = rcu_dereference(rx->sdata->deflink.gtk[mmie_keyidx]);
 	} else if (!ieee80211_has_protected(fc)) {
 		/*
 		 * The frame was not protected, so skip decryption. However, we
@@ -1988,7 +1988,7 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 			key = ieee80211_rx_get_bigtk(rx, -1);
 		} else if (ieee80211_is_mgmt(fc) &&
 			   is_multicast_ether_addr(hdr->addr1)) {
-			key = rcu_dereference(rx->sdata->default_mgmt_key);
+			key = rcu_dereference(rx->sdata->deflink.default_mgmt_key);
 		} else {
 			if (rx->sta) {
 				for (i = 0; i < NUM_DEFAULT_KEYS; i++) {
@@ -1999,7 +1999,7 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 			}
 			if (!key) {
 				for (i = 0; i < NUM_DEFAULT_KEYS; i++) {
-					key = rcu_dereference(sdata->keys[i]);
+					key = rcu_dereference(sdata->deflink.gtk[i]);
 					if (key)
 						break;
 				}
@@ -2033,7 +2033,10 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
 
 		/* if not found, try default key */
 		if (!rx->key) {
-			rx->key = rcu_dereference(rx->sdata->keys[keyidx]);
+			if (is_multicast_ether_addr(hdr->addr1))
+				rx->key = rcu_dereference(rx->sdata->deflink.gtk[keyidx]);
+			if (!rx->key)
+				rx->key = rcu_dereference(rx->sdata->keys[keyidx]);
 
 			/*
 			 * RSNA-protected unicast frames should always be
@@ -3107,8 +3110,8 @@ static void ieee80211_process_sa_query_req(struct ieee80211_sub_if_data *sdata,
 		return;
 	}
 
-	if (!ether_addr_equal(mgmt->sa, sdata->u.mgd.bssid) ||
-	    !ether_addr_equal(mgmt->bssid, sdata->u.mgd.bssid)) {
+	if (!ether_addr_equal(mgmt->sa, sdata->deflink.u.mgd.bssid) ||
+	    !ether_addr_equal(mgmt->bssid, sdata->deflink.u.mgd.bssid)) {
 		/* Not from the current AP or not associated yet. */
 		return;
 	}
@@ -3126,7 +3129,7 @@ static void ieee80211_process_sa_query_req(struct ieee80211_sub_if_data *sdata,
 	resp = skb_put_zero(skb, 24);
 	memcpy(resp->da, mgmt->sa, ETH_ALEN);
 	memcpy(resp->sa, sdata->vif.addr, ETH_ALEN);
-	memcpy(resp->bssid, sdata->u.mgd.bssid, ETH_ALEN);
+	memcpy(resp->bssid, sdata->deflink.u.mgd.bssid, ETH_ALEN);
 	resp->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
 					  IEEE80211_STYPE_ACTION);
 	skb_put(skb, 1 + sizeof(resp->u.action.u.sa_query));
@@ -3369,7 +3372,7 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 			break;
 		if (!rx->sta)
 			break;
-		if (!ether_addr_equal(mgmt->bssid, sdata->u.mgd.bssid))
+		if (!ether_addr_equal(mgmt->bssid, sdata->deflink.u.mgd.bssid))
 			break;
 		if (mgmt->u.action.u.ext_chan_switch.action_code !=
 				WLAN_PUB_ACTION_EXT_CHANSW_ANN)
@@ -3470,7 +3473,7 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 				break;
 
 			if (sdata->vif.type == NL80211_IFTYPE_STATION)
-				bssid = sdata->u.mgd.bssid;
+				bssid = sdata->deflink.u.mgd.bssid;
 			else if (sdata->vif.type == NL80211_IFTYPE_ADHOC)
 				bssid = sdata->u.ibss.bssid;
 			else if (sdata->vif.type == NL80211_IFTYPE_MESH_POINT)
