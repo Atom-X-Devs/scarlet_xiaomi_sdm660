@@ -50,7 +50,7 @@
 	backlight_therm {
 		polling-delay-passive = <0>;
 		polling-delay = <5000>;
-		thermal-governor = "user_space";
+		thermal-governor = "step_wise";
 		thermal-sensors = <&pm660_adc_tm ADC_AMUX_THM4_PU2>;
 		wake-capable-sensor;
 		trips {
