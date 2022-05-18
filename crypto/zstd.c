@@ -22,8 +22,7 @@
 #include <linux/zstd.h>
 #include <crypto/internal/scompress.h>
 
-
-#define ZSTD_DEF_LEVEL	1
+#define ZSTD_DEF_LEVEL	2
 
 struct zstd_ctx {
 	zstd_cctx *cctx;
