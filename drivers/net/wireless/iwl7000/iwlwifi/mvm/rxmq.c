@@ -1875,7 +1875,7 @@ static void iwl_mvm_rx_eht(struct iwl_mvm *mvm, struct sk_buff *skb,
 		(FIELD_PREP(IEEE80211_RADIOTAP_EHT_USER_INFO_MCS,
 			    FIELD_GET(RATE_VHT_MCS_RATE_CODE_MSK, rate_n_flags) |
 		 FIELD_PREP(IEEE80211_RADIOTAP_EHT_USER_INFO_NSS_O,
-			    FIELD_GET(RATE_VHT_MCS_NSS_POS, rate_n_flags))));
+			    FIELD_GET(RATE_MCS_NSS_MSK, rate_n_flags) + 1)));
 }
 
 static void iwl_mvm_rx_he(struct iwl_mvm *mvm, struct sk_buff *skb,
