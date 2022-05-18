@@ -2652,9 +2652,8 @@ void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 		iwl_mvm_set_twt_testmode(mvm);
 }
 
-static void iwl_mvm_protect_assoc(struct iwl_mvm *mvm,
-				  struct ieee80211_vif *vif,
-				  u32 duration_override)
+void iwl_mvm_protect_assoc(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			   u32 duration_override)
 {
 	u32 duration = IWL_MVM_TE_SESSION_PROTECTION_MAX_TIME_MS;
 	u32 min_duration = IWL_MVM_TE_SESSION_PROTECTION_MIN_TIME_MS;
@@ -2678,6 +2677,85 @@ static void iwl_mvm_protect_assoc(struct iwl_mvm *mvm,
 	else
 		iwl_mvm_protect_session(mvm, vif, duration,
 					min_duration, 500, false);
+}
+
+/* Handle association common part to MLD and non-MLD modes */
+void iwl_mvm_bss_info_changed_station_assoc(struct iwl_mvm *mvm,
+					    struct ieee80211_vif *vif,
+					    u64 changes)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	int ret;
+
+	/*
+	 * The firmware tracks the MU-MIMO group on its own.
+	 * However, on HW restart we should restore this data.
+	 */
+	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status) &&
+	    (changes & BSS_CHANGED_MU_GROUPS) && vif->bss_conf.mu_mimo_owner) {
+		ret = iwl_mvm_update_mu_groups(mvm, vif);
+		if (ret)
+			IWL_ERR(mvm,
+				"failed to update VHT MU_MIMO groups\n");
+	}
+
+	iwl_mvm_recalc_multicast(mvm);
+
+	/* reset rssi values */
+	mvmvif->bf_data.ave_beacon_signal = 0;
+
+	iwl_mvm_bt_coex_vif_change(mvm);
+	iwl_mvm_update_smps(mvm, vif, IWL_MVM_SMPS_REQ_TT,
+			    IEEE80211_SMPS_AUTOMATIC);
+	if (fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_UMAC_SCAN))
+		iwl_mvm_config_scan(mvm);
+}
+
+/* Execute the common part for MLD and non-MLD modes */
+void iwl_mvm_bss_info_changed_station_common(struct iwl_mvm *mvm,
+					     struct ieee80211_vif *vif,
+					     u64 changes)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	int ret;
+
+	if (changes & BSS_CHANGED_BEACON_INFO) {
+		/*
+		 * We received a beacon from the associated AP so
+		 * remove the session protection.
+		 */
+		iwl_mvm_stop_session_protection(mvm, vif);
+
+		iwl_mvm_sf_update(mvm, vif, false);
+		WARN_ON(iwl_mvm_enable_beacon_filter(mvm, vif, 0));
+	}
+
+	if (changes & (BSS_CHANGED_PS | BSS_CHANGED_P2P_PS | BSS_CHANGED_QOS |
+		       /*
+			* Send power command on every beacon change,
+			* because we may have not enabled beacon abort yet.
+			*/
+		       BSS_CHANGED_BEACON_INFO)) {
+		ret = iwl_mvm_power_update_mac(mvm);
+		if (ret)
+			IWL_ERR(mvm, "failed to update power mode\n");
+	}
+
+	if (changes & BSS_CHANGED_CQM) {
+		IWL_DEBUG_MAC80211(mvm, "cqm info_changed\n");
+		/* reset cqm events tracking */
+		mvmvif->bf_data.last_cqm_event = 0;
+		if (mvmvif->bf_data.bf_enabled) {
+			ret = iwl_mvm_enable_beacon_filter(mvm, vif, 0);
+			if (ret)
+				IWL_ERR(mvm,
+					"failed to update CQM thresholds\n");
+		}
+	}
+
+	if (changes & BSS_CHANGED_BANDWIDTH)
+		iwl_mvm_apply_fw_smps_request(vif);
 }
 
 static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
@@ -2852,67 +2930,10 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 					vif->addr);
 		}
 
-		/*
-		 * The firmware tracks the MU-MIMO group on its own.
-		 * However, on HW restart we should restore this data.
-		 */
-		if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status) &&
-		    (changes & BSS_CHANGED_MU_GROUPS) && vif->bss_conf.mu_mimo_owner) {
-			ret = iwl_mvm_update_mu_groups(mvm, vif);
-			if (ret)
-				IWL_ERR(mvm,
-					"failed to update VHT MU_MIMO groups\n");
-		}
-
-		iwl_mvm_recalc_multicast(mvm);
-
-		/* reset rssi values */
-		mvmvif->bf_data.ave_beacon_signal = 0;
-
-		iwl_mvm_bt_coex_vif_change(mvm);
-		iwl_mvm_update_smps(mvm, vif, IWL_MVM_SMPS_REQ_TT,
-				    IEEE80211_SMPS_AUTOMATIC);
-		if (fw_has_capa(&mvm->fw->ucode_capa,
-				IWL_UCODE_TLV_CAPA_UMAC_SCAN))
-			iwl_mvm_config_scan(mvm);
+		iwl_mvm_bss_info_changed_station_assoc(mvm, vif, changes);
 	}
 
-	if (changes & BSS_CHANGED_BEACON_INFO) {
-		/*
-		 * We received a beacon from the associated AP so
-		 * remove the session protection.
-		 */
-		iwl_mvm_stop_session_protection(mvm, vif);
-
-		iwl_mvm_sf_update(mvm, vif, false);
-		WARN_ON(iwl_mvm_enable_beacon_filter(mvm, vif, 0));
-	}
-
-	if (changes & (BSS_CHANGED_PS | BSS_CHANGED_P2P_PS | BSS_CHANGED_QOS |
-		       /*
-			* Send power command on every beacon change,
-			* because we may have not enabled beacon abort yet.
-			*/
-		       BSS_CHANGED_BEACON_INFO)) {
-		ret = iwl_mvm_power_update_mac(mvm);
-		if (ret)
-			IWL_ERR(mvm, "failed to update power mode\n");
-	}
-
-	if (changes & BSS_CHANGED_CQM) {
-		IWL_DEBUG_MAC80211(mvm, "cqm info_changed\n");
-		/* reset cqm events tracking */
-		mvmvif->bf_data.last_cqm_event = 0;
-		if (mvmvif->bf_data.bf_enabled) {
-			ret = iwl_mvm_enable_beacon_filter(mvm, vif, 0);
-			if (ret)
-				IWL_ERR(mvm,
-					"failed to update CQM thresholds\n");
-		}
-	}
-
-	if (changes & BSS_CHANGED_BANDWIDTH)
-		iwl_mvm_apply_fw_smps_request(vif);
+	iwl_mvm_bss_info_changed_station_common(mvm, vif, changes);
 }
 
 bool iwl_mvm_start_ap_ibss_common(struct ieee80211_hw *hw,
@@ -3169,6 +3190,22 @@ static void iwl_mvm_bss_info_changed(struct ieee80211_hw *hw,
 				     struct ieee80211_bss_conf *bss_conf,
 				     u64 changes)
 {
+	struct iwl_mvm_bss_info_changed_ops callbacks = {
+		.bss_info_changed_sta = iwl_mvm_bss_info_changed_station,
+		.bss_info_changed_ap_ibss = iwl_mvm_bss_info_changed_ap_ibss,
+	};
+
+	iwl_mvm_bss_info_changed_common(hw, vif, bss_conf, &callbacks,
+					changes);
+}
+
+void
+iwl_mvm_bss_info_changed_common(struct ieee80211_hw *hw,
+				struct ieee80211_vif *vif,
+				struct ieee80211_bss_conf *bss_conf,
+				struct iwl_mvm_bss_info_changed_ops *callbacks,
+				u64 changes)
+{
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 
 	mutex_lock(&mvm->mutex);
@@ -3178,11 +3215,12 @@ static void iwl_mvm_bss_info_changed(struct ieee80211_hw *hw,
 
 	switch (vif->type) {
 	case NL80211_IFTYPE_STATION:
-		iwl_mvm_bss_info_changed_station(mvm, vif, bss_conf, changes);
+		callbacks->bss_info_changed_sta(mvm, vif, bss_conf, changes);
 		break;
 	case NL80211_IFTYPE_AP:
 	case NL80211_IFTYPE_ADHOC:
-		iwl_mvm_bss_info_changed_ap_ibss(mvm, vif, bss_conf, changes);
+		callbacks->bss_info_changed_ap_ibss(mvm, vif, bss_conf,
+						    changes);
 		break;
 	case NL80211_IFTYPE_MONITOR:
 		if (changes & BSS_CHANGED_MU_GROUPS)
