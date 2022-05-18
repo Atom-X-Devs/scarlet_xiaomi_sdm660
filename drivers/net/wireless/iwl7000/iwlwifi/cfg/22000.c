@@ -65,7 +65,7 @@
 #define IWL_BNJ_A_GF_A_FW_PRE		"iwlwifi-BzBnj-a0-gf-a0-"
 #define IWL_BNJ_A_GF4_A_FW_PRE		"iwlwifi-BzBnj-a0-gf4-a0-"
 #define IWL_BNJ_A_HR_B_FW_PRE		"iwlwifi-BzBnj-a0-hr-b0-"
-#define IWL_BNJ_B_FM_B_FW_PRE		"iwlwifi-BzBnj-a0-fm-b0-"
+#define IWL_BNJ_B_FM_B_FW_PRE		"iwlwifi-BzBnj-b0-fm-b0-"
 
 
 #define IWL_QU_B_HR_B_MODULE_FIRMWARE(api) \
