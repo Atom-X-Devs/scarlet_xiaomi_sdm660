@@ -1419,8 +1419,8 @@ void iwl_mvm_hwrate_to_tx_rate_v1(u32 rate_n_flags,
 	} else if (rate_n_flags & RATE_MCS_VHT_MSK_V1) {
 		ieee80211_rate_set_vht(
 			r, rate_n_flags & RATE_VHT_MCS_RATE_CODE_MSK,
-			((rate_n_flags & RATE_VHT_MCS_NSS_MSK) >>
-						RATE_VHT_MCS_NSS_POS) + 1);
+			((rate_n_flags & RATE_MCS_NSS_MSK) >>
+						RATE_MCS_NSS_POS) + 1);
 		r->flags |= IEEE80211_TX_RC_VHT_MCS;
 	} else {
 		r->idx = iwl_mvm_legacy_rate_to_mac80211_idx(rate_n_flags,
