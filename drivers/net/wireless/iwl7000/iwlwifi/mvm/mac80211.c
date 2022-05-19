@@ -5000,12 +5000,13 @@ static void iwl_mvm_unassign_vif_chanctx(struct ieee80211_hw *hw,
 
 static int
 iwl_mvm_switch_vif_chanctx_swap(struct iwl_mvm *mvm,
-				struct ieee80211_vif_chanctx_switch *vifs)
+				struct ieee80211_vif_chanctx_switch *vifs,
+				struct iwl_mvm_switch_vif_chanctx_ops *ops)
 {
 	int ret;
 
 	mutex_lock(&mvm->mutex);
-	__iwl_mvm_unassign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx, true);
+	ops->__unassign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx, true);
 	__iwl_mvm_remove_chanctx(mvm, vifs[0].old_ctx);
 
 	ret = __iwl_mvm_add_chanctx(mvm, vifs[0].new_ctx);
@@ -5014,7 +5015,7 @@ iwl_mvm_switch_vif_chanctx_swap(struct iwl_mvm *mvm,
 		goto out_reassign;
 	}
 
-	ret = __iwl_mvm_assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].new_ctx,
+	ret = ops->__assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].new_ctx,
 					   true);
 	if (ret) {
 		IWL_ERR(mvm,
@@ -5037,8 +5038,8 @@ out_reassign:
 		goto out_restart;
 	}
 
-	if (__iwl_mvm_assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx,
-					 true)) {
+	if (ops->__assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx,
+				      true)) {
 		IWL_ERR(mvm, "failed to reassign old_ctx after failure.\n");
 		goto out_restart;
 	}
@@ -5057,14 +5058,15 @@ out:
 
 static int
 iwl_mvm_switch_vif_chanctx_reassign(struct iwl_mvm *mvm,
-				    struct ieee80211_vif_chanctx_switch *vifs)
+				    struct ieee80211_vif_chanctx_switch *vifs,
+				    struct iwl_mvm_switch_vif_chanctx_ops *ops)
 {
 	int ret;
 
 	mutex_lock(&mvm->mutex);
-	__iwl_mvm_unassign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx, true);
+	ops->__unassign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx, true);
 
-	ret = __iwl_mvm_assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].new_ctx,
+	ret = ops->__assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].new_ctx,
 					   true);
 	if (ret) {
 		IWL_ERR(mvm,
@@ -5075,8 +5077,8 @@ iwl_mvm_switch_vif_chanctx_reassign(struct iwl_mvm *mvm,
 	goto out;
 
 out_reassign:
-	if (__iwl_mvm_assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx,
-					 true)) {
+	if (ops->__assign_vif_chanctx(mvm, vifs[0].vif, vifs[0].old_ctx,
+				      true)) {
 		IWL_ERR(mvm, "failed to reassign old_ctx after failure.\n");
 		goto out_restart;
 	}
@@ -5093,10 +5095,12 @@ out:
 	return ret;
 }
 
-static int iwl_mvm_switch_vif_chanctx(struct ieee80211_hw *hw,
+/* Execute the common part for both MLD and non-MLD modes */
+int iwl_mvm_switch_vif_chanctx_common(struct ieee80211_hw *hw,
 				      struct ieee80211_vif_chanctx_switch *vifs,
 				      int n_vifs,
-				      enum ieee80211_chanctx_switch_mode mode)
+				      enum ieee80211_chanctx_switch_mode mode,
+				      struct iwl_mvm_switch_vif_chanctx_ops *ops)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	int ret;
@@ -5107,10 +5111,10 @@ static int iwl_mvm_switch_vif_chanctx(struct ieee80211_hw *hw,
 
 	switch (mode) {
 	case CHANCTX_SWMODE_SWAP_CONTEXTS:
-		ret = iwl_mvm_switch_vif_chanctx_swap(mvm, vifs);
+		ret = iwl_mvm_switch_vif_chanctx_swap(mvm, vifs, ops);
 		break;
 	case CHANCTX_SWMODE_REASSIGN_VIF:
-		ret = iwl_mvm_switch_vif_chanctx_reassign(mvm, vifs);
+		ret = iwl_mvm_switch_vif_chanctx_reassign(mvm, vifs, ops);
 		break;
 	default:
 		ret = -EOPNOTSUPP;
@@ -5118,6 +5122,19 @@ static int iwl_mvm_switch_vif_chanctx(struct ieee80211_hw *hw,
 	}
 
 	return ret;
+}
+
+static int iwl_mvm_switch_vif_chanctx(struct ieee80211_hw *hw,
+				      struct ieee80211_vif_chanctx_switch *vifs,
+				      int n_vifs,
+				      enum ieee80211_chanctx_switch_mode mode)
+{
+	struct iwl_mvm_switch_vif_chanctx_ops ops = {
+		.__assign_vif_chanctx = __iwl_mvm_assign_vif_chanctx,
+		.__unassign_vif_chanctx = __iwl_mvm_unassign_vif_chanctx,
+	};
+
+	return iwl_mvm_switch_vif_chanctx_common(hw, vifs, n_vifs, mode, &ops);
 }
 
 static int iwl_mvm_tx_last_beacon(struct ieee80211_hw *hw)

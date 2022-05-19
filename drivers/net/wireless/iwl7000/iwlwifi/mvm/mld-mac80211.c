@@ -530,11 +530,26 @@ static void iwl_mvm_mld_bss_info_changed(struct ieee80211_hw *hw,
 					changes);
 }
 
+static int
+iwl_mvm_mld_switch_vif_chanctx(struct ieee80211_hw *hw,
+			       struct ieee80211_vif_chanctx_switch *vifs,
+			       int n_vifs,
+			       enum ieee80211_chanctx_switch_mode mode)
+{
+	struct iwl_mvm_switch_vif_chanctx_ops ops = {
+		.__assign_vif_chanctx = __iwl_mvm_mld_assign_vif_chanctx,
+		.__unassign_vif_chanctx = __iwl_mvm_mld_unassign_vif_chanctx,
+	};
+
+	return iwl_mvm_switch_vif_chanctx_common(hw, vifs, n_vifs, mode, &ops);
+}
+
 const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.add_interface = iwl_mvm_mld_mac_add_interface,
 	.remove_interface = iwl_mvm_mld_mac_remove_interface,
 	.assign_vif_chanctx = iwl_mvm_mld_assign_vif_chanctx,
 	.unassign_vif_chanctx = iwl_mvm_mld_unassign_vif_chanctx,
+	.switch_vif_chanctx = iwl_mvm_mld_switch_vif_chanctx,
 	.start_ap = iwl_mvm_mld_start_ap_ibss,
 	.join_ibss = iwl_mvm_mld_start_ap_ibss,
 	.stop_ap = iwl_mvm_mld_stop_ap_ibss,
