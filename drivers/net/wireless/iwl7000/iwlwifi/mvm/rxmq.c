@@ -1466,6 +1466,14 @@ static void iwl_mvm_decode_he_phy_data(struct iwl_mvm *mvm,
 	(_usig)->value |= LE32_DEC_ENC(in_value, dec_bits, _enc_bits); \
 } while (0)
 
+#define IWL_MVM_ENC_EHT_RU(rt_data, rt_ru, fw_data, fw_ru) \
+	eht->data[(rt_data)] |= \
+		(cpu_to_le32 \
+		 (IEEE80211_RADIOTAP_EHT_DATA ## rt_data ## _RU_ALLOC_CC_ ## rt_ru ## _KNOWN) | \
+		 LE32_DEC_ENC(data ## fw_data, \
+			      IWL_RX_PHY_DATA ## fw_data ## _EHT_MU_EXT_RU_ALLOC_ ## fw_ru, \
+			      IEEE80211_RADIOTAP_EHT_DATA ## rt_data ## _RU_ALLOC_CC_ ## rt_ru))
+
 static void iwl_mvm_decode_eht_ext_mu(struct iwl_mvm *mvm,
 				      struct iwl_mvm_rx_phy_data *phy_data,
 				      struct ieee80211_rx_status *rx_status,
@@ -1475,8 +1483,11 @@ static void iwl_mvm_decode_eht_ext_mu(struct iwl_mvm *mvm,
 	__le32 data1 = phy_data->d1;
 
 	if (phy_data->with_data) {
+		__le32 data2 = phy_data->d2;
+		__le32 data3 = phy_data->d3;
 		__le32 data4 = phy_data->eht_d4;
 		__le32 data5 = phy_data->d5;
+		u32 phy_bw = phy_data->rate_n_flags & RATE_MCS_CHAN_WIDTH_MSK;
 
 		IWL_MVM_ENC_USIG_VALUE_MASK(usig, data5,
 					    IWL_RX_PHY_DATA5_EHT_TYPE_AND_COMP,
@@ -1490,6 +1501,37 @@ static void iwl_mvm_decode_eht_ext_mu(struct iwl_mvm *mvm,
 		IWL_MVM_ENC_USIG_VALUE_MASK
 			(usig, data1, IWL_RX_PHY_DATA1_EHT_MU_NUM_SIG_SYM_USIGA2,
 			 IEEE80211_RADIOTAP_EHT_USIG2_MU_B11_B15_EHT_SIG_SIMBOLS);
+
+		IWL_MVM_ENC_EHT_RU(1, 1_1_1, 2, A1);
+		if (phy_bw >= RATE_MCS_CHAN_WIDTH_80)
+			IWL_MVM_ENC_EHT_RU(2, 2_1_1, 3, C1);
+
+		if (phy_bw >= RATE_MCS_CHAN_WIDTH_160) {
+			IWL_MVM_ENC_EHT_RU(2, 1_1_2, 2, A2);
+			IWL_MVM_ENC_EHT_RU(2, 2_1_2, 3, C2);
+		}
+
+		switch (phy_bw) {
+		case RATE_MCS_CHAN_WIDTH_40:
+			IWL_MVM_ENC_EHT_RU(2, 2_1_1, 2, B1);
+			break;
+		case RATE_MCS_CHAN_WIDTH_80:
+			IWL_MVM_ENC_EHT_RU(2, 1_1_2, 2, B1);
+			IWL_MVM_ENC_EHT_RU(2, 2_1_2, 4, D1);
+			break;
+		case RATE_MCS_CHAN_WIDTH_160:
+			IWL_MVM_ENC_EHT_RU(3, 1_2_1, 2, B1);
+			IWL_MVM_ENC_EHT_RU(3, 2_2_1, 4, D1);
+			IWL_MVM_ENC_EHT_RU(3, 1_2_2, 3, B2);
+			IWL_MVM_ENC_EHT_RU(4, 2_2_2, 4, D2);
+			break;
+		case RATE_MCS_CHAN_WIDTH_320:
+			IWL_MVM_ENC_EHT_RU(4, 1_2_3, 2, B1);
+			IWL_MVM_ENC_EHT_RU(4, 2_2_3, 4, D1);
+			IWL_MVM_ENC_EHT_RU(5, 1_2_4, 3, B2);
+			IWL_MVM_ENC_EHT_RU(5, 2_2_4, 4, D2);
+			break;
+		}
 
 	} else {
 		__le32 usig_a1 = phy_data->rx_vec[0];
