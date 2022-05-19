@@ -1471,6 +1471,7 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
+#define NL80211_EXT_FEATURE_BEACON_PROTECTION -1
 #define NL80211_EXT_FEATURE_PROTECTED_TWT -1
 #endif
 
