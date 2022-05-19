@@ -546,9 +546,31 @@ iwl_mvm_mld_switch_vif_chanctx(struct ieee80211_hw *hw,
 	return iwl_mvm_switch_vif_chanctx_common(hw, vifs, n_vifs, mode, &ops);
 }
 
+static void iwl_mvm_mld_config_iface_filter(struct ieee80211_hw *hw,
+					    struct ieee80211_vif *vif,
+					    unsigned int filter_flags,
+					    unsigned int changed_flags)
+{
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+
+	/* We support only filter for probe requests */
+	if (!(changed_flags & FIF_PROBE_REQ))
+		return;
+
+	/* Supported only for p2p client interfaces */
+	if (vif->type != NL80211_IFTYPE_STATION || !vif->cfg.assoc ||
+	    !vif->p2p)
+		return;
+
+	mutex_lock(&mvm->mutex);
+	iwl_mvm_mld_mac_ctxt_changed(mvm, vif, false);
+	mutex_unlock(&mvm->mutex);
+}
+
 const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.add_interface = iwl_mvm_mld_mac_add_interface,
 	.remove_interface = iwl_mvm_mld_mac_remove_interface,
+	.config_iface_filter = iwl_mvm_mld_config_iface_filter,
 	.assign_vif_chanctx = iwl_mvm_mld_assign_vif_chanctx,
 	.unassign_vif_chanctx = iwl_mvm_mld_unassign_vif_chanctx,
 	.switch_vif_chanctx = iwl_mvm_mld_switch_vif_chanctx,
