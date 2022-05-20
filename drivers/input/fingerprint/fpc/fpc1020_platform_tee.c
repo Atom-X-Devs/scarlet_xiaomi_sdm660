@@ -680,7 +680,7 @@ static int fpc1020_probe(struct platform_device *pdev)
 	struct fpc1020_data *fpc1020 =
 		devm_kzalloc(dev, sizeof(*fpc1020), GFP_KERNEL);
 	int rc = 0;
-	int irqf;
+	int irqf = 0;
 	size_t i;
 
 	if (!fpc1020) {
