@@ -298,9 +298,9 @@ static void iwl_mvm_ftm_cmd_v8(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	if (IWL_MVM_FTM_INITIATOR_COMMON_CALIB) {
-		cmd->common_calib =
+		((struct iwl_tof_range_req_cmd_v7 *)cmd)->common_calib =
 			cpu_to_le16(IWL_MVM_FTM_INITIATOR_COMMON_CALIB);
-		cmd->initiator_flags |=
+		((struct iwl_tof_range_req_cmd_v7 *)cmd)->initiator_flags |=
 			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB);
 	}
 #endif
