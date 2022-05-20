@@ -21,11 +21,10 @@ u8 iwl_mvm_get_channel_width(struct cfg80211_chan_def *chandef)
 		return IWL_PHY_CHANNEL_MODE80;
 	case NL80211_CHAN_WIDTH_160:
 		return IWL_PHY_CHANNEL_MODE160;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		return IWL_PHY_CHANNEL_MODE320;
+#endif
 	default:
 		WARN(1, "Invalid channel width=%u", chandef->width);
 		return IWL_PHY_CHANNEL_MODE20;

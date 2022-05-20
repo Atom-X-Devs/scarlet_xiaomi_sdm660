@@ -3140,13 +3140,12 @@ u8 *ieee80211_ie_build_ht_oper(u8 *pos, struct ieee80211_sta_ht_cap *ht_cap,
 		else
 			ht_oper->ht_param = IEEE80211_HT_PARAM_CHA_SEC_BELOW;
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/* HT information element should not be included on 6GHz */
 		WARN_ON(1);
 		return pos;
+#endif
 	default:
 		ht_oper->ht_param = IEEE80211_HT_PARAM_CHA_SEC_NONE;
 		break;
@@ -3186,13 +3185,12 @@ void ieee80211_ie_build_wide_bw_cs(u8 *pos,
 	case NL80211_CHAN_WIDTH_80P80:
 		*pos++ = IEEE80211_VHT_CHANWIDTH_80P80MHZ;
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/* The behavior is not defined for 320 MHz channels */
 		WARN_ON(1);
 		fallthrough;
+#endif
 	default:
 		*pos++ = IEEE80211_VHT_CHANWIDTH_USE_HT;
 	}
@@ -3245,13 +3243,12 @@ u8 *ieee80211_ie_build_vht_oper(u8 *pos, struct ieee80211_sta_vht_cap *vht_cap,
 	case NL80211_CHAN_WIDTH_80:
 		vht_oper->chan_width = IEEE80211_VHT_CHANWIDTH_80MHZ;
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/* VHT information element should not be included on 6GHz */
 		WARN_ON(1);
 		return pos;
+#endif
 	default:
 		vht_oper->chan_width = IEEE80211_VHT_CHANWIDTH_USE_HT;
 		break;
@@ -3312,16 +3309,15 @@ u8 *ieee80211_ie_build_he_oper(u8 *pos, struct cfg80211_chan_def *chandef)
 		he_6ghz_op->ccfs1 = 0;
 
 	switch (chandef->width) {
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/*
 		 * TODO: mesh operation is not defined over 6GHz 320 MHz
 		 * channels.
 		 */
 		WARN_ON(1);
 		break;
+#endif
 	case NL80211_CHAN_WIDTH_160:
 		/* Convert 160 MHz channel width to new style as interop
 		 * workaround.
@@ -4169,10 +4165,8 @@ u32 ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
 		ret = IEEE80211_STA_DISABLE_80P80MHZ |
 		      IEEE80211_STA_DISABLE_160MHZ;
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/* n_P20 */
 		tmp = (150 + c->chan->center_freq - c->center_freq1) / 20;
 		/* n_P160 */
@@ -4181,6 +4175,7 @@ u32 ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
 		c->width = NL80211_CHAN_WIDTH_160;
 		ret = IEEE80211_STA_DISABLE_320MHZ;
 		break;
+#endif
 	default:
 	case NL80211_CHAN_WIDTH_20_NOHT:
 		WARN_ON_ONCE(1);
