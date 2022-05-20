@@ -567,6 +567,33 @@ static void iwl_mvm_mld_config_iface_filter(struct ieee80211_hw *hw,
 	mutex_unlock(&mvm->mutex);
 }
 
+static int
+iwl_mvm_mld_mac_conf_tx(struct ieee80211_hw *hw,
+			struct ieee80211_vif *vif, u16 ac,
+			const struct ieee80211_tx_queue_params *params)
+{
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+
+	mvmvif->queue_params[ac] = *params;
+
+	/*
+	 * No need to update right away, we'll get BSS_CHANGED_QOS
+	 * The exception is P2P_DEVICE interface which needs immediate update.
+	 */
+	if (vif->type == NL80211_IFTYPE_P2P_DEVICE) {
+		int ret;
+
+		mutex_lock(&mvm->mutex);
+		ret = iwl_mvm_link_changed(mvm, vif,
+					   LINK_CONTEXT_MODIFY_QOS_PARAMS,
+					   true);
+		mutex_unlock(&mvm->mutex);
+		return ret;
+	}
+	return 0;
+}
+
 const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.add_interface = iwl_mvm_mld_mac_add_interface,
 	.remove_interface = iwl_mvm_mld_mac_remove_interface,
@@ -579,5 +606,6 @@ const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.stop_ap = iwl_mvm_mld_stop_ap_ibss,
 	.leave_ibss = iwl_mvm_mld_stop_ap_ibss,
 	.sta_state = iwl_mvm_mld_mac_sta_state,
+	.conf_tx = iwl_mvm_mld_mac_conf_tx,
 	.bss_info_changed = iwl_mvm_mld_bss_info_changed,
 };
