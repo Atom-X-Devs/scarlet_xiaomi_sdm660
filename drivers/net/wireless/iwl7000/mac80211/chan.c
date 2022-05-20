@@ -429,7 +429,6 @@ static void ieee80211_change_chanctx(struct ieee80211_local *local,
 	case NL80211_CHAN_WIDTH_160:
 #if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
 #endif
 		break;
 	default:
