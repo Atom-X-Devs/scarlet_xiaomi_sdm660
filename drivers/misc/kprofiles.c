@@ -17,7 +17,7 @@
 static bool screen_on = true;
 #endif
 
-static unsigned int mode = 0;
+static unsigned int mode = 3;
 static bool auto_kprofiles = true;
 module_param(mode, uint, 0664);
 module_param(auto_kprofiles, bool, 0664);
