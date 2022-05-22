@@ -2484,12 +2484,9 @@ void DumpStalledCCBCommand(PRGXFWIF_FWCOMMONCONTEXT sFWCommonContext,
 {
 	volatile RGXFWIF_CCCB_CTL	*psClientCCBCtrl = psCurrentClientCCB->psClientCCBCtrl;
 	void					*pvClientCCBBuff = psCurrentClientCCB->pvClientCCB;
-	volatile void			*pvPtr;
 	IMG_UINT32					ui32SampledRdOff = psClientCCBCtrl->ui32ReadOffset;
 	IMG_UINT32					ui32SampledDepOff = psClientCCBCtrl->ui32DepOffset;
 	IMG_UINT32					ui32SampledWrOff = psCurrentClientCCB->ui32HostWriteOffset;
-
-	pvPtr = IMG_OFFSET_ADDR(pvClientCCBBuff, ui32SampledRdOff);
 
 	if ((ui32SampledRdOff == ui32SampledDepOff) &&
 		(ui32SampledRdOff != ui32SampledWrOff))

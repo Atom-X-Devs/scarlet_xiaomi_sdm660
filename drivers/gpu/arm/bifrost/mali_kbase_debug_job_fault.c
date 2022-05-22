@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2016, 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2016, 2018-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,15 +17,13 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
 
 #include <mali_kbase.h>
 #include <linux/spinlock.h>
 #include <mali_kbase_hwaccess_jm.h>
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 
 static bool kbase_is_job_fault_event_pending(struct kbase_device *kbdev)
 {
@@ -549,6 +548,14 @@ void kbase_debug_job_fault_context_term(struct kbase_context *kctx)
 void kbase_debug_job_fault_kctx_unblock(struct kbase_context *kctx)
 {
 	WARN_ON(!kbase_ctx_flag(kctx, KCTX_DYING));
+
+	/* Return early if the job fault part of the kbase_device is not
+	 * initialized yet. An error can happen during the device probe after
+	 * the privileged Kbase context was created for the HW counter dumping
+	 * but before the job fault part is initialized.
+	 */
+	if (!kctx->kbdev->job_fault_resume_workq)
+		return;
 
 	kbase_ctx_remove_pending_event(kctx);
 }

@@ -1176,33 +1176,27 @@ static INLINE void CacheOpExecRangeBasedVA(PVRSRV_DEVICE_NODE *psDevNode,
 #endif
 }
 
-static INLINE PVRSRV_ERROR CacheOpValidateUMVA(PMR *psPMR,
+static INLINE PVRSRV_ERROR CacheOpValidateVAOffset(PMR *psPMR,
 											   IMG_CPU_VIRTADDR pvAddress,
 											   IMG_DEVMEM_OFFSET_T uiOffset,
 											   IMG_DEVMEM_SIZE_T uiSize,
-											   PVRSRV_CACHE_OP uiCacheOp,
 											   void **ppvOutAddress)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
-#if defined(LINUX)
+#if defined(LINUX) && !defined(CACHEFLUSH_NO_KMRBF_USING_UMVA)
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
 #endif
 	void __user *pvAddr;
 
-	IMG_BOOL bReadOnlyInvalidate =
-		(uiCacheOp == PVRSRV_CACHE_OP_INVALIDATE) &&
-		PVRSRV_CHECK_CPU_WRITEABLE(PMR_Flags(psPMR));
-
-	if (!pvAddress || bReadOnlyInvalidate)
+	if (!pvAddress)
 	{
 		/* As pvAddress is optional, NULL is expected from UM/KM requests */
-		/* Also don't allow invalidates for UMVA of read-only memory */
 		pvAddr = NULL;
 		goto e0;
 	}
 
-#if !defined(LINUX)
+#if !defined(LINUX) || defined(CACHEFLUSH_NO_KMRBF_USING_UMVA)
 	pvAddr = NULL;
 #else
 	/* Validate VA, assume most basic address limit access_ok() check */
@@ -1291,7 +1285,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 	}
 
 	/* Fast track the request if a CPU VA is provided and CPU ISA supports VA only maintenance */
-	eError = CacheOpValidateUMVA(psPMR, pvAddress, uiOffset, uiSize, uiCacheOp, (void**)&pbCpuVirtAddr);
+	eError = CacheOpValidateVAOffset(psPMR, pvAddress, uiOffset, uiSize, (void**)&pbCpuVirtAddr);
 	if (eError == PVRSRV_OK)
 	{
 		pvAddress = pbCpuVirtAddr;

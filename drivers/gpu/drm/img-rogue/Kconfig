@@ -4,11 +4,11 @@ config DRM_POWERVR_ROGUE_1_13
 	depends on HAS_IOMEM
 	depends on DRM
 	depends on SYNC_FILE
-	select DRM_KMS_HELPER
-	select PM_DEVFREQ
-	select DEVFREQ_GOV_SIMPLE_ONDEMAND
-	select PM_OPP
-	select DEVFREQ_THERMAL
+	depends on DRM_KMS_HELPER
+	depends on PM_DEVFREQ
+	depends on DEVFREQ_GOV_SIMPLE_ONDEMAND
+	depends on PM_OPP
+	depends on DEVFREQ_THERMAL
 	help
 	  Driver for PowerVR Rogue graphics hardware 1.13.
 
@@ -21,11 +21,11 @@ config DRM_POWERVR_ROGUE_1_10
 	depends on HAS_IOMEM
 	depends on DRM
 	depends on SYNC_FILE
-	select DRM_KMS_HELPER
-	select PM_DEVFREQ
-	select DEVFREQ_GOV_SIMPLE_ONDEMAND
-	select PM_OPP
-	select DEVFREQ_THERMAL
+	depends on DRM_KMS_HELPER
+	depends on PM_DEVFREQ
+	depends on DEVFREQ_GOV_SIMPLE_ONDEMAND
+	depends on PM_OPP
+	depends on DEVFREQ_THERMAL
 	help
 	  Driver for PowerVR Rogue graphics hardware 1.10.
 

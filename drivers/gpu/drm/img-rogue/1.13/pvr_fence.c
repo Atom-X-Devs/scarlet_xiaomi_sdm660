@@ -155,7 +155,6 @@ pvr_fence_context_fences_dump(struct pvr_fence_context *fctx,
 	list_for_each_entry(pvr_fence, &fctx->fence_list, fence_head) {
 		struct dma_fence *fence = pvr_fence->fence;
 		const char *timeline_value_str = "unknown timeline value";
-		const char *fence_value_str = "unknown fence value";
 
 		pvr_fence->base.ops->fence_value_str(&pvr_fence->base, value,
 						     sizeof(value));
@@ -180,7 +179,6 @@ pvr_fence_context_fences_dump(struct pvr_fence_context *fctx,
 		if (fence->ops->fence_value_str) {
 			fence->ops->fence_value_str(fence, value,
 						    sizeof(value));
-			fence_value_str = value;
 		}
 
 		PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile,
@@ -360,6 +358,7 @@ pvr_fence_context_debug_request(void *data, u32 verbosity,
 /**
  * pvr_fence_context_create - creates a PVR fence context
  * @dev_cookie: services device cookie
+ * @fence_status_wq: work queue reference to attach
  * @name: context name (used for debugging)
  *
  * Creates a PVR fence context that can be used to create PVR fences or to
@@ -1062,6 +1061,7 @@ pvr_fence_get_checkpoint(struct pvr_fence *update_fence)
  * pvr_sync_file.c if the driver determines any GPU work
  * is stuck waiting for a sync checkpoint representing a
  * foreign sync to be signalled.
+ * @fctx:    fence context
  * @nr_ufos: number of ufos in vaddrs
  * @vaddrs:  array of FW addresses of UFOs which the
  *           driver is waiting on.

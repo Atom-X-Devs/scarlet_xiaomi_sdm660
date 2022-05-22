@@ -37,6 +37,14 @@
 #include <uapi/linux/usb/ch9.h>
 
 /**
+ * usb_ep_type_string() - Returns human readable-name of the endpoint type.
+ * @ep_type: The endpoint type to return human-readable name for.  If it's not
+ *   any of the types: USB_ENDPOINT_XFER_{CONTROL, ISOC, BULK, INT},
+ *   usually got by usb_endpoint_type(), the string 'unknown' will be returned.
+ */
+extern const char *usb_ep_type_string(int ep_type);
+
+/**
  * usb_speed_string() - Returns human readable-name of the speed.
  * @speed: The speed to return human-readable name for.  If it's not
  *   any of the speeds defined in usb_device_speed enum, string for
@@ -61,5 +69,8 @@ extern enum usb_device_speed usb_get_maximum_speed(struct device *dev);
  *	the string UNKNOWN will be returned.
  */
 extern const char *usb_state_string(enum usb_device_state state);
+
+unsigned int usb_decode_interval(const struct usb_endpoint_descriptor *epd,
+				 enum usb_device_speed speed);
 
 #endif /* __LINUX_USB_CH9_H */

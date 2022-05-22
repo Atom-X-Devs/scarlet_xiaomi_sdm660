@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2017-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2017-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,13 +17,9 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
 
 #include <mali_kbase.h>
-#include <mali_kbase_config_defaults.h>
-
 #include <mali_kbase_defs.h>
 #include "mali_kbase_ctx_sched.h"
 #include "tl/mali_kbase_tracepoints.h"
@@ -46,7 +43,8 @@ int kbase_ctx_sched_init(struct kbase_device *kbdev)
 	int as_present = (1U << kbdev->nr_hw_address_spaces) - 1;
 
 	/* These two must be recalculated if nr_hw_address_spaces changes
-	 * (e.g. for HW workarounds) */
+	 * (e.g. for HW workarounds)
+	 */
 	kbdev->nr_user_address_spaces = kbdev->nr_hw_address_spaces;
 	kbdev->as_free = as_present; /* All ASs initially free */
 
@@ -212,6 +210,13 @@ void kbase_ctx_sched_restore_all_as(struct kbase_device *kbdev)
 	for (i = 0; i != kbdev->nr_hw_address_spaces; ++i) {
 		struct kbase_context *kctx;
 
+#if MALI_USE_CSF
+		if ((i == MCU_AS_NR) && kbdev->csf.firmware_inited) {
+			kbase_mmu_update(kbdev, &kbdev->csf.mcu_mmu,
+					 MCU_AS_NR);
+			continue;
+		}
+#endif
 		kctx = kbdev->as_to_kctx[i];
 		if (kctx) {
 			if (atomic_read(&kctx->refcount)) {
@@ -254,7 +259,7 @@ struct kbase_context *kbase_ctx_sched_as_to_ctx_refcount(
 
 	found_kctx = kbdev->as_to_kctx[as_nr];
 
-	if (found_kctx != NULL)
+	if (!WARN_ON(found_kctx == NULL))
 		kbase_ctx_sched_retain_ctx_refcount(found_kctx);
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -265,6 +270,21 @@ struct kbase_context *kbase_ctx_sched_as_to_ctx_refcount(
 struct kbase_context *kbase_ctx_sched_as_to_ctx(struct kbase_device *kbdev,
 		size_t as_nr)
 {
+	unsigned long flags;
+	struct kbase_context *found_kctx;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	found_kctx = kbase_ctx_sched_as_to_ctx_nolock(kbdev, as_nr);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return found_kctx;
+}
+
+struct kbase_context *kbase_ctx_sched_as_to_ctx_nolock(
+		struct kbase_device *kbdev, size_t as_nr)
+{
 	struct kbase_context *found_kctx;
 
 	if (WARN_ON(kbdev == NULL))
@@ -273,13 +293,14 @@ struct kbase_context *kbase_ctx_sched_as_to_ctx(struct kbase_device *kbdev,
 	if (WARN_ON(as_nr >= BASE_MAX_NR_AS))
 		return NULL;
 
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 	found_kctx = kbdev->as_to_kctx[as_nr];
 
-	if (WARN_ON(!found_kctx))
-		return NULL;
-
-	if (WARN_ON(atomic_read(&found_kctx->refcount) <= 0))
-		return NULL;
+	if (found_kctx) {
+		if (atomic_read(&found_kctx->refcount) <= 0)
+			found_kctx = NULL;
+	}
 
 	return found_kctx;
 }
@@ -342,3 +363,40 @@ void kbase_ctx_sched_release_ctx_lock(struct kbase_context *kctx)
 
 	spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
 }
+
+#if MALI_USE_CSF
+bool kbase_ctx_sched_inc_refcount_if_as_valid(struct kbase_context *kctx)
+{
+	struct kbase_device *kbdev;
+	bool added_ref = false;
+	unsigned long flags;
+
+	if (WARN_ON(kctx == NULL))
+		return added_ref;
+
+	kbdev = kctx->kbdev;
+
+	if (WARN_ON(kbdev == NULL))
+		return added_ref;
+
+	mutex_lock(&kbdev->mmu_hw_mutex);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	if ((kctx->as_nr != KBASEP_AS_NR_INVALID) &&
+	    (kctx == kbdev->as_to_kctx[kctx->as_nr])) {
+		atomic_inc(&kctx->refcount);
+
+		if (kbdev->as_free & (1u << kctx->as_nr))
+			kbdev->as_free &= ~(1u << kctx->as_nr);
+
+		KBASE_KTRACE_ADD(kbdev, SCHED_RETAIN_CTX_NOLOCK, kctx,
+				 kbase_ktrace_get_ctx_refcnt(kctx));
+		added_ref = true;
+	}
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	mutex_unlock(&kbdev->mmu_hw_mutex);
+
+	return added_ref;
+}
+#endif

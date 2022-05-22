@@ -1668,6 +1668,7 @@ retry:
 
 	if (qca_is_wcn399x(soc_type)) {
 		set_bit(HCI_QUIRK_USE_BDADDR_PROPERTY, &hdev->quirks);
+		hci_set_aosp_capable(hdev);
 
 		ret = qca_read_soc_version(hdev, &soc_ver);
 		if (ret)

@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018, 2020-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -85,7 +84,6 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/types.h>
-#include "mali_malisw.h"
 
 /* Number of bytes in each bitfield */
 #define KBASE_HWCNT_BITFIELD_BYTES (sizeof(u64))
@@ -100,6 +98,21 @@
  * instances supported in a Hardware Counter System)
  */
 #define KBASE_HWCNT_AVAIL_MASK_BITS (sizeof(u64) * BITS_PER_BYTE)
+
+/* Minimum alignment of each block of hardware counters */
+#define KBASE_HWCNT_BLOCK_BYTE_ALIGNMENT                                       \
+	(KBASE_HWCNT_BITFIELD_BITS * KBASE_HWCNT_VALUE_BYTES)
+
+/**
+ * KBASE_HWCNT_ALIGN_UPWARDS() - Calculate next aligned value.
+ * @value:     The value to align upwards.
+ * @alignment: The alignment boundary.
+ *
+ * Return: Input value if already aligned to the specified boundary, or next
+ * (incrementing upwards) aligned value.
+ */
+#define KBASE_HWCNT_ALIGN_UPWARDS(value, alignment)                            \
+	(value + ((alignment - (value % alignment)) % alignment))
 
 /**
  * struct kbase_hwcnt_block_description - Description of one or more identical,
@@ -136,11 +149,13 @@ struct kbase_hwcnt_group_description {
  * @grps:       Non-NULL pointer to an array of grp_cnt group descriptions,
  *              describing each Hardware Counter Group in the system.
  * @avail_mask: Flat Availability Mask for all block instances in the system.
+ * @clk_cnt:    The number of clock domains in the system. The maximum is 64.
  */
 struct kbase_hwcnt_description {
 	size_t grp_cnt;
 	const struct kbase_hwcnt_group_description *grps;
 	u64 avail_mask;
+	u8 clk_cnt;
 };
 
 /**
@@ -220,6 +235,7 @@ struct kbase_hwcnt_group_metadata {
  * @enable_map_bytes: The size in bytes of an Enable Map needed for the system.
  * @dump_buf_bytes:   The size in bytes of a Dump Buffer needed for the system.
  * @avail_mask:       The Availability Mask for the system.
+ * @clk_cnt:          The number of clock domains in the system.
  */
 struct kbase_hwcnt_metadata {
 	size_t grp_cnt;
@@ -227,6 +243,7 @@ struct kbase_hwcnt_metadata {
 	size_t enable_map_bytes;
 	size_t dump_buf_bytes;
 	u64 avail_mask;
+	u8 clk_cnt;
 };
 
 /**
@@ -234,13 +251,16 @@ struct kbase_hwcnt_metadata {
  *                                 bitfields.
  * @metadata:   Non-NULL pointer to metadata used to identify, and to describe
  *              the layout of the enable map.
- * @enable_map: Non-NULL pointer of size metadata->enable_map_bytes to an array
- *              of u64 bitfields, each bit of which enables one hardware
+ * @hwcnt_enable_map: Non-NULL pointer of size metadata->enable_map_bytes to an
+ *              array of u64 bitfields, each bit of which enables one hardware
  *              counter.
+ * @clk_enable_map: An array of u64 bitfields, each bit of which enables cycle
+ *              counter for a given clock domain.
  */
 struct kbase_hwcnt_enable_map {
 	const struct kbase_hwcnt_metadata *metadata;
-	u64 *enable_map;
+	u64 *hwcnt_enable_map;
+	u64 clk_enable_map;
 };
 
 /**
@@ -250,10 +270,13 @@ struct kbase_hwcnt_enable_map {
  *            the layout of the Dump Buffer.
  * @dump_buf: Non-NULL pointer of size metadata->dump_buf_bytes to an array
  *            of u32 values.
+ * @clk_cnt_buf: A pointer to an array of u64 values for cycle count elapsed
+ *               for each clock domain.
  */
 struct kbase_hwcnt_dump_buffer {
 	const struct kbase_hwcnt_metadata *metadata;
 	u32 *dump_buf;
+	u64 *clk_cnt_buf;
 };
 
 /**
@@ -349,8 +372,7 @@ void kbase_hwcnt_metadata_destroy(const struct kbase_hwcnt_metadata *metadata);
  * @grp:      Index of the group in the metadata.
  * @blk:      Index of the block in the group.
  *
- * Return: Number of u32 counter headers in each instance of block blk in
- *         group grp.
+ * Return: Number of counter headers in each instance of block blk in group grp.
  */
 #define kbase_hwcnt_metadata_block_headers_count(metadata, grp, blk) \
 	((metadata)->grp_metadata[(grp)].blk_metadata[(blk)].hdr_cnt)
@@ -361,11 +383,21 @@ void kbase_hwcnt_metadata_destroy(const struct kbase_hwcnt_metadata *metadata);
  * @grp:      Index of the group in the metadata.
  * @blk:      Index of the block in the group.
  *
- * Return: Number of u32 counters in each instance of block blk in group
- *         grp.
+ * Return: Number of counters in each instance of block blk in group grp.
  */
 #define kbase_hwcnt_metadata_block_counters_count(metadata, grp, blk) \
 	((metadata)->grp_metadata[(grp)].blk_metadata[(blk)].ctr_cnt)
+
+/**
+ * kbase_hwcnt_metadata_block_enable_map_stride() - Get the enable map stride.
+ * @metadata: Non-NULL pointer to metadata.
+ * @grp:      Index of the group in the metadata.
+ * @blk:      Index of the block in the group.
+ *
+ * Return: enable map stride in each instance of block blk in group grp.
+ */
+#define kbase_hwcnt_metadata_block_enable_map_stride(metadata, grp, blk)       \
+	((metadata)->grp_metadata[(grp)].blk_metadata[(blk)].enable_map_stride)
 
 /**
  * kbase_hwcnt_metadata_block_values_count() - Get the number of values.
@@ -373,7 +405,7 @@ void kbase_hwcnt_metadata_destroy(const struct kbase_hwcnt_metadata *metadata);
  * @grp:      Index of the group in the metadata.
  * @blk:      Index of the block in the group.
  *
- * Return: Number of u32 headers plus counters in each instance of block blk
+ * Return: Number of headers plus counters in each instance of block blk
  *         in group grp.
  */
 #define kbase_hwcnt_metadata_block_values_count(metadata, grp, blk) \
@@ -473,7 +505,7 @@ void kbase_hwcnt_enable_map_free(struct kbase_hwcnt_enable_map *enable_map);
  *         block instance.
  */
 #define kbase_hwcnt_enable_map_block_instance(map, grp, blk, blk_inst) \
-	((map)->enable_map + \
+	((map)->hwcnt_enable_map + \
 	 (map)->metadata->grp_metadata[(grp)].enable_map_index + \
 	 (map)->metadata->grp_metadata[(grp)].blk_metadata[(blk)].enable_map_index + \
 	 (map)->metadata->grp_metadata[(grp)].blk_metadata[(blk)].enable_map_stride * (blk_inst))
@@ -520,7 +552,11 @@ static inline void kbase_hwcnt_enable_map_block_disable_all(
 static inline void kbase_hwcnt_enable_map_disable_all(
 	struct kbase_hwcnt_enable_map *dst)
 {
-	memset(dst->enable_map, 0, dst->metadata->enable_map_bytes);
+	if (dst->hwcnt_enable_map != NULL)
+		memset(dst->hwcnt_enable_map, 0,
+		       dst->metadata->enable_map_bytes);
+
+	dst->clk_enable_map = 0;
 }
 
 /**
@@ -569,6 +605,8 @@ static inline void kbase_hwcnt_enable_map_enable_all(
 	kbase_hwcnt_metadata_for_each_block(dst->metadata, grp, blk, blk_inst)
 		kbase_hwcnt_enable_map_block_enable_all(
 			dst, grp, blk, blk_inst);
+
+	dst->clk_enable_map = (1ull << dst->metadata->clk_cnt) - 1;
 }
 
 /**
@@ -582,9 +620,13 @@ static inline void kbase_hwcnt_enable_map_copy(
 	struct kbase_hwcnt_enable_map *dst,
 	const struct kbase_hwcnt_enable_map *src)
 {
-	memcpy(dst->enable_map,
-	       src->enable_map,
-	       dst->metadata->enable_map_bytes);
+	if (dst->hwcnt_enable_map != NULL) {
+		memcpy(dst->hwcnt_enable_map,
+		       src->hwcnt_enable_map,
+		       dst->metadata->enable_map_bytes);
+	}
+
+	dst->clk_enable_map = src->clk_enable_map;
 }
 
 /**
@@ -602,8 +644,12 @@ static inline void kbase_hwcnt_enable_map_union(
 		dst->metadata->enable_map_bytes / KBASE_HWCNT_BITFIELD_BYTES;
 	size_t i;
 
-	for (i = 0; i < bitfld_count; i++)
-		dst->enable_map[i] |= src->enable_map[i];
+	if (dst->hwcnt_enable_map != NULL) {
+		for (i = 0; i < bitfld_count; i++)
+			dst->hwcnt_enable_map[i] |= src->hwcnt_enable_map[i];
+	}
+
+	dst->clk_enable_map |= src->clk_enable_map;
 }
 
 /**
@@ -656,6 +702,12 @@ static inline bool kbase_hwcnt_enable_map_any_enabled(
 	const struct kbase_hwcnt_enable_map *enable_map)
 {
 	size_t grp, blk, blk_inst;
+	const u64 clk_enable_map_mask =
+		(1ull << enable_map->metadata->clk_cnt) - 1;
+
+	if (enable_map->metadata->clk_cnt > 0 &&
+		(enable_map->clk_enable_map & clk_enable_map_mask))
+		return true;
 
 	kbase_hwcnt_metadata_for_each_block(
 		enable_map->metadata, grp, blk, blk_inst) {
@@ -749,12 +801,10 @@ void kbase_hwcnt_dump_buffer_free(struct kbase_hwcnt_dump_buffer *dump_buf);
  * kbase_hwcnt_dump_buffer_array_alloc() - Allocate an array of dump buffers.
  * @metadata:  Non-NULL pointer to metadata describing the system.
  * @n:         Number of dump buffers to allocate
- * @dump_bufs: Non-NULL pointer to dump buffer array to be initialised. Each
- *             dump buffer in the array will be initialised to undefined values,
- *             so must be used as a copy dest, or cleared before use.
+ * @dump_bufs: Non-NULL pointer to dump buffer array to be initialised.
  *
- * A single contiguous page allocation will be used for all of the buffers
- * inside the array, where:
+ * A single zeroed contiguous page allocation will be used for all of the
+ * buffers inside the array, where:
  * dump_bufs[n].dump_buf == page_addr + n * metadata.dump_buf_bytes
  *
  * Return: 0 on success, else error code.
@@ -1082,6 +1132,31 @@ static inline void kbase_hwcnt_dump_buffer_block_accumulate_strict(
 
 		*dst_ctr = ctr_enabled ? accumulated : 0;
 	}
+}
+
+/**
+ * Iterate over each clock domain in the metadata.
+ *
+ * @md:          Non-NULL pointer to metadata.
+ * @clk:         size_t variable used as clock iterator.
+ */
+#define kbase_hwcnt_metadata_for_each_clock(md, clk)    \
+	for ((clk) = 0; (clk) < (md)->clk_cnt; (clk)++)
+
+/**
+ * kbase_hwcnt_clk_enable_map_enabled() - Check if the given index is enabled
+ *                                        in clk_enable_map.
+ * @clk_enable_map: An enable map for clock domains.
+ * @index:          Index of the enable map for clock domain.
+ *
+ * Return: true if the index of the clock domain is enabled, else false.
+ */
+static inline bool kbase_hwcnt_clk_enable_map_enabled(
+	const u64 clk_enable_map, const size_t index)
+{
+	if (clk_enable_map & (1ull << index))
+		return true;
+	return false;
 }
 
 #endif /* _KBASE_HWCNT_TYPES_H_ */

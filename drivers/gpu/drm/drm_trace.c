@@ -351,7 +351,7 @@ EXPORT_SYMBOL(drm_trace_init);
  * This function is responsible for cleaning up anything that was previously
  * initialized in drm_trace_init()
  */
-void drm_trace_cleanup()
+void drm_trace_cleanup(void)
 {
 	struct drm_trace_info *info = &drm_trace;
 
