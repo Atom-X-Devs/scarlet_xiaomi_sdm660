@@ -4645,8 +4645,8 @@ out_unlock:
 	return ret;
 }
 
-static int iwl_mvm_cancel_roc(struct ieee80211_hw *hw,
-			      struct ieee80211_vif *vif)
+int iwl_mvm_cancel_roc(struct ieee80211_hw *hw,
+		       struct ieee80211_vif *vif)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 

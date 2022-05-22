@@ -1918,7 +1918,8 @@ int iwl_mvm_roc_common(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		       struct ieee80211_channel *channel, int duration,
 		       enum ieee80211_roc_type type,
 		       struct iwl_mvm_roc_ops *ops);
-
+int iwl_mvm_cancel_roc(struct ieee80211_hw *hw,
+		       struct ieee80211_vif *vif);
 /*Session Protection */
 void iwl_mvm_protect_assoc(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			   u32 duration_override);

@@ -641,6 +641,7 @@ const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.remove_interface = iwl_mvm_mld_mac_remove_interface,
 	.config_iface_filter = iwl_mvm_mld_config_iface_filter,
 	.remain_on_channel = iwl_mvm_mld_roc,
+	.cancel_remain_on_channel = iwl_mvm_cancel_roc,
 	.assign_vif_chanctx = iwl_mvm_mld_assign_vif_chanctx,
 	.unassign_vif_chanctx = iwl_mvm_mld_unassign_vif_chanctx,
 	.switch_vif_chanctx = iwl_mvm_mld_switch_vif_chanctx,

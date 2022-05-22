@@ -364,6 +364,14 @@ int iwl_mvm_mld_rm_snif_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 				      IWL_MAX_TID_COUNT, &mvm->snif_queue);
 }
 
+int iwl_mvm_mld_rm_aux_sta(struct iwl_mvm *mvm)
+{
+	lockdep_assert_held(&mvm->mutex);
+
+	return iwl_mvm_mld_rm_int_sta(mvm, &mvm->aux_sta, false,
+				      IWL_MAX_TID_COUNT, &mvm->aux_queue);
+}
+
 /* send a cfg sta command to add/update a sta in firmware */
 static int iwl_mvm_mld_cfg_sta(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 			       struct ieee80211_vif *vif, u16 phy_id)
