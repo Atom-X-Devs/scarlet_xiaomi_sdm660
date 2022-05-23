@@ -3,9 +3,7 @@
  * Copyright (C) 2017 Intel Deutschland GmbH
  * Copyright (C) 2018-2020 Intel Corporation
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
 #include <net/tso.h>
-#endif
 #include <linux/tcp.h>
 
 #include "iwl-debug.h"

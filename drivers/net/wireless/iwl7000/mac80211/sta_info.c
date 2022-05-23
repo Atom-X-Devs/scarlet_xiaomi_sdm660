@@ -4,7 +4,7 @@
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2021 Intel Corporation
+ * Copyright (C) 2018-2022 Intel Corporation
  */
 
 #include <linux/module.h>
@@ -2147,18 +2147,18 @@ sta_get_last_rx_stats(struct sta_info *sta)
 static void sta_stats_decode_rate(struct ieee80211_local *local, u32 rate,
 				  struct rate_info *rinfo)
 {
-	set_rate_info_bw(rinfo, STA_STATS_GET(BW, rate));
+	rinfo->bw = STA_STATS_GET(BW, rate);
 
 	switch (STA_STATS_GET(TYPE, rate)) {
 	case STA_STATS_RATE_TYPE_VHT:
-		rinfo->flags |= RATE_INFO_FLAGS_VHT_MCS;
+		rinfo->flags = RATE_INFO_FLAGS_VHT_MCS;
 		rinfo->mcs = STA_STATS_GET(VHT_MCS, rate);
 		rinfo->nss = STA_STATS_GET(VHT_NSS, rate);
 		if (STA_STATS_GET(SGI, rate))
 			rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
 		break;
 	case STA_STATS_RATE_TYPE_HT:
-		rinfo->flags |= RATE_INFO_FLAGS_MCS;
+		rinfo->flags = RATE_INFO_FLAGS_MCS;
 		rinfo->mcs = STA_STATS_GET(HT_MCS, rate);
 		if (STA_STATS_GET(SGI, rate))
 			rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
@@ -2176,20 +2176,18 @@ static void sta_stats_decode_rate(struct ieee80211_local *local, u32 rate,
 			break;
 
 		brate = sband->bitrates[rate_idx].bitrate;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,0,0)
 		if (rinfo->bw == RATE_INFO_BW_5)
 			shift = 2;
 		else if (rinfo->bw == RATE_INFO_BW_10)
 			shift = 1;
 		else
-#endif
 			shift = 0;
 		rinfo->legacy = DIV_ROUND_UP(brate, 1 << shift);
 		break;
 		}
 	case STA_STATS_RATE_TYPE_HE:
 #if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
-		rinfo->flags |= RATE_INFO_FLAGS_HE_MCS;
+		rinfo->flags = RATE_INFO_FLAGS_HE_MCS;
 		rinfo->mcs = STA_STATS_GET(HE_MCS, rate);
 		rinfo->nss = STA_STATS_GET(HE_NSS, rate);
 		rinfo->he_gi = STA_STATS_GET(HE_GI, rate);
@@ -2197,6 +2195,17 @@ static void sta_stats_decode_rate(struct ieee80211_local *local, u32 rate,
 		rinfo->he_dcm = STA_STATS_GET(HE_DCM, rate);
 #else
 		WARN_ONCE(1, "HE not supported on this cfg80211 version\n");
+#endif
+		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
+	case STA_STATS_RATE_TYPE_EHT:
+		rinfo->flags = RATE_INFO_FLAGS_EHT_MCS;
+		rinfo->mcs = STA_STATS_GET(EHT_MCS, rate);
+		rinfo->nss = STA_STATS_GET(EHT_NSS, rate);
+		rinfo->eht_gi = STA_STATS_GET(EHT_GI, rate);
+		rinfo->eht_ru_alloc = STA_STATS_GET(EHT_RU, rate);
+#else
+		WARN_ONCE(1, "EHT not supported on this cfg80211 version\n");
 #endif
 		break;
 	}

@@ -5,7 +5,7 @@
  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2015  Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2021 Intel Corporation
+ * Copyright (C) 2018-2022 Intel Corporation
  */
 
 #include <linux/ieee80211.h>
@@ -152,18 +152,13 @@ static int ieee80211_set_ap_mbssid_options(struct ieee80211_sub_if_data *sdata,
 
 static struct wireless_dev *ieee80211_add_iface(struct wiphy *wiphy,
 						const char *name,
-#if CFG80211_VERSION > KERNEL_VERSION(4,0,0)
 						unsigned char name_assign_type,
-#endif
 						enum nl80211_iftype type,
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 						u32 *flags,
 #endif
 struct vif_params *params)
 {
-#if CFG80211_VERSION <= KERNEL_VERSION(4,0,0)
-	unsigned char name_assign_type = NET_NAME_UNKNOWN;
-#endif
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct wireless_dev *wdev;
 	struct ieee80211_sub_if_data *sdata;
@@ -479,7 +474,6 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_local *local = sdata->local;
 	struct sta_info *sta = NULL;
-	const struct ieee80211_cipher_scheme *cs = NULL;
 	struct ieee80211_key *key;
 	int err;
 
@@ -498,23 +492,12 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 		if (WARN_ON_ONCE(fips_enabled))
 			return -EINVAL;
 		break;
-	case WLAN_CIPHER_SUITE_CCMP:
-	case WLAN_CIPHER_SUITE_CCMP_256:
-	case WLAN_CIPHER_SUITE_AES_CMAC:
-	case WLAN_CIPHER_SUITE_BIP_CMAC_256:
-	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
-	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
-	case WLAN_CIPHER_SUITE_GCMP:
-	case WLAN_CIPHER_SUITE_GCMP_256:
-		break;
 	default:
-		cs = ieee80211_cs_get(local, params->cipher, sdata->vif.type);
 		break;
 	}
 
 	key = ieee80211_key_alloc(params->cipher, key_idx, params->key_len,
-				  params->key, params->seq_len, params->seq,
-				  cs);
+				  params->key, params->seq_len, params->seq);
 	if (IS_ERR(key))
 		return PTR_ERR(key);
 
@@ -569,25 +552,16 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	case NL80211_IFTYPE_WDS:
 	case NL80211_IFTYPE_MONITOR:
 	case NL80211_IFTYPE_P2P_DEVICE:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NUM_NL80211_IFTYPES:
 	case NL80211_IFTYPE_P2P_CLIENT:
 	case NL80211_IFTYPE_P2P_GO:
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 	case NL80211_IFTYPE_OCB:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/* shouldn't happen */
 		WARN_ON_ONCE(1);
 		break;
 	}
-
-	if (sta)
-		sta->cipher_scheme = cs;
 
 	err = ieee80211_key_link(key, sdata, sta);
 
@@ -818,13 +792,13 @@ void sta_set_rate_info_tx(struct sta_info *sta,
 		}
 	}
 	if (rate->flags & IEEE80211_TX_RC_40_MHZ_WIDTH)
-		set_rate_info_bw(rinfo, RATE_INFO_BW_40);
+		rinfo->bw = RATE_INFO_BW_40;
 	else if (rate->flags & IEEE80211_TX_RC_80_MHZ_WIDTH)
-		set_rate_info_bw(rinfo, RATE_INFO_BW_80);
+		rinfo->bw = RATE_INFO_BW_80;
 	else if (rate->flags & IEEE80211_TX_RC_160_MHZ_WIDTH)
-		set_rate_info_bw(rinfo, RATE_INFO_BW_160);
+		rinfo->bw = RATE_INFO_BW_160;
 	else
-		set_rate_info_bw(rinfo, RATE_INFO_BW_20);
+		rinfo->bw = RATE_INFO_BW_20;
 	if (rate->flags & IEEE80211_TX_RC_SHORT_GI)
 		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
 }
@@ -1244,9 +1218,6 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 				cfg_control_port_over_nl80211(&params->crypto);
 	sdata->control_port_no_preauth =
 				cfg80211_crypto_control_port_no_preauth(&params->crypto);
-	sdata->encrypt_headroom = ieee80211_cs_headroom(sdata->local,
-							&params->crypto,
-							sdata->vif.type);
 
 	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list) {
 		vlan->control_port_protocol =
@@ -1257,10 +1228,6 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 			cfg_control_port_over_nl80211(&params->crypto);
 		vlan->control_port_no_preauth =
 			cfg80211_crypto_control_port_no_preauth(&params->crypto);
-		vlan->encrypt_headroom =
-			ieee80211_cs_headroom(sdata->local,
-					      &params->crypto,
-					      vlan->vif.type);
 	}
 
 	sdata->vif.bss_conf.dtim_period = params->dtim_period;
@@ -2670,10 +2637,7 @@ static int ieee80211_scan(struct wiphy *wiphy,
 		     !(req->flags & NL80211_SCAN_FLAG_AP)))
 			return -EOPNOTSUPP;
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -2752,20 +2716,16 @@ static int ieee80211_leave_ibss(struct wiphy *wiphy, struct net_device *dev)
 	return ieee80211_ibss_leave(IEEE80211_DEV_TO_SUB_IF(dev));
 }
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 static int ieee80211_join_ocb(struct wiphy *wiphy, struct net_device *dev,
 			      struct ocb_setup *setup)
 {
 	return ieee80211_ocb_join(IEEE80211_DEV_TO_SUB_IF(dev), setup);
 }
-#endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 static int ieee80211_leave_ocb(struct wiphy *wiphy, struct net_device *dev)
 {
 	return ieee80211_ocb_leave(IEEE80211_DEV_TO_SUB_IF(dev));
 }
-#endif
 
 static int ieee80211_set_mcast_rate(struct wiphy *wiphy, struct net_device *dev,
 				    int rate[NUM_NL80211_BANDS])
@@ -3207,7 +3167,6 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 	return 0;
 }
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
 static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 					   struct net_device *dev,
 					   struct cfg80211_chan_def *chandef,
@@ -3240,7 +3199,6 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 	mutex_unlock(&local->mtx);
 	return err;
 }
-#endif
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,5,0)
 static void ieee80211_end_cac(struct wiphy *wiphy,
@@ -4002,7 +3960,6 @@ static void ieee80211_set_wakeup(struct wiphy *wiphy, bool enabled)
 }
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
 static int ieee80211_set_qos_map(struct wiphy *wiphy,
 				 struct net_device *dev,
 				 struct cfg80211_qos_map *qos_map)
@@ -4027,9 +3984,7 @@ static int ieee80211_set_qos_map(struct wiphy *wiphy,
 
 	return 0;
 }
-#endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 static int ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 				      struct net_device *dev,
 				      struct cfg80211_chan_def *chandef)
@@ -4044,9 +3999,7 @@ static int ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 
 	return ret;
 }
-#endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,18,0)
 static int ieee80211_add_tx_ts(struct wiphy *wiphy, struct net_device *dev,
 			       u8 tsid, const u8 *peer, u8 up,
 			       u16 admitted_time)
@@ -4072,9 +4025,7 @@ static int ieee80211_add_tx_ts(struct wiphy *wiphy, struct net_device *dev,
 
 	return 0;
 }
-#endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,18,0)
 static int ieee80211_del_tx_ts(struct wiphy *wiphy, struct net_device *dev,
 			       u8 tsid, const u8 *peer)
 {
@@ -4118,7 +4069,6 @@ static int ieee80211_del_tx_ts(struct wiphy *wiphy, struct net_device *dev,
 
 	return -ENOENT;
 }
-#endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,9,0)
 void ieee80211_nan_func_terminated(struct ieee80211_vif *vif, u8 inst_id,
@@ -4489,6 +4439,21 @@ ieee80211_color_change_bss_config_notify(struct ieee80211_sub_if_data *sdata,
 	changed |= BSS_CHANGED_HE_BSS_COLOR;
 
 	ieee80211_bss_info_change_notify(sdata, changed);
+
+	if (!sdata->vif.bss_conf.nontransmitted && sdata->vif.mbssid_tx_vif) {
+		struct ieee80211_sub_if_data *child;
+
+		mutex_lock(&sdata->local->iflist_mtx);
+		list_for_each_entry(child, &sdata->local->interfaces, list) {
+			if (child != sdata && child->vif.mbssid_tx_vif == &sdata->vif) {
+				child->vif.bss_conf.he_bss_color.color = color;
+				child->vif.bss_conf.he_bss_color.enabled = enable;
+				ieee80211_bss_info_change_notify(child,
+								 BSS_CHANGED_HE_BSS_COLOR);
+			}
+		}
+		mutex_unlock(&sdata->local->iflist_mtx);
+	}
 }
 #endif
 
@@ -4583,6 +4548,9 @@ ieee80211_color_change(struct wiphy *wiphy, struct net_device *dev,
 
 	sdata_assert_lock(sdata);
 
+	if (sdata->vif.bss_conf.nontransmitted)
+		return -EINVAL;
+
 	mutex_lock(&local->mtx);
 
 	/* don't allow another color change if one is already active or if csa
@@ -4615,22 +4583,17 @@ out:
 }
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(3,14,0)
-static int _wrap_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
-			 struct ieee80211_channel *chan, bool offchan,
-			 unsigned int wait, const u8 *buf, size_t len,
-			 bool no_cck, bool dont_wait_for_ack, u64 *cookie){
-	struct cfg80211_mgmt_tx_params params = {
-		.chan = chan,
-		.offchan = offchan,
-		.wait = wait,
-		.buf = buf,
-		.len = len,
-		.no_cck = no_cck,
-		.dont_wait_for_ack = dont_wait_for_ack,
-	};
+#if CFG80211_VERSION >= KERNEL_VERSION(5,17,0)
+static int
+ieee80211_set_radar_background(struct wiphy *wiphy,
+			       struct cfg80211_chan_def *chandef)
+{
+	struct ieee80211_local *local = wiphy_priv(wiphy);
 
-	return ieee80211_mgmt_tx(wiphy, wdev, &params, cookie);
+	if (!local->ops->set_radar_background)
+		return -EOPNOTSUPP;
+
+	return local->ops->set_radar_background(&local->hw, chandef);
 }
 #endif
 
@@ -4670,12 +4633,8 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.join_mesh = ieee80211_join_mesh,
 	.leave_mesh = ieee80211_leave_mesh,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 	.join_ocb = ieee80211_join_ocb,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 	.leave_ocb = ieee80211_leave_ocb,
-#endif
 	.change_bss = ieee80211_change_bss,
 	.set_txq_params = ieee80211_set_txq_params,
 	.set_monitor_channel = ieee80211_set_monitor_channel,
@@ -4704,12 +4663,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.set_bitrate_mask = ieee80211_set_bitrate_mask,
 	.remain_on_channel = ieee80211_remain_on_channel,
 	.cancel_remain_on_channel = ieee80211_cancel_remain_on_channel,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
 	.mgmt_tx = ieee80211_mgmt_tx,
-#else
-	.mgmt_tx = _wrap_mgmt_tx,
-#endif
-
 	.mgmt_tx_cancel_wait = ieee80211_mgmt_tx_cancel_wait,
 	.set_cqm_rssi_config = ieee80211_set_cqm_rssi_config,
 #if CFG80211_VERSION >= KERNEL_VERSION(4,12,0)
@@ -4727,39 +4681,23 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.set_rekey_data = ieee80211_set_rekey_data,
 	.tdls_oper = ieee80211_tdls_oper,
 	.tdls_mgmt = ieee80211_tdls_mgmt,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 	.tdls_channel_switch = ieee80211_tdls_channel_switch,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 	.tdls_cancel_channel_switch = ieee80211_tdls_cancel_channel_switch,
-#endif
 	.probe_client = ieee80211_probe_client,
 	.set_noack_map = ieee80211_set_noack_map,
 #ifdef CONFIG_PM
 	.set_wakeup = ieee80211_set_wakeup,
 #endif
 	.get_channel = ieee80211_cfg_get_channel,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
 	.start_radar_detection = ieee80211_start_radar_detection,
-#endif
 #if CFG80211_VERSION >= KERNEL_VERSION(5,5,0)
 	.end_cac = ieee80211_end_cac,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,12,0)
 	.channel_switch = ieee80211_channel_switch,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
 	.set_qos_map = ieee80211_set_qos_map,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 	.set_ap_chanwidth = ieee80211_set_ap_chanwidth,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,18,0)
 	.add_tx_ts = ieee80211_add_tx_ts,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,18,0)
 	.del_tx_ts = ieee80211_del_tx_ts,
-#endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	.start_nan = ieee80211_start_nan,
 #endif
@@ -4812,5 +4750,8 @@ const struct cfg80211_ops mac80211_config_ops = {
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(5,15,0)
 	.color_change = ieee80211_color_change,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,17,0)
+	.set_radar_background = ieee80211_set_radar_background,
 #endif
 };

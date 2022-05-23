@@ -47,11 +47,6 @@ enum iwl_data_path_subcmd_ids {
 	RLC_CONFIG_CMD = 0x8,
 
 	/**
-	 * @AX_SOFTAP_CLIENT_TESTMODE: &struct ax_softap_client_testmode_cmd
-	 */
-	AX_SOFTAP_CLIENT_TESTMODE = 0xC,
-
-	/**
 	 * @RFH_QUEUE_CONFIG_CMD: &struct iwl_rfh_queue_config
 	 */
 	RFH_QUEUE_CONFIG_CMD = 0xD,
