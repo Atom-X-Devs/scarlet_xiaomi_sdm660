@@ -681,7 +681,7 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-OPT_FLAGS	:= -O3 -march=armv8-a+crc+crypto
+OPT_FLAGS	:= -O3 -march=armv8.1-a+crypto+fp16+rcpc
 ifdef CONFIG_CC_IS_CLANG
 OPT_FLAGS	+= -mtune=cortex-a53
 ifdef CONFIG_POLLY_CLANG
