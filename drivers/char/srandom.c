@@ -170,7 +170,7 @@ uint64_t generatedCount;
 /*
  * Called when the module is loaded
  */
-int mod_init(void)
+static int mod_init(void)
 {
 	int16_t C, arraysPosition;
 
@@ -245,7 +245,7 @@ int mod_init(void)
 /*
  * Called when the module is unloaded
  */
-void mod_exit(void)
+static void mod_exit(void)
 {
 #if !ULTRA_HIGH_SPEED_MODE
 	kthread_stop(kthread);
