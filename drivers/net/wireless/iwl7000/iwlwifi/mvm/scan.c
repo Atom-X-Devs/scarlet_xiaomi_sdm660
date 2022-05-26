@@ -45,6 +45,9 @@
 /* minimal number of 2GHz and 5GHz channels in the regular scan request */
 #define IWL_MVM_6GHZ_PASSIVE_SCAN_MIN_CHANS 4
 
+/* Number of iterations on the channel for mei filtered scan */
+#define IWL_MEI_SCAN_NUM_ITER	5U
+
 struct iwl_mvm_scan_timing_params {
 	u32 suspend_time;
 	u32 max_out_time;
