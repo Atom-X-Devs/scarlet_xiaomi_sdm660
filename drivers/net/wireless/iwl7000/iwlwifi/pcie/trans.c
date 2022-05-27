@@ -3578,7 +3578,6 @@ static const struct iwl_trans_ops trans_ops_pcie_gen2 = {
 	.rxq_dma_data = iwl_trans_pcie_rxq_dma_data,
 	.set_pnvm = iwl_trans_pcie_ctx_info_gen3_set_pnvm,
 	.set_reduce_power = iwl_trans_pcie_ctx_info_gen3_set_reduce_power,
-	.set_step = iwl_trans_pcie_ctx_info_gen3_set_step,
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	.debugfs_cleanup = iwl_trans_pcie_debugfs_cleanup,
 #endif

@@ -277,24 +277,14 @@ out:
 static int iwl_uefi_step_parse(struct uefi_cnv_common_step_data *common_step_data,
 			       struct iwl_trans *trans)
 {
-	u32 mbx_addr_0_step, mbx_addr_1_step;
-	int ret;
-
 	if (common_step_data->revision != 1)
 		return -EINVAL;
 
-	mbx_addr_0_step = (u32)common_step_data->revision |
+	trans->mbx_addr_0_step = (u32)common_step_data->revision |
 		(u32)common_step_data->cnvi_eq_channel << 8 |
 		(u32)common_step_data->cnvr_eq_channel << 16 |
 		(u32)common_step_data->radio1 << 24;
-	mbx_addr_1_step = (u32)common_step_data->radio2;
-	ret = iwl_trans_set_step(trans, mbx_addr_0_step, mbx_addr_1_step);
-	if (ret) {
-		IWL_DEBUG_FW(trans,
-			     "Failed to set STEP variable %d\n",
-			     ret);
-		return ret;
-	}
+	trans->mbx_addr_1_step = (u32)common_step_data->radio2;
 	return 0;
 }
 
