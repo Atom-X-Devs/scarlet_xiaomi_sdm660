@@ -147,3 +147,4 @@ kernel/configs/android-*.cfg
 /whyred
 /CLANG
 /GCC
+log.txt
