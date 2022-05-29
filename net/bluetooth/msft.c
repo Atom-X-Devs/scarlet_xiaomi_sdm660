@@ -106,9 +106,6 @@ struct msft_data {
 	__u8 filter_enabled;
 };
 
-static int __msft_remove_monitor(struct hci_dev *hdev,
-				 struct adv_monitor *monitor, u16 handle);
-
 bool msft_monitor_supported(struct hci_dev *hdev)
 {
 	return !!(msft_get_features(hdev) & MSFT_FEATURE_MASK_LE_ADV_MONITOR);
@@ -261,26 +258,26 @@ unlock:
 	return status;
 }
 
-static void msft_le_cancel_monitor_advertisement_cb(struct hci_dev *hdev,
-						    u8 status, u16 opcode,
-						    struct sk_buff *skb)
+static int msft_le_cancel_monitor_advertisement_cb(struct hci_dev *hdev,
+						   u16 opcode,
+						   struct sk_buff *skb)
 {
 	struct msft_cp_le_cancel_monitor_advertisement *cp;
 	struct msft_rp_le_cancel_monitor_advertisement *rp;
 	struct adv_monitor *monitor;
 	struct msft_monitor_advertisement_handle_data *handle_data;
 	struct msft_data *msft = hdev->msft_data;
-	int err;
-	bool pending;
-
-	if (status)
-		goto done;
+	int status = 0;
 
 	rp = (struct msft_rp_le_cancel_monitor_advertisement *)skb->data;
 	if (skb->len < sizeof(*rp)) {
 		status = HCI_ERROR_UNSPECIFIED;
 		goto done;
 	}
+
+	status = rp->status;
+	if (status)
+		goto done;
 
 	hci_dev_lock(hdev);
 
@@ -309,26 +306,10 @@ static void msft_le_cancel_monitor_advertisement_cb(struct hci_dev *hdev,
 		kfree(handle_data);
 	}
 
-	/* If remove all monitors is required, we need to continue the process
-	 * here because the earlier it was paused when waiting for the
-	 * response from controller.
-	 */
-	if (msft->pending_remove_handle == 0) {
-		pending = hci_remove_all_adv_monitor(hdev, &err);
-		if (pending) {
-			hci_dev_unlock(hdev);
-			return;
-		}
-
-		if (err)
-			status = HCI_ERROR_UNSPECIFIED;
-	}
-
 	hci_dev_unlock(hdev);
 
 done:
-	if (!msft->suspending)
-		hci_remove_adv_monitor_complete(hdev, status);
+	return status;
 }
 
 static int msft_remove_monitor_sync(struct hci_dev *hdev,
@@ -337,13 +318,14 @@ static int msft_remove_monitor_sync(struct hci_dev *hdev,
 	struct msft_cp_le_cancel_monitor_advertisement cp;
 	struct msft_monitor_advertisement_handle_data *handle_data;
 	struct sk_buff *skb;
-	u8 status;
 
 	handle_data = msft_find_handle_data(hdev, monitor->handle, true);
 
 	/* If no matched handle, just remove without telling controller */
-	if (!handle_data)
+	if (!handle_data) {
+		hci_free_adv_monitor(hdev, monitor);
 		return -ENOENT;
+	}
 
 	cp.sub_opcode = MSFT_OP_LE_CANCEL_MONITOR_ADVERTISEMENT;
 	cp.handle = handle_data->msft_handle;
@@ -353,13 +335,8 @@ static int msft_remove_monitor_sync(struct hci_dev *hdev,
 	if (IS_ERR(skb))
 		return PTR_ERR(skb);
 
-	status = skb->data[0];
-	skb_pull(skb, 1);
-
-	msft_le_cancel_monitor_advertisement_cb(hdev, status, hdev->msft_opcode,
-						skb);
-
-	return status;
+	return msft_le_cancel_monitor_advertisement_cb(hdev, hdev->msft_opcode,
+						       skb);
 }
 
 /* This function requires the caller holds hci_req_sync_lock */
@@ -818,38 +795,8 @@ int msft_add_monitor_pattern(struct hci_dev *hdev, struct adv_monitor *monitor)
 	return msft_add_monitor_sync(hdev, monitor);
 }
 
-/* This function requires the caller holds hdev->lock */
-static int __msft_remove_monitor(struct hci_dev *hdev,
-				 struct adv_monitor *monitor, u16 handle)
-{
-	struct msft_cp_le_cancel_monitor_advertisement cp;
-	struct msft_monitor_advertisement_handle_data *handle_data;
-	struct hci_request req;
-	struct msft_data *msft = hdev->msft_data;
-	int err = 0;
-
-	handle_data = msft_find_handle_data(hdev, monitor->handle, true);
-
-	/* If no matched handle, just remove without telling controller */
-	if (!handle_data)
-		return -ENOENT;
-
-	cp.sub_opcode = MSFT_OP_LE_CANCEL_MONITOR_ADVERTISEMENT;
-	cp.handle = handle_data->msft_handle;
-
-	hci_req_init(&req, hdev);
-	hci_req_add(&req, hdev->msft_opcode, sizeof(cp), &cp);
-	err = hci_req_run_skb(&req, msft_le_cancel_monitor_advertisement_cb);
-
-	if (!err)
-		msft->pending_remove_handle = handle;
-
-	return err;
-}
-
-/* This function requires the caller holds hdev->lock */
-int msft_remove_monitor(struct hci_dev *hdev, struct adv_monitor *monitor,
-			u16 handle)
+/* This function requires the caller holds hci_req_sync_lock */
+int msft_remove_monitor(struct hci_dev *hdev, struct adv_monitor *monitor)
 {
 	struct msft_data *msft = hdev->msft_data;
 
@@ -859,7 +806,7 @@ int msft_remove_monitor(struct hci_dev *hdev, struct adv_monitor *monitor,
 	if (msft->resuming || msft->suspending)
 		return -EBUSY;
 
-	return __msft_remove_monitor(hdev, monitor, handle);
+	return msft_remove_monitor_sync(hdev, monitor);
 }
 
 void msft_req_add_set_filter_enable(struct hci_request *req, bool enable)
