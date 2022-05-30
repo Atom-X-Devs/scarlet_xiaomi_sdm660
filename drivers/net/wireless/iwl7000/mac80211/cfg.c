@@ -1858,7 +1858,7 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	/* VHT can override some HT caps such as the A-MSDU max length */
 	if (params->vht_capa)
 		ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
-						    params->vht_capa, sta);
+						    params->vht_capa, sta, 0);
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
 	if (params->he_capa)
@@ -1887,7 +1887,8 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 		/* returned value is only needed for rc update, but the
 		 * rc isn't initialized here yet, so ignore it
 		 */
-		__ieee80211_vht_handle_opmode(sdata, sta, params->opmode_notif,
+		__ieee80211_vht_handle_opmode(sdata, sta, 0,
+					      params->opmode_notif,
 					      sband->band);
 	}
 
