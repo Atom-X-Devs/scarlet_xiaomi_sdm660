@@ -1880,7 +1880,7 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 						    params->he_capa_len,
 						    params->eht_capa,
 						    params->eht_capa_len,
-						    sta);
+						    sta, 0);
 #endif
 
 	if (params->opmode_notif_used) {
