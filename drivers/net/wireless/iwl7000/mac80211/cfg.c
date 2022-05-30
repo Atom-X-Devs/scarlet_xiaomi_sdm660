@@ -1415,7 +1415,9 @@ static int ieee80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
 	err = ieee80211_assign_beacon(sdata, params, NULL, NULL);
 	if (err < 0)
 		return err;
-	ieee80211_link_info_change_notify(sdata, 0, err);
+	ieee80211_link_info_change_notify(sdata,
+					  cfg80211_beacon_data_link_id(params),
+					  err);
 	return 0;
 }
 
@@ -1438,6 +1440,9 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev
 #endif
 )
 {
+#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+	unsigned int link_id = 0;
+#endif
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_sub_if_data *vlan;
 	struct ieee80211_local *local = sdata->local;
@@ -1502,7 +1507,8 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev
 	sdata->beacon_rate_set = false;
 	sdata->vif.cfg.ssid_len = 0;
 	clear_bit(SDATA_STATE_OFFCHANNEL_BEACON_STOPPED, &sdata->state);
-	ieee80211_link_info_change_notify(sdata, 0, BSS_CHANGED_BEACON_ENABLED);
+	ieee80211_link_info_change_notify(sdata, link_id,
+					  BSS_CHANGED_BEACON_ENABLED);
 
 	if (sdata->wdev.cac_started) {
 		chandef = sdata->vif.bss_conf.chandef;
@@ -4124,13 +4130,16 @@ static int ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 #endif
 				      struct cfg80211_chan_def *chandef)
 {
+#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+	unsigned int link_id = 0;
+#endif
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	int ret;
 	u32 changed = 0;
 
 	ret = ieee80211_vif_change_bandwidth(sdata, chandef, &changed);
 	if (ret == 0)
-		ieee80211_link_info_change_notify(sdata, 0, changed);
+		ieee80211_link_info_change_notify(sdata, link_id, changed);
 
 	return ret;
 }

@@ -2213,4 +2213,7 @@ void cfg80211_mgmt_tx_status_ext(struct wireless_dev *wdev,
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
 #define cfg80211_ch_switch_notify(dev, chandef, link_id) cfg80211_ch_switch_notify(dev, chandef)
+#define cfg80211_beacon_data_link_id(params)	0
+#else
+#define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #endif
