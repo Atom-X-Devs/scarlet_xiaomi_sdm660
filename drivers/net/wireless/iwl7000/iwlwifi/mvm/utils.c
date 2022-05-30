@@ -310,7 +310,7 @@ void iwl_mvm_update_smps(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		smps_mode = mvmvif->smps_requests[IWL_MVM_SMPS_REQ_DBG];
 #endif
 
-	ieee80211_request_smps(vif, smps_mode);
+	ieee80211_request_smps(vif, 0, smps_mode);
 }
 
 static bool iwl_wait_stats_complete(struct iwl_notif_wait_data *notif_wait,
