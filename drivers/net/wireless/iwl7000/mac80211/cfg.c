@@ -1870,7 +1870,7 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 #else
 						  NULL,
 #endif
-						  sta);
+						  sta, 0);
 #endif
 
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
