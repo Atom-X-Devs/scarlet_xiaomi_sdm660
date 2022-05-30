@@ -930,7 +930,9 @@ struct ieee80211_link_data {
 	bool csa_block_tx; /* write-protected by sdata_lock and local->mtx */
 	struct cfg80211_chan_def csa_chandef;
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,15,0)
 	struct work_struct color_change_finalize_work;
+#endif
 
 	/* context reservation -- protected with chanctx_mtx */
 	struct ieee80211_chanctx *reserved_chanctx;

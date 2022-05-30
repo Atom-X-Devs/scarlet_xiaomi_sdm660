@@ -467,7 +467,9 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
 	sdata_unlock(sdata);
 
 	cancel_work_sync(&sdata->deflink.csa_finalize_work);
+#if CFG80211_VERSION >= KERNEL_VERSION(5,15,0)
 	cancel_work_sync(&sdata->deflink.color_change_finalize_work);
+#endif
 
 	cancel_delayed_work_sync(&sdata->deflink.dfs_cac_timer_work);
 
