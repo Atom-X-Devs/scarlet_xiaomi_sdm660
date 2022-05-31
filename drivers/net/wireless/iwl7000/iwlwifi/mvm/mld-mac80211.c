@@ -43,13 +43,13 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
 	 * MAC context is bound to it at this stage.
 	 */
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE) {
-		mvmvif->phy_ctxt = iwl_mvm_get_free_phy_ctxt(mvm);
-		if (!mvmvif->phy_ctxt) {
+		mvmvif->deflink.phy_ctxt = iwl_mvm_get_free_phy_ctxt(mvm);
+		if (!mvmvif->deflink.phy_ctxt) {
 			ret = -ENOSPC;
 			goto out_free_bf;
 		}
 
-		iwl_mvm_phy_ctxt_ref(mvm, mvmvif->phy_ctxt);
+		iwl_mvm_phy_ctxt_ref(mvm, mvmvif->deflink.phy_ctxt);
 		ret = iwl_mvm_add_link(mvm, vif);
 		if (ret)
 			goto out_unref_phy;
@@ -94,7 +94,7 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
 	iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE, false);
 	iwl_mvm_remove_link(mvm, vif);
  out_unref_phy:
-	iwl_mvm_phy_ctxt_unref(mvm, mvmvif->phy_ctxt);
+	iwl_mvm_phy_ctxt_unref(mvm, mvmvif->deflink.phy_ctxt);
  out_free_bf:
 	if (mvm->bf_allowed_vif == mvmvif) {
 		mvm->bf_allowed_vif = NULL;
@@ -102,7 +102,8 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
 				       IEEE80211_VIF_SUPPORTS_CQM_RSSI);
 	}
  out_remove_mac:
-	mvmvif->phy_ctxt = NULL;
+	mvmvif->deflink.phy_ctxt = NULL;
+	mvmvif->link[0] = NULL;
 	iwl_mvm_mld_mac_ctxt_remove(mvm, vif);
  out_unlock:
 	mutex_unlock(&mvm->mutex);
@@ -126,8 +127,8 @@ static void iwl_mvm_mld_mac_remove_interface(struct ieee80211_hw *hw,
 		iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE,
 				     false);
 		iwl_mvm_remove_link(mvm, vif);
-		iwl_mvm_phy_ctxt_unref(mvm, mvmvif->phy_ctxt);
-		mvmvif->phy_ctxt = NULL;
+		iwl_mvm_phy_ctxt_unref(mvm, mvmvif->deflink.phy_ctxt);
+		mvmvif->deflink.phy_ctxt = NULL;
 	}
 
 	iwl_mvm_mld_mac_ctxt_remove(mvm, vif);
@@ -189,7 +190,7 @@ out_remove_link:
 	iwl_mvm_power_update_mac(mvm);
 out:
 	if (ret)
-		mvmvif->phy_ctxt = NULL;
+		mvmvif->deflink.phy_ctxt = NULL;
 	return ret;
 }
 
@@ -228,7 +229,7 @@ static void __iwl_mvm_mld_unassign_vif_chanctx(struct iwl_mvm *mvm,
 out:
 	if (switching_chanctx)
 		return;
-	mvmvif->phy_ctxt = NULL;
+	mvmvif->deflink.phy_ctxt = NULL;
 	iwl_mvm_power_update_mac(mvm);
 }
 
@@ -436,15 +437,15 @@ static void iwl_mvm_mld_bss_info_changed_station(struct iwl_mvm *mvm,
 	if (ret)
 		IWL_ERR(mvm, "failed to update MAC %pM\n", vif->addr);
 
-	memcpy(mvmvif->bssid, bss_conf->bssid, ETH_ALEN);
+	memcpy(mvmvif->deflink.bssid, bss_conf->bssid, ETH_ALEN);
 	mvmvif->associated = vif->cfg.assoc;
 
 	if (changes & BSS_CHANGED_ASSOC) {
 		if (vif->cfg.assoc) {
 			/* clear statistics to get clean beacon counter */
 			iwl_mvm_request_statistics(mvm, true);
-			memset(&mvmvif->beacon_stats, 0,
-			       sizeof(mvmvif->beacon_stats));
+			memset(&mvmvif->deflink.beacon_stats, 0,
+			       sizeof(mvmvif->deflink.beacon_stats));
 
 			if (!test_bit(IWL_MVM_STATUS_IN_HW_RESTART,
 				      &mvm->status) &&
@@ -469,7 +470,7 @@ static void iwl_mvm_mld_bss_info_changed_station(struct iwl_mvm *mvm,
 						    IWL_MVM_SMPS_REQ_PROT,
 						    IEEE80211_SMPS_DYNAMIC);
 			}
-		} else if (mvmvif->ap_sta_id != IWL_MVM_INVALID_STA) {
+		} else if (mvmvif->deflink.ap_sta_id != IWL_MVM_INVALID_STA) {
 			iwl_mvm_mei_host_disassociated(mvm);
 			/*
 			 * If update fails - SF might be running in associated
@@ -499,12 +500,12 @@ static void iwl_mvm_mld_bss_info_changed_station(struct iwl_mvm *mvm,
 				 * the MAC is unassoc
 				 */
 				ret = iwl_mvm_mld_rm_sta_id(mvm, vif,
-							    mvmvif->ap_sta_id);
+							    mvmvif->deflink.ap_sta_id);
 				if (ret)
 					IWL_ERR(mvm,
 						"failed to remove AP station\n");
 
-				mvmvif->ap_sta_id = IWL_MVM_INVALID_STA;
+				mvmvif->deflink.ap_sta_id = IWL_MVM_INVALID_STA;
 			}
 		}
 
@@ -605,7 +606,7 @@ iwl_mvm_mld_mac_conf_tx(struct ieee80211_hw *hw,
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
-	mvmvif->queue_params[ac] = *params;
+	mvmvif->deflink.queue_params[ac] = *params;
 
 	/*
 	 * No need to update right away, we'll get BSS_CHANGED_QOS
@@ -642,9 +643,9 @@ static int iwl_mvm_link_switch_phy_ctx(struct iwl_mvm *mvm,
 	if (WARN(ret, "Failed to deactivate link\n"))
 		return ret;
 
-	iwl_mvm_phy_ctxt_unref(mvm, mvmvif->phy_ctxt);
+	iwl_mvm_phy_ctxt_unref(mvm, mvmvif->deflink.phy_ctxt);
 
-	mvmvif->phy_ctxt = new_phy_ctxt;
+	mvmvif->deflink.phy_ctxt = new_phy_ctxt;
 
 	ret = iwl_mvm_link_changed(mvm, vif, 0, false);
 	if (WARN(ret, "Failed to deactivate link\n"))

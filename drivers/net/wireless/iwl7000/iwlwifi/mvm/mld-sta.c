@@ -169,7 +169,7 @@ static int iwl_mvm_mld_add_int_sta(struct iwl_mvm *mvm,
 int iwl_mvm_mld_add_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm_int_sta *bsta = &mvmvif->bcast_sta;
+	struct iwl_mvm_int_sta *bsta = &mvmvif->deflink.bcast_sta;
 	static const u8 _baddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	const u8 *baddr = _baddr;
 	unsigned int wdg_timeout =
@@ -194,7 +194,7 @@ int iwl_mvm_mld_add_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	return iwl_mvm_mld_add_int_sta(mvm, bsta, queue,
 				       ieee80211_vif_type_p2p(vif),
 				       STATION_TYPE_BCAST_MGMT,
-				       mvmvif->phy_ctxt->id, baddr,
+				       mvmvif->deflink.phy_ctxt->id, baddr,
 				       IWL_MAX_TID_COUNT, &wdg_timeout);
 }
 
@@ -206,7 +206,7 @@ int iwl_mvm_mld_add_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 int iwl_mvm_mld_add_mcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm_int_sta *msta = &mvmvif->mcast_sta;
+	struct iwl_mvm_int_sta *msta = &mvmvif->deflink.mcast_sta;
 	static const u8 _maddr[] = {0x03, 0x00, 0x00, 0x00, 0x00, 0x00};
 	const u8 *maddr = _maddr;
 	unsigned int timeout = iwl_mvm_get_wd_timeout(mvm, vif, false, false);
@@ -224,11 +224,11 @@ int iwl_mvm_mld_add_mcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	 * changes in mac80211 layer.
 	 */
 	if (vif->type == NL80211_IFTYPE_ADHOC)
-		mvmvif->cab_queue = IWL_MVM_DQA_GCAST_QUEUE;
+		mvmvif->deflink.cab_queue = IWL_MVM_DQA_GCAST_QUEUE;
 
-	return iwl_mvm_mld_add_int_sta(mvm, msta, &mvmvif->cab_queue,
+	return iwl_mvm_mld_add_int_sta(mvm, msta, &mvmvif->deflink.cab_queue,
 				       vif->type, STATION_TYPE_MCAST,
-				       mvmvif->phy_ctxt->id, maddr, 0,
+				       mvmvif->deflink.phy_ctxt->id, maddr, 0,
 				       &timeout);
 }
 
@@ -243,7 +243,7 @@ int iwl_mvm_mld_add_snif_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	return iwl_mvm_mld_add_int_sta(mvm, &mvm->snif_sta, &mvm->snif_queue,
 				       vif->type, STATION_TYPE_BCAST_MGMT,
-				       mvmvif->phy_ctxt->id, NULL,
+				       mvmvif->deflink.phy_ctxt->id, NULL,
 				       IWL_MAX_TID_COUNT, NULL);
 }
 
@@ -338,7 +338,7 @@ int iwl_mvm_mld_rm_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 		return -EINVAL;
 	}
 
-	return iwl_mvm_mld_rm_int_sta(mvm, &mvmvif->bcast_sta, true,
+	return iwl_mvm_mld_rm_int_sta(mvm, &mvmvif->deflink.bcast_sta, true,
 				      IWL_MAX_TID_COUNT, queueptr);
 }
 
@@ -352,8 +352,9 @@ int iwl_mvm_mld_rm_mcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	lockdep_assert_held(&mvm->mutex);
 
-	return iwl_mvm_mld_rm_int_sta(mvm, &mvmvif->mcast_sta, true, 0,
-				      &mvmvif->cab_queue);
+	return iwl_mvm_mld_rm_int_sta(mvm, &mvmvif->deflink.mcast_sta, true,
+				      0,
+				      &mvmvif->deflink.cab_queue);
 }
 
 int iwl_mvm_mld_rm_snif_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
@@ -485,7 +486,7 @@ int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		 */
 		ret = iwl_mvm_mld_add_int_sta_to_fw(mvm, &tmp_sta,
 						    vif->bss_conf.bssid,
-						    mvmvif->phy_ctxt->id);
+						    mvmvif->deflink.phy_ctxt->id);
 		if (ret)
 			return ret;
 
@@ -495,16 +496,16 @@ int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				       STATION_TYPE_PEER);
 	}
 
-	ret = iwl_mvm_mld_cfg_sta(mvm, sta, vif, mvmvif->phy_ctxt->id);
+	ret = iwl_mvm_mld_cfg_sta(mvm, sta, vif, mvmvif->deflink.phy_ctxt->id);
 	if (ret)
 		return ret;
 
 	if (vif->type == NL80211_IFTYPE_STATION) {
 		if (!sta->tdls) {
-			WARN_ON(mvmvif->ap_sta_id != IWL_MVM_INVALID_STA);
-			mvmvif->ap_sta_id = sta_id;
+			WARN_ON(mvmvif->deflink.ap_sta_id != IWL_MVM_INVALID_STA);
+			mvmvif->deflink.ap_sta_id = sta_id;
 		} else {
-			WARN_ON(mvmvif->ap_sta_id == IWL_MVM_INVALID_STA);
+			WARN_ON(mvmvif->deflink.ap_sta_id == IWL_MVM_INVALID_STA);
 		}
 	}
 
@@ -525,7 +526,8 @@ int iwl_mvm_mld_update_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	lockdep_assert_held(&mvm->mutex);
 
-	return iwl_mvm_mld_cfg_sta(mvm, sta, vif, mvmvif->phy_ctxt->id);
+	return iwl_mvm_mld_cfg_sta(mvm, sta, vif,
+				   mvmvif->deflink.phy_ctxt->id);
 }
 
 static void iwl_mvm_mld_disable_sta_queues(struct iwl_mvm *mvm,

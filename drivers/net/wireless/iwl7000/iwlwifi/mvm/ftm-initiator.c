@@ -73,7 +73,7 @@ int iwl_mvm_ftm_add_pasn_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		struct ieee80211_sta *sta;
 
 		rcu_read_lock();
-		sta = rcu_dereference(mvm->fw_id_to_mac_id[mvmvif->ap_sta_id]);
+		sta = rcu_dereference(mvm->fw_id_to_mac_id[mvmvif->deflink.ap_sta_id]);
 		if (!IS_ERR_OR_NULL(sta) && sta->mfp)
 			expected_tk_len = 0;
 		rcu_read_unlock();
@@ -542,13 +542,13 @@ iwl_mvm_ftm_put_target(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 		rcu_read_lock();
 
-		sta = rcu_dereference(mvm->fw_id_to_mac_id[mvmvif->ap_sta_id]);
+		sta = rcu_dereference(mvm->fw_id_to_mac_id[mvmvif->deflink.ap_sta_id]);
 		if (sta->mfp && (ftm_trigger_based(peer) || ftm_non_trigger_based(peer)))
 			FTM_PUT_FLAG(PMF);
 
 		rcu_read_unlock();
 
-		target->sta_id = mvmvif->ap_sta_id;
+		target->sta_id = mvmvif->deflink.ap_sta_id;
 	} else {
 		target->sta_id = IWL_MVM_INVALID_STA;
 	}
