@@ -566,16 +566,8 @@ void msft_do_close(struct hci_dev *hdev)
 
 	hci_dev_lock(hdev);
 
-	/* Clear any devices that are being monitored and notify device lost */
-
-	hdev->advmon_pend_notify = false;
-
+	/* Clear any devices that are being monitored */
 	list_for_each_entry_safe(dev, tmp_dev, &hdev->monitored_devices, list) {
-		if (dev->notified)
-			mgmt_adv_monitor_device_lost(hdev, dev->handle,
-						     &dev->bdaddr,
-						     dev->addr_type);
-
 		list_del(&dev->list);
 		kfree(dev);
 	}
@@ -634,7 +626,6 @@ static void msft_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr,
 
 	INIT_LIST_HEAD(&dev->list);
 	list_add(&dev->list, &hdev->monitored_devices);
-	hdev->advmon_pend_notify = true;
 }
 
 /* This function requires the caller holds hdev->lock */
@@ -645,10 +636,6 @@ static void msft_device_lost(struct hci_dev *hdev, bdaddr_t *bdaddr,
 
 	list_for_each_entry_safe(dev, tmp, &hdev->monitored_devices, list) {
 		if (dev->handle == mgmt_handle) {
-			if (dev->notified)
-				mgmt_adv_monitor_device_lost(hdev, mgmt_handle,
-							     bdaddr, addr_type);
-
 			list_del(&dev->list);
 			kfree(dev);
 
