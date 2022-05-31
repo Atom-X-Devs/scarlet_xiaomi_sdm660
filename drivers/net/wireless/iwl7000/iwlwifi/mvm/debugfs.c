@@ -925,16 +925,16 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 	char *buff, *pos, *endpos;
 	char tas_approved_list[256];
 	const char * const tas_dis_reason[TAS_DISABLED_REASON_MAX] = {
-		[TAS_DISABLED_DUE_TO_BIOS] = "due to BIOS",
-		[TAS_DISABLED_DUE_TO_SAR_6DBM] = "due to SAR limit less than 6dBm",
+		[TAS_DISABLED_DUE_TO_BIOS] = "Due To BIOS",
+		[TAS_DISABLED_DUE_TO_SAR_6DBM] = "Due To SAR Limit Less Than 6 dBm",
 		[TAS_DISABLED_REASON_INVALID] = "INVALID",
 	};
 	const char * const tas_current_status[TAS_DYNA_STATUS_MAX] = {
 		[TAS_DYNA_INACTIVE] = "INACTIVE",
-		[TAS_DYNA_INACTIVE_MVM_MODE] = "inactive due to mvm mode",
-		[TAS_DYNA_INACTIVE_TRIGGER_MODE] = "inactive due to trigger mode",
-		[TAS_DYNA_INACTIVE_BLOCK_LISTED] = "inactive due to block listed",
-		[TAS_DYNA_INACTIVE_UHB_NON_US] = "inactive due to uhb non US",
+		[TAS_DYNA_INACTIVE_MVM_MODE] = "Inactive Due To MVM Mode",
+		[TAS_DYNA_INACTIVE_TRIGGER_MODE] = "Inactive Due To Trigger Mode",
+		[TAS_DYNA_INACTIVE_BLOCK_LISTED] = "Inactive Due To Block Listed",
+		[TAS_DYNA_INACTIVE_UHB_NON_US] = "Inactive Due To UHB Non USA",
 		[TAS_DYNA_ACTIVE] = "ACTIVE",
 	};
 	struct iwl_host_cmd hcmd = {
@@ -963,53 +963,54 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 
 	rsp = (void *)hcmd.resp_pkt->data;
 	pos += scnprintf(pos, endpos - pos, "TAS Report\n");
-	pos += scnprintf(pos, endpos - pos, "TAS FW version: %d\n", rsp->tas_fw_version);
-	pos += scnprintf(pos, endpos - pos, "Is UHB enabled for USA?: %s\n",
-			 rsp->is_uhb_for_usa_enable ? "True" : "False");
-	pos += scnprintf(pos, endpos - pos, "Current MCC: 0x%x\n", le16_to_cpu(rsp->curr_mcc));
+	pos += scnprintf(pos, endpos - pos, "\tTAS FW version: %d\n", rsp->tas_fw_version);
+	pos += scnprintf(pos, endpos - pos, "\tIs UHB Enabled For USA?: %s\n",
+			 rsp->is_uhb_for_usa_enable ? "TRUE" : "FALSE");
+	pos += scnprintf(pos, endpos - pos, "\tCurrent Country: 0x%x\n",
+			 le16_to_cpu(rsp->curr_mcc));
 
-	pos += scnprintf(pos, endpos - pos, "Block list entries:");
+	pos += scnprintf(pos, endpos - pos, "\tBlock List Countries:");
 	for (i = 0; i < APCI_WTAS_BLACK_LIST_MAX; i++)
 		pos += scnprintf(pos, endpos - pos, " 0x%x", le16_to_cpu(rsp->block_list[i]));
 
-	pos += scnprintf(pos, endpos - pos, "\nOEM name: %s\n",
+	pos += scnprintf(pos, endpos - pos, "\n\tVendor: %s\n",
 			 dmi_get_system_info(DMI_SYS_VENDOR));
 	iwl_mvm_get_tas_approved_list(tas_approved_list, ARRAY_SIZE(tas_approved_list));
-	pos += scnprintf(pos, endpos - pos, "OEM approved list: %s\n",
+	pos += scnprintf(pos, endpos - pos, "\tVendor Approved List: %s\n",
 			 tas_approved_list);
-	pos += scnprintf(pos, endpos - pos, "Do TAS support dual radio?: %s\n",
-			 rsp->in_dual_radio ? "True" : "False");
+	pos += scnprintf(pos, endpos - pos, "\tDo TAS Support Dual Radio?: %s\n",
+			 rsp->in_dual_radio ? "TRUE" : "FALSE");
 
 	for (i = 0; i < rsp->in_dual_radio + 1; i++) {
-		if (rsp->tas_status_mac[i].static_status == 0) {
-			pos += scnprintf(pos, endpos - pos, "Static status: disabled\n");
-			pos += scnprintf(pos, endpos - pos, "Static disabled reason: %s (0)\n",
+		if (rsp->tas_status_mac[i].static_dis_reason == 0) {
+			pos += scnprintf(pos, endpos - pos, "\tStatic Status: Disabled\n");
+			pos += scnprintf(pos, endpos - pos, "\tStatic Disabled Reason: %s (0)\n",
 					 tas_dis_reason[0]);
 			goto out;
 		}
 
-		pos += scnprintf(pos, endpos - pos, "TAS status for ");
+		pos += scnprintf(pos, endpos - pos, "\nTAS status for ");
 		switch (rsp->tas_status_mac[i].band) {
 		case TAS_LMAC_BAND_HB:
-			pos += scnprintf(pos, endpos - pos, "High band\n");
+			pos += scnprintf(pos, endpos - pos, "HB\n");
 			break;
 		case TAS_LMAC_BAND_LB:
-			pos += scnprintf(pos, endpos - pos, "Low band\n");
+			pos += scnprintf(pos, endpos - pos, "LB\n");
 			break;
 		case TAS_LMAC_BAND_UHB:
-			pos += scnprintf(pos, endpos - pos, "Ultra high band\n");
+			pos += scnprintf(pos, endpos - pos, "UHB\n");
 			break;
 		case TAS_LMAC_BAND_INVALID:
-			pos += scnprintf(pos, endpos - pos, "INVALID band\n");
+			pos += scnprintf(pos, endpos - pos, "INVALID BAND\n");
 			break;
 		default:
 			IWL_ERR(mvm, "Unsupported band (%d)\n", rsp->tas_status_mac[i].band);
 			ret = -EIO;
 			goto out;
 		}
-		pos += scnprintf(pos, endpos - pos, "Static status: %sabled\n",
+		pos += scnprintf(pos, endpos - pos, "\tStatic Status: %sabled\n",
 				 rsp->tas_status_mac[i].static_status ? "En" : "Dis");
-		pos += scnprintf(pos, endpos - pos, "Static disabled reason: ");
+		pos += scnprintf(pos, endpos - pos, "\tStatic Disabled Reason: ");
 		if (rsp->tas_status_mac[i].static_dis_reason >= 0 &&
 		    rsp->tas_status_mac[i].static_dis_reason < TAS_DISABLED_REASON_MAX)
 			pos += scnprintf(pos, endpos - pos, "%s (%d)\n",
@@ -1019,21 +1020,21 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 			pos += scnprintf(pos, endpos - pos, "unsupported value (%d)\n",
 					 rsp->tas_status_mac[i].static_dis_reason);
 
-		pos += scnprintf(pos, endpos - pos, "Dynamic status:\n");
+		pos += scnprintf(pos, endpos - pos, "\tDynamic Status:\n");
 		dyn_status = (rsp->tas_status_mac[i].dynamic_status);
 		for_each_set_bit(tmp, &dyn_status, sizeof(dyn_status)) {
 			if (tmp >= 0 && tmp < TAS_DYNA_STATUS_MAX)
-				pos += scnprintf(pos, endpos - pos, "\t%s (%d)\n",
+				pos += scnprintf(pos, endpos - pos, "\t\t%s (%d)\n",
 						 tas_current_status[tmp], tmp);
 		}
 
-		pos += scnprintf(pos, endpos - pos, "Is near disconnection?: %s\n",
-				 rsp->tas_status_mac[i].near_disconnection ? "True" : "False");
+		pos += scnprintf(pos, endpos - pos, "\tIs Near Disconnection?: %s\n",
+				 rsp->tas_status_mac[i].near_disconnection ? "TRUE" : "FALSE");
 		tmp = le16_to_cpu(rsp->tas_status_mac[i].max_reg_pwr_limit);
-		pos += scnprintf(pos, endpos - pos, "Max. regulatory pwr limit (dBm): %d.%03d\n",
+		pos += scnprintf(pos, endpos - pos, "\tMax. Regulatory Pwr Limit (dBm): %d.%03d\n",
 				 tmp / 8, 125 * (tmp % 8));
 		tmp = le16_to_cpu(rsp->tas_status_mac[i].sar_limit);
-		pos += scnprintf(pos, endpos - pos, "SAR limit (dBm): %d.%03d\n",
+		pos += scnprintf(pos, endpos - pos, "\tSAR limit (dBm): %d.%03d\n",
 				 tmp / 8, 125 * (tmp % 8));
 	}
 
