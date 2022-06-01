@@ -1944,11 +1944,6 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	    !sdata->u.mgd.associated)
 		return -EINVAL;
 
-	if (params->sta_flags_set & BIT(NL80211_STA_FLAG_TDLS_PEER) &&
-	    sdata->vif.type == NL80211_IFTYPE_STATION &&
-	    !sdata->u.mgd.associated)
-		return -EINVAL;
-
 	sta = sta_info_alloc(sdata, mac, GFP_KERNEL);
 	if (!sta)
 		return -ENOMEM;
