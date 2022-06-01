@@ -2305,11 +2305,39 @@ bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 					 unencrypted, -1, cookie);
 }
 #endif /* >= 5.8 */
-#else
+
+#define cfg80211_req_link_id(req)		-1
+#define cfg80211_req_ap_mld_addr(req)		NULL
+#define cfg80211_req_link_bss(req, link)	NULL
+#define cfg80211_req_link_elems_len(req, link)	0
+
+static inline const struct wiphy_iftype_ext_capab *
+cfg80211_get_iftype_ext_capa(struct wiphy *wiphy, enum nl80211_iftype type)
+{
+#if CFG80211_VERSION >= KERNEL_VERSION(4,8,0)
+	int i;
+
+	for (i = 0; i < wiphy->num_iftype_ext_capab; i++) {
+		if (wiphy->iftype_ext_capab[i].iftype == type)
+			return &wiphy->iftype_ext_capab[i];
+	}
+#endif
+
+       return NULL;
+}
+#define cfg80211_ext_capa_eml_capabilities(ift_ext_capa)	0
+#define cfg80211_ext_capa_mld_capa_and_ops(ift_ext_capa)	0
+#else /* CFG80211 < 5.20 */
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #define link_sta_params_link_id(params) ((params)->link_sta_params.link_id)
 #define link_sta_params_link_mac(params) ((params)->link_sta_params.link_mac)
 #define cfg80211_disassoc_ap_addr(req)	((req)->ap_addr)
+#define cfg80211_req_link_id(req)		((req)->link_id)
+#define cfg80211_req_ap_mld_addr(req)		((req)->ap_mld_addr)
+#define cfg80211_req_link_bss(req, link)	((req)->links[link].bss
+#define cfg80211_req_link_elems_len(req, link)	((req)->links[link].elems_len
+#define cfg80211_ext_capa_eml_capabilities(ift_ext_capa)	(ift_ext_capa)->eml_capabilities
+#define cfg80211_ext_capa_mld_capa_and_ops(ift_ext_capa)	(ift_ext_capa)->mld_capa_and_ops
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
