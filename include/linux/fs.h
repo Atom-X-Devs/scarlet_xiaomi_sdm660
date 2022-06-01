@@ -1358,6 +1358,7 @@ extern int send_sigurg(struct fown_struct *fown);
 #define SB_I_UNTRUSTED_MOUNTER		0x00000040
 
 #define SB_I_PERSB_BDI	0x00000200	/* has a per-sb bdi */
+#define SB_I_RETIRED	0x00000800	/* superblock shouldn't be reused */
 
 /* Possible states of 'frozen' field */
 enum {
@@ -2210,6 +2211,7 @@ extern struct dentry *mount_nodev(struct file_system_type *fs_type,
 	int flags, void *data,
 	int (*fill_super)(struct super_block *, void *, int));
 extern struct dentry *mount_subtree(struct vfsmount *mnt, const char *path);
+void retire_super(struct super_block *sb);
 void generic_shutdown_super(struct super_block *sb);
 #ifdef CONFIG_BLOCK
 void kill_block_super(struct super_block *sb);
