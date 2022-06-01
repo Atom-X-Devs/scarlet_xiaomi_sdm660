@@ -1900,13 +1900,13 @@ static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int l
 	u64_stats_update_end(&tstats->syncp);
 }
 
-#define bp_ieee80211_set_unsol_bcast_probe_resp(sdata, params) 0
+#define bp_ieee80211_set_unsol_bcast_probe_resp(sdata, params, link, link_conf) 0
 #define bp_unsol_bcast_probe_resp_interval(params) 0
 
 #else /* < 5.10 */
 
-#define bp_ieee80211_set_unsol_bcast_probe_resp(sdata, params) \
-	ieee80211_set_unsol_bcast_probe_resp(sdata, params)
+#define bp_ieee80211_set_unsol_bcast_probe_resp(sdata, params, link, link_conf) \
+	ieee80211_set_unsol_bcast_probe_resp(sdata, params, link, link_conf)
 #define bp_unsol_bcast_probe_resp_interval(params) \
 	(params->unsol_bcast_probe_resp.interval)
 
