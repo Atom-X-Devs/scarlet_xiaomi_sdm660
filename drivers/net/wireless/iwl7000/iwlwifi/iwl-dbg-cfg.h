@@ -268,6 +268,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, mu_edca)
 	IWL_DBG_CFG_BIN(he_mac_cap)
 	IWL_DBG_CFG_BIN(he_phy_cap)
+	IWL_DBG_CFG_BIN(eht_ppe_thres)
 	IWL_DBG_CFG_BIN(eht_mac_cap)
 	IWL_DBG_CFG_BIN(eht_phy_cap)
 	IWL_DBG_CFG(u32, FW_DBG_DOMAIN)
