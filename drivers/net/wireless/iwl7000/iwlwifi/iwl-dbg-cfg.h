@@ -268,6 +268,8 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, mu_edca)
 	IWL_DBG_CFG_BIN(he_mac_cap)
 	IWL_DBG_CFG_BIN(he_phy_cap)
+	IWL_DBG_CFG_BIN(eht_mac_cap)
+	IWL_DBG_CFG_BIN(eht_phy_cap)
 	IWL_DBG_CFG(u32, FW_DBG_DOMAIN)
 	IWL_DBG_CFG_FN(FW_DBG_PRESET, iwl_dbg_cfg_parse_fw_dbg_preset)
 	IWL_DBG_CFG_NODEF(bool, he_smps_disabled)
