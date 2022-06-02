@@ -244,7 +244,8 @@ static void iwl_mvm_mld_unassign_vif_chanctx(struct ieee80211_hw *hw,
 }
 
 static int iwl_mvm_mld_start_ap_ibss(struct ieee80211_hw *hw,
-				     struct ieee80211_vif *vif)
+				     struct ieee80211_vif *vif,
+				     unsigned int link_id)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
@@ -320,8 +321,22 @@ out_unlock:
 	return ret;
 }
 
+static int iwl_mvm_mld_start_ap(struct ieee80211_hw *hw,
+				struct ieee80211_vif *vif,
+				unsigned int link_id)
+{
+	return iwl_mvm_mld_start_ap_ibss(hw, vif, link_id);
+}
+
+static int iwl_mvm_mld_start_ibss(struct ieee80211_hw *hw,
+				  struct ieee80211_vif *vif)
+{
+	return iwl_mvm_mld_start_ap_ibss(hw, vif, 0);
+}
+
 static void iwl_mvm_mld_stop_ap_ibss(struct ieee80211_hw *hw,
-				     struct ieee80211_vif *vif)
+				     struct ieee80211_vif *vif,
+				     unsigned int link_id)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 
@@ -347,6 +362,19 @@ static void iwl_mvm_mld_stop_ap_ibss(struct ieee80211_hw *hw,
 	iwl_mvm_mld_mac_ctxt_remove(mvm, vif);
 
 	mutex_unlock(&mvm->mutex);
+}
+
+static void iwl_mvm_mld_stop_ap(struct ieee80211_hw *hw,
+				struct ieee80211_vif *vif,
+				unsigned int link_id)
+{
+	iwl_mvm_mld_stop_ap_ibss(hw, vif, link_id);
+}
+
+static void iwl_mvm_mld_stop_ibss(struct ieee80211_hw *hw,
+				  struct ieee80211_vif *vif)
+{
+	iwl_mvm_mld_stop_ap_ibss(hw, vif, 0);
 }
 
 static int iwl_mvm_mld_mac_sta_state(struct ieee80211_hw *hw,
@@ -674,10 +702,10 @@ const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.unassign_vif_chanctx = iwl_mvm_mld_unassign_vif_chanctx,
 	.switch_vif_chanctx = iwl_mvm_mld_switch_vif_chanctx,
 
-	.start_ap = iwl_mvm_mld_start_ap_ibss,
-	.stop_ap = iwl_mvm_mld_stop_ap_ibss,
-	.join_ibss = iwl_mvm_mld_start_ap_ibss,
-	.leave_ibss = iwl_mvm_mld_stop_ap_ibss,
+	.start_ap = iwl_mvm_mld_start_ap,
+	.stop_ap = iwl_mvm_mld_stop_ap,
+	.join_ibss = iwl_mvm_mld_start_ibss,
+	.leave_ibss = iwl_mvm_mld_stop_ibss,
 
 	.tx_last_beacon = iwl_mvm_tx_last_beacon,
 
