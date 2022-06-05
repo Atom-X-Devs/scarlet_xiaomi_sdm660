@@ -41,6 +41,8 @@
 #define BLUETOOTH_VER_1_1	1
 #define BLUETOOTH_VER_1_2	2
 #define BLUETOOTH_VER_2_0	3
+#define BLUETOOTH_VER_2_1	4
+#define BLUETOOTH_VER_4_0	6
 
 /* Reserv for core and drivers use */
 #define BT_SKB_RESERVE	8
@@ -165,9 +167,6 @@ void bt_err_ratelimited(const char *fmt, ...);
 #define BT_ERR(fmt, ...)	\
 	bt_err(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
 
-#define BT_ERR_RATELIMITED(fmt, ...) \
-	bt_err_ratelimited(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
-
 #define bt_dev_info(hdev, fmt, ...)				\
 	BT_INFO("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 #define bt_dev_warn(hdev, fmt, ...)				\
@@ -181,7 +180,7 @@ void bt_err_ratelimited(const char *fmt, ...);
 	bt_warn_ratelimited("%s: " BT_PREFIX fmt, (hdev)->name	\
 			    BT_PREFIX_PARAM, ##__VA_ARGS__)
 #define bt_dev_err_ratelimited(hdev, fmt, ...)			\
-	BT_ERR_RATELIMITED("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
+	bt_err_ratelimited("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 
 /* Connection and socket states */
 enum {
@@ -345,6 +344,7 @@ typedef void (*hci_req_complete_skb_t)(struct hci_dev *hdev, u8 status,
 #define HCI_REQ_SKB	BIT(1)
 
 struct hci_ctrl {
+	struct sock *sk;
 	u16 opcode;
 	u8 req_flags;
 	u8 req_event;
@@ -376,6 +376,8 @@ struct bt_skb_cb {
 #define hci_skb_pkt_type(skb) bt_cb((skb))->pkt_type
 #define hci_skb_expect(skb) bt_cb((skb))->expect
 #define hci_skb_opcode(skb) bt_cb((skb))->hci.opcode
+#define hci_skb_event(skb) bt_cb((skb))->hci.req_event
+#define hci_skb_sk(skb) bt_cb((skb))->hci.sk
 
 static inline struct sk_buff *bt_skb_alloc(unsigned int len, gfp_t how)
 {

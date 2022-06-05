@@ -17,15 +17,14 @@ void msft_register(struct hci_dev *hdev);
 void msft_unregister(struct hci_dev *hdev);
 void msft_do_open(struct hci_dev *hdev);
 void msft_do_close(struct hci_dev *hdev);
-void msft_vendor_evt(struct hci_dev *hdev, struct sk_buff *skb);
+void msft_vendor_evt(struct hci_dev *hdev, void *data, struct sk_buff *skb);
 __u64 msft_get_features(struct hci_dev *hdev);
 int msft_add_monitor_pattern(struct hci_dev *hdev, struct adv_monitor *monitor);
-int msft_remove_monitor(struct hci_dev *hdev, struct adv_monitor *monitor,
-			u16 handle);
+int msft_remove_monitor(struct hci_dev *hdev, struct adv_monitor *monitor);
 void msft_req_add_set_filter_enable(struct hci_request *req, bool enable);
 int msft_set_filter_enable(struct hci_dev *hdev, bool enable);
-void msft_suspend(struct hci_dev *hdev);
-void msft_resume(struct hci_dev *hdev);
+int msft_suspend_sync(struct hci_dev *hdev);
+int msft_resume_sync(struct hci_dev *hdev);
 
 #else
 
@@ -38,7 +37,8 @@ static inline void msft_register(struct hci_dev *hdev) {}
 static inline void msft_unregister(struct hci_dev *hdev) {}
 static inline void msft_do_open(struct hci_dev *hdev) {}
 static inline void msft_do_close(struct hci_dev *hdev) {}
-static inline void msft_vendor_evt(struct hci_dev *hdev, struct sk_buff *skb) {}
+static inline void msft_vendor_evt(struct hci_dev *hdev, void *data,
+				   struct sk_buff *skb) {}
 static inline __u64 msft_get_features(struct hci_dev *hdev) { return 0; }
 static inline int msft_add_monitor_pattern(struct hci_dev *hdev,
 					   struct adv_monitor *monitor)
@@ -47,8 +47,7 @@ static inline int msft_add_monitor_pattern(struct hci_dev *hdev,
 }
 
 static inline int msft_remove_monitor(struct hci_dev *hdev,
-				      struct adv_monitor *monitor,
-				      u16 handle)
+				      struct adv_monitor *monitor)
 {
 	return -EOPNOTSUPP;
 }
@@ -60,7 +59,14 @@ static inline int msft_set_filter_enable(struct hci_dev *hdev, bool enable)
 	return -EOPNOTSUPP;
 }
 
-static inline void msft_suspend(struct hci_dev *hdev) {}
-static inline void msft_resume(struct hci_dev *hdev) {}
+static inline int msft_suspend_sync(struct hci_dev *hdev)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int msft_resume_sync(struct hci_dev *hdev)
+{
+	return -EOPNOTSUPP;
+}
 
 #endif

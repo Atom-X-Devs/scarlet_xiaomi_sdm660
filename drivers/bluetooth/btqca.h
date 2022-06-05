@@ -92,7 +92,7 @@ struct rome_config {
 struct edl_event_hdr {
 	__u8 cresp;
 	__u8 rtype;
-	__u8 data[0];
+	__u8 data[];
 } __packed;
 
 struct rome_version {
@@ -125,12 +125,12 @@ struct tlv_type_nvm {
 	__le16 tag_len;
 	__le32 reserve1;
 	__le32 reserve2;
-	__u8   data[0];
+	__u8   data[];
 } __packed;
 
 struct tlv_type_hdr {
 	__le32 type_len;
-	__u8   data[0];
+	__u8   data[];
 } __packed;
 
 enum qca_btsoc_type {
