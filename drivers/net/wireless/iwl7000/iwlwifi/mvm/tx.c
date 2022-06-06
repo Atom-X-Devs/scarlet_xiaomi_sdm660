@@ -2230,17 +2230,22 @@ free_rsp:
 
 int iwl_mvm_flush_sta(struct iwl_mvm *mvm, void *sta, bool internal)
 {
-	struct iwl_mvm_int_sta *int_sta = sta;
-	struct iwl_mvm_sta *mvm_sta = sta;
+	u32 sta_id, tfd_queue_msk;
 
-	BUILD_BUG_ON(offsetof(struct iwl_mvm_int_sta, sta_id) !=
-		     offsetof(struct iwl_mvm_sta, sta_id));
+	if (internal) {
+		struct iwl_mvm_int_sta *int_sta = sta;
+
+		sta_id = int_sta->sta_id;
+		tfd_queue_msk = int_sta->tfd_queue_msk;
+	} else {
+		struct iwl_mvm_sta *mvm_sta = sta;
+
+		sta_id = mvm_sta->sta_id;
+		tfd_queue_msk = mvm_sta->tfd_queue_msk;
+	}
 
 	if (iwl_mvm_has_new_tx_api(mvm))
-		return iwl_mvm_flush_sta_tids(mvm, mvm_sta->sta_id, 0xffff);
+		return iwl_mvm_flush_sta_tids(mvm, sta_id, 0xffff);
 
-	if (internal)
-		return iwl_mvm_flush_tx_path(mvm, int_sta->tfd_queue_msk);
-
-	return iwl_mvm_flush_tx_path(mvm, mvm_sta->tfd_queue_msk);
+	return iwl_mvm_flush_tx_path(mvm, tfd_queue_msk);
 }
