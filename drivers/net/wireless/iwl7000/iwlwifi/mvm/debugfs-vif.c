@@ -820,7 +820,7 @@ static ssize_t iwl_dbgfs_eht_puncturing_write(struct ieee80211_vif *vif, char *b
 		if (mvmsta->vif != vif)
 			continue;
 
-		iwl_mvm_cfg_he_sta(mvm, vif, mvmsta->sta_id);
+		iwl_mvm_cfg_he_sta(mvm, vif, mvmsta->deflink.sta_id);
 	}
 
 	mutex_unlock(&mvm->mutex);

@@ -1066,7 +1066,7 @@ int iwl_mvm_mac_ampdu_action(struct ieee80211_hw *hw,
 	switch (action) {
 	case IEEE80211_AMPDU_RX_START:
 		if (iwl_mvm_vif_from_mac80211(vif)->deflink.ap_sta_id ==
-				iwl_mvm_sta_from_mac80211(sta)->sta_id) {
+				iwl_mvm_sta_from_mac80211(sta)->deflink.sta_id) {
 			struct iwl_mvm_vif *mvmvif;
 			u16 macid = iwl_mvm_vif_from_mac80211(vif)->id;
 			struct iwl_mvm_tcm_mac *mdata = &mvm->tcm.data[macid];
@@ -3384,7 +3384,7 @@ static void __iwl_mvm_mac_sta_notify(struct ieee80211_hw *hw,
 		 */
 		break;
 	case STA_NOTIFY_AWAKE:
-		if (WARN_ON(mvmsta->sta_id == IWL_MVM_INVALID_STA))
+		if (WARN_ON(mvmsta->deflink.sta_id == IWL_MVM_INVALID_STA))
 			break;
 
 		if (txqs)
@@ -3472,8 +3472,8 @@ void iwl_mvm_sta_pre_rcu_remove(struct ieee80211_hw *hw,
 	 * callback deleted the station.
 	 */
 	mutex_lock(&mvm->mutex);
-	if (sta == rcu_access_pointer(mvm->fw_id_to_mac_id[mvm_sta->sta_id]))
-		rcu_assign_pointer(mvm->fw_id_to_mac_id[mvm_sta->sta_id],
+	if (sta == rcu_access_pointer(mvm->fw_id_to_mac_id[mvm_sta->deflink.sta_id]))
+		rcu_assign_pointer(mvm->fw_id_to_mac_id[mvm_sta->deflink.sta_id],
 				   ERR_PTR(-ENOENT));
 
 	mutex_unlock(&mvm->mutex);
@@ -3776,7 +3776,8 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 			     !iwlwifi_mod_params.disable_11ax) ||
 			    (vif->bss_conf.eht_support &&
 			     !iwlwifi_mod_params.disable_11be)))
-				iwl_mvm_cfg_he_sta(mvm, vif, mvm_sta->sta_id);
+				iwl_mvm_cfg_he_sta(mvm, vif,
+						   mvm_sta->deflink.sta_id);
 		} else if (vif->type == NL80211_IFTYPE_STATION) {
 			vif->bss_conf.he_support = sta->deflink.he_cap.has_he;
 
@@ -5830,13 +5831,13 @@ void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
-	if (mvmsta->avg_energy) {
-		sinfo->signal_avg = -(s8)mvmsta->avg_energy;
+	if (mvmsta->deflink.avg_energy) {
+		sinfo->signal_avg = -(s8)mvmsta->deflink.avg_energy;
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG);
 	}
 
 	if (iwl_mvm_has_tlc_offload(mvm)) {
-		struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->lq_sta.rs_fw;
+		struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 
 		iwl_mvm_set_sta_rate(lq_sta->last_rate_n_flags, &sinfo->txrate);
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
@@ -5851,7 +5852,7 @@ void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 
 	mutex_lock(&mvm->mutex);
 
-	if (mvmvif->deflink.ap_sta_id != mvmsta->sta_id)
+	if (mvmvif->deflink.ap_sta_id != mvmsta->deflink.sta_id)
 		goto unlock;
 
 	if (iwl_mvm_request_statistics(mvm, false))

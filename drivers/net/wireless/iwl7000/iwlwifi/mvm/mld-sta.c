@@ -379,7 +379,7 @@ static int iwl_mvm_mld_cfg_sta(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_sta_cfg_cmd cmd = {
-		.sta_id = cpu_to_le32(mvm_sta->sta_id),
+		.sta_id = cpu_to_le32(mvm_sta->deflink.sta_id),
 		.link_id = cpu_to_le32(mvmvif->id),
 		.station_type = cpu_to_le32(mvm_sta->sta_type),
 		.mfp = cpu_to_le32(sta->mfp),
@@ -464,7 +464,7 @@ int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		sta_id = iwl_mvm_find_free_sta_id(mvm,
 						  ieee80211_vif_type_p2p(vif));
 	else
-		sta_id = mvm_sta->sta_id;
+		sta_id = mvm_sta->deflink.sta_id;
 
 	if (sta_id == IWL_MVM_INVALID_STA)
 		return -ENOSPC;
@@ -538,7 +538,7 @@ static void iwl_mvm_mld_disable_sta_queues(struct iwl_mvm *mvm,
 		if (mvm_sta->tid_data[i].txq_id == IWL_MVM_INVALID_QUEUE)
 			continue;
 
-		iwl_mvm_mld_disable_txq(mvm, mvm_sta->sta_id,
+		iwl_mvm_mld_disable_txq(mvm, mvm_sta->deflink.sta_id,
 					&mvm_sta->tid_data[i].txq_id, i);
 		mvm_sta->tid_data[i].txq_id = IWL_MVM_INVALID_QUEUE;
 	}
@@ -574,8 +574,8 @@ int iwl_mvm_mld_rm_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (iwl_mvm_sta_del(mvm, vif, sta, &ret))
 		return ret;
 
-	ret = iwl_mvm_mld_rm_sta_from_fw(mvm, mvm_sta->sta_id);
-	RCU_INIT_POINTER(mvm->fw_id_to_mac_id[mvm_sta->sta_id], NULL);
+	ret = iwl_mvm_mld_rm_sta_from_fw(mvm, mvm_sta->deflink.sta_id);
+	RCU_INIT_POINTER(mvm->fw_id_to_mac_id[mvm_sta->deflink.sta_id], NULL);
 
 	return ret;
 }
@@ -598,7 +598,7 @@ void iwl_mvm_mld_sta_modify_disable_tx(struct iwl_mvm *mvm,
 	struct iwl_mvm_sta_disable_tx_cmd cmd;
 	int ret;
 
-	cmd.sta_id = cpu_to_le32(mvmsta->sta_id);
+	cmd.sta_id = cpu_to_le32(mvmsta->deflink.sta_id);
 	cmd.disable = cpu_to_le32(disable);
 
 	ret = iwl_mvm_send_cmd_pdu(mvm,

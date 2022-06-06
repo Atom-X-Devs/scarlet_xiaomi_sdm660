@@ -450,7 +450,7 @@ static ssize_t iwl_dbgfs_rs_data_read(struct file *file, char __user *user_buf,
 {
 	struct ieee80211_sta *sta = file->private_data;
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
-	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->lq_sta.rs_fw;
+	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 	struct iwl_mvm *mvm = lq_sta->pers.drv;
 	static const size_t bufsz = 2048;
 	char *buff;
@@ -515,7 +515,7 @@ static ssize_t iwl_dbgfs_fixed_rate_write(struct ieee80211_sta *sta,
 					  loff_t *ppos)
 {
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
-	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->lq_sta.rs_fw;
+	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 	struct iwl_mvm *mvm = lq_sta->pers.drv;
 	u32 parsed_rate;
 
@@ -546,7 +546,7 @@ static ssize_t iwl_dbgfs_disable_rts_write(struct ieee80211_sta *sta,
 					   loff_t *ppos)
 {
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
-	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->lq_sta.rs_fw;
+	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 	u32 sta_id = lq_sta->pers.sta_id;
 	struct iwl_mvm *mvm = lq_sta->pers.drv;
 	bool disable_rts;
@@ -566,7 +566,7 @@ static ssize_t iwl_dbgfs_tlc_dhc_write(struct ieee80211_sta *sta,
 	int ret;
 
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
-	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->lq_sta.rs_fw;
+	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 	struct iwl_mvm *mvm = lq_sta->pers.drv;
 
 	if (sscanf(buf, "%i %i", &type, &value) != 2) {
