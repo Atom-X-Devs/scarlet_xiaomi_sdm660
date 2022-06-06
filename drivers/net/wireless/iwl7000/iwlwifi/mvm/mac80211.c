@@ -3775,6 +3775,12 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 				iwl_mvm_check_he_obss_narrow_bw_ru(hw, vif);
 
 			callbacks->mac_ctxt_changed(mvm, vif, false);
+
+			if (mvm->mld_api_is_used)
+				iwl_mvm_link_changed(mvm, vif,
+						     LINK_CONTEXT_MODIFY_ALL &
+						     ~LINK_CONTEXT_MODIFY_ACTIVE,
+						     true);
 		}
 
 		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
