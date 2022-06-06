@@ -1836,7 +1836,9 @@ static u8 hci_cc_le_clear_accept_list(struct hci_dev *hdev, void *data,
 	if (rp->status)
 		return rp->status;
 
+	hci_dev_lock(hdev);
 	hci_bdaddr_list_clear(&hdev->le_accept_list);
+	hci_dev_unlock(hdev);
 
 	return rp->status;
 }
@@ -1856,8 +1858,10 @@ static u8 hci_cc_le_add_to_accept_list(struct hci_dev *hdev, void *data,
 	if (!sent)
 		return rp->status;
 
+	hci_dev_lock(hdev);
 	hci_bdaddr_list_add(&hdev->le_accept_list, &sent->bdaddr,
 			    sent->bdaddr_type);
+	hci_dev_unlock(hdev);
 
 	return rp->status;
 }
@@ -1877,8 +1881,10 @@ static u8 hci_cc_le_del_from_accept_list(struct hci_dev *hdev, void *data,
 	if (!sent)
 		return rp->status;
 
+	hci_dev_lock(hdev);
 	hci_bdaddr_list_del(&hdev->le_accept_list, &sent->bdaddr,
 			    sent->bdaddr_type);
+	hci_dev_unlock(hdev);
 
 	return rp->status;
 }
@@ -1950,9 +1956,11 @@ static u8 hci_cc_le_add_to_resolv_list(struct hci_dev *hdev, void *data,
 	if (!sent)
 		return rp->status;
 
+	hci_dev_lock(hdev);
 	hci_bdaddr_list_add_with_irk(&hdev->le_resolv_list, &sent->bdaddr,
 				sent->bdaddr_type, sent->peer_irk,
 				sent->local_irk);
+	hci_dev_unlock(hdev);
 
 	return rp->status;
 }
@@ -1972,8 +1980,10 @@ static u8 hci_cc_le_del_from_resolv_list(struct hci_dev *hdev, void *data,
 	if (!sent)
 		return rp->status;
 
+	hci_dev_lock(hdev);
 	hci_bdaddr_list_del_with_irk(&hdev->le_resolv_list, &sent->bdaddr,
 			    sent->bdaddr_type);
+	hci_dev_unlock(hdev);
 
 	return rp->status;
 }
@@ -1988,7 +1998,9 @@ static u8 hci_cc_le_clear_resolv_list(struct hci_dev *hdev, void *data,
 	if (rp->status)
 		return rp->status;
 
+	hci_dev_lock(hdev);
 	hci_bdaddr_list_clear(&hdev->le_resolv_list);
+	hci_dev_unlock(hdev);
 
 	return rp->status;
 }
