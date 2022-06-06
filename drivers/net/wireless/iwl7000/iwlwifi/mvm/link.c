@@ -85,8 +85,13 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	iwl_mvm_set_fw_qos_params(mvm, vif, &cmd.ac[0], &cmd.qos_flags);
 
-	iwl_mvm_set_fw_dtim_tbtt(mvm, vif, &cmd.dtim_tsf, &cmd.dtim_time,
-				 &cmd.assoc_beacon_arrive_time);
+	/* We need the dtim_period to set the MAC as associated */
+	if (vif->cfg.assoc && vif->bss_conf.dtim_period)
+		iwl_mvm_set_fw_dtim_tbtt(mvm, vif, &cmd.dtim_tsf,
+					 &cmd.dtim_time,
+					 &cmd.assoc_beacon_arrive_time);
+	else
+		changes &= ~LINK_CONTEXT_MODIFY_BEACON_TIMING;
 
 	cmd.bi = cpu_to_le32(vif->bss_conf.beacon_int);
 	cmd.dtim_interval = cpu_to_le32(vif->bss_conf.beacon_int *
