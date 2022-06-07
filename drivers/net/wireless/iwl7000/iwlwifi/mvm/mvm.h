@@ -1800,16 +1800,20 @@ bool iwl_mvm_mac_add_interface_common(struct iwl_mvm *mvm,
 bool iwl_mvm_mac_remove_interface_common(struct ieee80211_hw *hw,
 					 struct ieee80211_vif *vif);
 void iwl_mvm_set_fw_basic_rates(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+				struct ieee80211_bss_conf *link_conf,
 				__le32 *cck_rates, __le32 *ofdm_rates);
 void iwl_mvm_set_fw_protection_flags(struct iwl_mvm *mvm,
 				     struct ieee80211_vif *vif,
+				     struct ieee80211_bss_conf *link_conf,
 				     __le32 *protection_flags, u32 ht_flag,
-				  u32 tgg_flag);
+				     u32 tgg_flag);
 void iwl_mvm_set_fw_qos_params(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			       struct ieee80211_bss_conf *link_conf,
 			       struct iwl_ac_qos *ac, __le32 *qos_flags);
 bool iwl_mvm_set_fw_mu_edca_params(struct iwl_mvm *mvm, struct iwl_mvm_vif *mvmvif,
 				   struct iwl_he_backoff_conf *trig_based_txf);
 void iwl_mvm_set_fw_dtim_tbtt(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			      struct ieee80211_bss_conf *link_conf,
 			      __le64 *dtim_tsf, __le32 *dtim_time,
 			      __le32 *assoc_beacon_arrive_time);
 __le32 iwl_mac_ctxt_p2p_dev_has_extended_disc(struct iwl_mvm *mvm,
@@ -1879,6 +1883,7 @@ int iwl_mvm_binding_remove_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 /* Links */
 int iwl_mvm_add_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			 struct ieee80211_bss_conf *link_conf,
 			 u32 changes, bool active);
 int iwl_mvm_remove_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 
