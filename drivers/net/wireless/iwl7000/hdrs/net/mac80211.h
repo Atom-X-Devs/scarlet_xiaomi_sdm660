@@ -4044,7 +4044,7 @@ struct ieee80211_ops {
 				u64 changed);
 	void (*link_info_changed)(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif,
-				  u64 link_id, u32 changed);
+				  unsigned int link_id, u64 changed);
 
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
