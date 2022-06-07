@@ -21,14 +21,10 @@ u8 iwl_mvm_get_channel_width(struct cfg80211_chan_def *chandef)
 		return IWL_PHY_CHANNEL_MODE80;
 	case NL80211_CHAN_WIDTH_160:
 		return IWL_PHY_CHANNEL_MODE160;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
 	case NL80211_CHAN_WIDTH_320:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		return IWL_PHY_CHANNEL_MODE320;
+#endif
 	default:
 		WARN(1, "Invalid channel width=%u", chandef->width);
 		return IWL_PHY_CHANNEL_MODE20;
@@ -153,7 +149,8 @@ static void iwl_mvm_phy_ctxt_cmd_data(struct iwl_mvm *mvm,
 	iwl_mvm_set_chan_info_chandef(mvm, &cmd->ci, chandef);
 
 	/* we only support RLC command version 2 */
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, WIDE_ID(DATA_PATH_GROUP, RLC_CONFIG_CMD), 0) < 2)
+	if (iwl_fw_lookup_cmd_ver(mvm->fw, WIDE_ID(DATA_PATH_GROUP,
+						   RLC_CONFIG_CMD), 0) < 2)
 		iwl_mvm_phy_ctxt_set_rxchain(mvm, ctxt, &cmd->rxchain_info,
 					     chains_static, chains_dynamic);
 }
@@ -166,7 +163,8 @@ static int iwl_mvm_phy_send_rlc(struct iwl_mvm *mvm,
 		.phy_id = cpu_to_le32(ctxt->id),
 	};
 
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, WIDE_ID(DATA_PATH_GROUP, RLC_CONFIG_CMD), 0) < 2)
+	if (iwl_fw_lookup_cmd_ver(mvm->fw, WIDE_ID(DATA_PATH_GROUP,
+						   RLC_CONFIG_CMD), 0) < 2)
 		return 0;
 
 	BUILD_BUG_ON(IWL_RLC_CHAIN_INFO_DRIVER_FORCE !=
@@ -293,7 +291,8 @@ int iwl_mvm_phy_ctxt_changed(struct iwl_mvm *mvm, struct iwl_mvm_phy_ctxt *ctxt,
 
 	lockdep_assert_held(&mvm->mutex);
 
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, WIDE_ID(DATA_PATH_GROUP, RLC_CONFIG_CMD), 0) >= 2 &&
+	if (iwl_fw_lookup_cmd_ver(mvm->fw, WIDE_ID(DATA_PATH_GROUP,
+						   RLC_CONFIG_CMD), 0) >= 2 &&
 	    ctxt->channel == chandef->chan &&
 	    ctxt->width == chandef->width &&
 	    ctxt->center_freq1 == chandef->center_freq1)

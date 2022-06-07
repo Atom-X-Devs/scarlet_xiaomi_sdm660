@@ -2,9 +2,7 @@
 /*
  * Copyright (C) 2020-2022 Intel Corporation
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
 #include <net/tso.h>
-#endif
 #include <linux/tcp.h>
 
 #include "iwl-debug.h"
@@ -1200,6 +1198,10 @@ int iwl_txq_dyn_alloc(struct iwl_trans *trans, u32 flags, u32 sta_mask,
 		.flags = CMD_WANT_SKB,
 	};
 	int ret;
+
+	if (trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_BZ &&
+	    trans->hw_rev_step == SILICON_A_STEP)
+		size = 4096;
 
 	txq = iwl_txq_dyn_alloc_dma(trans, size, timeout);
 	if (IS_ERR(txq))

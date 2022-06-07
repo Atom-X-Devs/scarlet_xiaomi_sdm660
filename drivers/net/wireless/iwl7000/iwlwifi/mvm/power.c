@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2019, 2021 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2019, 2021-2022 Intel Corporation
  * Copyright (C) 2013-2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
@@ -238,10 +238,7 @@ static void iwl_mvm_allow_uapsd_iterator(void *_data, u8 *mac,
 	switch (vif->type) {
 	case NL80211_IFTYPE_AP:
 	case NL80211_IFTYPE_ADHOC:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		data->allow_uapsd = false;
 		break;
 	case NL80211_IFTYPE_STATION:
@@ -579,12 +576,12 @@ static void iwl_mvm_power_get_vifs_iterator(void *_data, u8 *mac,
 	struct iwl_power_vifs *power_iterator = _data;
 	bool active = mvmvif->phy_ctxt && mvmvif->phy_ctxt->id < NUM_PHY_CTX;
 
+	if (!mvmvif->uploaded)
+		return;
+
 	switch (ieee80211_vif_type_p2p(vif)) {
 	case NL80211_IFTYPE_P2P_DEVICE:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		break;
 
 	case NL80211_IFTYPE_P2P_GO:
