@@ -237,17 +237,21 @@ void ieee80211_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
 		return;
 
 	if (changed & BSS_CHANGED_VIF_CFG_FLAGS) {
+		u64 ch = changed & BSS_CHANGED_VIF_CFG_FLAGS;
+
 		trace_drv_vif_cfg_changed(local, sdata, changed);
 		if (local->ops->vif_cfg_changed)
-			local->ops->vif_cfg_changed(&local->hw, &sdata->vif, changed);
+			local->ops->vif_cfg_changed(&local->hw, &sdata->vif, ch);
 	}
 
 	if (changed & ~BSS_CHANGED_VIF_CFG_FLAGS) {
+		u64 ch = changed & ~BSS_CHANGED_VIF_CFG_FLAGS;
+
 		/* FIXME: should be for each link */
 		trace_drv_link_info_changed(local, sdata, 0, changed);
 		if (local->ops->link_info_changed)
 			local->ops->link_info_changed(&local->hw, &sdata->vif,
-						      0, changed);
+						      0, ch);
 	}
 
 	if (local->ops->bss_info_changed)
