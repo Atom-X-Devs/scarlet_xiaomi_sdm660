@@ -1658,9 +1658,11 @@ int iwl_mvm_sta_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 						      mvmvif->color);
 	mvm_sta->vif = vif;
 	if (!mvm->trans->trans_cfg->gen2)
-		mvm_sta->max_agg_bufsize = LINK_QUAL_AGG_FRAME_LIMIT_DEF;
+		mvm_sta->lq_sta.rs_drv.max_agg_bufsize =
+			LINK_QUAL_AGG_FRAME_LIMIT_DEF;
 	else
-		mvm_sta->max_agg_bufsize = LINK_QUAL_AGG_FRAME_LIMIT_GEN2_DEF;
+		mvm_sta->lq_sta.rs_drv.max_agg_bufsize =
+			LINK_QUAL_AGG_FRAME_LIMIT_GEN2_DEF;
 	mvm_sta->tt_tx_protection = false;
 	mvm_sta->sta_type = sta_type;
 
@@ -3190,9 +3192,10 @@ out:
 	 * for each station. Therefore, use the minimum of all the
 	 * aggregation sessions and our default value.
 	 */
-	mvmsta->max_agg_bufsize =
-		min(mvmsta->max_agg_bufsize, buf_size);
-	mvmsta->lq_sta.rs_drv.lq.agg_frame_cnt_limit = mvmsta->max_agg_bufsize;
+	mvmsta->lq_sta.rs_drv.max_agg_bufsize =
+		min(mvmsta->lq_sta.rs_drv.max_agg_bufsize, buf_size);
+	mvmsta->lq_sta.rs_drv.lq.agg_frame_cnt_limit =
+		mvmsta->lq_sta.rs_drv.max_agg_bufsize;
 
 	IWL_DEBUG_HT(mvm, "Tx aggregation enabled on ra = %pM tid = %d\n",
 		     sta->addr, tid);

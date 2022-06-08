@@ -3,7 +3,7 @@
  *
  * Copyright(c) 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2017 Intel Deutschland GmbH
- * Copyright (C) 2003 - 2014, 2018 - 2021 Intel Corporation
+ * Copyright (C) 2003 - 2014, 2018 - 2022 Intel Corporation
  *****************************************************************************/
 
 #ifndef __rs_h__
@@ -198,6 +198,7 @@ struct rs_rate {
 /**
  * struct iwl_lq_sta_rs_fw - rate and related statistics for RS in FW
  * @last_rate_n_flags: last rate reported by FW
+ * @max_agg_bufsize: the maximal size of the AGG buffer for this station
  * @sta_id: the id of the station
 #ifdef CPTCFG_MAC80211_DEBUGFS
  * @dbg_fixed_rate: for debug, use fixed rate if not 0
@@ -347,6 +348,8 @@ struct iwl_lq_sta {
 
 	/* last tx rate_n_flags */
 	u32 last_rate_n_flags;
+	u16 max_agg_bufsize;
+
 	/* packets destined for this STA are aggregated */
 	u8 is_agg;
 
