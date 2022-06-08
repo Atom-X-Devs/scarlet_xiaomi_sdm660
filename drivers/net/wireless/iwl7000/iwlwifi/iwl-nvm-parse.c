@@ -1074,6 +1074,24 @@ static bool iwl_he_mcs_greater(u16 a, u16 b)
 	return false;
 }
 
+#define IWL_COPY_BIN(bin, field_name) do { \
+	typeof(trans->dbg_cfg.bin) *_bin = &trans->dbg_cfg.bin; \
+	typeof(_bin->len) _len = _bin->len; \
+	typeof(iftype_data->field_name) *_field = &iftype_data->field_name; \
+\
+	if (!_len) \
+		break; \
+	if (_len > sizeof(*_field)) {\
+		IWL_ERR(trans, \
+			"Wrong " #bin " len %u, should be max %zu for " #field_name "\n", \
+			_len, sizeof(*_field)); \
+		break; \
+	} \
+	if (_len != sizeof(*_field)) \
+		memset(_field, 0, sizeof(*_field)); \
+	memcpy(_field, _bin->data, _len); \
+} while (0)
+
 static void iwl_init_he_override(struct iwl_trans *trans,
 				 struct ieee80211_supported_band *sband)
 {
@@ -1273,6 +1291,23 @@ static void iwl_init_eht_band_override(struct iwl_trans *trans,
 				       trans->dbg_cfg.eht_phy_cap.data,
 				       trans->dbg_cfg.eht_phy_cap.len);
 			}
+		}
+
+		if (trans->dbg_cfg.eht_mcs_only_20Mhz.len) {
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
+			IWL_COPY_BIN(eht_mcs_only_20Mhz,
+				     eht_cap.eht_mcs_nss_supp.only_20mhz);
+#endif
+		} else {
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
+			IWL_COPY_BIN(eht_mcs_80, eht_cap.eht_mcs_nss_supp.bw._80);
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
+			IWL_COPY_BIN(eht_mcs_160, eht_cap.eht_mcs_nss_supp.bw._160);
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,18,0)
+			IWL_COPY_BIN(eht_mcs_320, eht_cap.eht_mcs_nss_supp.bw._320);
+#endif
 		}
 	}
 }
