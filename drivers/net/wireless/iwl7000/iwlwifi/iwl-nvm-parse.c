@@ -1309,6 +1309,14 @@ static void iwl_init_eht_band_override(struct iwl_trans *trans,
 			IWL_COPY_BIN(eht_mcs_320, eht_cap.eht_mcs_nss_supp.bw._320);
 #endif
 		}
+
+		if (trans->dbg_cfg.eht_disable_320) {
+			memset(&cfg_eht_cap(iftype_data)->eht_mcs_nss_supp.bw._320,
+			       0,
+			       sizeof(cfg_eht_cap(iftype_data)->eht_mcs_nss_supp.bw._320));
+			cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[0] &=
+				~IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ;
+		}
 	}
 }
 
