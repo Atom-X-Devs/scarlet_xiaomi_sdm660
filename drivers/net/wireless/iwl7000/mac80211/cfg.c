@@ -4751,6 +4751,28 @@ ieee80211_set_radar_background(struct wiphy *wiphy,
 }
 #endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+static int ieee80211_add_intf_link(struct wiphy *wiphy,
+				   struct wireless_dev *wdev,
+				   unsigned int link_id)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
+
+	return ieee80211_vif_set_links(sdata, wdev->valid_links);
+}
+#endif
+
+#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+static void ieee80211_del_intf_link(struct wiphy *wiphy,
+				    struct wireless_dev *wdev,
+				    unsigned int link_id)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
+
+	ieee80211_vif_set_links(sdata, wdev->valid_links);
+}
+#endif
+
 const struct cfg80211_ops mac80211_config_ops = {
 	.add_virtual_intf = ieee80211_add_iface,
 	.del_virtual_intf = ieee80211_del_iface,
@@ -4907,5 +4929,11 @@ const struct cfg80211_ops mac80211_config_ops = {
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(5,17,0)
 	.set_radar_background = ieee80211_set_radar_background,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+	.add_intf_link = ieee80211_add_intf_link,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+	.del_intf_link = ieee80211_del_intf_link,
 #endif
 };
