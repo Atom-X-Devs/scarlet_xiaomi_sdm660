@@ -98,7 +98,7 @@ void evdi_driver_unload(struct drm_device *dev)
 	kfree(evdi);
 }
 
-void evdi_driver_preclose(struct drm_device *drm_dev, struct drm_file *file)
+void evdi_driver_postclose(struct drm_device *drm_dev, struct drm_file *file)
 {
 	struct evdi_device *evdi = drm_dev->dev_private;
 
