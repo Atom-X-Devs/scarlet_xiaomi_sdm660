@@ -1146,6 +1146,39 @@ void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, int clock_type,
 	}
 }
 
+/* Find if at least two links from different vifs use same channel
+ * FIXME: consider having a refcount array in struct iwl_mvm_vif for
+ * used phy_ctxt ids.
+ */
+bool iwl_mvm_have_links_same_channel(struct iwl_mvm_vif *vif1,
+				     struct iwl_mvm_vif *vif2)
+{
+	unsigned int i, j;
+
+	for_each_mvm_vif_valid_link(vif1, i) {
+		for_each_mvm_vif_valid_link(vif2, j) {
+			if (vif1->link[i]->phy_ctxt == vif2->link[j]->phy_ctxt)
+				return true;
+		}
+	}
+
+	return false;
+}
+
+bool iwl_mvm_vif_is_active(struct iwl_mvm_vif *mvmvif)
+{
+	unsigned int i;
+
+	/* FIXME: can it fail when phy_ctxt is assigned? */
+	for_each_mvm_vif_valid_link(mvmvif, i) {
+		if (mvmvif->link[i]->phy_ctxt &&
+		    mvmvif->link[i]->phy_ctxt->id < NUM_PHY_CTX)
+			return true;
+	}
+
+	return false;
+}
+
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 {
