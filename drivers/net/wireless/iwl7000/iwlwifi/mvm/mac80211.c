@@ -2980,11 +2980,6 @@ static int iwl_mvm_start_ap_ibss(struct ieee80211_hw *hw,
 
 	mutex_lock(&mvm->mutex);
 
-	/* Send the beacon template */
-	ret = iwl_mvm_mac_ctxt_beacon_changed(mvm, vif);
-	if (ret)
-		goto out_unlock;
-
 	/*
 	 * Re-calculate the tsf id, as the leader-follower relations depend on
 	 * the beacon interval, which was not known when the AP interface
@@ -2995,6 +2990,11 @@ static int iwl_mvm_start_ap_ibss(struct ieee80211_hw *hw,
 
 	/* Add the mac context */
 	ret = iwl_mvm_mac_ctxt_add(mvm, vif);
+	if (ret)
+		goto out_unlock;
+
+	/* Send the beacon template */
+	ret = iwl_mvm_mac_ctxt_beacon_changed(mvm, vif);
 	if (ret)
 		goto out_unlock;
 

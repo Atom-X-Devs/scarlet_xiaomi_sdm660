@@ -253,15 +253,18 @@ static int iwl_mvm_mld_start_ap_ibss(struct ieee80211_hw *hw,
 
 	mutex_lock(&mvm->mutex);
 
-	/* Send the beacon template */
-	ret = iwl_mvm_mac_ctxt_beacon_changed(mvm, vif);
-	if (ret)
-		goto out_unlock;
-
 	/* No need to re-calculate the tsf_is, as it was offloaded */
 
 	/* Add the mac context */
 	ret = iwl_mvm_mld_mac_ctxt_add(mvm, vif);
+	if (ret)
+		goto out_unlock;
+
+	/* Send the beacon template */
+	/* TODO: if link_id is the same ID was the one fed in the FW (I doubt
+	 * it), then we can feed it in the beacon template id.
+	 */
+	ret = iwl_mvm_mac_ctxt_beacon_changed(mvm, vif);
 	if (ret)
 		goto out_unlock;
 
