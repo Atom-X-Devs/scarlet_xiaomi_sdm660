@@ -420,13 +420,6 @@ static int iwl_mvm_mld_cfg_sta(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		break;
 	}
 
-#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-	if (mvm->trans->dbg_cfg.no_ack_en & 0x2)
-		cmd.ack_enabled = cpu_to_le32(0);
-#endif
-
-	cmd.trig_rnd_alloc = cpu_to_le32(vif->bss_conf.uora_exists ? 1 : 0);
-
 	mpdu_dens = iwl_mvm_get_sta_ampdu_dens(sta, &agg_size);
 	cmd.tx_ampdu_spacing = cpu_to_le32(mpdu_dens);
 	cmd.tx_ampdu_max_size = cpu_to_le32(agg_size);
@@ -437,15 +430,23 @@ static int iwl_mvm_mld_cfg_sta(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	}
 
 	if (sta->deflink.he_cap.has_he) {
+		cmd.trig_rnd_alloc =
+			cpu_to_le32(vif->bss_conf.uora_exists ? 1 : 0);
+
 		/* PPE Thresholds */
 		iwl_mvm_set_sta_pkt_ext(mvm, sta, &cmd.pkt_ext);
+
+		/* HTC flags */
+		cmd.htc_flags = iwl_mvm_get_sta_htc_flags(sta);
 
 		if (sta->deflink.he_cap.he_cap_elem.mac_cap_info[2] &
 		    IEEE80211_HE_MAC_CAP2_ACK_EN)
 			cmd.ack_enabled = cpu_to_le32(1);
 
-		/* HTC flags */
-		cmd.htc_flags = iwl_mvm_get_sta_htc_flags(sta);
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+		if (mvm->trans->dbg_cfg.no_ack_en & 0x2)
+			cmd.ack_enabled = cpu_to_le32(0);
+#endif
 	}
 
 	return iwl_mvm_mld_send_sta_cmd(mvm, &cmd);
