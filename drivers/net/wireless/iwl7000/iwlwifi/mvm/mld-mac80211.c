@@ -412,8 +412,10 @@ static void iwl_mvm_mld_bss_info_changed_station(struct iwl_mvm *mvm,
 			  !iwlwifi_mod_params.disable_11be;
 
 	if (changes & BSS_CHANGED_ASSOC && vif->cfg.assoc &&
-	    (has_he || has_eht))
+	    (has_he || has_eht)) {
+		IWL_DEBUG_MAC80211(mvm, "Associated in HE mode\n");
 		link_changes |= LINK_CONTEXT_MODIFY_HE_PARAMS;
+	}
 
 	/* Update MU EDCA params */
 	if (changes & BSS_CHANGED_QOS && vif->cfg.assoc &&
