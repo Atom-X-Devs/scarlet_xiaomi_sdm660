@@ -54,7 +54,9 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
 		if (ret)
 			goto out_unref_phy;
 
-		ret = iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE,
+		ret = iwl_mvm_link_changed(mvm, vif,
+					   LINK_CONTEXT_MODIFY_ACTIVE |
+					   LINK_CONTEXT_MODIFY_RATES_INFO,
 					   true);
 		if (ret)
 			goto out_remove_link;
