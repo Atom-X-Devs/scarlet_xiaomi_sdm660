@@ -927,7 +927,7 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 	const char * const tas_dis_reason[TAS_DISABLED_REASON_MAX] = {
 		[TAS_DISABLED_DUE_TO_BIOS] = "Due To BIOS",
 		[TAS_DISABLED_DUE_TO_SAR_6DBM] = "Due To SAR Limit Less Than 6 dBm",
-		[TAS_DISABLED_REASON_INVALID] = "INVALID",
+		[TAS_DISABLED_REASON_INVALID] = "N/A",
 	};
 	const char * const tas_current_status[TAS_DYNA_STATUS_MAX] = {
 		[TAS_DYNA_INACTIVE] = "INACTIVE",
@@ -944,6 +944,7 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 		.data = { NULL, },
 	};
 	int ret, i, tmp;
+	bool tas_enabled = false;
 	unsigned long dyn_status;
 
 	if (!iwl_mvm_firmware_running(mvm))
@@ -962,6 +963,36 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 	endpos = pos + bufsz;
 
 	rsp = (void *)hcmd.resp_pkt->data;
+
+	pos += scnprintf(pos, endpos - pos, "TAS Conclusion:\n");
+	for (i = 0; i < rsp->in_dual_radio + 1; i++) {
+		if (rsp->tas_status_mac[i].band != TAS_LMAC_BAND_INVALID &&
+		    rsp->tas_status_mac[i].dynamic_status & BIT(TAS_DYNA_ACTIVE)) {
+			pos += scnprintf(pos, endpos - pos, "\tON for ");
+			switch (rsp->tas_status_mac[i].band) {
+			case TAS_LMAC_BAND_HB:
+				pos += scnprintf(pos, endpos - pos, "HB\n");
+				break;
+			case TAS_LMAC_BAND_LB:
+				pos += scnprintf(pos, endpos - pos, "LB\n");
+				break;
+			case TAS_LMAC_BAND_UHB:
+				pos += scnprintf(pos, endpos - pos, "UHB\n");
+				break;
+			case TAS_LMAC_BAND_INVALID:
+				pos += scnprintf(pos, endpos - pos, "INVALID BAND\n");
+				break;
+			default:
+				pos += scnprintf(pos, endpos - pos, "Unsupported band (%d)\n",
+						 rsp->tas_status_mac[i].band);
+				goto out;
+			}
+			tas_enabled = true;
+		}
+	}
+	if (!tas_enabled)
+		pos += scnprintf(pos, endpos - pos, "\tOFF\n");
+
 	pos += scnprintf(pos, endpos - pos, "TAS Report\n");
 	pos += scnprintf(pos, endpos - pos, "\tTAS FW version: %d\n", rsp->tas_fw_version);
 	pos += scnprintf(pos, endpos - pos, "\tIs UHB Enabled For USA?: %s\n",
@@ -1004,8 +1035,8 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 			pos += scnprintf(pos, endpos - pos, "INVALID BAND\n");
 			break;
 		default:
-			IWL_ERR(mvm, "Unsupported band (%d)\n", rsp->tas_status_mac[i].band);
-			ret = -EIO;
+			pos += scnprintf(pos, endpos - pos, "Unsupported band (%d)\n",
+					 rsp->tas_status_mac[i].band);
 			goto out;
 		}
 		pos += scnprintf(pos, endpos - pos, "\tStatic Status: %sabled\n",
