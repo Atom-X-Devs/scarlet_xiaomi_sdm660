@@ -34,7 +34,7 @@ int iwl_mvm_add_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	if (iwl_mvm_sf_update(mvm, vif, false))
 		return -EINVAL;
 
-	cmd.link_id = cpu_to_le32(mvmvif->deflink.phy_ctxt->id);
+	cmd.link_id = cpu_to_le32(mvmvif->id);
 	cmd.mac_id = cpu_to_le32(mvmvif->id);
 	cmd.phy_id = cpu_to_le32(mvmvif->deflink.phy_ctxt->id);
 
@@ -54,7 +54,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (WARN_ON_ONCE(!phyctxt))
 		return -EINVAL;
 
-	cmd.link_id = cpu_to_le32(phyctxt->id);
+	cmd.link_id = cpu_to_le32(mvmvif->id);
 
 	/* The phy_id, link address and listen_lmac can be modified only until
 	 * the link becomes active, otherwise they will be ignored.
@@ -171,7 +171,7 @@ int iwl_mvm_remove_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	if (WARN_ON_ONCE(!mvmvif->deflink.phy_ctxt))
 		return -EINVAL;
 
-	cmd.link_id = cpu_to_le32(mvmvif->deflink.phy_ctxt->id);
+	cmd.link_id = cpu_to_le32(mvmvif->id);
 	ret = iwl_mvm_link_cmd_send(mvm, &cmd, FW_CTXT_ACTION_REMOVE);
 
 	if (!ret)
