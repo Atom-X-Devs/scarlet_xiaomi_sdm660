@@ -156,7 +156,7 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 	u8 bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
 	int sta_start_freq = sta_center_freq - sta_bw / 2;
 	int start_freq = center_freq - bw / 2;
-	u16 shift = (start_freq - sta_start_freq) / 20;
+	u16 shift = (sta_start_freq - start_freq) / 20;
 	u16 mask = BIT(sta_bw / 20) - 1;
 
 	return (bitmap >> shift) & mask;
