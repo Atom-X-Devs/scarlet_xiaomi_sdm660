@@ -2215,12 +2215,12 @@ set_thresholds:
 }
 
 static void iwl_mvm_set_pkt_ext_from_he_ppe(struct iwl_mvm *mvm,
-					    struct ieee80211_sta *sta,
+					    struct ieee80211_link_sta *link_sta,
 					    struct iwl_he_pkt_ext_v2 *pkt_ext,
 					    bool inheritance)
 {
-	u8 nss = (sta->deflink.he_cap.ppe_thres[0] & IEEE80211_PPE_THRES_NSS_MASK) + 1;
-	u8 *ppe = &sta->deflink.he_cap.ppe_thres[0];
+	u8 nss = (link_sta->he_cap.ppe_thres[0] & IEEE80211_PPE_THRES_NSS_MASK) + 1;
+	u8 *ppe = &link_sta->he_cap.ppe_thres[0];
 	u8 ru_index_bitmap =
 		u8_get_bits(*ppe,
 			    IEEE80211_PPE_THRES_RU_INDEX_BITMASK_MASK);
@@ -2299,11 +2299,15 @@ static void iwl_mvm_get_optimal_ppe_info(struct iwl_he_pkt_ext_v2 *pkt_ext,
 }
 
 /* Set the pkt_ext field according to PPE Thresholds element */
-int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
+int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm,
+			    struct ieee80211_link_sta *link_sta,
 			    struct iwl_he_pkt_ext_v2 *pkt_ext)
 {
 	u8 nominal_padding;
 	int i, ret = 0;
+
+	if (WARN_ON(!link_sta))
+		return -EINVAL;
 
 	/*
 	 * Initialize the PPE thresholds to "None" (7), as described in Table
@@ -2312,17 +2316,17 @@ int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	memset(pkt_ext, IWL_HE_PKT_EXT_NONE,
 	       sizeof(struct iwl_he_pkt_ext_v2));
 
-	if (sta->deflink.eht_cap.has_eht) {
+	if (cfg_eht_cap_has_eht(link_sta)) {
 		nominal_padding =
-			u8_get_bits(sta->deflink.eht_cap.eht_cap_elem.phy_cap_info[5],
+			u8_get_bits(cfg_eht_cap(link_sta)->eht_cap_elem.phy_cap_info[5],
 				    IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_PKT_PAD_MASK);
 
 		/* If PPE Thresholds exists, parse them into a FW-familiar format. */
-		if (sta->deflink.eht_cap.eht_cap_elem.phy_cap_info[5] &
+		if (cfg_eht_cap(link_sta)->eht_cap_elem.phy_cap_info[5] &
 		    IEEE80211_EHT_PHY_CAP5_PPE_THRESHOLD_PRESENT) {
-			u8 nss = (sta->deflink.eht_cap.eht_ppe_thres[0] &
-				IEEE80211_EHT_PPE_THRES_NSS_MASK) + 1;
-			u8 *ppe = &sta->deflink.eht_cap.eht_ppe_thres[0];
+			u8 nss = (cfg_eht_cap(link_sta)->eht_ppe_thres[0] &
+				  IEEE80211_EHT_PPE_THRES_NSS_MASK) + 1;
+			u8 *ppe = &cfg_eht_cap(link_sta)->eht_ppe_thres[0];
 			u8 ru_index_bitmap =
 				u16_get_bits(*ppe,
 					     IEEE80211_EHT_PPE_THRES_RU_INDEX_BITMASK_MASK);
@@ -2332,7 +2336,7 @@ int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 			iwl_mvm_parse_ppe(mvm, pkt_ext, nss, ru_index_bitmap,
 					  ppe, ppe_pos_bit, true);
 		/* EHT PPE Thresholds doesn't exist - set the API according to HE PPE Tresholds*/
-		} else if (sta->deflink.he_cap.he_cap_elem.phy_cap_info[6] &
+		} else if (link_sta->he_cap.he_cap_elem.phy_cap_info[6] &
 			   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
 			/*
 			* Even though HE Capabilities IE doesn't contain PPE
@@ -2340,7 +2344,7 @@ int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 			* be filled in with the same values as 160Mhz, due to
 			* the inheritance, as required.
 			*/
-			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, sta, pkt_ext,
+			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, link_sta, pkt_ext,
 							true);
 
 			/*
@@ -2357,11 +2361,11 @@ int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 			ret = iwl_mvm_set_pkt_ext_from_nominal_padding(pkt_ext,
 								       nominal_padding);
 		}
-	} else if (sta->deflink.he_cap.has_he) {
+	} else if (link_sta->he_cap.has_he) {
 		/* If PPE Thresholds exist, parse them into a FW-familiar format. */
-		if (sta->deflink.he_cap.he_cap_elem.phy_cap_info[6] &
+		if (link_sta->he_cap.he_cap_elem.phy_cap_info[6] &
 			IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
-			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, sta, pkt_ext,
+			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, link_sta, pkt_ext,
 							false);
 		/*
 		* PPE Thresholds doesn't exist - set the API PPE values
@@ -2369,7 +2373,7 @@ int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		*/
 		} else {
 			nominal_padding =
-				u8_get_bits(sta->deflink.he_cap.he_cap_elem.phy_cap_info[9],
+				u8_get_bits(link_sta->he_cap.he_cap_elem.phy_cap_info[9],
 					    IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_MASK);
 			if (nominal_padding != IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_RESERVED)
 				ret = iwl_mvm_set_pkt_ext_from_nominal_padding(pkt_ext,
@@ -2462,9 +2466,11 @@ bool iwl_mvm_is_nic_ack_enabled(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 			       IEEE80211_HE_MAC_CAP2_ACK_EN));
 }
 
-__le32 iwl_mvm_get_sta_htc_flags(struct ieee80211_sta *sta)
+__le32 iwl_mvm_get_sta_htc_flags(struct ieee80211_sta *sta,
+				 struct ieee80211_link_sta *link_sta)
 {
-	u8 *mac_cap_info = &sta->deflink.he_cap.he_cap_elem.mac_cap_info[0];
+	u8 *mac_cap_info =
+		&link_sta->he_cap.he_cap_elem.mac_cap_info[0];
 	__le32 htc_flags = 0;
 
 	if (mac_cap_info[0] & IEEE80211_HE_MAC_CAP0_HTC_HE)
@@ -2557,10 +2563,10 @@ void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 		flags |= STA_CTXT_HE_RU_2MHZ_BLOCK;
 
 	/* HTC flags */
-	sta_ctxt_cmd.htc_flags = iwl_mvm_get_sta_htc_flags(sta);
+	sta_ctxt_cmd.htc_flags = iwl_mvm_get_sta_htc_flags(sta, &sta->deflink);
 
 	/* PPE Thresholds */
-	if (!iwl_mvm_set_sta_pkt_ext(mvm, sta, &sta_ctxt_cmd.pkt_ext))
+	if (!iwl_mvm_set_sta_pkt_ext(mvm, &sta->deflink, &sta_ctxt_cmd.pkt_ext))
 		flags |= STA_CTXT_HE_PACKET_EXT;
 
 	if (sta->deflink.he_cap.he_cap_elem.mac_cap_info[2] &
