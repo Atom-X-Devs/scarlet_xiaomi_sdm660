@@ -3662,6 +3662,260 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 					    &callbacks);
 }
 
+/* FIXME: temporary making two assumptions in all sta handling functions:
+ *	(1) when setting sta state, the link exists and protected
+ *	(2) if a link is valid in sta then it's valid in vif (can
+ *	use same index in the link array)
+ */
+
+#define iwl_mvm_rs_rate_init_all_links(mvm, mvmvif, sta, update) do {		\
+	typeof(mvmvif) _mvmvif = mvmvif;					\
+	unsigned int _i;							\
+	for_each_mvm_vif_valid_link(_mvmvif, _i)				\
+		iwl_mvm_rs_rate_init((mvm), (sta),				\
+				     _mvmvif->link[_i]->phy_ctxt->channel->band,\
+				     (update));					\
+} while (0)
+
+static bool iwl_mvm_vif_conf_from_sta(struct iwl_mvm *mvm,
+				      struct ieee80211_vif *vif,
+				      struct ieee80211_sta *sta)
+{
+	unsigned int i;
+
+	/* Beacon interval check - firmware will crash if the beacon
+	 * interval is less than 16. We can't avoid connecting at all,
+	 * so refuse the station state change, this will cause mac80211
+	 * to abandon attempts to connect to this AP, and eventually
+	 * wpa_s will blocklist the AP...
+	 */
+
+	for_each_set_bit(i, (unsigned long *)&sta->valid_links,
+			 IEEE80211_MLD_MAX_NUM_LINKS) {
+		struct ieee80211_link_sta *link_sta =
+			rcu_dereference_protected(sta->link[i], 1);
+		struct ieee80211_bss_conf *link_conf =
+			rcu_dereference_protected(vif->link_conf[i], 1);
+
+		if (!link_conf || !link_sta)
+			continue;
+
+		if (link_conf->beacon_int < IWL_MVM_MIN_BEACON_INTERVAL_TU) {
+			IWL_ERR(mvm,
+				"Beacon interval %d for AP %pM is too small\n",
+				link_conf->beacon_int, link_sta->addr);
+			return false;
+		}
+
+		link_conf->he_support = link_sta->he_cap.has_he;
+	}
+
+	return true;
+}
+
+static void iwl_mvm_vif_set_he_support(struct ieee80211_hw *hw,
+				       struct ieee80211_vif *vif,
+				       struct ieee80211_sta *sta,
+				       bool is_sta)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	unsigned int i;
+
+	for_each_set_bit(i, (unsigned long *)&sta->valid_links,
+			 IEEE80211_MLD_MAX_NUM_LINKS) {
+		struct ieee80211_link_sta *link_sta =
+			rcu_dereference_protected(sta->link[i], 1);
+		struct ieee80211_bss_conf *link_conf =
+			rcu_dereference_protected(vif->link_conf[i], 1);
+
+		if (!link_conf || !link_sta)
+			continue;
+
+		link_conf->he_support = link_sta->he_cap.has_he;
+
+		if (is_sta) {
+			mvmvif->link[i]->he_ru_2mhz_block = false;
+			if (link_sta->he_cap.has_he)
+				iwl_mvm_check_he_obss_narrow_bw_ru(hw, vif);
+		}
+	}
+}
+
+static int
+iwl_mvm_sta_state_notexist_to_none(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif,
+				   struct ieee80211_sta *sta,
+				   struct iwl_mvm_sta_state_ops *callbacks)
+{
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	enum ieee80211_smps_mode smps_mode;
+#endif
+	unsigned int i;
+	int ret;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	if (vif->type == NL80211_IFTYPE_STATION &&
+	    !iwl_mvm_vif_conf_from_sta(mvm, vif, sta))
+		return -EINVAL;
+
+	if (sta->tdls &&
+	    (vif->p2p ||
+	     iwl_mvm_tdls_sta_count(mvm, NULL) == IWL_MVM_TDLS_STA_COUNT ||
+	     iwl_mvm_phy_ctx_count(mvm) > 1)) {
+		IWL_DEBUG_MAC80211(mvm, "refusing TDLS sta\n");
+		return -EBUSY;
+	}
+
+	ret = callbacks->add_sta(mvm, vif, sta);
+	if (sta->tdls && ret == 0) {
+		iwl_mvm_recalc_tdls_state(mvm, vif, true);
+		iwl_mvm_tdls_check_trigger(mvm, vif, sta->addr,
+					   NL80211_TDLS_SETUP);
+	}
+
+	sta->max_rc_amsdu_len = 1;
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.ht_dynamic_smps)
+		smps_mode = IEEE80211_SMPS_DYNAMIC;
+	else if (mvm->trans->dbg_cfg.smps_disabled)
+		smps_mode = IEEE80211_SMPS_OFF;
+	else
+		return 0;
+
+	for_each_set_bit(i, (unsigned long *)&sta->valid_links,
+			 IEEE80211_MLD_MAX_NUM_LINKS) {
+		iwl_mvm_update_smps(mvm, vif, IWL_MVM_SMPS_REQ_DBG, smps_mode,
+				    i);
+	}
+#endif
+
+	return 0;
+}
+
+static int
+iwl_mvm_sta_state_auth_to_assoc(struct ieee80211_hw *hw,
+				struct iwl_mvm *mvm,
+				struct ieee80211_vif *vif,
+				struct ieee80211_sta *sta,
+				struct iwl_mvm_sta_state_ops *callbacks)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+	unsigned int i;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	if (vif->type == NL80211_IFTYPE_AP) {
+		iwl_mvm_vif_set_he_support(hw, vif, sta, false);
+		mvmvif->ap_assoc_sta_count++;
+		callbacks->mac_ctxt_changed(mvm, vif, false);
+
+		/* since the below is not for MLD API, it's ok to use
+		 * the default bss_conf
+		 */
+		if (!mvm->mld_api_is_used &&
+		    ((vif->bss_conf.he_support &&
+		      !iwlwifi_mod_params.disable_11ax) ||
+		    (vif->bss_conf.eht_support &&
+		     !iwlwifi_mod_params.disable_11be)))
+			iwl_mvm_cfg_he_sta(mvm, vif, mvm_sta->deflink.sta_id);
+	} else if (vif->type == NL80211_IFTYPE_STATION) {
+		iwl_mvm_vif_set_he_support(hw, vif, sta, true);
+
+		callbacks->mac_ctxt_changed(mvm, vif, false);
+
+		if (!mvm->mld_api_is_used)
+			goto out;
+
+		for_each_set_bit(i, (unsigned long *)&sta->valid_links,
+				 IEEE80211_MLD_MAX_NUM_LINKS) {
+			struct ieee80211_bss_conf *link_conf =
+				rcu_dereference_protected(vif->link_conf[i], 1);
+
+			if (WARN_ON(!link_conf))
+				return -EINVAL;
+
+			iwl_mvm_link_changed(mvm, vif, link_conf,
+					     LINK_CONTEXT_MODIFY_ALL &
+					     ~LINK_CONTEXT_MODIFY_ACTIVE,
+					     true);
+		}
+	}
+
+out:
+	iwl_mvm_rs_rate_init_all_links(mvm, mvmvif, sta, false);
+
+	return callbacks->update_sta(mvm, vif, sta);
+}
+
+static int
+iwl_mvm_sta_state_assoc_to_authorized(struct iwl_mvm *mvm,
+				      struct ieee80211_vif *vif,
+				      struct ieee80211_sta *sta,
+				      struct iwl_mvm_sta_state_ops *callbacks)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+
+	lockdep_assert_held(&mvm->mutex);
+
+	/* we don't support TDLS during DCM */
+	if (iwl_mvm_phy_ctx_count(mvm) > 1)
+		iwl_mvm_teardown_tdls_peers(mvm);
+
+	if (sta->tdls) {
+		iwl_mvm_tdls_check_trigger(mvm, vif, sta->addr,
+					   NL80211_TDLS_ENABLE_LINK);
+	} else {
+		/* enable beacon filtering */
+		WARN_ON(iwl_mvm_enable_beacon_filter(mvm, vif, 0));
+
+		mvmvif->authorized = 1;
+
+		callbacks->mac_ctxt_changed(mvm, vif, false);
+		iwl_mvm_mei_host_associated(mvm, vif, mvm_sta);
+	}
+
+	iwl_mvm_rs_rate_init_all_links(mvm, mvmvif, sta, true);
+
+	return 0;
+}
+
+static int
+iwl_mvm_sta_state_authorized_to_assoc(struct iwl_mvm *mvm,
+				      struct ieee80211_vif *vif,
+				      struct ieee80211_sta *sta,
+				      struct iwl_mvm_sta_state_ops *callbacks)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	int ret;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	/* once we move into assoc state, need to update rate scale to
+	 * disable using wide bandwidth
+	 */
+	iwl_mvm_rs_rate_init_all_links(mvm, mvmvif, sta, false);
+
+	if (!sta->tdls) {
+		/* Set this but don't call iwl_mvm_mac_ctxt_changed()
+		 * yet to avoid sending high prio again for a little
+		 * time.
+		 */
+		mvmvif->authorized = 0;
+
+		/* disable beacon filtering */
+		ret = iwl_mvm_disable_beacon_filter(mvm, vif, 0);
+		WARN_ON(ret &&
+			!test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED,
+				  &mvm->status));
+	}
+
+	return 0;
+}
+
 /* Common part for MLD and non-MLD modes */
 int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 				 struct ieee80211_vif *vif,
@@ -3673,14 +3927,11 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+	unsigned int link_id;
 	int ret;
 
 	IWL_DEBUG_MAC80211(mvm, "station %pM state change %d->%d\n",
 			   sta->addr, old_state, new_state);
-
-	/* this would be a mac80211 bug ... but don't crash */
-	if (WARN_ON_ONCE(!mvmvif->deflink.phy_ctxt))
-		return test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED, &mvm->status) ? 0 : -EINVAL;
 
 	/*
 	 * If we are in a STA removal flow and in DQA mode:
@@ -3712,57 +3963,25 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 	}
 
 	mutex_lock(&mvm->mutex);
+
+	/* this would be a mac80211 bug ... but don't crash */
+	for_each_mvm_vif_valid_link(mvmvif, link_id) {
+		if (WARN_ON_ONCE(!mvmvif->link[link_id]->phy_ctxt)) {
+			mutex_unlock(&mvm->mutex);
+			return test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED,
+					&mvm->status) ? 0 : -EINVAL;
+		}
+	}
+
 	/* track whether or not the station is associated */
 	mvm_sta->sta_state = new_state;
 
 	if (old_state == IEEE80211_STA_NOTEXIST &&
 	    new_state == IEEE80211_STA_NONE) {
-		/*
-		 * Firmware bug - it'll crash if the beacon interval is less
-		 * than 16. We can't avoid connecting at all, so refuse the
-		 * station state change, this will cause mac80211 to abandon
-		 * attempts to connect to this AP, and eventually wpa_s will
-		 * blocklist the AP...
-		 */
-		if (vif->type == NL80211_IFTYPE_STATION &&
-		    vif->bss_conf.beacon_int < IWL_MVM_MIN_BEACON_INTERVAL_TU) {
-			IWL_ERR(mvm,
-				"AP %pM beacon interval is %d, refusing due to firmware bug!\n",
-				sta->addr, vif->bss_conf.beacon_int);
-			ret = -EINVAL;
+		ret = iwl_mvm_sta_state_notexist_to_none(mvm, vif, sta, callbacks);
+		if (ret < 0)
 			goto out_unlock;
-		}
 
-		if (vif->type == NL80211_IFTYPE_STATION)
-			vif->bss_conf.he_support = sta->deflink.he_cap.has_he;
-
-		if (sta->tdls &&
-		    (vif->p2p ||
-		     iwl_mvm_tdls_sta_count(mvm, NULL) ==
-						IWL_MVM_TDLS_STA_COUNT ||
-		     iwl_mvm_phy_ctx_count(mvm) > 1)) {
-			IWL_DEBUG_MAC80211(mvm, "refusing TDLS sta\n");
-			ret = -EBUSY;
-			goto out_unlock;
-		}
-
-		ret = callbacks->add_sta(mvm, vif, sta);
-		if (sta->tdls && ret == 0) {
-			iwl_mvm_recalc_tdls_state(mvm, vif, true);
-			iwl_mvm_tdls_check_trigger(mvm, vif, sta->addr,
-						   NL80211_TDLS_SETUP);
-		}
-
-		sta->max_rc_amsdu_len = 1;
-
-#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-		if (mvm->trans->dbg_cfg.ht_dynamic_smps)
-			iwl_mvm_update_smps(mvm, vif, IWL_MVM_SMPS_REQ_DBG,
-					    IEEE80211_SMPS_DYNAMIC, 0);
-		else if (mvm->trans->dbg_cfg.smps_disabled)
-			iwl_mvm_update_smps(mvm, vif, IWL_MVM_SMPS_REQ_DBG,
-					    IEEE80211_SMPS_OFF, 0);
-#endif
 	} else if (old_state == IEEE80211_STA_NONE &&
 		   new_state == IEEE80211_STA_AUTH) {
 		/*
@@ -3774,84 +3993,16 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 		ret = 0;
 	} else if (old_state == IEEE80211_STA_AUTH &&
 		   new_state == IEEE80211_STA_ASSOC) {
-		if (vif->type == NL80211_IFTYPE_AP) {
-			vif->bss_conf.he_support = sta->deflink.he_cap.has_he;
-			mvmvif->ap_assoc_sta_count++;
-			callbacks->mac_ctxt_changed(mvm, vif, false);
-			if (!mvm->mld_api_is_used &&
-			    ((vif->bss_conf.he_support &&
-			     !iwlwifi_mod_params.disable_11ax) ||
-			    (vif->bss_conf.eht_support &&
-			     !iwlwifi_mod_params.disable_11be)))
-				iwl_mvm_cfg_he_sta(mvm, vif,
-						   mvm_sta->deflink.sta_id);
-		} else if (vif->type == NL80211_IFTYPE_STATION) {
-			vif->bss_conf.he_support = sta->deflink.he_cap.has_he;
-
-			mvmvif->deflink.he_ru_2mhz_block = false;
-			if (sta->deflink.he_cap.has_he)
-				iwl_mvm_check_he_obss_narrow_bw_ru(hw, vif);
-
-			callbacks->mac_ctxt_changed(mvm, vif, false);
-
-			if (mvm->mld_api_is_used)
-				iwl_mvm_link_changed(mvm, vif, &vif->bss_conf,
-						     LINK_CONTEXT_MODIFY_ALL &
-						     ~LINK_CONTEXT_MODIFY_ACTIVE,
-						     true);
-		}
-
-		iwl_mvm_rs_rate_init(mvm, sta,
-				     mvmvif->deflink.phy_ctxt->channel->band,
-				     false);
-		ret = callbacks->update_sta(mvm, vif, sta);
+		ret = iwl_mvm_sta_state_auth_to_assoc(hw, mvm, vif, sta,
+						      callbacks);
 	} else if (old_state == IEEE80211_STA_ASSOC &&
 		   new_state == IEEE80211_STA_AUTHORIZED) {
-		ret = 0;
-
-		/* we don't support TDLS during DCM */
-		if (iwl_mvm_phy_ctx_count(mvm) > 1)
-			iwl_mvm_teardown_tdls_peers(mvm);
-
-		if (sta->tdls) {
-			iwl_mvm_tdls_check_trigger(mvm, vif, sta->addr,
-						   NL80211_TDLS_ENABLE_LINK);
-		} else {
-			/* enable beacon filtering */
-			WARN_ON(iwl_mvm_enable_beacon_filter(mvm, vif, 0));
-
-			mvmvif->authorized = 1;
-
-			callbacks->mac_ctxt_changed(mvm, vif, false);
-			iwl_mvm_mei_host_associated(mvm, vif, mvm_sta);
-		}
-
-		iwl_mvm_rs_rate_init(mvm, sta,
-				     mvmvif->deflink.phy_ctxt->channel->band,
-				     true);
+		ret = iwl_mvm_sta_state_assoc_to_authorized(mvm, vif, sta,
+							    callbacks);
 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
 		   new_state == IEEE80211_STA_ASSOC) {
-		/* once we move into assoc state, need to update rate scale to
-		 * disable using wide bandwidth
-		 */
-		iwl_mvm_rs_rate_init(mvm, sta,
-				     mvmvif->deflink.phy_ctxt->channel->band,
-				     false);
-		if (!sta->tdls) {
-			/*
-			 * Set this but don't call iwl_mvm_mac_ctxt_changed()
-			 * yet to avoid sending high prio again for a little
-			 * time.
-			 */
-			mvmvif->authorized = 0;
-
-			/* disable beacon filtering */
-			ret = iwl_mvm_disable_beacon_filter(mvm, vif, 0);
-			WARN_ON(ret &&
-				!test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED,
-					  &mvm->status));
-		}
-		ret = 0;
+		ret = iwl_mvm_sta_state_authorized_to_assoc(mvm, vif, sta,
+							    callbacks);
 	} else if (old_state == IEEE80211_STA_ASSOC &&
 		   new_state == IEEE80211_STA_AUTH) {
 		if (vif->type == NL80211_IFTYPE_AP) {
