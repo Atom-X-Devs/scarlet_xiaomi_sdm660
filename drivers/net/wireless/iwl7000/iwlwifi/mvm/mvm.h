@@ -447,6 +447,13 @@ struct iwl_mvm_vif {
 	struct iwl_mvm_vif_link_info *link[IEEE80211_MLD_MAX_NUM_LINKS];
 };
 
+#define for_each_mvm_vif_valid_link(mvm_vif, link_id)			\
+	for (link_id = 0;						\
+	     link_id < ARRAY_SIZE((mvm_vif)->link);			\
+	     link_id++)							\
+		if ((mvm_vif)->link[link_id])
+
+
 static inline struct iwl_mvm_vif *
 iwl_mvm_vif_from_mac80211(struct ieee80211_vif *vif)
 {
