@@ -162,7 +162,7 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 {
 	struct ieee80211_eht_operation_info *info = (void *)eht_oper->optional;
 	u32 sta_center_freq, center_freq;
-	u8 sta_bw, bw;
+	u32 sta_bw, bw;
 	int sta_start_freq, start_freq;
 	u16 shift, mask;
 
