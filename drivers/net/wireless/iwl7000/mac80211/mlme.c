@@ -161,9 +161,9 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 				 struct cfg80211_chan_def *chandef, u16 bitmap)
 {
 	struct ieee80211_eht_operation_info *info = (void *)eht_oper->optional;
-	u32 sta_center_freq, center_freq;
-	u32 sta_bw, bw;
-	int sta_start_freq, start_freq;
+	u32 ap_center_freq, local_center_freq;
+	u32 ap_bw, local_bw;
+	int ap_start_freq, local_start_freq;
 	u16 shift, mask;
 
 	if (!(eht_oper->params & IEEE80211_EHT_OPER_INFO_PRESENT) ||
@@ -171,17 +171,16 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 	      IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT))
 		return 0;
 
-	sta_center_freq = ieee80211_channel_to_frequency(info->ccfs1,
-							 chandef->chan->band);
-	sta_bw = 20 * BIT(u8_get_bits(info->control,
-				      IEEE80211_EHT_OPER_CHAN_WIDTH));
-
-	center_freq = chandef->chan->center_freq;
-	bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
-	sta_start_freq = sta_center_freq - sta_bw / 2;
-	start_freq = center_freq - bw / 2;
-	shift = (start_freq - sta_start_freq) / 20;
-	mask = BIT(bw / 20) - 1;
+	ap_center_freq = ieee80211_channel_to_frequency(info->ccfs1,
+							chandef->chan->band);
+	ap_bw = 20 * BIT(u8_get_bits(info->control,
+				     IEEE80211_EHT_OPER_CHAN_WIDTH));
+	ap_start_freq = ap_center_freq - ap_bw / 2;
+	local_center_freq = chandef->chan->center_freq;
+	local_bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
+	local_start_freq = local_center_freq - local_bw / 2;
+	shift = (local_start_freq - ap_start_freq) / 20;
+	mask = BIT(local_bw / 20) - 1;
 
 	return (bitmap >> shift) & mask;
 }
