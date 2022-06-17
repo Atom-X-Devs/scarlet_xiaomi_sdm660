@@ -1723,7 +1723,8 @@ void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
 	    !ieee80211_viftype_nan(sdata->vif.type)) {
 		sdata->vif.bss_conf.qos = enable_qos;
 		if (bss_notify)
-			ieee80211_link_info_change_notify(sdata, 0,
+			ieee80211_link_info_change_notify(sdata,
+							  &sdata->deflink,
 							  BSS_CHANGED_QOS);
 	}
 }
@@ -2283,7 +2284,7 @@ static void ieee80211_handle_reconfig_failure(struct ieee80211_local *local)
 
 static void ieee80211_assign_chanctx(struct ieee80211_local *local,
 				     struct ieee80211_sub_if_data *sdata,
-				     unsigned int link_id)
+				     struct ieee80211_link_data *link)
 {
 	struct ieee80211_chanctx_conf *conf;
 	struct ieee80211_chanctx *ctx;
@@ -2292,11 +2293,11 @@ static void ieee80211_assign_chanctx(struct ieee80211_local *local,
 		return;
 
 	mutex_lock(&local->chanctx_mtx);
-	conf = rcu_dereference_protected(sdata->vif.link_conf[link_id]->chanctx_conf,
+	conf = rcu_dereference_protected(link->conf->chanctx_conf,
 					 lockdep_is_held(&local->chanctx_mtx));
 	if (conf) {
 		ctx = container_of(conf, struct ieee80211_chanctx, conf);
-		drv_assign_vif_chanctx(local, sdata, link_id, ctx);
+		drv_assign_vif_chanctx(local, sdata, link->link_id, ctx);
 	}
 	mutex_unlock(&local->chanctx_mtx);
 }
@@ -2509,7 +2510,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		sdata = wiphy_dereference(local->hw.wiphy,
 					  local->monitor_sdata);
 		if (sdata && ieee80211_sdata_running(sdata))
-			ieee80211_assign_chanctx(local, sdata, 0);
+			ieee80211_assign_chanctx(local, sdata, &sdata->deflink);
 	}
 
 	/* reconfigure hardware */
@@ -2519,16 +2520,23 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 
 	/* Finally also reconfigure all the BSS information */
 	list_for_each_entry(sdata, &local->interfaces, list) {
-		unsigned int link;
+		unsigned int link_id;
 		u32 changed;
 
 		if (!ieee80211_sdata_running(sdata))
 			continue;
 
-		for (link = 0; link < ARRAY_SIZE(sdata->vif.link_conf); link++) {
-			if (sdata->vif.link_conf[link])
+		sdata_lock(sdata);
+		for (link_id = 0;
+		     link_id < ARRAY_SIZE(sdata->vif.link_conf);
+		     link_id++) {
+			struct ieee80211_link_data *link;
+
+			link = sdata_dereference(sdata->link[link_id], sdata);
+			if (link)
 				ieee80211_assign_chanctx(local, sdata, link);
 		}
+		sdata_unlock(sdata);
 
 		switch (sdata->vif.type) {
 		case NL80211_IFTYPE_AP_VLAN:
@@ -2841,7 +2849,7 @@ void ieee80211_resume_disconnect(struct ieee80211_vif *vif)
 EXPORT_SYMBOL_GPL(ieee80211_resume_disconnect);
 
 void ieee80211_recalc_smps(struct ieee80211_sub_if_data *sdata,
-			   unsigned int link_id)
+			   struct ieee80211_link_data *link)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_chanctx_conf *chanctx_conf;
@@ -2849,7 +2857,7 @@ void ieee80211_recalc_smps(struct ieee80211_sub_if_data *sdata,
 
 	mutex_lock(&local->chanctx_mtx);
 
-	chanctx_conf = rcu_dereference_protected(sdata->vif.link_conf[link_id]->chanctx_conf,
+	chanctx_conf = rcu_dereference_protected(link->conf->chanctx_conf,
 						 lockdep_is_held(&local->chanctx_mtx));
 
 	/*
@@ -4083,7 +4091,7 @@ void ieee80211_dfs_cac_cancel(struct ieee80211_local *local)
 
 		if (sdata->wdev.cac_started) {
 			chandef = sdata->vif.bss_conf.chandef;
-			ieee80211_link_release_channel(sdata->link[0]);
+			ieee80211_link_release_channel(&sdata->deflink);
 			cfg80211_cac_event(sdata->dev,
 					   &chandef,
 					   NL80211_RADAR_CAC_ABORTED,
@@ -4553,13 +4561,11 @@ static u8 ieee80211_chanctx_radar_detect(struct ieee80211_local *local,
 		!list_empty(&ctx->assigned_links));
 
 	list_for_each_entry(link, &ctx->assigned_links, assigned_chanctx_list) {
-		struct ieee80211_sub_if_data *sdata = link->sdata;
-
 		if (!link->radar_required)
 			continue;
 
 		radar_detect |=
-			BIT(sdata->vif.link_conf[link->link_id]->chandef.width);
+			BIT(link->conf->chandef.width);
 	}
 
 	return radar_detect;
