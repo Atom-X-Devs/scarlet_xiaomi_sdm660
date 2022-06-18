@@ -1433,7 +1433,7 @@ static int uvc_gpio_get_cur(struct uvc_device *dev, struct uvc_entity *entity,
 		return -EINVAL;
 
 	if (!dev->gpio_unit->gpio.is_gpio_ready)
-		return -EBUSY;
+		return 0;
 
 	*(u8 *)data = gpiod_get_value_cansleep(entity->gpio.gpio_privacy);
 
