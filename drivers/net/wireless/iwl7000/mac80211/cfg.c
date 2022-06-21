@@ -1828,9 +1828,16 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	int ret = 0;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
+	u32 link_id = link_sta_params_link_id(params) < 0 ?
+		      0 : link_sta_params_link_id(params);
+	struct ieee80211_link_data *link;
 	u32 mask, set;
 
-	sband = ieee80211_get_sband(sdata);
+	link = sdata_dereference(sdata->link[link_id], sdata);
+	if (!link)
+		return -ENOLINK;
+
+	sband = ieee80211_get_link_sband(link);
 	if (!sband)
 		return -EINVAL;
 
@@ -2021,11 +2028,7 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	    !sdata->u.mgd.associated)
 		return -EINVAL;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
-	sta = sta_info_alloc(sdata, mac, params->link_sta_params.link_id,
-#else
-	sta = sta_info_alloc(sdata, mac, -1,
-#endif
+	sta = sta_info_alloc(sdata, mac, link_sta_params_link_id(params),
 			     GFP_KERNEL);
 	if (!sta)
 		return -ENOMEM;
