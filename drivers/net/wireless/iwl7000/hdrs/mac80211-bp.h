@@ -2224,7 +2224,7 @@ struct cfg80211_set_hw_timestamp {
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
-#define hw_timestamp_max_peers(hw)	0
+#define set_hw_timestamp_max_peers(hw, val)	do { } while (0)
 #else
-#define hw_timestamp_max_peers(hw)	((hw)->wiphy->hw_timestamp_max_peers)
+#define set_hw_timestamp_max_peers(hw, val)	(hw)->wiphy->hw_timestamp_max_peers = val
 #endif
