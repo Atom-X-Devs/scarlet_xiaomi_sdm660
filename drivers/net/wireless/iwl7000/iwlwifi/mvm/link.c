@@ -62,10 +62,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	cmd.phy_id = cpu_to_le32(phyctxt->id);
 	cmd.mac_id = cpu_to_le32(mvmvif->id);
 
-	if (vif->bss_conf.bssid)
-		memcpy(cmd.local_link_addr, vif->bss_conf.bssid, ETH_ALEN);
-	else
-		eth_broadcast_addr(cmd.local_link_addr);
+	memcpy(cmd.local_link_addr, vif->addr, ETH_ALEN);
 
 	cmd.active = cpu_to_le32(active);
 
