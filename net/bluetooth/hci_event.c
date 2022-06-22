@@ -2752,7 +2752,7 @@ static void hci_cs_disconnect(struct hci_dev *hdev, u8 status)
 		case HCI_AUTO_CONN_LINK_LOSS:
 			if (cp->reason != HCI_ERROR_CONNECTION_TIMEOUT)
 				break;
-			/*fallthrough;*/
+			/* fall through */
 
 		case HCI_AUTO_CONN_DIRECT:
 		case HCI_AUTO_CONN_ALWAYS:
