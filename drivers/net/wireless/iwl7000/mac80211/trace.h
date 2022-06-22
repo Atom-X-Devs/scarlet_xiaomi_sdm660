@@ -1767,7 +1767,7 @@ TRACE_EVENT(drv_start_ap,
 
 	TP_fast_assign(
 		struct ieee80211_bss_conf *info =
-			rcu_dereference(sdata->vif.link_conf[link_id]);
+			sdata_dereference(sdata->vif.link_conf[link_id], sdata);
 
 		LOCAL_ASSIGN;
 		VIF_ASSIGN;
