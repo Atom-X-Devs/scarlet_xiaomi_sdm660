@@ -387,7 +387,10 @@ static int iwl_mvm_mld_cfg_sta(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	u32 agg_size = 0, mpdu_dens = 0;
 
 	/* For now the link addr is the same as the mld addr */
-	if (vif->bss_conf.bssid) {
+	if (vif->type == NL80211_IFTYPE_AP) {
+		memcpy(&cmd.peer_mld_address, sta->addr, ETH_ALEN);
+		memcpy(&cmd.peer_link_address, sta->addr, ETH_ALEN);
+	} else if (vif->bss_conf.bssid) {
 		memcpy(&cmd.peer_mld_address, vif->bss_conf.bssid, ETH_ALEN);
 		memcpy(&cmd.peer_link_address, vif->bss_conf.bssid, ETH_ALEN);
 	}
