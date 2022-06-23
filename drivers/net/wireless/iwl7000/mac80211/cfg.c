@@ -612,6 +612,10 @@ ieee80211_lookup_key(struct ieee80211_sub_if_data *sdata,
 		return rcu_dereference_check_key_mtx(local,
 						     sdata->keys[key_idx]);
 
+	/* or maybe it was a WEP key */
+	if (key_idx < NUM_DEFAULT_KEYS)
+		return rcu_dereference_check_key_mtx(local, sdata->keys[key_idx]);
+
 	return NULL;
 }
 
