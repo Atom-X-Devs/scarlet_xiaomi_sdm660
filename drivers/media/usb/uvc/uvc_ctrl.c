@@ -2392,6 +2392,33 @@ static void uvc_ctrl_prune_entity(struct uvc_device *dev,
 	};
 	static const struct uvc_ctrl_blacklist camera_blacklist[] = {
 		{ { USB_DEVICE(0x06f8, 0x3005) }, 9 }, /* Zoom, Absolute */
+		/* Region of interest(ROI) auto control */
+		/* Chicony Electronics Co., Ltd HD User Facing */
+		{ { USB_DEVICE(0x04f2, 0xb667) }, 21 },
+		/* Chicony Electronics Co., Ltd Integrated Camera */
+		{ { USB_DEVICE(0x04f2, 0xb6d8) }, 21 },
+		/* Chicony Electronics Co., Ltd HD User Facing */
+		{ { USB_DEVICE(0x04f2, 0xb6f2) }, 21 },
+		/* Chicony Electronics Co., Ltd HP 5M Camera */
+		{ { USB_DEVICE(0x04f2, 0xb75d) }, 21 },
+		/* Quanta Computer, Inc. USB2.0 HD UVC WebCam */
+		{ { USB_DEVICE(0x0408, 0x30d1) }, 21 },
+		/* Quanta Computer, Inc. USB2.0 HD UVC WebCam */
+		{ { USB_DEVICE(0x0408, 0x30d2) }, 21 },
+		/* Quanta Computer, Inc. ACER FHD User Facing */
+		{ { USB_DEVICE(0x0408, 0x4031) }, 21 },
+		/* Quanta Computer, Inc. HP 5M Camera */
+		{ { USB_DEVICE(0x0408, 0x5479) }, 21 },
+		/* IMC Networks USB2.0 HD UVC WebCam */
+		{ { USB_DEVICE(0x13d3, 0x56d4) }, 21 },
+		/* IMC Networks USB2.0 HD UVC WebCam */
+		{ { USB_DEVICE(0x13d3, 0x56ec) }, 21 },
+		/* KingCome 720p HD Camera */
+		{ { USB_DEVICE(0x2b7e, 0x0157) }, 21 },
+		/* Realtek Semiconductor Corp. Integrated_Webcam_HD */
+		{ { USB_DEVICE(0x0bda, 0x5539) }, 21 },
+		/* Realtek Semiconductor Corp. Integrated_Webcam_HD */
+		{ { USB_DEVICE(0x0bda, 0x565c) }, 21 },
 	};
 
 	const struct uvc_ctrl_blacklist *blacklist;
