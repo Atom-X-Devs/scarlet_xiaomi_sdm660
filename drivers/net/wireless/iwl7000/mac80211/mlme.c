@@ -1947,7 +1947,7 @@ static bool ieee80211_powersave_allowed(struct ieee80211_sub_if_data *sdata)
 		return false;
 
 	rcu_read_lock();
-	sta = sta_info_get(sdata, sdata->deflink.u.mgd.bssid);
+	sta = sta_info_get(sdata, sdata->vif.cfg.ap_addr);
 	if (sta)
 		authorized = test_sta_flag(sta, WLAN_STA_AUTHORIZED);
 	rcu_read_unlock();
@@ -2452,6 +2452,7 @@ static void ieee80211_set_associated(struct ieee80211_sub_if_data *sdata,
 	sdata->u.mgd.associated = true;
 	sdata->deflink.u.mgd.bss = cbss;
 	memcpy(sdata->deflink.u.mgd.bssid, cbss->bssid, ETH_ALEN);
+	memcpy(sdata->vif.cfg.ap_addr, cbss->bssid, ETH_ALEN);
 
 	ieee80211_check_rate_mask(sdata);
 
@@ -2602,6 +2603,7 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 	/* clear bssid only after building the needed mgmt frames */
 	eth_zero_addr(sdata->deflink.u.mgd.bssid);
 
+	eth_zero_addr(sdata->vif.cfg.ap_addr);
 	sdata->vif.cfg.ssid_len = 0;
 
 	/* remove AP and TDLS peers */
@@ -2792,7 +2794,7 @@ void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
 static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	u8 *dst = sdata->deflink.u.mgd.bssid;
+	u8 *dst = sdata->vif.cfg.ap_addr;
 	u8 unicast_limit = max(1, max_probe_tries - 3);
 	struct sta_info *sta;
 
@@ -3021,13 +3023,13 @@ static void ieee80211_beacon_connection_loss_work(struct work_struct *work)
 
 	if (ifmgd->connection_loss) {
 		sdata_info(sdata, "Connection to AP %pM lost\n",
-			   sdata->deflink.u.mgd.bssid);
+			   sdata->vif.cfg.ap_addr);
 		__ieee80211_disconnect(sdata);
 		ifmgd->connection_loss = false;
 	} else if (ifmgd->driver_disconnect) {
 		sdata_info(sdata,
 			   "Driver requested disconnection from AP %pM\n",
-			   sdata->deflink.u.mgd.bssid);
+			   sdata->vif.cfg.ap_addr);
 		__ieee80211_disconnect(sdata);
 		ifmgd->driver_disconnect = false;
 	} else {
@@ -3181,7 +3183,7 @@ static void ieee80211_auth_challenge(struct ieee80211_sub_if_data *sdata,
 }
 
 static bool ieee80211_mark_sta_auth(struct ieee80211_sub_if_data *sdata,
-				    const u8 *bssid)
+				    const u8 *ap_addr)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 	struct sta_info *sta;
@@ -3195,14 +3197,14 @@ static bool ieee80211_mark_sta_auth(struct ieee80211_sub_if_data *sdata,
 
 	/* move station state to auth */
 	mutex_lock(&sdata->local->sta_mtx);
-	sta = sta_info_get(sdata, bssid);
+	sta = sta_info_get(sdata, ap_addr);
 	if (!sta) {
-		WARN_ONCE(1, "%s: STA %pM not found", sdata->name, bssid);
+		WARN_ONCE(1, "%s: STA %pM not found", sdata->name, ap_addr);
 		result = false;
 		goto out;
 	}
 	if (sta_info_move_state(sta, IEEE80211_STA_AUTH)) {
-		sdata_info(sdata, "failed moving %pM to auth\n", bssid);
+		sdata_info(sdata, "failed moving %pM to auth\n", ap_addr);
 		result = false;
 		goto out;
 	}
@@ -4600,7 +4602,7 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 				erp_valid, erp_value);
 
 	mutex_lock(&local->sta_mtx);
-	sta = sta_info_get(sdata, bssid);
+	sta = sta_info_get(sdata, sdata->vif.cfg.ap_addr);
 
 	changed |= ieee80211_recalc_twt_req(sdata, sta, elems);
 
@@ -5098,7 +5100,7 @@ static void ieee80211_sta_conn_mon_timer(struct timer_list *t)
 	    !sdata->deflink.u.mgd.csa_waiting_bcn)
 		return;
 
-	sta = sta_info_get(sdata, sdata->deflink.u.mgd.bssid);
+	sta = sta_info_get(sdata, sdata->vif.cfg.ap_addr);
 	if (!sta)
 		return;
 
@@ -5194,7 +5196,7 @@ void ieee80211_mgd_quiesce(struct ieee80211_sub_if_data *sdata)
 			.bssid = bssid,
 		};
 
-		memcpy(bssid, sdata->deflink.u.mgd.bssid, ETH_ALEN);
+		memcpy(bssid, sdata->vif.cfg.ap_addr, ETH_ALEN);
 		ieee80211_mgd_deauth(sdata, &req);
 	}
 
@@ -6145,7 +6147,7 @@ int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
 
 		sdata_info(sdata,
 			   "disconnect from AP %pM for new auth to %pM\n",
-			   sdata->deflink.u.mgd.bssid, req->bss->bssid);
+			   sdata->vif.cfg.ap_addr, req->bss->bssid);
 		ieee80211_set_disassoc(sdata, IEEE80211_STYPE_DEAUTH,
 				       WLAN_REASON_UNSPECIFIED,
 				       false, frame_buf);
@@ -6222,7 +6224,7 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 
 		sdata_info(sdata,
 			   "disconnect from AP %pM for new assoc to %pM\n",
-			   sdata->deflink.u.mgd.bssid, req->bss->bssid);
+			   sdata->vif.cfg.ap_addr, req->bss->bssid);
 		ieee80211_set_disassoc(sdata, IEEE80211_STYPE_DEAUTH,
 				       WLAN_REASON_UNSPECIFIED,
 				       false, frame_buf);
@@ -6611,7 +6613,7 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
 	}
 
 	if (ifmgd->associated &&
-	    ether_addr_equal(sdata->deflink.u.mgd.bssid, req->bssid)) {
+	    ether_addr_equal(sdata->vif.cfg.ap_addr, req->bssid)) {
 		sdata_info(sdata,
 			   "deauthenticating from %pM by local choice (Reason: %u=%s)\n",
 			   req->bssid, req->reason_code,
