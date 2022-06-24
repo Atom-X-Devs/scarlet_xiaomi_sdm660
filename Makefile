@@ -787,12 +787,6 @@ endif
 # Use make W=1 to enable them (see scripts/Makefile.extrawarn)
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
 
-ifdef CONFIG_LTO_CLANG
-KBUILD_LDFLAGS += -O3 --lto-O3 --strip-debug
-else
-KBUILD_LDFLAGS += -O3 --strip-debug
-endif
-
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-const-variable)
 ifdef CONFIG_FRAME_POINTER
 KBUILD_CFLAGS	+= -fno-omit-frame-pointer -fno-optimize-sibling-calls
@@ -934,6 +928,10 @@ ifeq ($(shell test $(CONFIG_LLD_VERSION) -lt 130000; echo $$?),0)
 KBUILD_LDFLAGS	+= -plugin-opt=-warn-stack-size=$(CONFIG_FRAME_WARN)
 endif
 endif
+# Set O3 optimization level for LTO
+KBUILD_LDFLAGS	+= --plugin-opt=O3 --strip-debug
+else
+KBUILD_LDFLAGS	+= -O3 --strip-debug
 endif
 
 ifdef CONFIG_LTO
