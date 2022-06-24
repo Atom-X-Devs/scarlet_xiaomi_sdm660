@@ -1347,10 +1347,8 @@ static int iwl_xvt_start_tx_handler(void *data)
 				sent_packets++;
 				++frag_idx;
 
-				if (kthread_should_stop()) {
-					iwl_xvt_flush_sta_tids(xvt);
+				if (kthread_should_stop())
 					goto on_exit;
-				}
 			}
 		}
 	}
@@ -1362,6 +1360,7 @@ on_exit:
 					kthread_should_stop(),
 					5 * HZ * CPTCFG_IWL_TIMEOUT_FACTOR);
 		if (time_remain <= 0) {
+			iwl_xvt_flush_sta_tids(xvt);
 			IWL_ERR(xvt, "err %d: Not all Tx messages were sent\n",
 				time_remain);
 			if (status == 0)
