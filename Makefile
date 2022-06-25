@@ -918,7 +918,7 @@ KBUILD_LDFLAGS	+= --thinlto-cache-dir=.thinlto-cache
 else
 CC_FLAGS_LTO	+= -flto
 endif
-CC_FLAGS_LTO	+= -fvisibility=hidden
+CC_FLAGS_LTO	+= -fwhole-program-vtables -fvisibility=hidden
 
 # Check for frame size exceeding threshold during prolog/epilog insertion
 # when using lld < 13.0.0.
