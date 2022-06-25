@@ -90,6 +90,25 @@
 };
 
 /* GPU overrides */
+&clock_gfx {
+	qcom,gfxfreq-corner =
+			< 0         0>,
+			< 160000000 1>,  /* MinSVS */
+			< 266000000 2>,  /* LowSVS */
+			< 370000000 3>,  /* SVS    */
+			< 430000000 4>,  /* SVS_L1 */
+			< 585000000 5>,  /* NOM    */
+			< 647000000 6>,  /* NOM_L1 */
+			< 750000000 7>;  /* TURBO  */
+};
+
+&gfx_vreg_corner {
+	qcom,corner-frequencies =
+		<160000000 266000000 370000000
+		 430000000 585000000 647000000
+		 750000000>;
+};
+
 &msm_gpu {
 	/* Update GPU chip ID*/
 	qcom,chipid = <0x05000900>;
