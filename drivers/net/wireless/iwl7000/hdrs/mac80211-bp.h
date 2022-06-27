@@ -2220,9 +2220,11 @@ struct cfg80211_set_hw_timestamp {
 #define cfg80211_beacon_data_link_id(params)	0
 #define link_sta_params_link_id(params)	-1
 #define WIPHY_FLAG_SUPPORTS_MLO 0
+#define cfg80211_disassoc_ap_addr(req)	((req)->bss->bssid)
 #else
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #define link_sta_params_link_id(params) ((params)->link_sta_params.link_id)
+#define cfg80211_disassoc_ap_addr(req)	((req)->ap_addr)
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
