@@ -176,7 +176,7 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 	ap_bw = 20 * BIT(u8_get_bits(info->control,
 				     IEEE80211_EHT_OPER_CHAN_WIDTH));
 	ap_start_freq = ap_center_freq - ap_bw / 2;
-	local_center_freq = chandef->chan->center_freq;
+	local_center_freq = chandef->center_freq1;
 	local_bw = 20 * BIT(ieee80211_chan_width_to_rx_bw(chandef->width));
 	local_start_freq = local_center_freq - local_bw / 2;
 	shift = (local_start_freq - ap_start_freq) / 20;
