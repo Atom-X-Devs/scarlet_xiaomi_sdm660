@@ -2221,6 +2221,29 @@ struct cfg80211_set_hw_timestamp {
 #define link_sta_params_link_id(params)	-1
 #define WIPHY_FLAG_SUPPORTS_MLO 0
 #define cfg80211_disassoc_ap_addr(req)	((req)->bss->bssid)
+
+struct cfg80211_assoc_failure {
+	const u8 *ap_mld_addr;
+	struct cfg80211_bss *bss[IEEE80211_MLD_MAX_NUM_LINKS];
+	bool timeout;
+};
+
+static inline void cfg80211_assoc_failure(struct net_device *dev,
+					  struct cfg80211_assoc_failure *data)
+{
+	int i;
+
+	WARN_ON(!data->bss[0]);
+	WARN_ON(data->ap_mld_addr);
+
+	for (i = 1; i < ARRAY_SIZE(data->bss); i++)
+		WARN_ON(data->bss[i]);
+
+	if (data->timeout)
+		cfg80211_assoc_timeout(dev, data->bss[0]);
+	else
+		cfg80211_abandon_assoc(dev, data->bss[0]);
+}
 #else
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #define link_sta_params_link_id(params) ((params)->link_sta_params.link_id)
