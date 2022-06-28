@@ -4012,6 +4012,16 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 	return ret;
 }
 
+static void ieee80211_assoc_comeback(struct net_device *dev,
+				     struct ieee80211_mgd_assoc_data *assoc_data,
+				     u32 timeout) {
+#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+	cfg80211_assoc_comeback(dev, assoc_data->bss, timeout);
+#else
+	cfg80211_assoc_comeback(dev, assoc_data->bss->bssid, timeout);
+#endif
+}
+
 static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 					 struct ieee80211_mgmt *mgmt,
 					 size_t len)
@@ -4086,8 +4096,8 @@ static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 	    elems->timeout_int->type == WLAN_TIMEOUT_ASSOC_COMEBACK) {
 		u32 tu, ms;
 
-		cfg80211_assoc_comeback(sdata->dev, assoc_data->bss,
-					le32_to_cpu(elems->timeout_int->value));
+		ieee80211_assoc_comeback(sdata->dev, assoc_data,
+					 le32_to_cpu(elems->timeout_int->value));
 
 		tu = le32_to_cpu(elems->timeout_int->value);
 		ms = tu * 1024 / 1000;
