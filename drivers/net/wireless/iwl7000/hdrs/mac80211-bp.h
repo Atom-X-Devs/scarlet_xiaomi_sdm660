@@ -2229,13 +2229,22 @@ struct iwl7000_cfg80211_rx_assoc_resp {
 	const u8 *req_ies;
 	size_t req_ies_len;
 	int uapsd_queues;
+	const u8 *ap_mld_addr;
+	struct {
+		const u8 *addr;
+		struct cfg80211_bss *bss;
+	} links[IEEE80211_MLD_MAX_NUM_LINKS];
 };
 
 static inline void
 iwl7000_cfg80211_rx_assoc_resp(struct net_device *dev,
 			       struct iwl7000_cfg80211_rx_assoc_resp *data)
 {
-	cfg80211_rx_assoc_resp(dev, data->bss, data->buf, data->len,
+	WARN_ON(data->ap_mld_addr);
+	if (WARN_ON(!data->links[0].bss))
+		return;
+
+	cfg80211_rx_assoc_resp(dev, data->links[0].bss, data->buf, data->len,
 			       data->uapsd_queues
 #if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 			       , data->req_ies, data->req_ies_len
