@@ -4030,7 +4030,7 @@ static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_mgd_assoc_data *assoc_data = ifmgd->assoc_data;
 	u16 capab_info, status_code, aid;
 	struct ieee802_11_elems *elems;
-	int ac, uapsd_queues = -1;
+	int ac;
 	u8 *pos;
 	bool reassoc;
 	struct cfg80211_bss *cbss;
@@ -4039,6 +4039,9 @@ static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 		.u.mlme.data = ASSOC_EVENT,
 	};
 	struct ieee80211_prep_tx_info info = {};
+	struct cfg80211_rx_assoc_resp resp = {
+		.uapsd_queues = -1,
+	};
 
 	sdata_assert_lock(sdata);
 
@@ -4136,21 +4139,20 @@ static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 		ieee80211_destroy_assoc_data(sdata, ASSOC_SUCCESS);
 
 		/* get uapsd queues configuration */
-		uapsd_queues = 0;
+		resp.uapsd_queues = 0;
 		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
 			if (sdata->deflink.tx_conf[ac].uapsd)
-				uapsd_queues |= ieee80211_ac_to_qos_mask[ac];
+				resp.uapsd_queues |= ieee80211_ac_to_qos_mask[ac];
 
 		info.success = 1;
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
-	cfg80211_rx_assoc_resp(sdata->dev, cbss, (u8 *)mgmt, len, uapsd_queues,
-			       ifmgd->assoc_req_ies, ifmgd->assoc_req_ies_len);
-#else
-	cfg80211_rx_assoc_resp(sdata->dev, cbss, (u8 *)mgmt, len,
-			       uapsd_queues);
-#endif
+	resp.bss = cbss;
+	resp.buf = (u8 *)mgmt;
+	resp.len = len;
+	resp.req_ies = ifmgd->assoc_req_ies;
+	resp.req_ies_len = ifmgd->assoc_req_ies_len;
+	cfg80211_rx_assoc_resp(sdata->dev, &resp);
 notify_driver:
 	drv_mgd_complete_tx(sdata->local, sdata, &info);
 	kfree(elems);

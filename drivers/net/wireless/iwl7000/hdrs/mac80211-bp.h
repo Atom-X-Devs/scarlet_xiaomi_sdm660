@@ -2222,6 +2222,29 @@ struct cfg80211_set_hw_timestamp {
 #define WIPHY_FLAG_SUPPORTS_MLO 0
 #define cfg80211_disassoc_ap_addr(req)	((req)->bss->bssid)
 
+struct iwl7000_cfg80211_rx_assoc_resp {
+	struct cfg80211_bss *bss;
+	const u8 *buf;
+	size_t len;
+	const u8 *req_ies;
+	size_t req_ies_len;
+	int uapsd_queues;
+};
+
+static inline void
+iwl7000_cfg80211_rx_assoc_resp(struct net_device *dev,
+			       struct iwl7000_cfg80211_rx_assoc_resp *data)
+{
+	cfg80211_rx_assoc_resp(dev, data->bss, data->buf, data->len,
+			       data->uapsd_queues
+#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
+			       , data->req_ies, data->req_ies_len
+#endif
+			      );
+}
+
+#define cfg80211_rx_assoc_resp iwl7000_cfg80211_rx_assoc_resp
+
 struct cfg80211_assoc_failure {
 	const u8 *ap_mld_addr;
 	struct cfg80211_bss *bss[IEEE80211_MLD_MAX_NUM_LINKS];
