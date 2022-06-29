@@ -249,7 +249,7 @@ static void iwl_mvm_mld_unassign_vif_chanctx(struct ieee80211_hw *hw,
 
 static int iwl_mvm_mld_start_ap_ibss(struct ieee80211_hw *hw,
 				     struct ieee80211_vif *vif,
-				     unsigned int link_id)
+				     struct ieee80211_bss_conf *link_conf)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
@@ -330,20 +330,20 @@ out_unlock:
 
 static int iwl_mvm_mld_start_ap(struct ieee80211_hw *hw,
 				struct ieee80211_vif *vif,
-				unsigned int link_id)
+				struct ieee80211_bss_conf *link_conf)
 {
-	return iwl_mvm_mld_start_ap_ibss(hw, vif, link_id);
+	return iwl_mvm_mld_start_ap_ibss(hw, vif, link_conf);
 }
 
 static int iwl_mvm_mld_start_ibss(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif)
 {
-	return iwl_mvm_mld_start_ap_ibss(hw, vif, 0);
+	return iwl_mvm_mld_start_ap_ibss(hw, vif, &vif->bss_conf);
 }
 
 static void iwl_mvm_mld_stop_ap_ibss(struct ieee80211_hw *hw,
 				     struct ieee80211_vif *vif,
-				     unsigned int link_id)
+				     struct ieee80211_bss_conf *link_conf)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 
@@ -373,15 +373,15 @@ static void iwl_mvm_mld_stop_ap_ibss(struct ieee80211_hw *hw,
 
 static void iwl_mvm_mld_stop_ap(struct ieee80211_hw *hw,
 				struct ieee80211_vif *vif,
-				unsigned int link_id)
+				struct ieee80211_bss_conf *link_conf)
 {
-	iwl_mvm_mld_stop_ap_ibss(hw, vif, link_id);
+	iwl_mvm_mld_stop_ap_ibss(hw, vif, link_conf);
 }
 
 static void iwl_mvm_mld_stop_ibss(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif)
 {
-	iwl_mvm_mld_stop_ap_ibss(hw, vif, 0);
+	iwl_mvm_mld_stop_ap_ibss(hw, vif, &vif->bss_conf);
 }
 
 static int iwl_mvm_mld_mac_sta_state(struct ieee80211_hw *hw,
