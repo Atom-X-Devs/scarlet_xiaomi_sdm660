@@ -507,4 +507,7 @@ enum {
 
 #define REG_OTP_MINOR 0xA0333C
 
+#define WFPM_LMAC2_PD_NOTIFICATION 0xA033CC
+#define WFPM_LMAC2_PD_RE_READ BIT(31)
+
 #endif				/* __iwl_prph_h__ */

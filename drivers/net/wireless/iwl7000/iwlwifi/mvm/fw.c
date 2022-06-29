@@ -424,6 +424,8 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 		return -EIO;
 	}
 
+	iwl_mei_alive_notif(!ret);
+
 	ret = iwl_pnvm_load(mvm->trans, &mvm->notif_wait);
 	if (ret) {
 		IWL_ERR(mvm, "Timeout waiting for PNVM load!\n");
@@ -1642,11 +1644,16 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	struct ieee80211_channel *chan;
 	struct cfg80211_chan_def chandef;
 	struct ieee80211_supported_band *sband = NULL;
+	u32 pd_notif;
 
 	lockdep_assert_held(&mvm->mutex);
 
 	ret = iwl_trans_start_hw(mvm->trans);
 	if (ret)
+		return ret;
+
+	pd_notif = iwl_read_umac_prph(mvm->trans, WFPM_LMAC2_PD_NOTIFICATION);
+	if (!(pd_notif & WFPM_LMAC2_PD_RE_READ) && iwl_mei_pldr_req())
 		return ret;
 
 	ret = iwl_mvm_load_rt_fw(mvm);
