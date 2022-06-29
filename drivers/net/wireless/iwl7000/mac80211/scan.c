@@ -215,8 +215,7 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 	if (baselen > len)
 		return NULL;
 
-	elems = ieee802_11_parse_elems(elements, len - baselen, false,
-				       mgmt->bssid, cbss->bssid);
+	elems = ieee802_11_parse_elems(elements, len - baselen, false, cbss);
 	if (!elems)
 		return NULL;
 
@@ -227,17 +226,22 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 
 	bss = (void *)cbss->priv;
 	ieee80211_update_bss_from_elems(local, bss, elems, rx_status, beacon);
+	kfree(elems);
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	list_for_each_entry(non_tx_cbss, &cbss->nontrans_list, nontrans_list) {
 		non_tx_bss = (void *)non_tx_cbss->priv;
 
+		elems = ieee802_11_parse_elems(elements, len - baselen, false,
+					       non_tx_cbss);
+		if (!elems)
+			continue;
+
 		ieee80211_update_bss_from_elems(local, non_tx_bss, elems,
 						rx_status, beacon);
+		kfree(elems);
 	}
 #endif
-
-	kfree(elems);
 
 	return bss;
 }
