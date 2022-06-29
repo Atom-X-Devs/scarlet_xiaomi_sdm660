@@ -1212,14 +1212,9 @@ static const struct dmi_system_id dmi_tas_approved_list[] = {
 	{}
 };
 
-void iwl_mvm_get_tas_approved_list(char *tas_approved_list, int size)
+bool iwl_mvm_is_vendor_in_approved_list(void)
 {
-	int i;
-	char *pos = tas_approved_list;
-	char *endpos = tas_approved_list + size;
-
-	for (i = 0; i < ARRAY_SIZE(dmi_tas_approved_list) - 1; i++)
-		pos += scnprintf(pos, endpos - pos, "%s ", dmi_tas_approved_list[i].ident);
+	return dmi_check_system(dmi_tas_approved_list);
 }
 
 static bool iwl_mvm_add_to_tas_block_list(__le32 *list, __le32 *le_size, unsigned int mcc)

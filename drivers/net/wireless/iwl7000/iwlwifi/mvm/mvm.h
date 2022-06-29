@@ -2590,8 +2590,8 @@ static inline void iwl_mvm_mei_set_sw_rfkill_state(struct iwl_mvm *mvm)
 void iwl_mvm_send_roaming_forbidden_event(struct iwl_mvm *mvm,
 					  struct ieee80211_vif *vif,
 					  bool forbidden);
+bool iwl_mvm_is_vendor_in_approved_list(void);
 
-void iwl_mvm_get_tas_approved_list(char *tas_approved_list, int size);
 /* Callbacks for ieee80211_ops */
 void iwl_mvm_mac_tx(struct ieee80211_hw *hw,
 		    struct ieee80211_tx_control *control, struct sk_buff *skb);

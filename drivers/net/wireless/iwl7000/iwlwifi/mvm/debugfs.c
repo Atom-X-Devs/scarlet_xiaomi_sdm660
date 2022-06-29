@@ -923,7 +923,6 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 	struct iwl_mvm_tas_status_resp *rsp = &tas_rsp;
 	static const size_t bufsz = 1024;
 	char *buff, *pos, *endpos;
-	char tas_approved_list[256];
 	const char * const tas_dis_reason[TAS_DISABLED_REASON_MAX] = {
 		[TAS_DISABLED_DUE_TO_BIOS] = "Due To BIOS",
 		[TAS_DISABLED_DUE_TO_SAR_6DBM] = "Due To SAR Limit Less Than 6 dBm",
@@ -1006,9 +1005,8 @@ static ssize_t iwl_dbgfs_tas_get_status_read(struct file *file,
 
 	pos += scnprintf(pos, endpos - pos, "\n\tVendor: %s\n",
 			 dmi_get_system_info(DMI_SYS_VENDOR));
-	iwl_mvm_get_tas_approved_list(tas_approved_list, ARRAY_SIZE(tas_approved_list));
-	pos += scnprintf(pos, endpos - pos, "\tVendor Approved List: %s\n",
-			 tas_approved_list);
+	pos += scnprintf(pos, endpos - pos, "\tVendor In Approved List: %s\n",
+			 iwl_mvm_is_vendor_in_approved_list() ? "YES" : "NO");
 	pos += scnprintf(pos, endpos - pos, "\tDo TAS Support Dual Radio?: %s\n",
 			 rsp->in_dual_radio ? "TRUE" : "FALSE");
 
