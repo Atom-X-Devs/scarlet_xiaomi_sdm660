@@ -1591,6 +1591,11 @@ cfg80211_wiphy_tx_queue_len(struct wiphy *wiphy)
 }
 #endif /* < 5.7 */
 
+int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
+			      const u8 *buf, size_t len,
+			      const u8 *dest, __be16 proto, bool unencrypted,
+			      int link_id, u64 *cookie);
+
 #if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
 #define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211_TX_STATUS -1
 #define NL80211_EXT_FEATURE_SCAN_FREQ_KHZ -1
@@ -1640,17 +1645,13 @@ cfg80211_iftd_set_he_6ghz_capa(struct ieee80211_sband_iftype_data *iftd,
 {
 }
 
-int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
-			      const u8 *buf, size_t len,
-			      const u8 *dest, __be16 proto, bool unencrypted,
-			      u64 *cookie);
 static inline int
 bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 			     const u8 *buf, size_t len,
 			     const u8 *dest, __be16 proto, bool unencrypted)
 {
 	return ieee80211_tx_control_port(wiphy, dev, buf, len, dest, proto,
-					 unencrypted, NULL);
+					 unencrypted, -1, NULL);
 }
 #else /* < 5.8 */
 static inline int
@@ -2290,6 +2291,18 @@ static inline void cfg80211_assoc_failure(struct net_device *dev,
 	else
 		cfg80211_abandon_assoc(dev, data->bss[0]);
 }
+
+#if CFG80211_VERSION >= KERNEL_VERSION(5,8,0)
+static inline int
+bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
+			     const u8 *buf, size_t len,
+			     const u8 *dest, __be16 proto, bool unencrypted,
+			     u64 *cookie)
+{
+	return ieee80211_tx_control_port(wiphy, dev, buf, len, dest, proto,
+					 unencrypted, -1, cookie);
+}
+#endif /* >= 5.8 */
 #else
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #define link_sta_params_link_id(params) ((params)->link_sta_params.link_id)

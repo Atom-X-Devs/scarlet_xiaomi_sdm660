@@ -5198,7 +5198,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.set_multicast_to_unicast = ieee80211_set_multicast_to_unicast,
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
-#if CFG80211_VERSION >= KERNEL_VERSION(5,8,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
 	.tx_control_port = ieee80211_tx_control_port,
 #else
 	.tx_control_port = bp_ieee80211_tx_control_port,
