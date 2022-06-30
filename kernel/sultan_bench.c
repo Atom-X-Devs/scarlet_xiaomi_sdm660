@@ -8,6 +8,7 @@
 #include <linux/power_supply.h>
 #include <linux/random.h>
 #include <linux/kthread.h>
+#include <uapi/linux/sched/types.h>
 
 /**************************** CONFIGURATION BEGIN ****************************/
 static const int little_cpu_freqs[] = {
