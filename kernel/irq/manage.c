@@ -1297,7 +1297,7 @@ static void affine_one_perf_thread(struct irqaction *action)
 	if (!action->thread)
 		return;
 
-	if (action->flags & IRQF_PERF_CRITICAL)
+	if (action->flags & IRQF_PERF_AFFINE)
 		mask = cpu_perf_mask;
 
 	action->thread->flags |= PF_PERF_CRITICAL;
