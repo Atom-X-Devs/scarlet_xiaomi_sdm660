@@ -1064,15 +1064,7 @@ static int msm_watchdog_probe(struct platform_device *pdev)
 
 	log_buf_init();
 
-	/* Add wdog info to minidump table */
-	strlcpy(md_entry.name, "KWDOGDATA", sizeof(md_entry.name));
-	md_entry.virt_addr = (uintptr_t)wdog_dd;
-	md_entry.phys_addr = virt_to_phys(wdog_dd);
-	md_entry.size = sizeof(*wdog_dd);
-	md_entry.id = MINIDUMP_DEFAULT_ID;
-	if (msm_minidump_add_region(&md_entry) < 0)
-		pr_info("Failed to add Watchdog data in Minidump\n");
-
+	wdog_disable(wdog_dd);
 	return 0;
 err:
 	kzfree(wdog_dd);

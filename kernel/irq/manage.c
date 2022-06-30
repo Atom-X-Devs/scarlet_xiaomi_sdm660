@@ -1297,7 +1297,7 @@ static void affine_one_perf_thread(struct irqaction *action)
 	if (!action->thread)
 		return;
 
-	if (action->flags & IRQF_PERF_AFFINE)
+	if (action->flags & IRQF_PERF_CRITICAL)
 		mask = cpu_perf_mask;
 
 	action->thread->flags |= PF_PERF_CRITICAL;
@@ -1438,6 +1438,7 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
 	if (!try_module_get(desc->owner))
 		return -ENODEV;
 
+	new->flags &= ~IRQF_PERF_AFFINE;
 	new->irq = irq;
 
 	/*
