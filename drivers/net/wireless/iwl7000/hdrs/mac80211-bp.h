@@ -2216,6 +2216,20 @@ struct cfg80211_set_hw_timestamp {
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+static inline enum ieee80211_rate_flags
+ieee80211_chanwidth_rate_flags(enum nl80211_chan_width width)
+{
+	switch (width) {
+	case NL80211_CHAN_WIDTH_5:
+		return IEEE80211_RATE_SUPPORTS_5MHZ;
+	case NL80211_CHAN_WIDTH_10:
+		return IEEE80211_RATE_SUPPORTS_10MHZ;
+	default:
+		break;
+	}
+	return 0;
+}
+
 #define cfg80211_ch_switch_notify(dev, chandef, link_id) cfg80211_ch_switch_notify(dev, chandef)
 #define cfg80211_beacon_data_link_id(params)	0
 #define link_sta_params_link_id(params)	-1
