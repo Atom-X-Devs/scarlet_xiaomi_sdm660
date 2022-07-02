@@ -15,6 +15,7 @@
 #include <linux/uaccess.h>
 #include <linux/msm-bus.h>
 #include <linux/dma-buf.h>
+#include <linux/compaction.h>
 
 #include "mdss.h"
 #include "mdss_panel.h"
@@ -2829,6 +2830,8 @@ static struct attribute_group mdss_dsi_fs_attrs_group = {
 	.attrs = dynamic_bitclk_fs_attrs,
 };
 
+bool dsi_screen_on __read_mostly = false;
+
 static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 				  int event, void *arg)
 {
@@ -2884,6 +2887,8 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		if (ctrl_pdata->on_cmds.link_state == DSI_HS_MODE)
 			rc = mdss_dsi_unblank(pdata);
 		pdata->panel_info.esd_rdy = true;
+		WRITE_ONCE(dsi_screen_on, true);
+		wmb();
 		break;
 	case MDSS_EVENT_BLANK:
 		power_state = (int) (unsigned long) arg;
@@ -2896,6 +2901,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		if (ctrl_pdata->off_cmds.link_state == DSI_LP_MODE)
 			rc = mdss_dsi_blank(pdata, power_state);
 		rc = mdss_dsi_off(pdata, power_state);
+		WRITE_ONCE(dsi_screen_on, false);
+		wmb();
+		trigger_proactive_compaction(false);
 		break;
 	case MDSS_EVENT_DISABLE_PANEL:
 		/* disable esd thread */
