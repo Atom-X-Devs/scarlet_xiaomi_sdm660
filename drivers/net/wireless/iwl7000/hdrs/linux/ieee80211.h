@@ -4303,10 +4303,10 @@ static inline bool ieee80211_is_timing_measurement(struct sk_buff *skb)
 {
 	struct ieee80211_mgmt *mgmt = (void *)skb->data;
 
-	if (!ieee80211_is_action(mgmt->frame_control))
+	if (skb->len < IEEE80211_MIN_ACTION_SIZE)
 		return false;
 
-	if (skb->len < IEEE80211_MIN_ACTION_SIZE)
+	if (!ieee80211_is_action(mgmt->frame_control))
 		return false;
 
 	if (mgmt->u.action.category == WLAN_CATEGORY_WNM_UNPROTECTED &&
