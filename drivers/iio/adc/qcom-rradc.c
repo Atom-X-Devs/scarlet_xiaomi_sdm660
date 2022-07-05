@@ -192,6 +192,10 @@
 #define FG_RR_TP_REV_VERSION2		29
 #define FG_RR_TP_REV_VERSION3		32
 
+#ifdef CONFIG_MACH_XIAOMI_TULIP
+int rradc_die = 0;
+#endif
+
 /*
  * The channel number is not a physical index in hardware,
  * rather it's a list of supported channels and an index to
@@ -1163,6 +1167,9 @@ static void psy_notify_work(struct work_struct *work)
 			rc = rradc_do_conversion(chip, prop, &adc_code);
 			if (rc == -ENODATA) {
 				pr_err("rradc is hung, Proceed to recovery\n");
+#ifdef CONFIG_MACH_XIAOMI_TULIP
+				rradc_die = 1;
+#endif
 				if (rradc_is_bms_psy_available(chip)) {
 					rc = power_supply_set_property
 						(chip->bms_psy,
