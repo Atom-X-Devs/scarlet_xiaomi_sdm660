@@ -5375,6 +5375,7 @@ void ieee80211_mgd_setup_link(struct ieee80211_link_data *link)
 
 	link->u.mgd.p2p_noa_index = -1;
 	link->u.mgd.conn_flags = 0;
+	link->conf->bssid = link->u.mgd.bssid;
 
 	INIT_WORK(&link->u.mgd.request_smps_work,
 		  ieee80211_request_smps_mgd_work);
