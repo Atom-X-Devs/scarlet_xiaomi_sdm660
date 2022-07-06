@@ -40,6 +40,9 @@ int iwl_mvm_add_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	memcpy(cmd.local_link_addr, vif->addr, ETH_ALEN);
 
+	if (vif->type == NL80211_IFTYPE_ADHOC && vif->bss_conf.bssid)
+		memcpy(cmd.ibss_bssid_addr, vif->bss_conf.bssid, ETH_ALEN);
+
 	return iwl_mvm_link_cmd_send(mvm, &cmd, FW_CTXT_ACTION_ADD);
 }
 
@@ -66,6 +69,9 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	cmd.active = cpu_to_le32(active);
 
+	if (vif->type == NL80211_IFTYPE_ADHOC && vif->bss_conf.bssid)
+		memcpy(cmd.ibss_bssid_addr, vif->bss_conf.bssid, ETH_ALEN);
+
 	/* TODO: set a value to cmd.listen_lmac when system requiremens
 	 * will define it
 	 */
@@ -82,20 +88,10 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	iwl_mvm_set_fw_qos_params(mvm, vif, &cmd.ac[0], &cmd.qos_flags);
 
-	/* We need the dtim_period to set the MAC as associated */
-	if (vif->cfg.assoc && vif->bss_conf.dtim_period)
-		iwl_mvm_set_fw_dtim_tbtt(mvm, vif, &cmd.dtim_tsf,
-					 &cmd.dtim_time,
-					 &cmd.assoc_beacon_arrive_time);
-	else
-		changes &= ~LINK_CONTEXT_MODIFY_BEACON_TIMING;
 
 	cmd.bi = cpu_to_le32(vif->bss_conf.beacon_int);
 	cmd.dtim_interval = cpu_to_le32(vif->bss_conf.beacon_int *
 					vif->bss_conf.dtim_period);
-
-	/* TODO: Assumes that the beacon id == mac context id */
-	cmd.beacon_template = cpu_to_le32(mvmvif->id);
 
 	if (!vif->bss_conf.he_support || iwlwifi_mod_params.disable_11ax ||
 	    !vif->cfg.assoc) {
