@@ -204,7 +204,7 @@ ifdef CONFIG_SND_SOC_WCD_IRQ
 endif
 
 ifdef CONFIG_SND_SOC_MAX98937
-    MAX98937_OBJS += max98937.o
+	MAX98937_OBJS += max98937.o
 endif
 
 LINUX_INC +=	-Iinclude/linux
