@@ -5770,7 +5770,7 @@ void __ieee80211_tx_skb_tid_band(struct ieee80211_sub_if_data *sdata,
 
 			link_conf = rcu_dereference(sdata->vif.link_conf[link]);
 			if (!link_conf)
-				break;
+				continue;
 			if (memcmp(link_conf->addr, hdr->addr2, ETH_ALEN) == 0)
 				break;
 		}
