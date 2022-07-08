@@ -511,14 +511,10 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
 
-	if (atomic_read(&fpc1020->wakeup_enabled))
-		__pm_wakeup_event(fpc1020->ttw_ws, FPC_TTW_HOLD_TIME);
+	__pm_wakeup_event(fpc1020->ttw_ws, FPC_TTW_HOLD_TIME);
 
 	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
-	if (fpc1020->wait_finger_down && fpc1020->fb_black) {
-		fpc1020->wait_finger_down = false;
-		schedule_work(&fpc1020->work);
-	}
+
 	return IRQ_HANDLED;
 }
 
