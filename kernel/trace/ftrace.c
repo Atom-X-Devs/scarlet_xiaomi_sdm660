@@ -6193,6 +6193,8 @@ void __init ftrace_free_init_mem(void)
 	void *start = (void *)(&__init_begin);
 	void *end = (void *)(&__init_end);
 
+	ftrace_boot_snapshot();
+
 	ftrace_free_mem(NULL, start, end);
 }
 
@@ -6328,7 +6330,7 @@ __ftrace_ops_list_func(unsigned long ip, unsigned long parent_ip,
 	struct ftrace_ops *op;
 	int bit;
 
-	bit = trace_test_and_set_recursion(TRACE_LIST_START, TRACE_LIST_MAX);
+	bit = trace_test_and_set_recursion(TRACE_LIST_START);
 	if (bit < 0)
 		return;
 
@@ -6401,7 +6403,7 @@ static void ftrace_ops_assist_func(unsigned long ip, unsigned long parent_ip,
 {
 	int bit;
 
-	bit = trace_test_and_set_recursion(TRACE_LIST_START, TRACE_LIST_MAX);
+	bit = trace_test_and_set_recursion(TRACE_LIST_START);
 	if (bit < 0)
 		return;
 

@@ -239,6 +239,10 @@ static int mdp_m2m_buf_prepare(struct vb2_buffer *vb)
 	if (!V4L2_TYPE_IS_OUTPUT(vb->type)) {
 		pix_mp = &ctx_get_frame(ctx, vb->type)->format.fmt.pix_mp;
 		for (i = 0; i < pix_mp->num_planes; ++i) {
+			if (vb->planes[i].data_offset > vb2_plane_size(vb, i) ||
+			    vb2_plane_size(vb, i) - vb->planes[i].data_offset
+			    < pix_mp->plane_fmt[i].sizeimage)
+				return -EINVAL;
 			vb2_set_plane_payload(vb, i,
 					      pix_mp->plane_fmt[i].sizeimage);
 		}
@@ -801,4 +805,3 @@ void mdp_m2m_job_finish(struct mdp_m2m_ctx *ctx)
 
 	mdp_m2m_process_done(ctx, vb_state);
 }
-

@@ -317,7 +317,7 @@ struct inode *fuse_iget(struct super_block *sb, u64 nodeid,
 		unlock_new_inode(inode);
 	} else if ((inode->i_mode ^ attr->mode) & S_IFMT) {
 		/* Inode has changed type, any I/O on the old should fail */
-		make_bad_inode(inode);
+		fuse_make_bad(inode);
 		iput(inode);
 		goto retry;
 	}
@@ -377,7 +377,10 @@ void fuse_unlock_inode(struct inode *inode, bool locked)
 
 static void fuse_umount_begin(struct super_block *sb)
 {
-	fuse_abort_conn(get_fuse_conn_super(sb), false);
+	struct fuse_conn *fc = get_fuse_conn_super(sb);
+
+	fuse_abort_conn(fc, false);
+	retire_super(sb);
 }
 
 static void fuse_send_destroy(struct fuse_conn *fc)

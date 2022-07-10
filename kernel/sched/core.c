@@ -2249,6 +2249,9 @@ out:
 
 bool cpus_share_cache(int this_cpu, int that_cpu)
 {
+	if (this_cpu == that_cpu)
+		return true;
+
 	return per_cpu(sd_llc_id, this_cpu) == per_cpu(sd_llc_id, that_cpu);
 }
 #endif /* CONFIG_SMP */
@@ -2954,6 +2957,21 @@ fire_sched_out_preempt_notifiers(struct task_struct *curr,
 		__fire_sched_out_preempt_notifiers(curr, next);
 }
 
+#ifdef CONFIG_KVM_HETEROGENEOUS_RT
+static bool
+fire_may_preempt_notifiers(struct task_struct *prev)
+{
+	struct preempt_notifier *notifier;
+
+	if (static_branch_unlikely(&preempt_notifier_key))
+		hlist_for_each_entry(notifier, &prev->preempt_notifiers, link)
+			if (notifier->ops->may_preempt &&
+			    !notifier->ops->may_preempt(notifier, prev))
+				return false;
+	return true;
+}
+#endif
+
 #else /* !CONFIG_PREEMPT_NOTIFIERS */
 
 static inline void fire_sched_in_preempt_notifiers(struct task_struct *curr)
@@ -2964,6 +2982,12 @@ static inline void
 fire_sched_out_preempt_notifiers(struct task_struct *curr,
 				 struct task_struct *next)
 {
+}
+
+static inline bool
+fire_may_preempt_notifiers(struct task_struct *curr)
+{
+	return true;
 }
 
 #endif /* CONFIG_PREEMPT_NOTIFIERS */
@@ -4073,6 +4097,8 @@ pick_task(struct rq *rq, const struct sched_class *class, struct task_struct *ma
 	return cookie_pick;
 }
 
+static void queue_core_balance(struct rq *rq);
+
 static struct task_struct *
 pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
@@ -4104,7 +4130,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 			put_prev_task(rq, prev);
 			set_next_task(rq, next);
 		}
-		return next;
+		goto out;
 	}
 
 
@@ -4206,7 +4232,7 @@ again:
 			 */
 			if (i == cpu && !need_sync && !p->core_cookie) {
 				next = p;
-				goto done;
+				goto out_set_next;
 			}
 
 			if (!is_idle_task(p))
@@ -4300,8 +4326,12 @@ next_class:;
 			rq_i->cfs.min_vruntime_fi = rq_i->cfs.min_vruntime;
 		}
 	}
-done:
+out_set_next:
 	set_next_task(rq, next);
+out:
+	if (rq->core->core_forceidle && next == rq->idle)
+		queue_core_balance(rq);
+
 	return next;
 }
 
@@ -4399,7 +4429,7 @@ static void sched_core_balance(struct rq *rq)
 
 static DEFINE_PER_CPU(struct callback_head, core_balance_head);
 
-void queue_core_balance(struct rq *rq)
+static void queue_core_balance(struct rq *rq)
 {
 	if (!sched_core_enabled(rq))
 		return;
@@ -4478,6 +4508,15 @@ static void __sched notrace __schedule(bool preempt)
 
 	if (sched_feat(HRTICK))
 		hrtick_clear(rq);
+
+#ifdef CONFIG_KVM_HETEROGENEOUS_RT
+	if (preempt && prev->sched_class == &fair_sched_class &&
+	    !fire_may_preempt_notifiers(prev)) {
+		clear_tsk_need_resched(prev);
+		clear_preempt_need_resched();
+		return;
+	}
+#endif
 
 	local_irq_disable();
 	rcu_note_context_switch(preempt);

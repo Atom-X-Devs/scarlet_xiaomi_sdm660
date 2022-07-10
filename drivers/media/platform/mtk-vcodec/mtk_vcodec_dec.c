@@ -735,10 +735,18 @@ int vb2ops_vdec_buf_prepare(struct vb2_buffer *vb)
 	q_data = mtk_vdec_get_q_data(ctx, vb->vb2_queue->type);
 
 	for (i = 0; i < q_data->fmt->num_planes; i++) {
-		if (vb2_plane_size(vb, i) < q_data->sizeimage[i]) {
-			mtk_v4l2_err("data will not fit into plane %d (%lu < %d)",
+		if (vb->planes[i].data_offset > vb2_plane_size(vb, i)) {
+			mtk_v4l2_err("data offset larger than plane size");
+			return -EINVAL;
+		}
+
+		if (vb2_plane_size(vb, i) - vb->planes[i].data_offset
+		    < q_data->sizeimage[i]) {
+			mtk_v4l2_err("data will not fit into plane %d (%lu - %u < %d)",
 				i, vb2_plane_size(vb, i),
+				vb->planes[i].data_offset,
 				q_data->sizeimage[i]);
+			return -EINVAL;
 		}
 	}
 
