@@ -1002,7 +1002,7 @@ static inline int drv_start_ap(struct ieee80211_local *local,
 	int ret = 0;
 
 	/* make sure link_conf is protected */
-	sdata_assert_lock(sdata);
+	drv_verify_link_exists(sdata, link_conf);
 
 	might_sleep();
 
@@ -1021,7 +1021,7 @@ static inline void drv_stop_ap(struct ieee80211_local *local,
 			       struct ieee80211_bss_conf *link_conf)
 {
 	/* make sure link_conf is protected */
-	sdata_assert_lock(sdata);
+	drv_verify_link_exists(sdata, link_conf);
 
 	if (!check_sdata_in_driver(sdata))
 		return;
