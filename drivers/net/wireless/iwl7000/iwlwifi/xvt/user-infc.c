@@ -1347,8 +1347,13 @@ static int iwl_xvt_start_tx_handler(void *data)
 				sent_packets++;
 				++frag_idx;
 
-				if (kthread_should_stop())
+				if (kthread_should_stop()) {
+				/* Flushing the queues here as FW may send response for
+				 * already sent TX_CMD after terminating tx handler
+				 */
+					iwl_xvt_flush_sta_tids(xvt);
 					goto on_exit;
+				}
 			}
 		}
 	}
