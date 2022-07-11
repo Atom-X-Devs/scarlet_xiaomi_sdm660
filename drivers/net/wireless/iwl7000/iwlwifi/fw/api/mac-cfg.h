@@ -435,9 +435,10 @@ enum iwl_link_ctx_flags {
  * @reserved_for_ref_bssid_addr: reserved
  * @bssid_index: index of the associated VAP
  * @bss_color: 11ax AP ID that is used in the HE SIG-A to mark inter BSS frame
+ * @reserved: alignment
  * @ibss_bssid_addr: bssid for ibss
  * @reserved_for_ibss_bssid_addr: reserved
- * @reserved: reserved for future use
+ * @reserved1: reserved for future use
  */
 struct iwl_link_config_cmd {
 	__le32 action;
@@ -473,9 +474,10 @@ struct iwl_link_config_cmd {
 	__le16 reserved_for_ref_bssid_addr;
 	u8 bssid_index;
 	u8 bss_color;
+	u8 reserved[2];
 	u8 ibss_bssid_addr[6];
 	__le16 reserved_for_ibss_bssid_addr;
-	__le32 reserved[8];
+	__le32 reserved1[8];
 } __packed; /* LINK_CONTEXT_CONFIG_CMD_API_S_VER_1 */
 
 /**
