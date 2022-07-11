@@ -54,7 +54,7 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 	return s->counter_offsets_presp;
 }
 
-#if CFG80211_VERSION <= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION < KERNEL_VERSION(5,18,0)
 #define IEEE80211_CHAN_NO_HE 0
 #define IEEE80211_CHAN_NO_EHT 0
 
@@ -92,6 +92,9 @@ ieee80211_get_eht_iftype_cap(const struct ieee80211_supported_band *sband,
 #define cfg_eht_cap_has_eht(obj) (false && (obj))
 #define cfg_eht_cap_set_has_eht(obj, val) do { (void)obj; (void)val; } while (0)
 #define cfg_eht_cap(obj) ((struct ieee80211_sta_eht_cap *)((obj) ? NULL : NULL))
+
+/* mbssid was added in 5.18.0, so it's safe to return 0 prior to that version */
+#define ieee80211_get_mbssid_beacon_len(...) 0
 #else
 #define cfg_eht_cap_has_eht(obj) (obj)->eht_cap.has_eht
 #define cfg_eht_cap_set_has_eht(obj, val) (obj)->eht_cap.has_eht = val
@@ -2177,4 +2180,63 @@ struct net_device_path_ctx {
 	memset(__ptr + offsetof(typeof(*(obj)), member), __val,		\
 	       sizeof(*(obj)) - offsetof(typeof(*(obj)), member));	\
 })
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,19,0)
+/**
+ * struct cfg80211_rx_info - received management frame info
+ *
+ * @freq: Frequency on which the frame was received in kHz
+ * @sig_dbm: signal strength in dBm, or 0 if unknown
+ * @buf: Management frame (header + body)
+ * @len: length of the frame data
+ * @flags: flags, as defined in enum nl80211_rxmgmt_flags
+ * @rx_tstamp: Hardware timestamp of frame RX in nanoseconds
+ * @ack_tstamp: Hardware timestamp of ack TX in nanoseconds
+ */
+struct cfg80211_rx_info {
+	int freq;
+	int sig_dbm;
+	const u8 *buf;
+	size_t len;
+	u32 flags;
+	u64 rx_tstamp;
+	u64 ack_tstamp;
+};
+
+static inline bool cfg80211_rx_mgmt_ext(struct wireless_dev *wdev,
+					struct cfg80211_rx_info *info)
+{
+	return cfg80211_rx_mgmt(wdev, KHZ_TO_MHZ(info->freq), info->sig_dbm,
+				info->buf, info->len, info->flags);
+}
+
+/**
+ * struct cfg80211_tx_status - TX status for management frame information
+ *
+ * @cookie: Cookie returned by cfg80211_ops::mgmt_tx()
+ * @tx_tstamp: hardware TX timestamp in nanoseconds
+ * @ack_tstamp: hardware ack RX timestamp in nanoseconds
+ * @buf: Management frame (header + body)
+ * @len: length of the frame data
+ * @ack: Whether frame was acknowledged
+ */
+struct cfg80211_tx_status {
+	u64 cookie;
+	u64 tx_tstamp;
+	u64 ack_tstamp;
+	const u8 *buf;
+	size_t len;
+	bool ack;
+};
+
+static inline
+void cfg80211_mgmt_tx_status_ext(struct wireless_dev *wdev,
+				 struct cfg80211_tx_status *status, gfp_t gfp)
+{
+	cfg80211_mgmt_tx_status(wdev, status->cookie, status->buf, status->len,
+				status->ack, gfp);
+}
+
+#define NL80211_EXT_FEATURE_HW_TIMESTAMP -1
 #endif

@@ -126,6 +126,9 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 	u32 version = iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP,
 					      UCODE_ALIVE_NTFY, 0);
 	u32 i;
+	struct iwl_trans *trans = mvm->trans;
+	enum iwl_device_family device_family = trans->trans_cfg->device_family;
+
 
 	if (version == 6) {
 		struct iwl_alive_ntf_v6 *palive;
@@ -234,7 +237,8 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 
 	if (umac_error_table) {
 		if (umac_error_table >=
-		    mvm->trans->cfg->min_umac_error_event_table) {
+		    mvm->trans->cfg->min_umac_error_event_table ||
+		    device_family >= IWL_DEVICE_FAMILY_BZ) {
 			iwl_fw_umac_set_alive_err_table(mvm->trans,
 							umac_error_table);
 		} else {
@@ -1829,27 +1833,6 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 			IWL_ERR(mvm, "failed to update TX power\n");
 	}
 
-	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status) &&
-	    mvm->time_msmt_cfg != IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_NONE) {
-		int err;
-		struct iwl_time_sync_cfg_cmd cmd = {};
-
-		if (mvm->time_msmt_cfg & IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_TM)
-			cmd.protocols |= cpu_to_le32(IWL_TIME_SYNC_PROTOCOL_TM);
-		if (mvm->time_msmt_cfg & IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_FTM)
-			cmd.protocols |= cpu_to_le32(IWL_TIME_SYNC_PROTOCOL_FTM);
-
-		ether_addr_copy(cmd.peer_addr, mvm->time_msmt_peer_addr);
-
-		err = iwl_mvm_send_cmd_pdu(mvm,
-					   WIDE_ID(DATA_PATH_GROUP,
-						   WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD),
-					   0, sizeof(cmd), &cmd);
-		if (err)
-			IWL_ERR(mvm, "Failed to re-configure time sync on FW restart: %d\n",
-				err);
-	}
-
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
@@ -1885,6 +1868,8 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	iwl_mvm_send_system_features_control(mvm);
 #endif
+
+	iwl_mvm_mei_device_state(mvm, true);
 
 	IWL_DEBUG_INFO(mvm, "RT uCode started.\n");
 	return 0;

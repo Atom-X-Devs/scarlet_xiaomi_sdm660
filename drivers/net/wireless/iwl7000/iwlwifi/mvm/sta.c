@@ -9,6 +9,7 @@
 #include "mvm.h"
 #include "sta.h"
 #include "rs.h"
+#include "time-sync.h"
 
 /*
  * New version of ADD_STA_sta command added new fields at the end of the
@@ -319,6 +320,7 @@ static int iwl_mvm_invalidate_sta_queue(struct iwl_mvm *mvm, int queue,
 static int iwl_mvm_disable_txq(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 			       u16 *queueptr, u8 tid)
 {
+	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	int queue = *queueptr;
 	struct iwl_scd_txq_cfg_cmd cmd = {
 		.scd_queue = queue,
@@ -334,7 +336,9 @@ static int iwl_mvm_disable_txq(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 					     SCD_QUEUE_CONFIG_CMD);
 			struct iwl_scd_queue_cfg_cmd remove_cmd = {
 				.operation = cpu_to_le32(IWL_SCD_QUEUE_REMOVE),
-				.u.remove.queue = cpu_to_le32(queue),
+				.u.remove.tid = cpu_to_le32(tid),
+				.u.remove.sta_mask =
+					cpu_to_le32(BIT(mvmsta->sta_id)),
 			};
 
 			ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0,
@@ -1768,6 +1772,11 @@ update_fw:
 		}
 	}
 
+	if (!sta->tdls)
+		iwl_mvm_time_sync_config(mvm, sta->addr,
+					 IWL_TIME_SYNC_PROTOCOL_TM |
+					 IWL_TIME_SYNC_PROTOCOL_FTM);
+
 	rcu_assign_pointer(mvm->fw_id_to_mac_id[sta_id], sta);
 
 	return 0;
@@ -1957,6 +1966,9 @@ int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
 		if (vif->bss_conf.assoc)
 			return ret;
 
+		/* first remove remaining keys */
+		iwl_mvm_sec_key_remove_ap(mvm, vif);
+
 		/* unassoc - go ahead - remove the AP STA now */
 		mvmvif->ap_sta_id = IWL_MVM_INVALID_STA;
 	}
@@ -1976,6 +1988,8 @@ int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
 	 */
 	spin_lock_bh(&mvm_sta->lock);
 	spin_unlock_bh(&mvm_sta->lock);
+
+	iwl_mvm_time_sync_sta_rm(mvm, sta);
 
 	ret = iwl_mvm_rm_sta_common(mvm, mvm_sta->sta_id);
 	RCU_INIT_POINTER(mvm->fw_id_to_mac_id[mvm_sta->sta_id], NULL);

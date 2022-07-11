@@ -1071,3 +1071,30 @@ int iwl_xvt_init_ppag_tables(struct iwl_xvt *xvt)
 
 	return iwl_xvt_ppag_send_cmd(xvt);
 }
+
+void iwl_xvt_txpath_flush_send_cmd(struct iwl_xvt *xvt, u32 sta_id, u16 tids)
+{
+	int ret;
+	struct iwl_tx_path_flush_cmd flush_cmd = {
+		.sta_id = cpu_to_le32(sta_id),
+		.tid_mask = cpu_to_le16(tids),
+	};
+
+	struct iwl_host_cmd cmd = {
+		.id = TXPATH_FLUSH,
+		.len = { sizeof(flush_cmd), },
+		.data = { &flush_cmd, },
+		.flags = CMD_WANT_SKB,
+	};
+
+	IWL_DEBUG_TX_QUEUES(xvt, "flush for sta id %d tid mask 0x%x\n", sta_id, tids);
+
+	ret = iwl_xvt_send_cmd(xvt, &cmd);
+
+	if (ret) {
+		IWL_ERR(xvt, "Failed to send flush command (%d)\n", ret);
+		return;
+	}
+
+	iwl_xvt_txpath_flush(xvt, cmd.resp_pkt);
+}
