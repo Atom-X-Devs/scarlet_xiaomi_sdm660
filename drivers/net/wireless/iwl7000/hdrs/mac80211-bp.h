@@ -2233,6 +2233,7 @@ ieee80211_chanwidth_rate_flags(enum nl80211_chan_width width)
 
 #define cfg80211_ch_switch_notify(dev, chandef, link_id) cfg80211_ch_switch_notify(dev, chandef)
 #define cfg80211_beacon_data_link_id(params)	0
+#define link_sta_params_mld_mac(params)	NULL
 #define link_sta_params_link_id(params)	-1
 #define WIPHY_FLAG_SUPPORTS_MLO 0
 #define cfg80211_disassoc_ap_addr(req)	((req)->bss->bssid)
