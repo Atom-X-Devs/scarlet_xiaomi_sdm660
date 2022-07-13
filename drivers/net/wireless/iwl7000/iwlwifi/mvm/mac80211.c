@@ -3788,7 +3788,7 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
 			callbacks->mac_ctxt_changed(mvm, vif, false);
 
 			if (mvm->mld_api_is_used)
-				iwl_mvm_link_changed(mvm, vif, &vif->bss_conf,
+				iwl_mvm_link_changed(mvm, vif,
 						     LINK_CONTEXT_MODIFY_ALL &
 						     ~LINK_CONTEXT_MODIFY_ACTIVE,
 						     true);

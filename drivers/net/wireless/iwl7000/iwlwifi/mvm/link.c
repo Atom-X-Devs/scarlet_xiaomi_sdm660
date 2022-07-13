@@ -47,19 +47,17 @@ int iwl_mvm_add_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 }
 
 int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			 struct ieee80211_bss_conf *link_conf,
 			 u32 changes, bool active)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	unsigned int link_id = link_conf->link_id;
-	struct iwl_mvm_phy_ctxt *phyctxt = mvmvif->link[link_id]->phy_ctxt;
+	struct iwl_mvm_phy_ctxt *phyctxt = mvmvif->deflink.phy_ctxt;
 	struct iwl_link_config_cmd cmd = {};
 	u32 ht_flag, flags = 0, flags_mask = 0;
 
 	if (WARN_ON_ONCE(!phyctxt))
 		return -EINVAL;
 
-	cmd.link_id = cpu_to_le32(link_id);
+	cmd.link_id = cpu_to_le32(mvmvif->id);
 
 	/* The phy_id, link address and listen_lmac can be modified only until
 	 * the link becomes active, otherwise they will be ignored.
@@ -71,46 +69,43 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	cmd.active = cpu_to_le32(active);
 
-	if (vif->type == NL80211_IFTYPE_ADHOC && link_conf->bssid)
-		memcpy(cmd.ibss_bssid_addr, link_conf->bssid, ETH_ALEN);
+	if (vif->type == NL80211_IFTYPE_ADHOC && vif->bss_conf.bssid)
+		memcpy(cmd.ibss_bssid_addr, vif->bss_conf.bssid, ETH_ALEN);
 
 	/* TODO: set a value to cmd.listen_lmac when system requiremens
 	 * will define it
 	 */
 
-	iwl_mvm_set_fw_basic_rates(mvm, vif, link_conf,
-				   &cmd.cck_rates, &cmd.ofdm_rates);
+	iwl_mvm_set_fw_basic_rates(mvm, vif, &cmd.cck_rates, &cmd.ofdm_rates);
 
-	cmd.cck_short_preamble = cpu_to_le32(link_conf->use_short_preamble);
-	cmd.short_slot = cpu_to_le32(link_conf->use_short_slot);
+	cmd.cck_short_preamble = cpu_to_le32(vif->bss_conf.use_short_preamble);
+	cmd.short_slot = cpu_to_le32(vif->bss_conf.use_short_slot);
 
 	/* The fw does not distinguish between ht and fat */
 	ht_flag = LINK_PROT_FLG_HT_PROT | LINK_PROT_FLG_FAT_PROT;
-	iwl_mvm_set_fw_protection_flags(mvm, vif, link_conf,
-					&cmd.protection_flags,
+	iwl_mvm_set_fw_protection_flags(mvm, vif, &cmd.protection_flags,
 					ht_flag, LINK_PROT_FLG_TGG_PROTECT);
 
-	iwl_mvm_set_fw_qos_params(mvm, vif, link_conf, &cmd.ac[0],
-				  &cmd.qos_flags);
+	iwl_mvm_set_fw_qos_params(mvm, vif, &cmd.ac[0], &cmd.qos_flags);
 
 
-	cmd.bi = cpu_to_le32(link_conf->beacon_int);
-	cmd.dtim_interval = cpu_to_le32(link_conf->beacon_int *
-					link_conf->dtim_period);
+	cmd.bi = cpu_to_le32(vif->bss_conf.beacon_int);
+	cmd.dtim_interval = cpu_to_le32(vif->bss_conf.beacon_int *
+					vif->bss_conf.dtim_period);
 
-	if (!link_conf->he_support || iwlwifi_mod_params.disable_11ax ||
+	if (!vif->bss_conf.he_support || iwlwifi_mod_params.disable_11ax ||
 	    !vif->cfg.assoc) {
 		changes &= ~LINK_CONTEXT_MODIFY_HE_PARAMS;
 		goto send_cmd;
 	}
 
-	cmd.htc_trig_based_pkt_ext = link_conf->htc_trig_based_pkt_ext;
+	cmd.htc_trig_based_pkt_ext = vif->bss_conf.htc_trig_based_pkt_ext;
 
-	if (link_conf->uora_exists) {
+	if (vif->bss_conf.uora_exists) {
 		cmd.rand_alloc_ecwmin =
-			link_conf->uora_ocw_range & 0x7;
+			vif->bss_conf.uora_ocw_range & 0x7;
 		cmd.rand_alloc_ecwmax =
-			(link_conf->uora_ocw_range >> 3) & 0x7;
+			(vif->bss_conf.uora_ocw_range >> 3) & 0x7;
 	}
 
 	/* TODO  how to set ndp_fdbk_buff_th_exp? */
@@ -121,16 +116,16 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		flags_mask |= LINK_FLG_MU_EDCA_CW;
 	}
 
-	if (link_conf->eht_puncturing && !iwlwifi_mod_params.disable_11be)
-		cmd.puncture_mask = cpu_to_le16(link_conf->eht_puncturing);
+	if (vif->bss_conf.eht_puncturing && !iwlwifi_mod_params.disable_11be)
+		cmd.puncture_mask = cpu_to_le16(vif->bss_conf.eht_puncturing);
 	else
 		/* This flag can be set only if the MAC has eht support */
 		changes &= ~LINK_CONTEXT_MODIFY_EHT_PARAMS;
 
-	cmd.bss_color = link_conf->he_bss_color.color;
+	cmd.bss_color = vif->bss_conf.he_bss_color.color;
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
-	if (!link_conf->he_bss_color.enabled) {
+	if (!vif->bss_conf.he_bss_color.enabled) {
 #else
 	if (vif->bss_conf.he_bss_color.disabled) {
 #endif
@@ -138,7 +133,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		flags_mask |= LINK_FLG_BSS_COLOR_DIS;
 	}
 
-	cmd.frame_time_rts_th = cpu_to_le16(link_conf->frame_time_rts_th);
+	cmd.frame_time_rts_th = cpu_to_le16(vif->bss_conf.frame_time_rts_th);
 
 	/* Block 26-tone RU OFDMA transmissions */
 	if (mvmvif->deflink.he_ru_2mhz_block) {
@@ -146,10 +141,10 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		flags_mask |= LINK_FLG_RU_2MHZ_BLOCK;
 	}
 
-	if (link_conf->nontransmitted) {
+	if (vif->bss_conf.nontransmitted) {
 		ether_addr_copy(cmd.ref_bssid_addr,
-				link_conf->transmitter_bssid);
-		cmd.bssid_index = link_conf->bssid_index;
+				vif->bss_conf.transmitter_bssid);
+		cmd.bssid_index = vif->bss_conf.bssid_index;
 	}
 
 send_cmd:
