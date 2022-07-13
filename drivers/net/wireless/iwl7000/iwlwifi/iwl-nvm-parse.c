@@ -674,8 +674,6 @@ static const struct ieee80211_sband_iftype_data iwl_he_eht_capa[] = {
 				.phy_cap_info[6] =
 					IEEE80211_EHT_PHY_CAP6_MCS15_SUPP_MASK |
 					IEEE80211_EHT_PHY_CAP6_EHT_DUP_6GHZ_SUPP,
-				.phy_cap_info[7] =
-					IEEE80211_EHT_PHY_CAP7_20MHZ_STA_RX_NDP_WIDER_BW,
 				.phy_cap_info[8] =
 					IEEE80211_EHT_PHY_CAP8_RX_1024QAM_WIDER_BW_DL_OFDMA |
 					IEEE80211_EHT_PHY_CAP8_RX_4096QAM_WIDER_BW_DL_OFDMA,
@@ -999,8 +997,6 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[6] &=
 				~(IEEE80211_EHT_PHY_CAP6_MCS15_SUPP_MASK |
 				  IEEE80211_EHT_PHY_CAP6_EHT_DUP_6GHZ_SUPP);
-		cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[7] &=
-				~IEEE80211_EHT_PHY_CAP7_20MHZ_STA_RX_NDP_WIDER_BW;
 	}
 
 	if (fw_has_capa(&fw->ucode_capa, IWL_UCODE_TLV_CAPA_BROADCAST_TWT))
