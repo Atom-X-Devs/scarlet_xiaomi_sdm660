@@ -54,7 +54,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	struct iwl_link_config_cmd cmd = {};
 	u32 ht_flag, flags = 0, flags_mask = 0;
 
-	if (WARN_ON_ONCE(!phyctxt))
+	if (!phyctxt)
 		return -EINVAL;
 
 	cmd.link_id = cpu_to_le32(mvmvif->id);
