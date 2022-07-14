@@ -4671,6 +4671,9 @@ static bool ieee80211_prepare_and_rx_handle(struct ieee80211_rx_data *rx,
 {
 	struct ieee80211_local *local = rx->local;
 	struct ieee80211_sub_if_data *sdata = rx->sdata;
+	struct ieee80211_hdr *hdr = (void *)skb->data;
+	struct link_sta_info *link_sta = NULL;
+	struct ieee80211_link_data *link;
 
 	rx->skb = skb;
 
@@ -4692,6 +4695,15 @@ static bool ieee80211_prepare_and_rx_handle(struct ieee80211_rx_data *rx,
 	if (!ieee80211_accept_frame(rx))
 		return false;
 
+	if (unlikely(!is_multicast_ether_addr(hdr->addr1) &&
+		     rx->link_id >= 0 && rx->sta && rx->sta->sta.mlo)) {
+		link_sta = rcu_dereference(rx->sta->link[rx->link_id]);
+		link = rcu_dereference(rx->sdata->link[rx->link_id]);
+
+		if (WARN_ON_ONCE(!link_sta || !link))
+			return true;
+	}
+
 	if (!consume) {
 		struct skb_shared_hwtstamps *shwt;
 
@@ -4709,6 +4721,19 @@ static bool ieee80211_prepare_and_rx_handle(struct ieee80211_rx_data *rx,
 		 */
 		shwt = skb_hwtstamps(rx->skb);
 		shwt->hwtstamp = skb_hwtstamps(skb)->hwtstamp;
+	}
+
+	if (unlikely(link_sta)) {
+		/* translate to MLD addresses */
+		if (ether_addr_equal(link->conf->addr, hdr->addr1))
+			ether_addr_copy(hdr->addr1, rx->sdata->vif.addr);
+		if (ether_addr_equal(link_sta->addr, hdr->addr2))
+			ether_addr_copy(hdr->addr2, rx->sta->addr);
+		if (ether_addr_equal(link_sta->addr, hdr->addr3))
+			ether_addr_copy(hdr->addr3, rx->sta->addr);
+		else if (ether_addr_equal(link->conf->addr, hdr->addr3))
+			ether_addr_copy(hdr->addr3, rx->sdata->vif.addr);
+		/* not needed for A4 since it can only carry the SA */
 	}
 
 	ieee80211_invoke_rx_handlers(rx);
