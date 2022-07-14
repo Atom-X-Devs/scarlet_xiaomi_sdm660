@@ -4945,6 +4945,9 @@ static int sta_add_link_station(struct ieee80211_local *local,
 	if (!sta)
 		return -ENOENT;
 
+	if (sta->sta.valid_links & BIT(params->link_id))
+		return -EALREADY;
+
 	ret = ieee80211_sta_allocate_link(sta, params->link_id);
 	if (ret)
 		return ret;
