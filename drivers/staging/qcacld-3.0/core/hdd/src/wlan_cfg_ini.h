@@ -13,6 +13,7 @@ static const char wlan_cfg[] __initconst = {
 	"gNeighborLookupThreshold=76\n"
 	"gNeighborScanChannelMaxTime=30\n"
 	"FastRoamEnabled=1\n"
+	"gEnablefwlog=0\n"
 	"gChannelBondingMode5GHz=1\n"
 	"gAllowDFSChannelRoam=1\n"
 	"gSetTxChainmask1x1=1\n"
