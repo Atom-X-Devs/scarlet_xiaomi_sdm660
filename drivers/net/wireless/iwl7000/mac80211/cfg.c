@@ -1745,7 +1745,7 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 		rcu_dereference_protected(sta->link[link_id],
 					  lockdep_is_held(&local->sta_mtx));
 
-	if (WARN_ON(!link || !link_sta))
+	if (!link || !link_sta)
 		return -EINVAL;
 
 	sband = ieee80211_get_link_sband(link);
