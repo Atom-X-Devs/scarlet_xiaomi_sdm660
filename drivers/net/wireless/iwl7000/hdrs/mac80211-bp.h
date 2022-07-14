@@ -2235,6 +2235,7 @@ ieee80211_chanwidth_rate_flags(enum nl80211_chan_width width)
 #define cfg80211_beacon_data_link_id(params)	0
 #define link_sta_params_mld_mac(params)	NULL
 #define link_sta_params_link_id(params)	-1
+#define link_sta_params_link_mac(params)	NULL
 #define WIPHY_FLAG_SUPPORTS_MLO 0
 #define cfg80211_disassoc_ap_addr(req)	((req)->bss->bssid)
 
@@ -2307,6 +2308,7 @@ bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 #else
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #define link_sta_params_link_id(params) ((params)->link_sta_params.link_id)
+#define link_sta_params_link_mac(params) ((params)->link_sta_params.link_mac)
 #define cfg80211_disassoc_ap_addr(req)	((req)->ap_addr)
 #endif
 

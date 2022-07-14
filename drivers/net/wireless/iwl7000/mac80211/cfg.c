@@ -2011,8 +2011,14 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	    !sdata->u.mgd.associated)
 		return -EINVAL;
 
-	sta = sta_info_alloc(sdata, mac, link_sta_params_link_id(params),
-			     GFP_KERNEL);
+	if (link_sta_params_link_id(params) >= 0)
+		sta = sta_info_alloc_with_link(sdata, mac,
+					       link_sta_params_link_id(params),
+					       link_sta_params_link_mac(params),
+					       GFP_KERNEL);
+	else
+		sta = sta_info_alloc(sdata, mac, GFP_KERNEL);
+
 	if (!sta)
 		return -ENOMEM;
 
