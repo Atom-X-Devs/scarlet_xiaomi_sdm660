@@ -4757,6 +4757,29 @@ drop:
 	dev_kfree_skb(skb);
 }
 
+static bool ieee80211_rx_for_interface(struct ieee80211_rx_data *rx,
+				       struct sk_buff *skb, bool consume)
+{
+	struct link_sta_info *link_sta;
+	struct ieee80211_hdr *hdr = (void *)skb->data;
+
+	/*
+	 * Look up link station first, in case there's a
+	 * chance that they might have a link address that
+	 * is identical to the MLD address, that way we'll
+	 * have the link information if needed.
+	 */
+	link_sta = link_sta_info_get_bss(rx->sdata, hdr->addr2);
+	if (link_sta) {
+		rx->sta = link_sta->sta;
+		rx->link_id = link_sta->link_id;
+	} else {
+		rx->sta = sta_info_get_bss(rx->sdata, hdr->addr2);
+	}
+
+	return ieee80211_prepare_and_rx_handle(rx, skb, consume);
+}
+
 /*
  * This is the actual Rx frames handler. as it belongs to Rx path it must
  * be called with rcu_read_lock protection.
@@ -4776,7 +4799,6 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw,
 	__le16 fc;
 	struct ieee80211_rx_data rx;
 	struct ieee80211_sub_if_data *prev;
-	struct link_sta_info *link_sta;
 	struct rhlist_head *tmp;
 	int err = 0;
 
@@ -4871,36 +4893,16 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw,
 			continue;
 		}
 
-		/*
-		 * Look up link station first, in case there's a
-		 * chance that they might have a link address that
-		 * is identical to the MLD address, that way we'll
-		 * have the link information if needed.
-		 */
-		link_sta = link_sta_info_get_bss(prev, hdr->addr2);
-		if (link_sta) {
-			rx.sta = link_sta->sta;
-			rx.link_id = link_sta->link_id;
-		} else {
-			rx.sta = sta_info_get_bss(prev, hdr->addr2);
-		}
 		rx.sdata = prev;
-		ieee80211_prepare_and_rx_handle(&rx, skb, false);
+		ieee80211_rx_for_interface(&rx, skb, false);
 
 		prev = sdata;
 	}
 
 	if (prev) {
-		link_sta = link_sta_info_get_bss(prev, hdr->addr2);
-		if (link_sta) {
-			rx.sta = link_sta->sta;
-			rx.link_id = link_sta->link_id;
-		} else {
-			rx.sta = sta_info_get_bss(prev, hdr->addr2);
-		}
 		rx.sdata = prev;
 
-		if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
+		if (ieee80211_rx_for_interface(&rx, skb, true))
 			return;
 	}
 
