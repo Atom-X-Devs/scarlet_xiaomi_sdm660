@@ -125,6 +125,22 @@
  * via the usual ieee80211_tx_dequeue).
  */
 
+/**
+ * DOC: HW timestamping
+ *
+ * Timing Measurement and Fine Timing Measurement require accurate timestamps
+ * of the action frames TX/RX and their respective acks.
+ *
+ * To report hardware timestamps for Timing Measurement or Fine Timing
+ * Measurement frame RX, the low level driver should set the SKB's hwtstamp
+ * field to the frame RX timestamp and report the ack TX timestamp in the
+ * ieee80211_rx_status struct.
+ *
+ * Similarly, To report hardware timestamps for Timing Measurement or Fine
+ * Timing Measurement frame TX, the driver should set the SKB's hwtstamp field
+ * to the frame TX timestamp and report the ack RX timestamp in the
+ * ieee80211_tx_status struct.
+ */
 struct device;
 
 /**
@@ -1155,6 +1171,10 @@ ieee80211_info_get_tx_time_est(struct ieee80211_tx_info *info)
  * @info: Basic tx status information
  * @skb: Packet skb (can be NULL if not provided by the driver)
  * @rate: The TX rate that was used when sending the packet
+ * @ack_hwtstamp: Hardware timestamp of the received ack in nanoseconds
+ *	Only needed for Timing measurement and Fine timing measurement action
+ *	frames. Only reported by devices that have the
+ *	%NL80211_EXT_FEATURE_HW_TIMESTAMP capability.
  * @free_list: list where processed skbs are stored to be free'd by the driver
  */
 struct ieee80211_tx_status {
@@ -1162,6 +1182,7 @@ struct ieee80211_tx_status {
 	struct ieee80211_tx_info *info;
 	struct sk_buff *skb;
 	struct rate_info *rate;
+	ktime_t ack_hwtstamp;
 #if LINUX_VERSION_IS_GEQ(4,19,0)
 	struct list_head *free_list;
 #else
@@ -1402,6 +1423,10 @@ enum mac80211_rx_encoding {
  * 	(TSF) timer when the first data symbol (MPDU) arrived at the hardware.
  * @boottime_ns: CLOCK_BOOTTIME timestamp the frame was received at, this is
  *	needed only for beacons and probe responses that update the scan cache.
+ * @ack_tx_hwtstamp: Hardware timestamp for the ack TX in nanoseconds. Only
+ *	needed for Timing measurement and Fine timing measurement action frames.
+ *	Only reported by devices that have the %NL80211_EXT_FEATURE_HW_TIMESTAMP
+ *	capability.
  * @device_timestamp: arbitrary timestamp for the device, mac80211 doesn't use
  *	it but can store it and pass it back to the driver for synchronisation
  * @band: the active band when this frame was received
@@ -1437,7 +1462,10 @@ enum mac80211_rx_encoding {
  */
 struct ieee80211_rx_status {
 	u64 mactime;
-	u64 boottime_ns;
+	union {
+		u64 boottime_ns;
+		ktime_t ack_tx_hwtstamp;
+	};
 	u32 device_timestamp;
 	u32 ampdu_reference;
 	u32 flag;

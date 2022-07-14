@@ -9,6 +9,7 @@
 #include "iwl-trans.h"
 #include "mvm.h"
 #include "fw-api.h"
+#include "time-sync.h"
 
 static void *iwl_mvm_skb_get_hdr(struct sk_buff *skb)
 {
@@ -465,7 +466,7 @@ static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		 */
 		if (!is_multicast_ether_addr(hdr->addr1) &&
 		    !mvm->monitor_on && net_ratelimit())
-			IWL_ERR(mvm, "Unhandled alg: 0x%x\n", status);
+			IWL_WARN(mvm, "Unhandled alg: 0x%x\n", status);
 	}
 
 	return 0;
@@ -1754,10 +1755,12 @@ static void iwl_mvm_rx_fill_status(struct iwl_mvm *mvm,
 
 		rx_status->rate_idx = rate;
 
-		if (WARN_ONCE(rate < 0 || rate > 0xFF,
-			      "Invalid rate flags 0x%x, band %d,\n",
-			      rate_n_flags, rx_status->band))
+		if ((rate < 0 || rate > 0xFF) && net_ratelimit()) {
+			IWL_ERR(mvm, "Invalid rate flags 0x%x, band %d,\n",
+				rate_n_flags, rx_status->band);
 			rx_status->rate_idx = 0;
+		}
+
 		break;
 		}
 	}
@@ -2066,7 +2069,9 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		goto out;
 	}
 
-	if (!iwl_mvm_reorder(mvm, napi, queue, sta, skb, desc))
+	if (!iwl_mvm_reorder(mvm, napi, queue, sta, skb, desc) &&
+	    (likely(!iwl_mvm_time_sync_frame(mvm, skb, hdr->addr2)))
+	   )
 		iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue, sta);
 out:
 	rcu_read_unlock();

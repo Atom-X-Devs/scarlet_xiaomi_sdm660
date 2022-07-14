@@ -814,6 +814,12 @@ struct ptp_data {
 };
 #endif
 
+struct iwl_time_sync_data {
+	struct sk_buff_head frame_list;
+	u8 peer_addr[ETH_ALEN];
+	bool active;
+};
+
 struct iwl_mvm {
 	/* for logger access */
 	struct device *dev;
@@ -978,7 +984,6 @@ struct iwl_mvm {
 	unsigned long fw_key_table[BITS_TO_LONGS(STA_KEY_MAX_NUM)];
 	u8 fw_key_deleted[STA_KEY_MAX_NUM];
 
-	u8 vif_count;
 	struct ieee80211_vif __rcu *vif_id_to_mac[NUM_MAC_INDEX_DRIVER];
 
 	/* -1 for always, 0 for never, >0 for that many times */
@@ -1114,15 +1119,6 @@ struct iwl_mvm {
 
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	struct iwl_dev_tx_power_cmd txp_cmd;
-
-	/* Saved TM/FTM measurement configuration */
-	u32 time_msmt_cfg;
-
-	/* Peer address for time sync */
-	u8 time_msmt_peer_addr[ETH_ALEN];
-
-	/* Saved wdev, to send time sync related vendor events to user space */
-	struct wireless_dev *time_sync_wdev;
 #endif
 
 #ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
@@ -1206,6 +1202,9 @@ struct iwl_mvm {
 	unsigned long last_reset_or_resume_time_jiffies;
 
 	bool sta_remove_requires_queue_remove;
+
+	struct iwl_time_sync_data time_sync;
+
 };
 
 /* Extract MVM priv from op_mode and _hw */
@@ -1744,7 +1743,8 @@ int iwl_mvm_mac_ctxt_send_beacon(struct iwl_mvm *mvm,
 int iwl_mvm_mac_ctxt_send_beacon_cmd(struct iwl_mvm *mvm,
 				     struct sk_buff *beacon,
 				     void *data, int len);
-u8 iwl_mvm_mac_ctxt_get_lowest_rate(struct ieee80211_tx_info *info,
+u8 iwl_mvm_mac_ctxt_get_beacon_rate(struct iwl_mvm *mvm,
+				    struct ieee80211_tx_info *info,
 				    struct ieee80211_vif *vif);
 u16 iwl_mvm_mac_ctxt_get_beacon_flags(const struct iwl_fw *fw,
 				      u8 rate_idx);
@@ -2181,10 +2181,6 @@ void iwl_mvm_active_rx_filters(struct iwl_mvm *mvm);
 void iwl_mvm_rx_csi_header(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
 void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
 int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm);
-void iwl_mvm_time_sync_msmt_confirm_event(struct iwl_mvm *mvm,
-					  struct iwl_rx_cmd_buffer *rxb);
-void iwl_mvm_time_sync_msmt_event(struct iwl_mvm *mvm,
-				  struct iwl_rx_cmd_buffer *rxb);
 #endif
 
 /* NAN */
@@ -2216,6 +2212,18 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 			     struct ieee80211_sta *sta,
 			     struct dentry *dir);
 #endif
+
+/* new MLD related APIs */
+int iwl_mvm_sec_key_add(struct iwl_mvm *mvm,
+			struct ieee80211_vif *vif,
+			struct ieee80211_sta *sta,
+			struct ieee80211_key_conf *keyconf);
+int iwl_mvm_sec_key_del(struct iwl_mvm *mvm,
+			struct ieee80211_vif *vif,
+			struct ieee80211_sta *sta,
+			struct ieee80211_key_conf *keyconf);
+void iwl_mvm_sec_key_remove_ap(struct iwl_mvm *mvm,
+			       struct ieee80211_vif *vif);
 
 /* 11ax Softap Test Mode */
 
@@ -2345,10 +2353,10 @@ static inline void iwl_mvm_mei_host_disassociated(struct iwl_mvm *mvm)
 		iwl_mei_host_disassociated();
 }
 
-static inline void iwl_mvm_mei_device_down(struct iwl_mvm *mvm)
+static inline void iwl_mvm_mei_device_state(struct iwl_mvm *mvm, bool up)
 {
 	if (mvm->mei_registered)
-		iwl_mei_device_down();
+		iwl_mei_device_state(up);
 }
 
 static inline void iwl_mvm_mei_set_sw_rfkill_state(struct iwl_mvm *mvm)

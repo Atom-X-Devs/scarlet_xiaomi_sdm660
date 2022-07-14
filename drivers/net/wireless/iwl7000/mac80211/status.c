@@ -616,9 +616,11 @@ ieee80211_sdata_from_skb(struct ieee80211_local *local, struct sk_buff *skb)
 }
 
 static void ieee80211_report_ack_skb(struct ieee80211_local *local,
-				     struct ieee80211_tx_info *info,
-				     bool acked, bool dropped)
+				     struct sk_buff *orig_skb,
+				     bool acked, bool dropped,
+				     ktime_t ack_hwtstamp)
 {
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(orig_skb);
 	struct sk_buff *skb;
 	unsigned long flags;
 
@@ -635,6 +637,21 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 		struct ieee80211_hdr *hdr = (void *)skb->data;
 		bool is_valid_ack_signal =
 			!!(info->status.flags & IEEE80211_TX_STATUS_ACK_SIGNAL_VALID);
+		struct cfg80211_tx_status status = {
+			.cookie = cookie,
+			.buf = skb->data,
+			.len = skb->len,
+			.ack = acked,
+		};
+
+		if (wiphy_ext_feature_isset(local->hw.wiphy,
+					    NL80211_EXT_FEATURE_HW_TIMESTAMP) &&
+		    (ieee80211_is_timing_measurement(orig_skb) ||
+		     ieee80211_is_ftm(orig_skb))) {
+			status.tx_tstamp =
+				ktime_to_ns(skb_hwtstamps(orig_skb)->hwtstamp);
+			status.ack_tstamp = ktime_to_ns(ack_hwtstamp);
+		}
 
 		rcu_read_lock();
 		sdata = ieee80211_sdata_from_skb(local, skb);
@@ -661,9 +678,9 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 #endif
 			}
 			else if (ieee80211_is_mgmt(hdr->frame_control))
-				cfg80211_mgmt_tx_status(&sdata->wdev, cookie,
-							skb->data, skb->len,
-							acked, GFP_ATOMIC);
+				cfg80211_mgmt_tx_status_ext(&sdata->wdev,
+							    &status,
+							    GFP_ATOMIC);
 			else
 				pr_warn("Unknown status report in ack skb\n");
 
@@ -680,7 +697,8 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 }
 
 static void ieee80211_report_used_skb(struct ieee80211_local *local,
-				      struct sk_buff *skb, bool dropped)
+				      struct sk_buff *skb, bool dropped,
+				      ktime_t ack_hwtstamp)
 {
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	u16 tx_time_est = ieee80211_info_get_tx_time_est(info);
@@ -743,7 +761,8 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 
 		rcu_read_unlock();
 	} else if (info->ack_frame_id) {
-		ieee80211_report_ack_skb(local, info, acked, dropped);
+		ieee80211_report_ack_skb(local, skb, acked, dropped,
+					 ack_hwtstamp);
 	}
 
 	if (!dropped && skb->destructor) {
@@ -1058,7 +1077,7 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
 			  jiffies + msecs_to_jiffies(10));
 	}
 
-	ieee80211_report_used_skb(local, skb, false);
+	ieee80211_report_used_skb(local, skb, false, status->ack_hwtstamp);
 
 	/* this was a transmitted frame, but now we want to reuse it */
 	skb_orphan(skb);
@@ -1227,7 +1246,7 @@ free:
 	if (!skb)
 		return;
 
-	ieee80211_report_used_skb(local, skb, false);
+	ieee80211_report_used_skb(local, skb, false, status->ack_hwtstamp);
 	if (status->free_list)
 #if LINUX_VERSION_IS_GEQ(4,19,0)
 		list_add_tail(&skb->list, status->free_list);
@@ -1293,8 +1312,9 @@ EXPORT_SYMBOL(ieee80211_report_low_ack);
 void ieee80211_free_txskb(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
 	struct ieee80211_local *local = hw_to_local(hw);
+	ktime_t kt = ktime_set(0, 0);
 
-	ieee80211_report_used_skb(local, skb, true);
+	ieee80211_report_used_skb(local, skb, true, kt);
 	dev_kfree_skb_any(skb);
 }
 EXPORT_SYMBOL(ieee80211_free_txskb);
