@@ -2654,7 +2654,7 @@ static struct sk_buff *ieee80211_build_hdr(struct ieee80211_sub_if_data *sdata,
 		/* DA BSSID SA */
 		memcpy(hdr.addr1, skb->data, ETH_ALEN);
 
-		if (sta && !sta->sta.mlo) {
+		if (sdata->vif.valid_links && sta && !sta->sta.mlo) {
 			struct ieee80211_link_data *link;
 
 			link_id = sta->deflink.link_id;
