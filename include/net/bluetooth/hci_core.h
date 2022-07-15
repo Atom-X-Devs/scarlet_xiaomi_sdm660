@@ -1459,7 +1459,6 @@ int hci_remove_all_adv_monitor(struct hci_dev *hdev);
 bool hci_is_adv_monitoring(struct hci_dev *hdev);
 int hci_get_adv_monitor_offload_ext(struct hci_dev *hdev);
 
-void hci_handle_userchannel_packet(struct hci_dev *hdev, struct sk_buff *skb);
 void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb);
 
 void hci_init_sysfs(struct hci_dev *hdev);
