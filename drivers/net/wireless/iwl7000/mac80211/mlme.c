@@ -2885,8 +2885,6 @@ static void ieee80211_set_associated(struct ieee80211_sub_if_data *sdata,
 		changed[link_id] |= ieee80211_link_set_associated(link, cbss);
 	}
 
-	memcpy(sdata->vif.cfg.ap_addr, assoc_data->ap_addr, ETH_ALEN);
-
 	/* just to be sure */
 	ieee80211_stop_poll(sdata);
 
@@ -5044,6 +5042,9 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 	sta->sta.wme = (elems->wmm_param || elems->s1g_capab) &&
 		       local->hw.queues >= IEEE80211_NUM_ACS;
 
+	/* needed for fast-xmit setup in sta_info_move_state() */
+	memcpy(sdata->vif.cfg.ap_addr, assoc_data->ap_addr, ETH_ALEN);
+
 	err = sta_info_move_state(sta, IEEE80211_STA_ASSOC);
 	if (!err && !(ifmgd->flags & IEEE80211_STA_CONTROL_PORT))
 		err = sta_info_move_state(sta, IEEE80211_STA_AUTHORIZED);
@@ -5078,6 +5079,7 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 
 	return true;
 out_err:
+	eth_zero_addr(sdata->vif.cfg.ap_addr);
 	mutex_unlock(&sdata->local->sta_mtx);
 	return false;
 }
