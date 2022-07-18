@@ -2318,6 +2318,8 @@ cfg80211_get_iftype_ext_capa(struct wiphy *wiphy, enum nl80211_iftype type)
 }
 #define cfg80211_ext_capa_eml_capabilities(ift_ext_capa)	0
 #define cfg80211_ext_capa_mld_capa_and_ops(ift_ext_capa)	0
+#define cfg80211_mgmt_tx_params_link_id(params)			-1
+#define cfg80211_mgmt_tx_params_link_id_mask(params)		0
 #else /* CFG80211 < 5.20 */
 #define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #define link_sta_params_link_id(params) ((params)->link_sta_params.link_id)
@@ -2329,6 +2331,8 @@ cfg80211_get_iftype_ext_capa(struct wiphy *wiphy, enum nl80211_iftype type)
 #define cfg80211_req_link_elems_len(req, link)	((req)->links[link].elems_len
 #define cfg80211_ext_capa_eml_capabilities(ift_ext_capa)	(ift_ext_capa)->eml_capabilities
 #define cfg80211_ext_capa_mld_capa_and_ops(ift_ext_capa)	(ift_ext_capa)->mld_capa_and_ops
+#define cfg80211_mgmt_tx_params_link_id(params)	((params)->link_id)
+#define cfg80211_mgmt_tx_params_link_id_mask(params) BIT((params)->link_id)
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
