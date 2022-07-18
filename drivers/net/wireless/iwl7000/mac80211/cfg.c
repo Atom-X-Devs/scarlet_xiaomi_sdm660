@@ -1724,7 +1724,7 @@ static void sta_apply_airtime_params(struct ieee80211_local *local,
 #endif
 
 static int sta_link_apply_parameters(struct ieee80211_local *local,
-				     struct sta_info *sta,
+				     struct sta_info *sta, bool new_link,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
 				     struct link_station_parameters *params)
 #else
@@ -1754,8 +1754,13 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
 	if (params->link_mac) {
-		memcpy(link_sta->addr, params->link_mac, ETH_ALEN);
-		memcpy(link_sta->pub->addr, params->link_mac, ETH_ALEN);
+		if (new_link) {
+			memcpy(link_sta->addr, params->link_mac, ETH_ALEN);
+			memcpy(link_sta->pub->addr, params->link_mac, ETH_ALEN);
+		} else if (!ether_addr_equal(link_sta->addr,
+					     params->link_mac)) {
+			return -EINVAL;
+		}
 	}
 #endif
 
@@ -1948,9 +1953,10 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 		sta->listen_interval = params->listen_interval;
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
-	ret = sta_link_apply_parameters(local, sta, &params->link_sta_params);
+	ret = sta_link_apply_parameters(local, sta, false,
+					&params->link_sta_params);
 #else
-	ret = sta_link_apply_parameters(local, sta, params);
+	ret = sta_link_apply_parameters(local, sta, false, params);
 #endif
 	if (ret)
 		return ret;
@@ -4963,7 +4969,7 @@ static int sta_add_link_station(struct ieee80211_local *local,
 	if (ret)
 		return ret;
 
-	ret = sta_link_apply_parameters(local, sta, params);
+	ret = sta_link_apply_parameters(local, sta, true, params);
 	if (ret) {
 		ieee80211_sta_free_link(sta, params->link_id);
 		return ret;
@@ -5001,7 +5007,7 @@ static int sta_mod_link_station(struct ieee80211_local *local,
 	if (!(sta->sta.valid_links & BIT(params->link_id)))
 		return -EINVAL;
 
-	return sta_link_apply_parameters(local, sta, params);
+	return sta_link_apply_parameters(local, sta, false, params);
 }
 
 static int
