@@ -3479,6 +3479,7 @@ void iwl_mvm_sta_pre_rcu_remove(struct ieee80211_hw *hw,
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+	unsigned int link_id;
 
 	/*
 	 * This is called before mac80211 does RCU synchronisation,
@@ -3487,12 +3488,24 @@ void iwl_mvm_sta_pre_rcu_remove(struct ieee80211_hw *hw,
 	 * be able to find the station this way, and we don't rely
 	 * on further RCU synchronisation after the sta_state()
 	 * callback deleted the station.
+	 * Since there's mvm->mutex here, no need to have RCU lock for
+	 * mvm_sta->link access.
 	 */
 	mutex_lock(&mvm->mutex);
-	if (sta == rcu_access_pointer(mvm->fw_id_to_mac_id[mvm_sta->deflink.sta_id]))
-		rcu_assign_pointer(mvm->fw_id_to_mac_id[mvm_sta->deflink.sta_id],
-				   ERR_PTR(-ENOENT));
+	for (link_id = 0; link_id < ARRAY_SIZE(mvm_sta->link); link_id++) {
+		struct iwl_mvm_link_sta *link_sta;
+		u32 sta_id;
 
+		if (!mvm_sta->link[link_id])
+			continue;
+
+		link_sta = rcu_dereference_protected(mvm_sta->link[link_id],
+						     lockdep_is_held(&mvm->mutex));
+		sta_id = link_sta->sta_id;
+		if (sta == rcu_access_pointer(mvm->fw_id_to_mac_id[sta_id]))
+			rcu_assign_pointer(mvm->fw_id_to_mac_id[sta_id],
+					   ERR_PTR(-ENOENT));
+	}
 	mutex_unlock(&mvm->mutex);
 }
 
