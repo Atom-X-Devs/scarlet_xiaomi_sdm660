@@ -2154,20 +2154,11 @@ struct net_device_path_ctx {
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,19,0)
-/**
- * struct cfg80211_rx_info - received management frame info
- *
- * @freq: Frequency on which the frame was received in kHz
- * @sig_dbm: signal strength in dBm, or 0 if unknown
- * @buf: Management frame (header + body)
- * @len: length of the frame data
- * @flags: flags, as defined in enum nl80211_rxmgmt_flags
- * @rx_tstamp: Hardware timestamp of frame RX in nanoseconds
- * @ack_tstamp: Hardware timestamp of ack TX in nanoseconds
- */
 struct cfg80211_rx_info {
 	int freq;
 	int sig_dbm;
+	bool have_link_id;
+	u8 link_id;
 	const u8 *buf;
 	size_t len;
 	u32 flags;
