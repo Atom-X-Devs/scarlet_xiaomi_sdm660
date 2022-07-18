@@ -2011,10 +2011,15 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	    !sdata->u.mgd.associated)
 		return -EINVAL;
 
+	/*
+	 * If we have a link ID, it can be a non-MLO station on an AP MLD,
+	 * but we need to have a link_mac in that case as well, so use the
+	 * STA's MAC address in that case.
+	 */
 	if (link_sta_params_link_id(params) >= 0)
 		sta = sta_info_alloc_with_link(sdata, mac,
 					       link_sta_params_link_id(params),
-					       link_sta_params_link_mac(params),
+					       link_sta_params_link_mac(params) ?: mac,
 					       GFP_KERNEL);
 	else
 		sta = sta_info_alloc(sdata, mac, GFP_KERNEL);
