@@ -1583,10 +1583,13 @@ iwl_mvm_chandef_get_primary_80(struct cfg80211_chan_def *chandef)
 /*
  * Returns true if addding the interface is done
  * (either with success or failure)
+ *
+ * FIXME: remove this again and merge it in
  */
-bool iwl_mvm_mac_add_interface_common(struct iwl_mvm *mvm,
-				      struct ieee80211_hw *hw,
-				      struct ieee80211_vif *vif, int *ret)
+static bool iwl_mvm_mac_add_interface_common(struct iwl_mvm *mvm,
+					     struct ieee80211_hw *hw,
+					     struct ieee80211_vif *vif,
+					     int *ret)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
