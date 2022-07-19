@@ -1773,8 +1773,8 @@ out:
 	return ret;
 }
 
-static void iwl_mvm_prepare_mac_removal(struct iwl_mvm *mvm,
-					struct ieee80211_vif *vif)
+void iwl_mvm_prepare_mac_removal(struct iwl_mvm *mvm,
+				 struct ieee80211_vif *vif)
 {
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE) {
 		/*
@@ -1790,8 +1790,8 @@ static void iwl_mvm_prepare_mac_removal(struct iwl_mvm *mvm,
  * both - MLD and non-MLD modes. Returns true if removing the interface
  * is done
  */
-bool iwl_mvm_mac_remove_interface_common(struct ieee80211_hw *hw,
-					 struct ieee80211_vif *vif)
+static bool iwl_mvm_mac_remove_interface_common(struct ieee80211_hw *hw,
+						struct ieee80211_vif *vif)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);

@@ -144,9 +144,67 @@ static void iwl_mvm_mld_mac_remove_interface(struct ieee80211_hw *hw,
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_probe_resp_data *probe_data;
 
-	if (iwl_mvm_mac_remove_interface_common(hw, vif))
+	iwl_mvm_prepare_mac_removal(mvm, vif);
+
+	if (ieee80211_viftype_nan(vif->type)) {
+		struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif);
+		/* cfg80211 should stop NAN before interface removal */
+		if (wdev && WARN_ON(wdev_running(wdev)))
+			iwl_mvm_stop_nan(hw, vif);
+
 		goto out;
+	}
+
+	if (!(vif->type == NL80211_IFTYPE_AP ||
+	      vif->type == NL80211_IFTYPE_ADHOC))
+		iwl_mvm_tcm_rm_vif(mvm, vif);
+
+	mutex_lock(&mvm->mutex);
+
+	if (vif == mvm->csme_vif) {
+		iwl_mei_set_netdev(NULL);
+		mvm->csme_vif = NULL;
+	}
+
+	probe_data = rcu_dereference_protected(mvmvif->deflink.probe_resp_data,
+					       lockdep_is_held(&mvm->mutex));
+	RCU_INIT_POINTER(mvmvif->deflink.probe_resp_data, NULL);
+	if (probe_data)
+		kfree_rcu(probe_data, rcu_head);
+
+	if (mvm->bf_allowed_vif == mvmvif) {
+		mvm->bf_allowed_vif = NULL;
+		vif->driver_flags &= ~(IEEE80211_VIF_BEACON_FILTER |
+				       IEEE80211_VIF_SUPPORTS_CQM_RSSI);
+	}
+
+	if (vif->bss_conf.ftm_responder)
+		memset(&mvm->ftm_resp_stats, 0, sizeof(mvm->ftm_resp_stats));
+
+	iwl_mvm_vif_dbgfs_clean(mvm, vif);
+
+	/*
+	 * For AP/GO interface, the tear down of the resources allocated to the
+	 * interface is be handled as part of the stop_ap flow.
+	 */
+	if (vif->type == NL80211_IFTYPE_AP ||
+	    vif->type == NL80211_IFTYPE_ADHOC) {
+#ifdef CPTCFG_NL80211_TESTMODE
+		if (vif == mvm->noa_vif) {
+			mvm->noa_vif = NULL;
+			mvm->noa_duration = 0;
+		}
+#endif
+	}
+
+#ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
+	if (mvmvif == mvm->p2p_opps_test_wa_vif)
+		mvm->p2p_opps_test_wa_vif = NULL;
+#endif
+
+	iwl_mvm_power_update_mac(mvm);
 
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE) {
 		mvm->p2p_device_vif = NULL;
