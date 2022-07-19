@@ -38,7 +38,7 @@ int iwl_mvm_add_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	if (phyctxt)
 		cmd.phy_id = cpu_to_le32(phyctxt->id);
 	else
-		cmd.phy_id = cpu_to_le32(FW_CTXT_INVALID);
+		cmd.phy_id = cpu_to_le32(0xff);
 
 	memcpy(cmd.local_link_addr, vif->addr, ETH_ALEN);
 
@@ -64,7 +64,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (phyctxt)
 		cmd.phy_id = cpu_to_le32(phyctxt->id);
 	else
-		cmd.phy_id = cpu_to_le32(FW_CTXT_INVALID);
+		cmd.phy_id = cpu_to_le32(0xff);
 	cmd.mac_id = cpu_to_le32(mvmvif->id);
 
 	memcpy(cmd.local_link_addr, vif->addr, ETH_ALEN);
