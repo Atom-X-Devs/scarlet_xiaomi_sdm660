@@ -320,7 +320,6 @@ static void __iwl_mvm_mld_unassign_vif_chanctx(struct iwl_mvm *mvm,
 		rcu_assign_pointer(mvm->csa_tx_blocked_vif, vif);
 
 		mvmvif->ap_ibss_active = false;
-		return;
 	}
 
 	if (vif->type == NL80211_IFTYPE_MONITOR)
