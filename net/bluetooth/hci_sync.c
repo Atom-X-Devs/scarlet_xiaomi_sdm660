@@ -1833,7 +1833,7 @@ struct sk_buff *hci_read_local_oob_data_sync(struct hci_dev *hdev,
  */
 static u8 hci_update_accept_list_sync(struct hci_dev *hdev)
 {
-	struct hci_conn_params *params;
+	struct hci_conn_params *params, *tmp;
 	struct bdaddr_list *b, *t;
 	u8 num_entries = 0;
 	bool pend_conn, pend_report;
@@ -1900,7 +1900,7 @@ static u8 hci_update_accept_list_sync(struct hci_dev *hdev)
 	 * just abort and return filer policy value to not use the
 	 * accept list.
 	 */
-	list_for_each_entry(params, &hdev->pend_le_conns, action) {
+	list_for_each_entry_safe(params, tmp, &hdev->pend_le_conns, action) {
 		err = hci_le_add_accept_list_sync(hdev, params, &num_entries);
 		if (err)
 			goto done;
@@ -1910,7 +1910,7 @@ static u8 hci_update_accept_list_sync(struct hci_dev *hdev)
 	 * the list of pending reports and also add these to the
 	 * accept list if there is still space. Abort if space runs out.
 	 */
-	list_for_each_entry(params, &hdev->pend_le_reports, action) {
+	list_for_each_entry_safe(params, tmp, &hdev->pend_le_reports, action) {
 		err = hci_le_add_accept_list_sync(hdev, params, &num_entries);
 		if (err)
 			goto done;
