@@ -34,7 +34,8 @@ int iwl_mvm_add_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	cmd.link_id = cpu_to_le32(mvmvif->id);
 	cmd.mac_id = cpu_to_le32(mvmvif->id);
-	if (WARN_ON(phyctxt))
+	/* P2P-Device already has a valid PHY context during add */
+	if (phyctxt)
 		cmd.phy_id = cpu_to_le32(phyctxt->id);
 	else
 		cmd.phy_id = cpu_to_le32(FW_CTXT_INVALID);
