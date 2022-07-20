@@ -322,8 +322,6 @@ struct joycon_input_report {
 #define JC_RUMBLE_DATA_SIZE	8
 #define JC_RUMBLE_QUEUE_SIZE	8
 
-static const unsigned short JC_RUMBLE_ZERO_AMP_PKT_CNT = 5;
-
 /* Each physical controller is associated with a joycon_ctlr struct */
 struct joycon_ctlr {
 	struct hid_device *hdev;
@@ -990,6 +988,8 @@ static void joycon_clamp_rumble_freqs(struct joycon_ctlr *ctlr)
 				     JOYCON_MAX_RUMBLE_HIGH_FREQ);
 	spin_unlock_irqrestore(&ctlr->lock, flags);
 }
+
+static const unsigned short JC_RUMBLE_ZERO_AMP_PKT_CNT = 5;
 
 static int joycon_set_rumble(struct joycon_ctlr *ctlr, u16 amp_r, u16 amp_l,
 			     bool schedule_now)
