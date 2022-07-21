@@ -1874,6 +1874,11 @@ void hci_free_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor)
 	kfree(monitor);
 }
 
+int hci_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status)
+{
+	return mgmt_remove_adv_monitor_complete(hdev, status);
+}
+
 /* Assigns handle to a monitor, and if offloading is supported and power is on,
  * also attempts to forward the request to the controller.
  */
@@ -1923,64 +1928,92 @@ int hci_add_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor)
 
 /* Attempts to tell the controller and free the monitor. If somehow the
  * controller doesn't have a corresponding handle, remove anyway.
+ * Returns true if request is forwarded (result is pending), false otherwise.
+ * This function requires the caller holds hdev->lock.
  */
-static int hci_remove_adv_monitor(struct hci_dev *hdev,
-				  struct adv_monitor *monitor)
+static bool hci_remove_adv_monitor(struct hci_dev *hdev,
+				   struct adv_monitor *monitor,
+				   u16 handle, int *err)
 {
-	int status = 0;
+	*err = 0;
 
 	switch (hci_get_adv_monitor_offload_ext(hdev)) {
 	case HCI_ADV_MONITOR_EXT_NONE: /* also goes here when powered off */
-		hci_free_adv_monitor(hdev, monitor);
-		bt_dev_dbg(hdev, "%s remove monitor %d status %d", hdev->name,
-			   monitor->handle, status);
-		break;
-
+		goto free_monitor;
 	case HCI_ADV_MONITOR_EXT_MSFT:
-		hci_req_sync_lock(hdev);
-		status = msft_remove_monitor(hdev, monitor);
-		hci_req_sync_unlock(hdev);
-		bt_dev_dbg(hdev, "%s remove monitor %d msft status %d",
-			   hdev->name, monitor->handle, status);
+		*err = msft_remove_monitor(hdev, monitor, handle);
 		break;
 	}
 
-	if (status == -ENOENT)
+	/* In case no matching handle registered, just free the monitor */
+	if (*err == -ENOENT)
+		goto free_monitor;
+
+	return (*err == 0);
+
+free_monitor:
+	if (*err == -ENOENT)
 		bt_dev_warn(hdev, "Removing monitor with no matching handle %d",
 			    monitor->handle);
+	hci_free_adv_monitor(hdev, monitor);
 
-	return status;
+	*err = 0;
+	return false;
 }
 
-int hci_remove_single_adv_monitor(struct hci_dev *hdev, u16 handle)
+/* Returns true if request is forwarded (result is pending), false otherwise.
+ * This function requires the caller holds hdev->lock.
+ */
+bool hci_remove_single_adv_monitor(struct hci_dev *hdev, u16 handle, int *err)
 {
 	struct adv_monitor *monitor = idr_find(&hdev->adv_monitors_idr, handle);
+	bool pending;
 
-	if (!monitor)
-		return -EINVAL;
+	if (!monitor) {
+		*err = -EINVAL;
+		return false;
+	}
 
-	return hci_remove_adv_monitor(hdev, monitor);
+	pending = hci_remove_adv_monitor(hdev, monitor, handle, err);
+	if (!*err && !pending)
+		hci_update_passive_scan(hdev);
+
+	bt_dev_dbg(hdev, "%s remove monitor handle %d, status %d, %spending",
+		   hdev->name, handle, *err, pending ? "" : "not ");
+
+	return pending;
 }
 
-int hci_remove_all_adv_monitor(struct hci_dev *hdev)
+/* Returns true if request is forwarded (result is pending), false otherwise.
+ * This function requires the caller holds hdev->lock.
+ */
+bool hci_remove_all_adv_monitor(struct hci_dev *hdev, int *err)
 {
 	struct adv_monitor *monitor;
 	int idr_next_id = 0;
-	int status = 0;
+	bool pending = false;
+	bool update = false;
 
-	while (1) {
+	*err = 0;
+
+	while (!*err && !pending) {
 		monitor = idr_get_next(&hdev->adv_monitors_idr, &idr_next_id);
 		if (!monitor)
 			break;
 
-		status = hci_remove_adv_monitor(hdev, monitor);
-		if (status)
-			return status;
+		pending = hci_remove_adv_monitor(hdev, monitor, 0, err);
 
-		idr_next_id++;
+		if (!*err && !pending)
+			update = true;
 	}
 
-	return status;
+	if (update)
+		hci_update_passive_scan(hdev);
+
+	bt_dev_dbg(hdev, "%s remove all monitors status %d, %spending",
+		   hdev->name, *err, pending ? "" : "not ");
+
+	return pending;
 }
 
 /* This function requires the caller holds hdev->lock */

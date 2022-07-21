@@ -4734,6 +4734,37 @@ done:
 	return status;
 }
 
+int mgmt_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status)
+{
+	struct mgmt_rp_remove_adv_monitor rp;
+	struct mgmt_cp_remove_adv_monitor *cp;
+	struct mgmt_pending_cmd *cmd;
+	int err = 0;
+
+	hci_dev_lock(hdev);
+
+	cmd = pending_find(MGMT_OP_REMOVE_ADV_MONITOR, hdev);
+	if (!cmd)
+		goto done;
+
+	cp = cmd->param;
+	rp.monitor_handle = cp->monitor_handle;
+
+	if (!status)
+		hci_update_passive_scan(hdev);
+
+	err = mgmt_cmd_complete(cmd->sk, cmd->index, cmd->opcode,
+				mgmt_status(status), &rp, sizeof(rp));
+	mgmt_pending_remove(cmd);
+
+done:
+	hci_dev_unlock(hdev);
+	bt_dev_dbg(hdev, "remove monitor %d complete, status %u",
+		   rp.monitor_handle, status);
+
+	return err;
+}
+
 static int remove_adv_monitor(struct sock *sk, struct hci_dev *hdev,
 			      void *data, u16 len)
 {
@@ -4741,7 +4772,11 @@ static int remove_adv_monitor(struct sock *sk, struct hci_dev *hdev,
 	struct mgmt_rp_remove_adv_monitor rp;
 	struct mgmt_pending_cmd *cmd;
 	u16 handle = __le16_to_cpu(cp->monitor_handle);
-	int err, status = MGMT_STATUS_SUCCESS;
+	int err, status;
+	bool pending;
+
+	BT_DBG("request for %s", hdev->name);
+	rp.monitor_handle = cp->monitor_handle;
 
 	hci_dev_lock(hdev);
 
@@ -4757,19 +4792,15 @@ static int remove_adv_monitor(struct sock *sk, struct hci_dev *hdev,
 		goto unlock;
 	}
 
-	hci_dev_unlock(hdev);
-
 	if (handle)
-		err = hci_remove_single_adv_monitor(hdev, handle);
+		pending = hci_remove_single_adv_monitor(hdev, handle, &err);
 	else
-		err = hci_remove_all_adv_monitor(hdev);
-
-	hci_dev_lock(hdev);
-
-	mgmt_pending_remove(cmd);
+		pending = hci_remove_all_adv_monitor(hdev, &err);
 
 	if (err) {
-		if (err == -ENOENT || err == -EINVAL)
+		mgmt_pending_remove(cmd);
+
+		if (err == -ENOENT)
 			status = MGMT_STATUS_INVALID_INDEX;
 		else
 			status = MGMT_STATUS_FAILED;
@@ -4777,13 +4808,19 @@ static int remove_adv_monitor(struct sock *sk, struct hci_dev *hdev,
 		goto unlock;
 	}
 
-	rp.monitor_handle = cp->monitor_handle;
-	hci_update_passive_scan(hdev);
+	/* monitor can be removed without forwarding request to controller */
+	if (!pending) {
+		mgmt_pending_remove(cmd);
+		hci_dev_unlock(hdev);
+
+		return mgmt_cmd_complete(sk, hdev->id,
+					 MGMT_OP_REMOVE_ADV_MONITOR,
+					 MGMT_STATUS_SUCCESS,
+					 &rp, sizeof(rp));
+	}
 
 	hci_dev_unlock(hdev);
-
-	return mgmt_cmd_complete(sk, hdev->id, MGMT_OP_REMOVE_ADV_MONITOR,
-				 MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
+	return 0;
 
 unlock:
 	hci_dev_unlock(hdev);
