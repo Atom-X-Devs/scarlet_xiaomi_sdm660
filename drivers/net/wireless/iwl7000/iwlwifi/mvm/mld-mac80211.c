@@ -855,6 +855,101 @@ static int iwl_mvm_mld_roc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 
 	return iwl_mvm_roc_common(hw, vif, channel, duration, type, &ops);
 }
+
+static int
+iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
+			     struct ieee80211_vif *vif,
+			     u16 old_links, u16 new_links,
+			     struct ieee80211_bss_conf *old[IEEE80211_MLD_MAX_NUM_LINKS])
+{
+	struct iwl_mvm_vif_link_info *new_link[IEEE80211_MLD_MAX_NUM_LINKS] = {};
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	int err, i;
+
+	if (hweight16(new_links) > 1)
+		return -EOPNOTSUPP;
+
+	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+		int r;
+
+		if (!(new_links & BIT(i)))
+			continue;
+		new_link[i] = kzalloc(sizeof(*new_link[i]), GFP_KERNEL);
+		if (!new_link[i]) {
+			err = -ENOMEM;
+			goto free;
+		}
+
+		new_link[i]->bcast_sta.sta_id = IWL_MVM_INVALID_STA;
+		new_link[i]->mcast_sta.sta_id = IWL_MVM_INVALID_STA;
+		new_link[i]->ap_sta_id = IWL_MVM_INVALID_STA;
+
+		for (r = 0; r < NUM_IWL_MVM_SMPS_REQ; r++)
+			new_link[i]->smps_requests[r] = IEEE80211_SMPS_AUTOMATIC;
+	}
+
+	mutex_lock(&mvm->mutex);
+
+	if (old_links == 0) {
+		err = iwl_mvm_remove_link(mvm, vif, &vif->bss_conf);
+		if (err)
+			goto out_err;
+		mvmvif->link[0] = NULL;
+	}
+
+	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+		if (old_links & BIT(i)) {
+			struct ieee80211_bss_conf *link_conf = old[i];
+
+			err = iwl_mvm_remove_link(mvm, vif, link_conf);
+			if (err)
+				goto out_err;
+			kfree(mvmvif->link[i]);
+			mvmvif->link[i] = NULL;
+		}
+
+		if (new_links & BIT(i)) {
+			struct ieee80211_bss_conf *link_conf;
+
+			/* FIXME: allow use of sdata_dereference()? */
+			link_conf = rcu_dereference_protected(vif->link_conf[i], 1);
+			if (WARN_ON(!link_conf))
+				continue;
+
+			mvmvif->link[i] = new_link[i];
+			err = iwl_mvm_add_link(mvm, vif, link_conf);
+			if (err)
+				goto out_err;
+		}
+	}
+
+	err = 0;
+	if (new_links == 0) {
+		mvmvif->link[0] = &mvmvif->deflink;
+		err = iwl_mvm_add_link(mvm, vif, &vif->bss_conf);
+	}
+
+out_err:
+	/* we really don't have a good way to roll back here ... */
+	mutex_unlock(&mvm->mutex);
+	return err;
+free:
+	/* nor to free the unused ones ... this is a mess for now, sorry */
+	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++)
+		kfree(new_link[i]);
+	return err;
+}
+
+static int
+iwl_mvm_mld_change_sta_links(struct ieee80211_hw *hw,
+			     struct ieee80211_vif *vif,
+			     struct ieee80211_sta *sta,
+			     u16 old_links, u16 new_links)
+{
+	return 0;
+}
+
 const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.tx = iwl_mvm_mac_tx,
 	.wake_tx_queue = iwl_mvm_mac_wake_tx_queue,
@@ -948,4 +1043,7 @@ const struct ieee80211_ops iwl_mvm_mld_hw_ops = {
 	.sta_add_debugfs = iwl_mvm_sta_add_debugfs,
 #endif
 	.set_hw_timestamp = iwl_mvm_set_hw_timestamp,
+
+	.change_vif_links = iwl_mvm_mld_change_vif_links,
+	.change_sta_links = iwl_mvm_mld_change_sta_links,
 };
