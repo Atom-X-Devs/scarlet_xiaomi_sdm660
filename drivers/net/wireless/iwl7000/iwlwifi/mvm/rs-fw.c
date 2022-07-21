@@ -535,6 +535,9 @@ u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 	const struct ieee80211_sta_vht_cap *vht_cap = &sta->deflink.vht_cap;
 	const struct ieee80211_sta_ht_cap *ht_cap = &sta->deflink.ht_cap;
 
+	if (WARN_ON_ONCE(!mvmsta->vif->bss_conf.chandef.chan))
+		return IEEE80211_MAX_MPDU_LEN_VHT_3895;
+
 	if (nl80211_is_6ghz(mvmsta->vif->bss_conf.chandef.chan->band)) {
 		switch (le16_get_bits(sta->deflink.he_6ghz_capa.capa,
 				      IEEE80211_HE_6GHZ_CAP_MAX_MPDU_LEN)) {
