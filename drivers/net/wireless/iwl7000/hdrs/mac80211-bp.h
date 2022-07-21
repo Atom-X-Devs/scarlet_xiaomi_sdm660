@@ -1090,8 +1090,9 @@ struct sta_opmode_info {
 #else
 #if CFG80211_VERSION >= KERNEL_VERSION(4,17,0) && \
 	CFG80211_VERSION < KERNEL_VERSION(4,18,0)
-static inline bool iwl7000_cfg80211_rx_control_port(struct net_device *dev,
-				    struct sk_buff *skb, bool unencrypted)
+static inline bool
+iwl7000_cfg80211_rx_control_port(struct net_device *dev, struct sk_buff *skb,
+				 bool unencrypted, int link_id)
 {
 	struct ethhdr *ehdr;
 
@@ -2339,4 +2340,16 @@ cfg80211_get_iftype_ext_capa(struct wiphy *wiphy, enum nl80211_iftype type)
 #define set_hw_timestamp_max_peers(hw, val)	do { } while (0)
 #else
 #define set_hw_timestamp_max_peers(hw, val)	(hw)->wiphy->hw_timestamp_max_peers = val
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,20,0) && \
+    !defined(cfg80211_rx_control_port)
+static inline bool
+iwl7000_cfg80211_rx_control_port(struct net_device *dev, struct sk_buff *skb,
+				 bool unencrypted, int link_id)
+{
+	return cfg80211_rx_control_port(dev, skb, unencrypted);
+}
+
+#define cfg80211_rx_control_port iwl7000_cfg80211_rx_control_port
 #endif
