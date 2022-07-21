@@ -4548,21 +4548,75 @@ static int read_adv_mon_features(struct sock *sk, struct hci_dev *hdev,
 	return err;
 }
 
-static int __add_adv_patterns_monitor(struct sock *sk, struct hci_dev *hdev,
-				      struct adv_monitor *m, void *data,
-				      u16 len, u16 op)
+int mgmt_add_adv_patterns_monitor_complete(struct hci_dev *hdev, u8 status)
 {
 	struct mgmt_rp_add_adv_patterns_monitor rp;
-	u8 status = MGMT_STATUS_SUCCESS;
-	int err;
+	struct mgmt_pending_cmd *cmd;
+	struct adv_monitor *monitor;
+	int err = 0;
 
-	if (pending_find(MGMT_OP_SET_LE, hdev) ||
-	    pending_find(MGMT_OP_REMOVE_ADV_MONITOR, hdev)) {
-		status = MGMT_STATUS_BUSY;
-		goto done;
+	hci_dev_lock(hdev);
+
+	cmd = pending_find(MGMT_OP_ADD_ADV_PATTERNS_MONITOR_RSSI, hdev);
+	if (!cmd) {
+		cmd = pending_find(MGMT_OP_ADD_ADV_PATTERNS_MONITOR, hdev);
+		if (!cmd)
+			goto done;
 	}
 
-	err = hci_add_adv_monitor(hdev, m);
+	monitor = cmd->user_data;
+	rp.monitor_handle = cpu_to_le16(monitor->handle);
+
+	if (!status) {
+		mgmt_adv_monitor_added(cmd->sk, hdev, monitor->handle);
+		hdev->adv_monitors_cnt++;
+		if (monitor->state == ADV_MONITOR_STATE_NOT_REGISTERED)
+			monitor->state = ADV_MONITOR_STATE_REGISTERED;
+		hci_update_passive_scan(hdev);
+	}
+
+	err = mgmt_cmd_complete(cmd->sk, cmd->index, cmd->opcode,
+				mgmt_status(status), &rp, sizeof(rp));
+	mgmt_pending_remove(cmd);
+
+done:
+	hci_dev_unlock(hdev);
+	bt_dev_dbg(hdev, "add monitor %d complete, status %u",
+		   rp.monitor_handle, status);
+
+	return err;
+}
+
+static int __add_adv_patterns_monitor(struct sock *sk, struct hci_dev *hdev,
+				      struct adv_monitor *m, u8 status,
+				      void *data, u16 len, u16 op)
+{
+	struct mgmt_rp_add_adv_patterns_monitor rp;
+	struct mgmt_pending_cmd *cmd;
+	int err;
+	bool pending;
+
+	hci_dev_lock(hdev);
+
+	if (status)
+		goto unlock;
+
+	if (pending_find(MGMT_OP_SET_LE, hdev) ||
+	    pending_find(MGMT_OP_ADD_ADV_PATTERNS_MONITOR, hdev) ||
+	    pending_find(MGMT_OP_ADD_ADV_PATTERNS_MONITOR_RSSI, hdev) ||
+	    pending_find(MGMT_OP_REMOVE_ADV_MONITOR, hdev)) {
+		status = MGMT_STATUS_BUSY;
+		goto unlock;
+	}
+
+	cmd = mgmt_pending_add(sk, op, hdev, data, len);
+	if (!cmd) {
+		status = MGMT_STATUS_NO_RESOURCES;
+		goto unlock;
+	}
+
+	cmd->user_data = m;
+	pending = hci_add_adv_monitor(hdev, m, &err);
 	if (err) {
 		if (err == -ENOSPC || err == -ENOMEM)
 			status = MGMT_STATUS_NO_RESOURCES;
@@ -4571,29 +4625,30 @@ static int __add_adv_patterns_monitor(struct sock *sk, struct hci_dev *hdev,
 		else
 			status = MGMT_STATUS_FAILED;
 
-		goto done;
+		mgmt_pending_remove(cmd);
+		goto unlock;
 	}
 
-	hci_dev_lock(hdev);
-
-	rp.monitor_handle = cpu_to_le16(m->handle);
-	mgmt_adv_monitor_added(sk, hdev, m->handle);
-	if (m->state == ADV_MONITOR_STATE_NOT_REGISTERED)
+	if (!pending) {
+		mgmt_pending_remove(cmd);
+		rp.monitor_handle = cpu_to_le16(m->handle);
+		mgmt_adv_monitor_added(sk, hdev, m->handle);
 		m->state = ADV_MONITOR_STATE_REGISTERED;
-	hdev->adv_monitors_cnt++;
-	hci_update_passive_scan(hdev);
+		hdev->adv_monitors_cnt++;
+
+		hci_dev_unlock(hdev);
+		return mgmt_cmd_complete(sk, hdev->id, op, MGMT_STATUS_SUCCESS,
+					 &rp, sizeof(rp));
+	}
 
 	hci_dev_unlock(hdev);
 
-done:
-	bt_dev_dbg(hdev, "add monitor %d complete, status %u", m->handle,
-		   status);
+	return 0;
 
-	if (status)
-		return mgmt_cmd_status(sk, hdev->id, op, status);
-
-	return mgmt_cmd_complete(sk, hdev->id, op, MGMT_STATUS_SUCCESS, &rp,
-				 sizeof(rp));
+unlock:
+	hci_free_adv_monitor(hdev, m);
+	hci_dev_unlock(hdev);
+	return mgmt_cmd_status(sk, hdev->id, op, status);
 }
 
 static void parse_adv_monitor_rssi(struct adv_monitor *m,
@@ -4657,7 +4712,7 @@ static int add_adv_patterns_monitor(struct sock *sk, struct hci_dev *hdev,
 {
 	struct mgmt_cp_add_adv_patterns_monitor *cp = data;
 	struct adv_monitor *m = NULL;
-	int status = MGMT_STATUS_SUCCESS;
+	u8 status = MGMT_STATUS_SUCCESS;
 	size_t expected_size = sizeof(*cp);
 
 	BT_DBG("request for %s", hdev->name);
@@ -4683,14 +4738,10 @@ static int add_adv_patterns_monitor(struct sock *sk, struct hci_dev *hdev,
 
 	parse_adv_monitor_rssi(m, NULL);
 	status = parse_adv_monitor_pattern(m, cp->pattern_count, cp->patterns);
-	if (status)
-		goto done;
-
-	status = __add_adv_patterns_monitor(sk, hdev, m, data, len,
-					    MGMT_OP_ADD_ADV_PATTERNS_MONITOR);
 
 done:
-	return status;
+	return __add_adv_patterns_monitor(sk, hdev, m, status, data, len,
+					  MGMT_OP_ADD_ADV_PATTERNS_MONITOR);
 }
 
 static int add_adv_patterns_monitor_rssi(struct sock *sk, struct hci_dev *hdev,
@@ -4698,7 +4749,7 @@ static int add_adv_patterns_monitor_rssi(struct sock *sk, struct hci_dev *hdev,
 {
 	struct mgmt_cp_add_adv_patterns_monitor_rssi *cp = data;
 	struct adv_monitor *m = NULL;
-	int status = MGMT_STATUS_SUCCESS;
+	u8 status = MGMT_STATUS_SUCCESS;
 	size_t expected_size = sizeof(*cp);
 
 	BT_DBG("request for %s", hdev->name);
@@ -4724,14 +4775,10 @@ static int add_adv_patterns_monitor_rssi(struct sock *sk, struct hci_dev *hdev,
 
 	parse_adv_monitor_rssi(m, &cp->rssi);
 	status = parse_adv_monitor_pattern(m, cp->pattern_count, cp->patterns);
-	if (status)
-		goto done;
-
-	status = __add_adv_patterns_monitor(sk, hdev, m, data, len,
-					 MGMT_OP_ADD_ADV_PATTERNS_MONITOR_RSSI);
 
 done:
-	return status;
+	return __add_adv_patterns_monitor(sk, hdev, m, status, data, len,
+					 MGMT_OP_ADD_ADV_PATTERNS_MONITOR_RSSI);
 }
 
 int mgmt_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status)
@@ -4781,7 +4828,9 @@ static int remove_adv_monitor(struct sock *sk, struct hci_dev *hdev,
 	hci_dev_lock(hdev);
 
 	if (pending_find(MGMT_OP_SET_LE, hdev) ||
-	    pending_find(MGMT_OP_REMOVE_ADV_MONITOR, hdev)) {
+	    pending_find(MGMT_OP_REMOVE_ADV_MONITOR, hdev) ||
+	    pending_find(MGMT_OP_ADD_ADV_PATTERNS_MONITOR, hdev) ||
+	    pending_find(MGMT_OP_ADD_ADV_PATTERNS_MONITOR_RSSI, hdev)) {
 		status = MGMT_STATUS_BUSY;
 		goto unlock;
 	}
