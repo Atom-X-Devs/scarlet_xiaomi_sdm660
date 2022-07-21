@@ -1348,7 +1348,7 @@ static void __hci_req_le_scan_enable(struct hci_request *req)
 {
 	struct hci_dev *hdev = req->hdev;
 	bool enable_filter = hci_is_adv_monitoring(hdev) ?
-			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
+			LE_SCAN_FILTER_DUP_DISABLE : LE_SCAN_FILTER_DUP_ENABLE;
 
 	if (use_ext_scan(hdev)) {
 		struct hci_cp_le_set_ext_scan_enable ext_enable_cp;
