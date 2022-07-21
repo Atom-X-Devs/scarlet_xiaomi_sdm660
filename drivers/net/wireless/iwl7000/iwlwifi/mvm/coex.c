@@ -272,6 +272,10 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 
 	lockdep_assert_held(&mvm->mutex);
 
+	/* FIXME: support BT coex with MLO */
+	if (WARN_ON_ONCE(vif->valid_links))
+		return;
+
 	switch (vif->type) {
 	case NL80211_IFTYPE_STATION:
 		break;
