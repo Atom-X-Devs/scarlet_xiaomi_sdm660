@@ -3020,7 +3020,8 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 	sta_info_flush(sdata);
 
 	/* finally reset all BSS / config parameters */
-	changed |= ieee80211_reset_erp_info(sdata);
+	if (!sdata->vif.valid_links)
+		changed |= ieee80211_reset_erp_info(sdata);
 
 	ieee80211_led_assoc(local, 0);
 	changed |= BSS_CHANGED_ASSOC;
@@ -3062,9 +3063,10 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 		changed |= BSS_CHANGED_QOS;
 		/* The BSSID (not really interesting) and HT changed */
 		changed |= BSS_CHANGED_BSSID | BSS_CHANGED_HT;
+		ieee80211_bss_info_change_notify(sdata, changed);
+	} else {
+		ieee80211_vif_cfg_change_notify(sdata, changed);
 	}
-
-	ieee80211_bss_info_change_notify(sdata, changed);
 
 	/* disassociated - set to defaults now */
 	ieee80211_set_wmm_default(&sdata->deflink, false, false);
