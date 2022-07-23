@@ -1745,6 +1745,20 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 		rcu_dereference_protected(sta->link[link_id],
 					  lockdep_is_held(&local->sta_mtx));
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+	/*
+	 * If there are no changes, then accept a link that doesn't exist,
+	 * unless it's a new link.
+	 */
+	if (params->link_id < 0 && !new_link &&
+	    !params->link_mac && !params->txpwr_set &&
+	    !params->supported_rates_len &&
+	    !params->ht_capa && !params->vht_capa &&
+	    !params->he_capa && !params->eht_capa &&
+	    !params->opmode_notif_used)
+		return 0;
+#endif
+
 	if (!link || !link_sta)
 		return -EINVAL;
 
@@ -1761,6 +1775,8 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 					     params->link_mac)) {
 			return -EINVAL;
 		}
+	} else if (new_link) {
+		return -EINVAL;
 	}
 #endif
 
