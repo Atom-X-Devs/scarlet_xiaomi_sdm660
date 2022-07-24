@@ -36,8 +36,10 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
 
 	mvmvif->features |= hw->netdev_features;
 
-	/* the first link always points to the default one */
+	/* reset deflink MLO parameters */
 	mvmvif->deflink.fw_link_id = IWL_MVM_FW_LINK_ID_INVALID;
+	mvmvif->deflink.active = 0;
+	/* the first link always points to the default one */
 	mvmvif->link[0] = &mvmvif->deflink;
 
 	ret = iwl_mvm_mld_mac_ctxt_add(mvm, vif);
@@ -119,10 +121,7 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
 	goto out_unlock;
 
  out_remove_link:
-	/* Link needs to be deactivated before removal */
-	iwl_mvm_link_changed(mvm, vif, &vif->bss_conf,
-			     LINK_CONTEXT_MODIFY_ACTIVE, false);
-	iwl_mvm_remove_link(mvm, vif, &vif->bss_conf);
+	iwl_mvm_disable_link(mvm, vif, &vif->bss_conf);
  out_unref_phy:
 	iwl_mvm_phy_ctxt_unref(mvm, mvmvif->deflink.phy_ctxt);
  out_free_bf:
@@ -213,14 +212,11 @@ static void iwl_mvm_mld_mac_remove_interface(struct ieee80211_hw *hw,
 
 		/* P2P device uses only one link */
 		iwl_mvm_mld_rm_bcast_sta(mvm, vif, &vif->bss_conf);
-		/* Link needs to be deactivated before removal */
-		iwl_mvm_link_changed(mvm, vif, &vif->bss_conf,
-				     LINK_CONTEXT_MODIFY_ACTIVE, false);
-		iwl_mvm_remove_link(mvm, vif, &vif->bss_conf);
+		iwl_mvm_disable_link(mvm, vif, &vif->bss_conf);
 		iwl_mvm_phy_ctxt_unref(mvm, mvmvif->deflink.phy_ctxt);
 		mvmvif->deflink.phy_ctxt = NULL;
 	} else {
-		iwl_mvm_remove_link(mvm, vif, &vif->bss_conf);
+		iwl_mvm_disable_link(mvm, vif, &vif->bss_conf);
 	}
 
 	iwl_mvm_mld_mac_ctxt_remove(mvm, vif);
@@ -379,7 +375,10 @@ static int iwl_mvm_mld_start_ap_ibss(struct ieee80211_hw *hw,
 	if (ret)
 		goto out_unlock;
 
-	ret = iwl_mvm_link_changed(mvm, vif, link_conf, LINK_CONTEXT_MODIFY_ALL,
+	/* the link should be already activated when assigning chan context */
+	ret = iwl_mvm_link_changed(mvm, vif, link_conf,
+				   LINK_CONTEXT_MODIFY_ALL &
+				   ~LINK_CONTEXT_MODIFY_ACTIVE,
 				   true);
 	if (ret)
 		goto out_unlock;
@@ -896,7 +895,7 @@ iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
 	mutex_lock(&mvm->mutex);
 
 	if (old_links == 0) {
-		err = iwl_mvm_remove_link(mvm, vif, &vif->bss_conf);
+		err = iwl_mvm_disable_link(mvm, vif, &vif->bss_conf);
 		if (err)
 			goto out_err;
 		mvmvif->link[0] = NULL;
@@ -906,7 +905,7 @@ iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
 		if (old_links & BIT(i)) {
 			struct ieee80211_bss_conf *link_conf = old[i];
 
-			err = iwl_mvm_remove_link(mvm, vif, link_conf);
+			err = iwl_mvm_disable_link(mvm, vif, link_conf);
 			if (err)
 				goto out_err;
 			kfree(mvmvif->link[i]);
