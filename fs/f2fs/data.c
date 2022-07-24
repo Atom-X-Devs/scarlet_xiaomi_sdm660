@@ -291,9 +291,10 @@ static void f2fs_read_end_io(struct bio *bio)
 
 	if (first_page != NULL &&
 		__read_io_type(first_page) == F2FS_RD_DATA) {
-		trace_android_fs_dataread_end(first_page->mapping->host,
-						page_offset(first_page),
-						bio->bi_iter.bi_size);
+		trace_android_fs_dataread_end(
+				page_file_mapping(first_page)->host,
+				page_file_offset(first_page),
+				bio->bi_iter.bi_size);
 	}
 
 	if (ctx) {
