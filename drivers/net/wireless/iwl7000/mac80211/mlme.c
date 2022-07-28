@@ -1949,6 +1949,12 @@ ieee80211_sta_process_chanswitch(struct ieee80211_link_data *link,
 		ch_switch.chandef = csa_ie.chandef;
 		ch_switch.count = csa_ie.count;
 		ch_switch.delay = csa_ie.max_switch_time;
+		if (ch_switch.block_tx)
+			sdata->deflink.blocked_csa_chandef = sdata->vif.bss_conf.chandef;
+		else
+			memset(&sdata->deflink.blocked_csa_chandef,
+			       0,
+			       sizeof(struct cfg80211_chan_def));
 	}
 
 	if (res < 0)
@@ -6020,6 +6026,14 @@ static int ieee80211_auth(struct ieee80211_sub_if_data *sdata)
 	if (WARN_ON_ONCE(!auth_data))
 		return -EINVAL;
 
+	if ((sdata->deflink.blocked_csa_chandef.center_freq1 != 0 ||
+	     sdata->deflink.blocked_csa_chandef.center_freq2 != 0) &&
+	    (cfg80211_chandef_identical(&sdata->vif.bss_conf.chandef,
+					&sdata->deflink.blocked_csa_chandef))) {
+		sdata_info(sdata, "Authentication rejected on blocked channel\n");
+		return -EINVAL;
+	}
+
 	auth_data->tries++;
 
 	if (auth_data->tries > IEEE80211_AUTH_MAX_TRIES) {
@@ -6085,6 +6099,14 @@ static int ieee80211_do_assoc(struct ieee80211_sub_if_data *sdata)
 	int ret;
 
 	sdata_assert_lock(sdata);
+
+	if ((sdata->deflink.blocked_csa_chandef.center_freq1 != 0 ||
+	     sdata->deflink.blocked_csa_chandef.center_freq2 != 0) &&
+	    (cfg80211_chandef_identical(&sdata->vif.bss_conf.chandef,
+					 &sdata->deflink.blocked_csa_chandef))) {
+		sdata_info(sdata, "Association rejected on blocked channel\n");
+		return -EINVAL;
+	}
 
 	assoc_data->tries++;
 	if (assoc_data->tries > IEEE80211_ASSOC_MAX_TRIES) {

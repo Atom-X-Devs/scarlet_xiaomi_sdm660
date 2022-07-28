@@ -960,7 +960,7 @@ struct ieee80211_link_data {
 	bool operating_11g_mode;
 
 	struct cfg80211_chan_def csa_chandef;
-
+	struct cfg80211_chan_def blocked_csa_chandef;
 #if CFG80211_VERSION >= KERNEL_VERSION(5,15,0)
 	struct work_struct color_change_finalize_work;
 #endif
