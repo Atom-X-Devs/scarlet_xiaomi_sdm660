@@ -2736,8 +2736,8 @@ void iwl_mvm_bss_info_changed_station_assoc(struct iwl_mvm *mvm,
 	mvmvif->bf_data.ave_beacon_signal = 0;
 
 	iwl_mvm_bt_coex_vif_change(mvm);
-	iwl_mvm_update_smps(mvm, vif, IWL_MVM_SMPS_REQ_TT,
-			    IEEE80211_SMPS_AUTOMATIC, 0);
+	iwl_mvm_update_smps_on_active_links(mvm, vif, IWL_MVM_SMPS_REQ_TT,
+					    IEEE80211_SMPS_AUTOMATIC);
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_UMAC_SCAN))
 		iwl_mvm_config_scan(mvm);

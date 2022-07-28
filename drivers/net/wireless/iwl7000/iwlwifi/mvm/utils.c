@@ -319,6 +319,21 @@ void iwl_mvm_update_smps(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	ieee80211_request_smps(vif, link_id, smps_mode);
 }
 
+void iwl_mvm_update_smps_on_active_links(struct iwl_mvm *mvm,
+					 struct ieee80211_vif *vif,
+					 enum iwl_mvm_smps_type_request req_type,
+					 enum ieee80211_smps_mode smps_request)
+{
+	struct ieee80211_bss_conf *link_conf;
+	unsigned int link_id;
+
+	rcu_read_lock();
+	for_each_vif_active_link(vif, link_conf, link_id)
+		iwl_mvm_update_smps(mvm, vif, req_type, smps_request,
+				    link_id);
+	rcu_read_unlock();
+}
+
 static bool iwl_wait_stats_complete(struct iwl_notif_wait_data *notif_wait,
 				    struct iwl_rx_packet *pkt, void *data)
 {
