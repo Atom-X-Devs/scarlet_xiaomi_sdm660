@@ -390,6 +390,8 @@ struct iwl_lq_sta {
 
 /* Initialize station's rate scaling information after adding station */
 void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
+			  struct ieee80211_bss_conf *link_conf,
+			  struct ieee80211_link_sta *link_sta,
 			  enum nl80211_band band, bool update);
 
 /* Notify RS about Tx status */
@@ -427,13 +429,17 @@ void iwl_mvm_reset_frame_stats(struct iwl_mvm *mvm);
 
 void iwl_mvm_rs_add_sta(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta);
 void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
+		     struct ieee80211_bss_conf *link_conf,
+		     struct ieee80211_link_sta *link_sta,
 		     enum nl80211_band band, bool update);
 int rs_fw_tx_protection(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta,
 			bool enable);
 void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm,
 			      struct iwl_rx_cmd_buffer *rxb);
 
-u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta);
+u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta,
+			    struct ieee80211_bss_conf *link_conf,
+			    struct ieee80211_link_sta *link_sta);
 
 int iwl_rs_send_dhc(struct iwl_mvm *mvm, u8 sta_id, u32 type, u32 data);
 
