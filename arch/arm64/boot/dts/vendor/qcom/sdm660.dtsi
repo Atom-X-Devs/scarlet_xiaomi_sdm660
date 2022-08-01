@@ -1702,8 +1702,8 @@
 		};
 	};
 
-
 	dcc: dcc@10b3000 {
+		status = "disabled";
 		compatible = "qcom,dcc";
 		reg = <0x10b3000 0x1000>,
 		      <0x10b4000 0x2000>;
