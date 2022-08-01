@@ -1726,7 +1726,7 @@ static void iwl_mvm_decode_eht_phy_data(struct iwl_mvm *mvm,
 					     IEEE80211_RADIOTAP_EHT_USIG_COMMON_UL_DL);
 		usig->common |= LE32_DEC_ENC(data0,
 					     IWL_RX_PHY_DATA0_EHT_BSS_COLOR_MASK,
-					     IEEE80211_RADIOTAP_EHT_USIG_COMMON_BSS_COLOR_KNOWN);
+						 IEEE80211_RADIOTAP_EHT_USIG_COMMON_BSS_COLOR);
 	} else {
 		usig->common |= LE32_DEC_ENC(usig_a1,
 					     IWL_RX_USIG_A1_UL_FLAG,
@@ -1838,17 +1838,18 @@ static void iwl_mvm_rx_eht(struct iwl_mvm *mvm, struct sk_buff *skb,
 		rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
 		if (phy_data->d0 & cpu_to_le32(IWL_RX_PHY_DATA0_EHT_DELIM_EOF))
 			rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT;
+	}
 
-		/* update aggregation data for monitor sake on default queue */
-		if (phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD) {
-			bool toggle_bit = phy_info & IWL_RX_MPDU_PHY_AMPDU_TOGGLE;
+	/* update aggregation data for monitor sake on default queue */
+	if (!queue && (phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD) &&
+	    (phy_info & IWL_RX_MPDU_PHY_AMPDU)) {
+		bool toggle_bit = phy_info & IWL_RX_MPDU_PHY_AMPDU_TOGGLE;
 
-			/* toggle is switched whenever new aggregation starts */
-			if (toggle_bit != mvm->ampdu_toggle) {
-				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
-				if (phy_data->d0 & cpu_to_le32(IWL_RX_PHY_DATA0_EHT_DELIM_EOF))
-					rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT;
-			}
+		/* toggle is switched whenever new aggregation starts */
+		if (toggle_bit != mvm->ampdu_toggle) {
+			rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
+			if (phy_data->d0 & cpu_to_le32(IWL_RX_PHY_DATA0_EHT_DELIM_EOF))
+				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT;
 		}
 	}
 
@@ -1899,9 +1900,9 @@ static void iwl_mvm_rx_eht(struct iwl_mvm *mvm, struct sk_buff *skb,
 	if (ltf != IEEE80211_RADIOTAP_HE_DATA5_LTF_SIZE_UNKNOWN) {
 		eht->known |= cpu_to_le32
 			(IEEE80211_RADIOTAP_EHT_KNOWN_GI |
-			 IEEE80211_RADIOTAP_EHT_KNOWN_EHT_LTF);
+			 IEEE80211_RADIOTAP_EHT_KNOWN_LTF);
 		eht->data[0] |= cpu_to_le32
-			(FIELD_PREP(IEEE80211_RADIOTAP_EHT_DATA0_EHT_LTF,
+			(FIELD_PREP(IEEE80211_RADIOTAP_EHT_DATA0_LTF,
 				    ltf) |
 			 FIELD_PREP(IEEE80211_RADIOTAP_EHT_DATA0_GI,
 				    rx_status->eht.gi));
@@ -1926,7 +1927,7 @@ static void iwl_mvm_rx_eht(struct iwl_mvm *mvm, struct sk_buff *skb,
 		(FIELD_PREP(IEEE80211_RADIOTAP_EHT_USER_INFO_MCS,
 			    FIELD_GET(RATE_VHT_MCS_RATE_CODE_MSK, rate_n_flags)) |
 		 FIELD_PREP(IEEE80211_RADIOTAP_EHT_USER_INFO_NSS_O,
-			    FIELD_GET(RATE_MCS_NSS_MSK, rate_n_flags) + 1));
+			    FIELD_GET(RATE_MCS_NSS_MSK, rate_n_flags)));
 }
 
 static void iwl_mvm_rx_he(struct iwl_mvm *mvm, struct sk_buff *skb,
