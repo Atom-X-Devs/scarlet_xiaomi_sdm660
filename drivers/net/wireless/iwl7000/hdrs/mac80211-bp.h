@@ -2353,3 +2353,9 @@ iwl7000_cfg80211_rx_control_port(struct net_device *dev, struct sk_buff *skb,
 
 #define cfg80211_rx_control_port iwl7000_cfg80211_rx_control_port
 #endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(6,1,0)
+#define cfg80211_txq_params_link_id(params)			0
+#else
+#define cfg80211_txq_params_link_id(params)			(params)->link_id
+#endif
