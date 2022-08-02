@@ -1388,7 +1388,8 @@ int mtk_vcodec_enc_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 			0, V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
 	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
 			       V4L2_MPEG_VIDEO_BITRATE_MODE_CBR,
-			       0, V4L2_MPEG_VIDEO_BITRATE_MODE_CBR);
+			       ~(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_CBR),
+			       V4L2_MPEG_VIDEO_BITRATE_MODE_CBR);
 
 	if (handler->error) {
 		mtk_v4l2_err("Init control handler fail %d",
