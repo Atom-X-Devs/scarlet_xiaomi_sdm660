@@ -1183,6 +1183,20 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 					~(trans->dbg_cfg.he_chan_width_dis << 1);
 
 		IWL_COPY_BIN(he_phy_cap, he_cap.he_cap_elem.phy_cap_info);
+
+		/* For LB leave only LB relevant bits and vs-versa for other bands */
+		if (sband->band == NL80211_BAND_2GHZ) {
+			iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
+				(IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G |
+				 IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_RU_MAPPING_IN_2G);
+		} else {
+			iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
+				(IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G |
+				 IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G |
+				 IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G |
+				 IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_RU_MAPPING_IN_5G);
+		}
+
 		IWL_COPY_BIN(he_mac_cap, he_cap.he_cap_elem.mac_cap_info);
 
 		if (trans->dbg_cfg.he_smps_disabled)
@@ -1241,7 +1255,7 @@ static void iwl_init_eht_band_override(struct iwl_trans *trans,
 #endif
 		}
 
-		if (trans->dbg_cfg.eht_disable_320) {
+		if (trans->dbg_cfg.eht_disable_320 || !nl80211_is_6ghz(sband->band)) {
 			memset(&cfg_eht_cap(iftype_data)->eht_mcs_nss_supp.bw._320,
 			       0,
 			       sizeof(cfg_eht_cap(iftype_data)->eht_mcs_nss_supp.bw._320));
