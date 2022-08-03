@@ -206,11 +206,11 @@ PVRSRVBridgeDevmemIntUnexportCtx(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psDevmemIntUnexportCtxOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE)
-					    psDevmemIntUnexportCtxIN->
-					    hContextExport,
-					    PVRSRV_HANDLE_TYPE_DEVMEMINT_CTX_EXPORT);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE)
+					      psDevmemIntUnexportCtxIN->
+					      hContextExport,
+					      PVRSRV_HANDLE_TYPE_DEVMEMINT_CTX_EXPORT);
 	if (unlikely
 	    ((psDevmemIntUnexportCtxOUT->eError != PVRSRV_OK)
 	     && (psDevmemIntUnexportCtxOUT->eError != PVRSRV_ERROR_RETRY)))
@@ -348,7 +348,7 @@ DevmemIntAcquireRemoteCtx_exit:
 			LockHandle(psConnection->psHandleBase);
 
 			eError =
-			    PVRSRVReleaseHandleUnlocked(psConnection->
+			    PVRSRVDestroyHandleUnlocked(psConnection->
 							psHandleBase,
 							(IMG_HANDLE)
 							psDevmemIntAcquireRemoteCtxOUT->

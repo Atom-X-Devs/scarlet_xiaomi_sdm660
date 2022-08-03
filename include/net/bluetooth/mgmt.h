@@ -627,7 +627,7 @@ struct mgmt_cp_set_appearance {
 #define MGMT_SET_APPEARANCE_SIZE	2
 
 #define MGMT_OP_GET_PHY_CONFIGURATION	0x0044
-struct mgmt_rp_get_phy_confguration {
+struct mgmt_rp_get_phy_configuration {
 	__le32	supported_phys;
 	__le32	configurable_phys;
 	__le32	selected_phys;
@@ -664,7 +664,7 @@ struct mgmt_rp_get_phy_confguration {
 			     MGMT_PHY_LE_CODED_RX)
 
 #define MGMT_OP_SET_PHY_CONFIGURATION	0x0045
-struct mgmt_cp_set_phy_confguration {
+struct mgmt_cp_set_phy_configuration {
 	__le32	selected_phys;
 } __packed;
 #define MGMT_SET_PHY_CONFIGURATION_SIZE	4
@@ -839,6 +839,42 @@ struct mgmt_cp_add_adv_patterns_monitor_rssi {
 } __packed;
 #define MGMT_ADD_ADV_PATTERNS_MONITOR_RSSI_SIZE	8
 
+#define MGMT_OP_GET_SCO_CODEC_CAPABILITIES	0x0057
+#define MGMT_SCO_CODEC_CVSD			0x1
+#define MGMT_SCO_CODEC_MSBC_TRANSPARENT		0x2
+#define MGMT_SCO_CODEC_MSBC			0x3
+
+struct mgmt_bt_codec {
+	__u8	codec;
+	__u8	packet_size;
+	__u8	data_path;
+	__u32	data_length;
+	__u8	data[];
+} __packed;
+
+struct mgmt_cp_get_codec_capabilities {
+	__u16	hci_id;
+	__u32	num_codecs;
+	__u8	codecs[];
+} __packed;
+#define MGMT_GET_SCO_CODEC_CAPABILITIES_SIZE	0x6
+
+struct mgmt_rp_get_codec_capabilities {
+	__u16			hci_id;
+	__u8			offload_capable;
+	__u32			num_codecs;
+	struct mgmt_bt_codec	codecs[];
+} __packed;
+
+#define MGMT_OP_NOTIFY_SCO_CONNECTION_CHANGE	0x0058
+struct mgmt_cp_notify_sco_connection_change {
+	__u16 hci_id;
+	struct mgmt_addr_info	addr;
+	__u8			connected;
+	__u8			codec;
+} __packed;
+#define MGMT_NOTIFY_SCO_CONNECTION_CHANGE_SIZE	0xB
+
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
 	__le16	opcode;
@@ -937,10 +973,11 @@ struct mgmt_ev_auth_failed {
 	__u8	status;
 } __packed;
 
-#define MGMT_DEV_FOUND_CONFIRM_NAME    0x01
-#define MGMT_DEV_FOUND_LEGACY_PAIRING  0x02
-#define MGMT_DEV_FOUND_NOT_CONNECTABLE 0x04
-#define MGMT_DEV_FOUND_INITIATED_CONN  0x08
+#define MGMT_DEV_FOUND_CONFIRM_NAME		0x01
+#define MGMT_DEV_FOUND_LEGACY_PAIRING		0x02
+#define MGMT_DEV_FOUND_NOT_CONNECTABLE		0x04
+#define MGMT_DEV_FOUND_INITIATED_CONN		0x08
+#define MGMT_DEV_FOUND_NAME_REQUEST_FAILED	0x10
 
 #define MGMT_EV_DEVICE_FOUND		0x0012
 struct mgmt_ev_device_found {
@@ -1104,3 +1141,26 @@ struct mgmt_ev_controller_resume {
 #define MGMT_WAKE_REASON_NON_BT_WAKE		0x0
 #define MGMT_WAKE_REASON_UNEXPECTED		0x1
 #define MGMT_WAKE_REASON_REMOTE_WAKE		0x2
+
+#define MGMT_EV_ADV_MONITOR_DEVICE_FOUND	0x002f
+struct mgmt_ev_adv_monitor_device_found {
+	__le16 monitor_handle;
+	struct mgmt_addr_info addr;
+	__s8   rssi;
+	__le32 flags;
+	__le16 eir_len;
+	__u8   eir[0];
+} __packed;
+
+#define MGMT_EV_ADV_MONITOR_DEVICE_LOST		0x0030
+struct mgmt_ev_adv_monitor_device_lost {
+	__le16 monitor_handle;
+	struct mgmt_addr_info addr;
+} __packed;
+
+#define MGMT_EV_QUALITY_REPORT			0x0031
+struct mgmt_ev_quality_report {
+	__u8 quality_spec;
+	__u8 data_len;
+	__u8 data[0];
+} __packed;
