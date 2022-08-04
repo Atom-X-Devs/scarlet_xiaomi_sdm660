@@ -1552,7 +1552,7 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 }
 
 #ifdef CONFIG_PROCESS_RECLAIM
-unsigned long reclaim_pages(struct list_head *page_list)
+unsigned long reclaim_pages_from_list(struct list_head *page_list)
 {
 	unsigned long nr_reclaimed;
 	struct page *page;
