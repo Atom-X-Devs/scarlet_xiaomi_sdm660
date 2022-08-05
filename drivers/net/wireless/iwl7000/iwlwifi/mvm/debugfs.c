@@ -510,24 +510,29 @@ static ssize_t iwl_dbgfs_rs_data_read(struct file *file, char __user *user_buf,
 	return ret;
 }
 
-static void iwl_rs_set_fixed_rate(struct iwl_mvm *mvm,
-				  struct iwl_lq_sta_rs_fw *lq_sta)
+static int iwl_rs_set_fixed_rate(struct iwl_mvm *mvm,
+				 struct iwl_lq_sta_rs_fw *lq_sta,
+				 bool partial)
 {
-	int ret = iwl_rs_send_dhc(mvm, lq_sta->pers.sta_id,
-				  IWL_TLC_DEBUG_FIXED_RATE,
+	u32 type = partial ? IWL_TLC_DEBUG_PARTIAL_FIXED_RATE :
+			     IWL_TLC_DEBUG_FIXED_RATE;
+	int ret = iwl_rs_send_dhc(mvm, lq_sta->pers.sta_id, type,
 				  lq_sta->pers.dbg_fixed_rate);
 
 	char pretty_rate[100];
 
+	rs_pretty_print_rate(pretty_rate, sizeof(pretty_rate),
+			     lq_sta->pers.dbg_fixed_rate);
+
+	IWL_DEBUG_RATE(mvm, "sta_id %d rate %s partial: %d, ret:%d\n",
+		       lq_sta->pers.sta_id, pretty_rate, partial, ret);
+
 	if (ret) {
 		lq_sta->pers.dbg_fixed_rate = 0;
-		return;
+		return -EINVAL;
 	}
 
-	rs_pretty_print_rate_v1(pretty_rate, sizeof(pretty_rate),
-				lq_sta->pers.dbg_fixed_rate);
-	IWL_DEBUG_RATE(mvm, "sta_id %d rate %s\n",
-		       lq_sta->pers.sta_id, pretty_rate);
+	return 0;
 }
 
 static ssize_t iwl_dbgfs_fixed_rate_write(struct ieee80211_sta *sta,
@@ -538,13 +543,16 @@ static ssize_t iwl_dbgfs_fixed_rate_write(struct ieee80211_sta *sta,
 	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 	struct iwl_mvm *mvm = lq_sta->pers.drv;
 	u32 parsed_rate;
+	u32 partial = false;
 
-	if (kstrtou32(buf, 0, &parsed_rate))
+	if (sscanf(buf, "%i %i", &parsed_rate, &partial) == 0)
 		lq_sta->pers.dbg_fixed_rate = 0;
 	else
 		lq_sta->pers.dbg_fixed_rate = parsed_rate;
 
-	iwl_rs_set_fixed_rate(mvm, lq_sta);
+	if (iwl_rs_set_fixed_rate(mvm, lq_sta, !!partial))
+		return -EINVAL;
+
 	return count;
 }
 
