@@ -62,6 +62,8 @@
  *	6) Eventually, the free function will be called.
  */
 
+#define IWL_FW_DBG_DOMAIN	BIT(16)	/* default preset 0 (start from bit 16)*/
+
 #ifndef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 #define IWL_TRANS_FW_DBG_DOMAIN(trans)	IWL_FW_INI_DOMAIN_ALWAYS_ON
 #else
@@ -634,6 +636,7 @@ struct iwl_trans_ops {
 	int (*set_pnvm)(struct iwl_trans *trans, const void *data, u32 len);
 	int (*set_reduce_power)(struct iwl_trans *trans,
 				const void *data, u32 len);
+
 	void (*interrupts)(struct iwl_trans *trans, bool enable);
 	int (*imr_dma_data)(struct iwl_trans *trans,
 			    u32 dst_addr, u64 src_addr,
@@ -792,6 +795,8 @@ struct iwl_imr_data {
  * @periodic_trig_list: periodic triggers list
  * @domains_bitmap: bitmap of active domains other than &IWL_FW_INI_DOMAIN_ALWAYS_ON
  * @ucode_preset: preset based on ucode
+ * @dump_file_name_ext: dump file name extension
+ * @dump_file_name_ext_valid: dump file name extension if valid or not
  */
 struct iwl_trans_debug {
 	u8 n_dest_reg;
@@ -830,6 +835,8 @@ struct iwl_trans_debug {
 	bool restart_required;
 	u32 last_tp_resetfw;
 	struct iwl_imr_data imr_data;
+	u8 dump_file_name_ext[IWL_FW_INI_MAX_NAME];
+	bool dump_file_name_ext_valid;
 };
 
 struct iwl_dma_ptr {
@@ -1018,6 +1025,8 @@ struct iwl_trans_txqs {
  *	This mode is set dynamically, depending on the WoWLAN values
  *	configured from the userspace at runtime.
  * @iwl_trans_txqs: transport tx queues data.
+ * @mbx_addr_0_step: step address data 0
+ * @mbx_addr_1_step: step address data 1
  */
 struct iwl_trans {
 	bool csme_own;
@@ -1082,6 +1091,8 @@ struct iwl_trans {
 
 	const char *name;
 	struct iwl_trans_txqs txqs;
+	u32 mbx_addr_0_step;
+	u32 mbx_addr_1_step;
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */

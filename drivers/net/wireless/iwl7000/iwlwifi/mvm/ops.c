@@ -189,7 +189,7 @@ static void iwl_mvm_rx_monitor_notif(struct iwl_mvm *mvm,
 	    vif->bss_conf.chandef.width < NL80211_CHAN_WIDTH_40)
 		return;
 
-	if (!vif->bss_conf.assoc)
+	if (!vif->cfg.assoc)
 		return;
 
 	/* this shouldn't happen *again*, ignore it */
@@ -580,6 +580,12 @@ static const struct iwl_hcmd_names iwl_mvm_system_names[] = {
 static const struct iwl_hcmd_names iwl_mvm_mac_conf_names[] = {
 	HCMD_NAME(CHANNEL_SWITCH_TIME_EVENT_CMD),
 	HCMD_NAME(SESSION_PROTECTION_CMD),
+	HCMD_NAME(MAC_CONFIG_CMD),
+	HCMD_NAME(LINK_CONFIG_CMD),
+	HCMD_NAME(STA_CONFIG_CMD),
+	HCMD_NAME(AUX_STA_CMD),
+	HCMD_NAME(STA_REMOVE_CMD),
+	HCMD_NAME(STA_DISABLE_TX_CMD),
 	HCMD_NAME(SESSION_PROTECTION_NOTIF),
 	HCMD_NAME(CHANNEL_SWITCH_START_NOTIF),
 };
@@ -1229,6 +1235,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	 ********************************/
 	hw = ieee80211_alloc_hw(sizeof(struct iwl_op_mode) +
 				sizeof(struct iwl_mvm),
+				iwl_mvm_has_mld_api(fw) ? &iwl_mvm_mld_hw_ops :
 				&iwl_mvm_hw_ops);
 	if (!hw)
 		return NULL;
@@ -1260,6 +1267,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	iwl_mvm_get_acpi_tables(mvm);
 	iwl_uefi_get_sgom_table(trans, &mvm->fwrt);
+	iwl_uefi_get_step_table(trans);
 
 	mvm->init_status = 0;
 
@@ -1432,6 +1440,8 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 				      0);
 	mvm->sta_remove_requires_queue_remove =
 		trans_cfg.queue_alloc_cmd_ver > 0;
+
+	mvm->mld_api_is_used = iwl_mvm_has_mld_api(mvm->fw);
 
 	/* Configure transport layer */
 	iwl_trans_configure(mvm->trans, &trans_cfg);

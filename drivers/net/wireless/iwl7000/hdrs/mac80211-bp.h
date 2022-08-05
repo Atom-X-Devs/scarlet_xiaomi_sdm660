@@ -989,37 +989,6 @@ reg_query_regdb_wmm(char *alpha2, int freq, u32 *ptr,
 }
 #endif /* >= 4.5.0 && < 4.17.0 */
 
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
-/* not yet upstream */
-static inline int
-cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
-{
-	return 1;
-}
-
-static inline u32
-cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
-			      int idx)
-{
-	WARN_ON(idx != 0);
-	return crypto->cipher_group;
-}
-
-#else
-static inline int
-cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
-{
-	return crypto->n_ciphers_group;
-}
-
-static inline u32
-cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
-			      int idx)
-{
-	return crypto->cipher_groups[idx];
-}
-#endif
-
 #ifndef VHT_MUMIMO_GROUPS_DATA_LEN
 #define VHT_MUMIMO_GROUPS_DATA_LEN (WLAN_MEMBERSHIP_LEN +\
 				    WLAN_USER_POSITION_LEN)
@@ -1502,6 +1471,7 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
+#define NL80211_EXT_FEATURE_BEACON_PROTECTION -1
 #define NL80211_EXT_FEATURE_PROTECTED_TWT -1
 #endif
 
@@ -2239,4 +2209,12 @@ void cfg80211_mgmt_tx_status_ext(struct wireless_dev *wdev,
 }
 
 #define NL80211_EXT_FEATURE_HW_TIMESTAMP -1
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#define cfg80211_ch_switch_notify(dev, chandef, link_id) cfg80211_ch_switch_notify(dev, chandef)
+#define cfg80211_beacon_data_link_id(params)	0
+#define WIPHY_FLAG_SUPPORTS_MLO 0
+#else
+#define cfg80211_beacon_data_link_id(params)	(params->link_id)
 #endif
