@@ -367,10 +367,8 @@ static int iwl_mvm_mld_start_ap_ibss(struct ieee80211_hw *hw,
 	int ret;
 
 	mutex_lock(&mvm->mutex);
+
 	/* Send the beacon template */
-	/* TODO: if link_id is the same ID was the one fed in the FW (I doubt
-	 * it), then we can feed it in the beacon template id.
-	 */
 	ret = iwl_mvm_mac_ctxt_beacon_changed(mvm, vif, link_conf);
 	if (ret)
 		goto out_unlock;
