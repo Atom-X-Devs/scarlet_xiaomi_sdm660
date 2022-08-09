@@ -1176,6 +1176,7 @@ static void iwl_mvm_cleanup_iterator(void *data, u8 *mac,
 	mvmvif->fw_active_links_num = 0;
 	for_each_mvm_vif_valid_link(mvmvif, link_id) {
 		mvmvif->link[link_id]->ap_sta_id = IWL_MVM_INVALID_STA;
+		mvmvif->link[link_id]->fw_link_id = IWL_MVM_FW_LINK_ID_INVALID;
 		mvmvif->link[link_id]->phy_ctxt = NULL;
 		mvmvif->link[link_id]->active = 0;
 		memset(&mvmvif->link[link_id]->probe_resp_data, 0,
