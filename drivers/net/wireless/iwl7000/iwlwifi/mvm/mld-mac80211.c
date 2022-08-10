@@ -503,15 +503,14 @@ static void iwl_mvm_mld_link_info_changed_station(struct iwl_mvm *mvm,
 	has_he = link_conf->he_support && !iwlwifi_mod_params.disable_11ax;
 	has_eht = link_conf->eht_support && !iwlwifi_mod_params.disable_11be;
 
+	/* Update EDCA params */
+	if (changes & BSS_CHANGED_QOS && vif->cfg.assoc && link_conf->qos)
+		link_changes |= LINK_CONTEXT_MODIFY_QOS_PARAMS;
+
 	if (vif->cfg.assoc && (has_he || has_eht)) {
 		IWL_DEBUG_MAC80211(mvm, "Associated in HE mode\n");
 		link_changes |= LINK_CONTEXT_MODIFY_HE_PARAMS;
 	}
-
-	/* Update MU EDCA params */
-	if (changes & BSS_CHANGED_QOS && vif->cfg.assoc &&
-	    (has_he || has_eht))
-		link_changes |= LINK_CONTEXT_MODIFY_QOS_PARAMS;
 
 	/* Update EHT Puncturing info */
 	if (changes & BSS_CHANGED_EHT_PUNCTURING && vif->cfg.assoc && has_eht)
