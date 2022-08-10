@@ -16,6 +16,7 @@
 #include <linux/acpi.h>
 #include <linux/arm-smccc.h>
 #include <linux/cpuidle.h>
+#include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/of.h>
@@ -452,6 +453,14 @@ CPUIDLE_METHOD_OF_DECLARE(psci, "psci", &psci_cpuidle_ops);
 
 static int psci_system_suspend(unsigned long unused)
 {
+	/*
+	 * TODO(b/159288905): remove this sleep. It's a hack, specifically for
+	 * MT8173, giving CPUs time to be fully powered off before the PSCI call
+	 * for SYSTEM_SUSPEND is made. A real fix will be coming in the ARM
+	 * trusted firmware that waits for the cores to power down by reading
+	 * the SPM_PWR_STATUS[_2ND] registers inside the CPU_SUSPEND handler.
+	 */
+	mdelay(1);
 	return invoke_psci_fn(PSCI_FN_NATIVE(1_0, SYSTEM_SUSPEND),
 			      __pa_symbol(cpu_resume), 0, 0);
 }
