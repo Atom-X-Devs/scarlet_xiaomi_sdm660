@@ -570,6 +570,54 @@ static void iwl_mvm_mld_set_ap_sta_id(struct ieee80211_sta *sta,
 	}
 }
 
+/* FIXME: consider waiting for mac80211 to add the STA instead of allocating
+ * queues here
+ */
+static int iwl_mvm_alloc_sta_after_restart(struct iwl_mvm *mvm,
+					   struct ieee80211_vif *vif,
+					   struct ieee80211_sta *sta)
+{
+	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+	struct ieee80211_link_sta *link_sta;
+	unsigned int link_id;
+	struct iwl_mvm_int_sta tmp_sta = {
+		.type = mvm_sta->sta_type,
+	};
+	int sta_id, ret;
+
+	/* First add an empty station since allocating a queue requires
+	 * a valid station. Since we need a link_id to allocate a station,
+	 * pick up the first valid one.
+	 */
+	for_each_sta_active_link(sta, link_sta, link_id) {
+		struct ieee80211_bss_conf *link_conf =
+			rcu_dereference_protected(vif->link_conf[link_id], 1);
+		struct iwl_mvm_link_sta *mvm_link_sta =
+			rcu_dereference_protected(mvm_sta->link[link_id],
+						  lockdep_is_held(&mvm->mutex));
+
+		if (!link_conf || !mvm_link_sta)
+			continue;
+
+		sta_id = mvm_link_sta->sta_id;
+		tmp_sta.sta_id = sta_id;
+		ret = iwl_mvm_mld_add_int_sta_to_fw(mvm, &tmp_sta,
+						    vif->bss_conf.bssid,
+						    link_id);
+		if (ret)
+			return ret;
+
+		rcu_assign_pointer(mvm->fw_id_to_mac_id[sta_id], sta);
+		iwl_mvm_realloc_queues_after_restart(mvm, sta);
+
+		/* since we need only one station, no need to continue */
+		return 0;
+	}
+
+	/* no active link found */
+	return -EINVAL;
+}
+
 int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			struct ieee80211_sta *sta)
 {
@@ -577,7 +625,7 @@ int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
 	unsigned long link_sta_added_to_fw = 0;
 	struct ieee80211_link_sta *link_sta;
-	int sta_id, ret = 0;
+	int ret = 0;
 	unsigned int link_id;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -586,38 +634,17 @@ int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		ret = iwl_mvm_mld_alloc_sta_links(mvm, vif, sta);
 		if (ret)
 			return ret;
-	} else {
-		/* FIXME: adjust HW restart flow to MLO */
-		sta_id = mvm_sta->deflink.sta_id;
-		rcu_assign_pointer(mvm->fw_id_to_mac_id[sta_id], sta);
 	}
 
 	spin_lock_init(&mvm_sta->lock);
 
-	/* FIXME: add handling in case of MLD */
-	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
-		struct iwl_mvm_int_sta tmp_sta = {
-			.sta_id = sta_id,
-			.type = mvm_sta->sta_type,
-		};
-
-		/*
-		 * First add an empty station since allocating
-		 * a queue requires a valid station
-		 */
-		ret = iwl_mvm_mld_add_int_sta_to_fw(mvm, &tmp_sta,
-						    vif->bss_conf.bssid,
-						    mvm_vif->id);
-		if (ret)
-			return ret;
-
-		iwl_mvm_realloc_queues_after_restart(mvm, sta);
-	} else {
+	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
+		ret = iwl_mvm_alloc_sta_after_restart(mvm, vif, sta);
+	else
 		ret = iwl_mvm_sta_init(mvm, vif, sta, IWL_MVM_INVALID_STA,
 				       STATION_TYPE_PEER);
-		if (ret)
-			goto err;
-	}
+	if (ret)
+		goto err;
 
 	/* at this stage sta link pointers are already allocated */
 	ret = iwl_mvm_mld_update_sta(mvm, vif, sta);
