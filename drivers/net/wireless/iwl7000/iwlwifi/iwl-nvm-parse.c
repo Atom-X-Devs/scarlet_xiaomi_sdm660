@@ -1216,6 +1216,10 @@ static void iwl_init_eht_band_override(struct iwl_trans *trans,
 		iftype_data = (void *)(uintptr_t) ieee80211_sband_get_iftypes_data_entry(sband,
 											 i);
 
+		/* Skip setting eht on not supported iftype */
+		if (!cfg_eht_cap_has_eht(iftype_data))
+			continue;
+
 		if (trans->dbg_cfg.valid_ants &&
 		    (trans->dbg_cfg.valid_ants & ANT_AB) != ANT_AB) {
 			/* For all MCS and bandwidth, set 1 NSS for both Tx and
