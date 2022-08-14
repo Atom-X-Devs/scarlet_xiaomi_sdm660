@@ -577,8 +577,7 @@ static inline bool jump_queue(struct task_struct *tsk, struct rb_node *root)
 out:
 	if (jump)
 		trace_sched_debug_einfo(tsk, "jumper", "boostx",
-					tsk->human_task, sched_boost(),
-					1, 1, 0);
+					tsk->human_task, 1, 1, 1, 0);
 
 	return jump;
 }
