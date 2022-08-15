@@ -608,10 +608,6 @@ ieee80211_lookup_key(struct ieee80211_sub_if_data *sdata,
 	if (key)
 		return key;
 
-	if (key_idx < NUM_DEFAULT_KEYS)
-		return rcu_dereference_check_key_mtx(local,
-						     sdata->keys[key_idx]);
-
 	/* or maybe it was a WEP key */
 	if (key_idx < NUM_DEFAULT_KEYS)
 		return rcu_dereference_check_key_mtx(local, sdata->keys[key_idx]);
@@ -1264,7 +1260,10 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 				      IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK);
 		changed |= BSS_CHANGED_HE_OBSS_PD;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
+
+#if CFG80211_VERSION >= KERNEL_VERSION(5,19,0)
+		if (params->beacon.he_bss_color.enabled)
+#elif CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
 		if (params->he_bss_color.enabled)
 #endif
 			changed |= BSS_CHANGED_HE_BSS_COLOR;
@@ -1321,7 +1320,9 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	link_conf->twt_responder = params->twt_responder;
 	link_conf->he_obss_pd = params->he_obss_pd;
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,19,0)
+	link_conf->he_bss_color = params->beacon.he_bss_color;
+#elif CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
 	link_conf->he_bss_color = params->he_bss_color;
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
@@ -1446,6 +1447,15 @@ static int ieee80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
 	err = ieee80211_assign_beacon(sdata, link, params, NULL, NULL);
 	if (err < 0)
 		return err;
+
+#if CFG80211_VERSION >= KERNEL_VERSION(5,19,0)
+	if (params->he_bss_color_valid &&
+	    params->he_bss_color.enabled != link_conf->he_bss_color.enabled) {
+		link_conf->he_bss_color.enabled = params->he_bss_color.enabled;
+		err |= BSS_CHANGED_HE_BSS_COLOR;
+	}
+#endif
+
 	ieee80211_link_info_change_notify(sdata, link, err);
 	return 0;
 }
@@ -1688,40 +1698,6 @@ static void sta_apply_mesh_params(struct ieee80211_local *local,
 	ieee80211_mbss_info_change_notify(sdata, changed);
 #endif
 }
-
-#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
-static void sta_apply_airtime_params(struct ieee80211_local *local,
-				     struct sta_info *sta,
-				     struct station_parameters *params)
-{
-	u8 ac;
-
-	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
-		struct airtime_sched_info *air_sched = &local->airtime[ac];
-		struct airtime_info *air_info = &sta->airtime[ac];
-		struct txq_info *txqi;
-		u8 tid;
-
-		spin_lock_bh(&air_sched->lock);
-		for (tid = 0; tid < IEEE80211_NUM_TIDS + 1; tid++) {
-			if (air_info->weight == params->airtime_weight ||
-			    !sta->sta.txq[tid] ||
-			    ac != ieee80211_ac_from_tid(tid))
-				continue;
-
-			airtime_weight_set(air_info, params->airtime_weight);
-
-			txqi = to_txq_info(sta->sta.txq[tid]);
-			if (RB_EMPTY_NODE(&txqi->schedule_order))
-				continue;
-
-			ieee80211_update_airtime_weight(local, air_sched,
-							0, true);
-		}
-		spin_unlock_bh(&air_sched->lock);
-	}
-}
-#endif
 
 static int sta_link_apply_parameters(struct ieee80211_local *local,
 				     struct sta_info *sta, bool new_link,
@@ -1972,9 +1948,9 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	if (ieee80211_vif_is_mesh(&sdata->vif))
 		sta_apply_mesh_params(local, sta, params);
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	if (params->airtime_weight)
-		sta_apply_airtime_params(local, sta, params);
+		sta->airtime_weight = params->airtime_weight;
 #endif
 
 	/* set the STA state after all sta info from usermode has been set */
@@ -2190,7 +2166,14 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 		}
 	}
 
-	err = sta_apply_parameters(local, sta, params);
+	/* we use sta_info_get_bss() so this might be different */
+	if (sdata != sta->sdata) {
+		mutex_lock_nested(&sta->sdata->wdev.mtx, 1);
+		err = sta_apply_parameters(local, sta, params);
+		mutex_unlock(&sta->sdata->wdev.mtx);
+	} else {
+		err = sta_apply_parameters(local, sta, params);
+	}
 	if (err)
 		goto out_err;
 
@@ -2644,7 +2627,7 @@ static int ieee80211_join_mesh(struct wiphy *wiphy, struct net_device *dev,
 	sdata->deflink.needed_rx_chains = sdata->local->rx_chains;
 
 	mutex_lock(&sdata->local->mtx);
-	err = ieee80211_link_use_channel(sdata->link[0], &setup->chandef,
+	err = ieee80211_link_use_channel(&sdata->deflink, &setup->chandef,
 					 IEEE80211_CHANCTX_SHARED);
 	mutex_unlock(&sdata->local->mtx);
 	if (err)
@@ -2659,7 +2642,7 @@ static int ieee80211_leave_mesh(struct wiphy *wiphy, struct net_device *dev)
 
 	ieee80211_stop_mesh(sdata);
 	mutex_lock(&sdata->local->mtx);
-	ieee80211_link_release_channel(sdata->link[0]);
+	ieee80211_link_release_channel(&sdata->deflink);
 	kfree(sdata->u.mesh.ie);
 	mutex_unlock(&sdata->local->mtx);
 
@@ -3615,6 +3598,9 @@ static int ieee80211_set_after_csa_beacon(struct ieee80211_sub_if_data *sdata,
 
 	switch (sdata->vif.type) {
 	case NL80211_IFTYPE_AP:
+		if (!sdata->deflink.u.ap.next_beacon)
+			return -EINVAL;
+
 		err = ieee80211_assign_beacon(sdata, &sdata->deflink,
 					      sdata->deflink.u.ap.next_beacon,
 					      NULL, NULL);
@@ -4687,6 +4673,9 @@ ieee80211_set_after_color_change_beacon(struct ieee80211_sub_if_data *sdata,
 	case NL80211_IFTYPE_AP: {
 		int ret;
 
+		if (!sdata->deflink.u.ap.next_beacon)
+			return -EINVAL;
+
 		ret = ieee80211_assign_beacon(sdata, &sdata->deflink,
 					      sdata->deflink.u.ap.next_beacon,
 					      NULL, NULL);
@@ -4844,7 +4833,7 @@ EXPORT_SYMBOL_GPL(ieee80211_color_change_finish);
 
 void
 ieeee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
-				       u64 color_bitmap)
+				       u64 color_bitmap, gfp_t gfp)
 {
 #if CFG80211_VERSION >= KERNEL_VERSION(5,15,0)
 	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
@@ -4852,7 +4841,11 @@ ieeee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
 	if (sdata->vif.bss_conf.color_change_active || sdata->vif.bss_conf.csa_active)
 		return;
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,19,0)
+	cfg80211_obss_color_collision_notify(sdata->dev, color_bitmap, gfp);
+#else
 	cfg80211_obss_color_collision_notify(sdata->dev, color_bitmap);
+#endif
 #endif
 }
 EXPORT_SYMBOL_GPL(ieeee80211_obss_color_collision_notify);

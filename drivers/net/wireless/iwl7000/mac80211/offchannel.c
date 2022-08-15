@@ -861,7 +861,7 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	if (!params->chan && mlo_sta) {
 		need_offchan = false;
 	} else if (!need_offchan) {
-		struct ieee80211_chanctx_conf *chanctx_conf;
+		struct ieee80211_chanctx_conf *chanctx_conf = NULL;
 		int i;
 
 		rcu_read_lock();

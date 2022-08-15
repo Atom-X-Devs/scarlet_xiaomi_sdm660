@@ -303,6 +303,9 @@ static void __ieee80211_wake_txqs(struct ieee80211_sub_if_data *sdata, int ac)
 	local_bh_disable();
 	spin_lock(&fq->lock);
 
+	if (!test_bit(SDATA_STATE_RUNNING, &sdata->state))
+		goto out;
+
 	if (sdata->vif.type == NL80211_IFTYPE_AP)
 		ps = &sdata->bss->ps;
 
@@ -4241,7 +4244,7 @@ ieee80211_conn_flags_t ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
 		/* n_P20 */
 		tmp = (150 + c->chan->center_freq - c->center_freq1) / 20;
 		/* n_P160 */
-		tmp /= 80;
+		tmp /= 8;
 		c->center_freq1 = c->center_freq1 - 80 + 160 * tmp;
 		c->width = NL80211_CHAN_WIDTH_160;
 		ret = IEEE80211_CONN_DISABLE_320MHZ;

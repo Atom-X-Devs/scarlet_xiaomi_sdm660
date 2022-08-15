@@ -529,14 +529,13 @@ static int ieee80211_vif_update_links(struct ieee80211_sub_if_data *sdata,
 			 * we must have allocated the data through this path so
 			 * we know we can free both at the same time
 			 */
-			to_free[link_id] = container_of(sdata->link[link_id],
+			to_free[link_id] = container_of(rcu_access_pointer(sdata->link[link_id]),
 							typeof(*links[link_id]),
 							data);
 		}
 
 		RCU_INIT_POINTER(sdata->link[link_id], NULL);
 		RCU_INIT_POINTER(sdata->vif.link_conf[link_id], NULL);
-
 	}
 
 	/* link them into data structures */
@@ -632,6 +631,7 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
 	struct cfg80211_nan_func *func;
 
 	clear_bit(SDATA_STATE_RUNNING, &sdata->state);
+	synchronize_rcu(); /* flush _ieee80211_wake_txqs() */
 
 	cancel_scan = rcu_access_pointer(local->scan_sdata) == sdata;
 	if (cancel_scan)
@@ -2481,10 +2481,6 @@ struct vif_params *params)
 			       sizeof(sdata->rc_rateidx_vht_mcs_mask[i]));
 		}
 	}
-
-	for (i = 0; i < IEEE80211_NUM_ACS; i++)
-		init_airtime_info(&sdata->deflink.airtime[i],
-				  &local->airtime[i]);
 
 	ieee80211_set_default_queues(sdata);
 

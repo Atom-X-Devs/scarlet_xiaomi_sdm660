@@ -1740,6 +1740,7 @@ void ieee80211_send_4addr_nullfunc(struct ieee80211_local *local,
 	memcpy(nullfunc->addr4, sdata->vif.addr, ETH_ALEN);
 
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
+	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_CTL_USE_MINRATE;
 	ieee80211_tx_skb(sdata, skb);
 }
 
@@ -3208,10 +3209,10 @@ void ieee80211_sta_tx_notify(struct ieee80211_sub_if_data *sdata,
 	ieee80211_queue_work(&sdata->local->hw, &sdata->work);
 }
 
-void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
-				   const u8 *src, const u8 *dst,
-				   const u8 *ssid, size_t ssid_len,
-				   struct ieee80211_channel *channel)
+static void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
+					  const u8 *src, const u8 *dst,
+					  const u8 *ssid, size_t ssid_len,
+					  struct ieee80211_channel *channel)
 {
 	struct sk_buff *skb;
 
@@ -7258,6 +7259,12 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		conn_flags |= IEEE80211_CONN_DISABLE_HE;
 		conn_flags |= IEEE80211_CONN_DISABLE_EHT;
 	}
+
+
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
+	if (req->flags & ASSOC_REQ_DISABLE_EHT)
+		conn_flags |= IEEE80211_CONN_DISABLE_EHT;
+#endif
 
 	memcpy(&ifmgd->ht_capa, &req->ht_capa, sizeof(ifmgd->ht_capa));
 	memcpy(&ifmgd->ht_capa_mask, &req->ht_capa_mask,
