@@ -5084,7 +5084,7 @@ out_err:
 static void ieee80211_assoc_comeback(struct net_device *dev,
 				     struct ieee80211_mgd_assoc_data *assoc_data,
 				     u32 timeout) {
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 	int i;
 
 	if (WARN_ON(!assoc_data->link[0].bss))
@@ -6957,7 +6957,7 @@ ieee80211_setup_assoc_link(struct ieee80211_sub_if_data *sdata,
 		assoc_data->supp_rates_len = bss->supp_rates_len;
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	/* copy and link elems for the STA profile */
 	if (cfg80211_req_link_elems_len(req, link_id)) {
 		memcpy(assoc_data->ie_pos, req->links[link_id].elems,

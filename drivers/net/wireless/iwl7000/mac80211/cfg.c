@@ -1463,13 +1463,13 @@ static void ieee80211_free_next_beacon(struct ieee80211_link_data *link)
 }
 
 static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 ,
 			     unsigned int link_id
 #endif
 )
 {
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 	unsigned int link_id = 0;
 #endif
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -1725,7 +1725,7 @@ static void sta_apply_airtime_params(struct ieee80211_local *local,
 
 static int sta_link_apply_parameters(struct ieee80211_local *local,
 				     struct sta_info *sta, bool new_link,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 				     struct link_station_parameters *params)
 #else
 				     struct station_parameters *params)
@@ -1734,7 +1734,7 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 	int ret = 0;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	u32 link_id = params->link_id < 0 ? 0 : params->link_id;
 #else
 	u32 link_id = 0;
@@ -1745,7 +1745,7 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 		rcu_dereference_protected(sta->link[link_id],
 					  lockdep_is_held(&local->sta_mtx));
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	/*
 	 * If there are no changes, then accept a link that doesn't exist,
 	 * unless it's a new link.
@@ -1766,7 +1766,7 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 	if (!sband)
 		return -EINVAL;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	if (params->link_mac) {
 		if (new_link) {
 			memcpy(link_sta->addr, params->link_mac, ETH_ALEN);
@@ -1781,7 +1781,7 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 #endif
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	if (params->txpwr_set) {
 #else
 	if (params->sta_modify_mask & STATION_PARAM_APPLY_STA_TXPOWER) {
@@ -1956,7 +1956,7 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	if (params->listen_interval >= 0)
 		sta->listen_interval = params->listen_interval;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	ret = sta_link_apply_parameters(local, sta, false,
 					&params->link_sta_params);
 #else
@@ -2063,7 +2063,7 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 
 	return sta_info_insert(sta);
 }
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 static int __ieee80211_add_station(struct wiphy *wiphy,
 				   struct net_device *dev, const u8 *mac,
 				   struct station_parameters *params){
@@ -2074,7 +2074,7 @@ static int __ieee80211_add_station(struct wiphy *wiphy,
 	sdata_unlock(IEEE80211_DEV_TO_SUB_IF(dev));
 	return ret;
 }
-#endif /* CFG80211_VERSION < KERNEL_VERSION(5,20,0) */
+#endif /* CFG80211_VERSION < KERNEL_VERSION(6,0,0) */
 
 static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 				 struct station_del_parameters *params)
@@ -2089,7 +2089,7 @@ static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 	sta_info_flush(sdata);
 	return 0;
 }
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 static int __ieee80211_del_station(struct wiphy *wiphy,
 				   struct net_device *dev,
 				   struct station_del_parameters *params){
@@ -2100,7 +2100,7 @@ static int __ieee80211_del_station(struct wiphy *wiphy,
 	sdata_unlock(IEEE80211_DEV_TO_SUB_IF(dev));
 	return ret;
 }
-#endif /* CFG80211_VERSION < KERNEL_VERSION(5,20,0) */
+#endif /* CFG80211_VERSION < KERNEL_VERSION(6,0,0) */
 
 static int ieee80211_change_station(struct wiphy *wiphy,
 				    struct net_device *dev, const u8 *mac,
@@ -2207,7 +2207,7 @@ out_err:
 	mutex_unlock(&local->sta_mtx);
 	return err;
 }
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 static int __ieee80211_change_station(struct wiphy *wiphy,
 				      struct net_device *dev, const u8 *mac,
 				      struct station_parameters *params){
@@ -2218,7 +2218,7 @@ static int __ieee80211_change_station(struct wiphy *wiphy,
 	sdata_unlock(IEEE80211_DEV_TO_SUB_IF(dev));
 	return ret;
 }
-#endif /* CFG80211_VERSION < KERNEL_VERSION(5,20,0) */
+#endif /* CFG80211_VERSION < KERNEL_VERSION(6,0,0) */
 
 #ifdef CPTCFG_MAC80211_MESH
 static int ieee80211_add_mpath(struct wiphy *wiphy, struct net_device *dev,
@@ -3340,7 +3340,7 @@ static int ieee80211_set_cqm_rssi_range_config(struct wiphy *wiphy,
 
 static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 				      struct net_device *dev,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 				      unsigned int link_id,
 #endif
 				      const u8 *addr,
@@ -4216,12 +4216,12 @@ unlock:
 
 static int ieee80211_cfg_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef)
 {
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 	unsigned int link_id = 0;
 #endif
 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
@@ -4306,7 +4306,7 @@ static int ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 
 	return ret;
 }
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 static int __ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 					struct net_device *dev,
 					struct cfg80211_chan_def *chandef){
@@ -4317,7 +4317,7 @@ static int __ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 	sdata_unlock(IEEE80211_DEV_TO_SUB_IF(dev));
 	return ret;
 }
-#endif /* CFG80211_VERSION < KERNEL_VERSION(5,20,0) */
+#endif /* CFG80211_VERSION < KERNEL_VERSION(6,0,0) */
 
 static int ieee80211_add_tx_ts(struct wiphy *wiphy, struct net_device *dev,
 			       u8 tsid, const u8 *peer, u8 up,
@@ -4918,7 +4918,7 @@ ieee80211_set_radar_background(struct wiphy *wiphy,
 }
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 static int ieee80211_add_intf_link(struct wiphy *wiphy,
 				   struct wireless_dev *wdev,
 				   unsigned int link_id)
@@ -4929,7 +4929,7 @@ static int ieee80211_add_intf_link(struct wiphy *wiphy,
 }
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 static void ieee80211_del_intf_link(struct wiphy *wiphy,
 				    struct wireless_dev *wdev,
 				    unsigned int link_id)
@@ -4940,7 +4940,7 @@ static void ieee80211_del_intf_link(struct wiphy *wiphy,
 }
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 static int ieee80211_set_hw_timestamp(struct wiphy *wiphy,
 				      struct net_device *dev,
 				      struct cfg80211_set_hw_timestamp *hwts)
@@ -4958,7 +4958,7 @@ static int ieee80211_set_hw_timestamp(struct wiphy *wiphy,
 }
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 static int sta_add_link_station(struct ieee80211_local *local,
 				struct ieee80211_sub_if_data *sdata,
 				struct link_station_parameters *params)
@@ -5089,19 +5089,19 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.start_ap = ieee80211_start_ap,
 	.change_beacon = ieee80211_change_beacon,
 	.stop_ap = ieee80211_stop_ap,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.add_station = ieee80211_add_station,
 #else
 	.add_station = __ieee80211_add_station,
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.del_station = ieee80211_del_station,
 #else
 	.del_station = __ieee80211_del_station,
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.change_station = ieee80211_change_station,
 #else
 	.change_station = __ieee80211_change_station,
@@ -5185,7 +5185,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 #endif
 	.channel_switch = ieee80211_channel_switch,
 	.set_qos_map = ieee80211_set_qos_map,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.set_ap_chanwidth = ieee80211_set_ap_chanwidth,
 #else
 	.set_ap_chanwidth = __ieee80211_set_ap_chanwidth,
@@ -5212,7 +5212,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.set_multicast_to_unicast = ieee80211_set_multicast_to_unicast,
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.tx_control_port = ieee80211_tx_control_port,
 #else
 	.tx_control_port = bp_ieee80211_tx_control_port,
@@ -5249,16 +5249,16 @@ const struct cfg80211_ops mac80211_config_ops = {
 #if CFG80211_VERSION >= KERNEL_VERSION(5,17,0)
 	.set_radar_background = ieee80211_set_radar_background,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.add_intf_link = ieee80211_add_intf_link,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.del_intf_link = ieee80211_del_intf_link,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.set_hw_timestamp = ieee80211_set_hw_timestamp,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 	.add_link_station = ieee80211_add_link_station,
 	.mod_link_station = ieee80211_mod_link_station,
 	.del_link_station = ieee80211_del_link_station,

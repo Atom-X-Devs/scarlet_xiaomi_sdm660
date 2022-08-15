@@ -2208,7 +2208,7 @@ struct cfg80211_set_hw_timestamp {
 
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 static inline enum ieee80211_rate_flags
 ieee80211_chanwidth_rate_flags(enum nl80211_chan_width width)
 {
@@ -2336,13 +2336,13 @@ cfg80211_get_iftype_ext_capa(struct wiphy *wiphy, enum nl80211_iftype type)
 #define cfg80211_mgmt_tx_params_link_id_mask(params) BIT((params)->link_id)
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 #define set_hw_timestamp_max_peers(hw, val)	do { } while (0)
 #else
 #define set_hw_timestamp_max_peers(hw, val)	(hw)->wiphy->hw_timestamp_max_peers = val
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,20,0) && \
+#if CFG80211_VERSION < KERNEL_VERSION(6,0,0) && \
     !defined(cfg80211_rx_control_port)
 static inline bool
 iwl7000_cfg80211_rx_control_port(struct net_device *dev, struct sk_buff *skb,

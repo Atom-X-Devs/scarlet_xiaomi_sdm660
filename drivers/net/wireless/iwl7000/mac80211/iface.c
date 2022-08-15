@@ -409,7 +409,7 @@ static void ieee80211_link_init(struct ieee80211_sub_if_data *sdata,
 
 	if (!deflink) {
 		switch (sdata->vif.type) {
-#if CFG80211_VERSION >= KERNEL_VERSION(5,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,0,0)
 		case NL80211_IFTYPE_AP:
 			ether_addr_copy(link_conf->addr,
 					sdata->wdev.links[link_id].addr);
