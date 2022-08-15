@@ -1325,7 +1325,7 @@ unsigned int elliptic_add_component_controls(void *component)
 	const unsigned int num_controls =
 		ARRAY_SIZE(ultrasound_filter_mixer_controls);
 
-	if (platform != NULL) {
+	if (component != NULL) {
 		snd_soc_add_component_controls(
 			(struct snd_soc_component *)component,
 			ultrasound_filter_mixer_controls, num_controls);
