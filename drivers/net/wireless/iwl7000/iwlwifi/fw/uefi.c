@@ -268,21 +268,16 @@ static int iwl_uefi_step_parse(struct uefi_cnv_common_step_data *common_step_dat
 
 void iwl_uefi_get_step_table(struct iwl_trans *trans)
 {
-	struct efivar_entry *step_efivar;
 	struct uefi_cnv_common_step_data *data;
 	unsigned long package_size;
-	int err, ret;
+	efi_status_t status;
+	int ret;
 
 	if (trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210)
 		return;
 
-	step_efivar = kzalloc(sizeof(*step_efivar), GFP_KERNEL);
-	if (!step_efivar)
+	if (!efi_rt_services_supported(EFI_RT_SUPPORTED_GET_VARIABLE))
 		return;
-
-	memcpy(&step_efivar->var.VariableName, IWL_UEFI_STEP_NAME,
-	       sizeof(IWL_UEFI_STEP_NAME));
-	step_efivar->var.VendorGuid = IWL_EFI_VAR_GUID;
 
 	/* TODO: we hardcode a maximum length here, because reading
 	 * from the UEFI is not working.  To implement this properly,
@@ -291,15 +286,14 @@ void iwl_uefi_get_step_table(struct iwl_trans *trans)
 	package_size = IWL_HARDCODED_STEP_SIZE;
 
 	data = kmalloc(package_size, GFP_KERNEL);
-	if (!data) {
-		data = ERR_PTR(-ENOMEM);
-		goto out;
-	}
+	if (!data)
+		return;
 
-	err = efivar_entry_get(step_efivar, NULL, &package_size, data);
-	if (err) {
+	status = efi.get_variable(IWL_UEFI_STEP_NAME, &IWL_EFI_VAR_GUID,
+				  NULL, &package_size, data);
+	if (status != EFI_SUCCESS) {
 		IWL_DEBUG_FW(trans,
-			     "STEP UEFI variable not found %d\n", err);
+			     "STEP UEFI variable not found 0x%lx\n", status);
 		goto out_free;
 	}
 
@@ -312,9 +306,6 @@ void iwl_uefi_get_step_table(struct iwl_trans *trans)
 
 out_free:
 	kfree(data);
-
-out:
-	kfree(step_efivar);
 }
 IWL_EXPORT_SYMBOL(iwl_uefi_get_step_table);
 
