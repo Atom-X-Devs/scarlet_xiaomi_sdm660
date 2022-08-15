@@ -297,7 +297,7 @@ void hci_devcoredump_rx(struct work_struct *work)
 
 			bt_dev_info(hdev,
 				    "Devcoredump complete with size %u "
-				    "(expect %u)",
+				    "(expect %zu)",
 				    dump_size, hdev->dump.alloc_size);
 
 			dev_coredumpv(&hdev->dev, hdev->dump.head, dump_size,
@@ -316,7 +316,7 @@ void hci_devcoredump_rx(struct work_struct *work)
 
 			bt_dev_info(hdev,
 				    "Devcoredump aborted with size %u "
-				    "(expect %u)",
+				    "(expect %zu)",
 				    dump_size, hdev->dump.alloc_size);
 
 			/* Emit a devcoredump with the available data */
@@ -361,7 +361,7 @@ void hci_devcoredump_timeout(struct work_struct *work)
 
 	hci_devcoredump_update_state(hdev, HCI_DEVCOREDUMP_TIMEOUT);
 	dump_size = hdev->dump.tail - hdev->dump.head;
-	bt_dev_info(hdev, "Devcoredump timeout with size %u (expect %u)",
+	bt_dev_info(hdev, "Devcoredump timeout with size %u (expect %zu)",
 		    dump_size, hdev->dump.alloc_size);
 
 	/* Emit a devcoredump with the available data */
