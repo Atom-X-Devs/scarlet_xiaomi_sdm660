@@ -107,7 +107,10 @@ extern void calc_global_load_tick(struct rq *this_rq);
 extern long calc_load_fold_active(struct rq *this_rq, long adjust);
 
 #ifdef CONFIG_SMP
+extern void cpu_load_update_active(struct rq *this_rq);
 extern void init_sched_groups_capacity(int cpu, struct sched_domain *sd);
+#else
+static inline void cpu_load_update_active(struct rq *this_rq) { }
 #endif
 
 /*
@@ -887,6 +890,8 @@ struct rq {
 	unsigned int		nr_preferred_running;
 	unsigned int		numa_migrate_on;
 #endif
+	#define CPU_LOAD_IDX_MAX 5
+	unsigned long		cpu_load[CPU_LOAD_IDX_MAX];
 #ifdef CONFIG_NO_HZ_COMMON
 #ifdef CONFIG_SMP
 	unsigned long		last_load_update_tick;
@@ -897,6 +902,8 @@ struct rq {
 	atomic_t nohz_flags;
 #endif /* CONFIG_NO_HZ_COMMON */
 
+	/* capture load from *all* tasks on this CPU: */
+	struct load_weight	load;
 	unsigned long		nr_load_updates;
 	u64			nr_switches;
 
