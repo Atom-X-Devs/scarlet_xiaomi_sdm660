@@ -5578,7 +5578,7 @@ static void le_conn_complete_evt(struct hci_dev *hdev, u8 status,
 	if (role == HCI_ROLE_SLAVE)
 		hci_req_enable_paused_adv(hdev);
 
-	conn = hci_lookup_le_connect(hdev);
+	conn = hci_conn_hash_lookup_ba(hdev, LE_LINK, bdaddr);
 	if (!conn) {
 		/* In case of error status and there is no connection pending
 		 * just unlock as there is nothing to cleanup.
