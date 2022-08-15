@@ -2530,7 +2530,6 @@ static int max98927_speaker_force_close_set(struct snd_kcontrol *kcontrol,
 			else
 				regmap_update_bits(max98927->regmap[MAX98927R],
 						   MAX98937_Global_Enable, 1, 0);
-			}
 
 			pr_info("%s: Force %s speaker, register 0x%02X, value 0x%02X\n",
 				__func__, disable ? "disable " : "enable",
