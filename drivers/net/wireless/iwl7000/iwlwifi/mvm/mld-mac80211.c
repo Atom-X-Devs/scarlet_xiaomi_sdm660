@@ -884,6 +884,7 @@ iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
 		new_link[i]->bcast_sta.sta_id = IWL_MVM_INVALID_STA;
 		new_link[i]->mcast_sta.sta_id = IWL_MVM_INVALID_STA;
 		new_link[i]->ap_sta_id = IWL_MVM_INVALID_STA;
+		new_link[i]->fw_link_id = IWL_MVM_FW_LINK_ID_INVALID;
 
 		for (r = 0; r < NUM_IWL_MVM_SMPS_REQ; r++)
 			new_link[i]->smps_requests[r] = IEEE80211_SMPS_AUTOMATIC;
