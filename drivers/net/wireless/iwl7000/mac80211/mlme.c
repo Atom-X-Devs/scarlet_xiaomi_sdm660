@@ -5905,6 +5905,13 @@ void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 
 	sdata_lock(sdata);
 
+	if (rx_status->link_valid) {
+		link = sdata_dereference(sdata->link[rx_status->link_id],
+					 sdata);
+		if (!link)
+			goto out;
+	}
+
 	switch (fc & IEEE80211_FCTL_STYPE) {
 	case IEEE80211_STYPE_BEACON:
 		ieee80211_rx_mgmt_beacon(link, (void *)mgmt,
@@ -5981,6 +5988,7 @@ void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 		}
 		break;
 	}
+out:
 	sdata_unlock(sdata);
 }
 
