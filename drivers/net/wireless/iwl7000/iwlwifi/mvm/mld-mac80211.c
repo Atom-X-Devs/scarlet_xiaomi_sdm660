@@ -865,6 +865,8 @@ iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
 	struct iwl_mvm_vif_link_info *new_link[IEEE80211_MLD_MAX_NUM_LINKS] = {};
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	u16 removed = old_links & ~new_links;
+	u16 added = new_links & ~old_links;
 	int err, i;
 
 	if (hweight16(new_links) > 1)
@@ -900,7 +902,7 @@ iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
 	}
 
 	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
-		if (old_links & BIT(i)) {
+		if (removed & BIT(i)) {
 			struct ieee80211_bss_conf *link_conf = old[i];
 
 			err = iwl_mvm_disable_link(mvm, vif, link_conf);
@@ -910,7 +912,7 @@ iwl_mvm_mld_change_vif_links(struct ieee80211_hw *hw,
 			mvmvif->link[i] = NULL;
 		}
 
-		if (new_links & BIT(i)) {
+		if (added & BIT(i)) {
 			struct ieee80211_bss_conf *link_conf;
 
 			/* FIXME: allow use of sdata_dereference()? */
