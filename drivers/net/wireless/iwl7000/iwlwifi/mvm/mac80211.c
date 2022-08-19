@@ -4492,6 +4492,7 @@ static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 		if (ret) {
 			IWL_WARN(mvm, "set key failed\n");
 			key->hw_key_idx = STA_KEY_IDX_INVALID;
+			kfree(ptk_pn);
 			/*
 			 * can't add key for RX, but we don't need it
 			 * in the device for TX so still return 0,
