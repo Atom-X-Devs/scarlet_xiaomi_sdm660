@@ -553,12 +553,6 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 	/* Fill the common data for all mac context types */
 	iwl_mvm_mac_ctxt_cmd_common(mvm, vif, &cmd, bssid_override, action);
 
-	/*
-	 * We always want to hear MCAST frames, if we're not authorized yet,
-	 * we'll drop them.
-	 */
-	cmd.filter_flags |= cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
-
 	if (vif->p2p) {
 		struct ieee80211_p2p_noa_attr *noa =
 			&vif->bss_conf.p2p_noa_attr;
@@ -624,6 +618,13 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 				IWL_UCODE_TLV_CAPA_COEX_HIGH_PRIO))
 			ctxt_sta->data_policy |=
 				cpu_to_le32(COEX_HIGH_PRIORITY_ENABLE);
+
+		/*
+		 * allow multicast data frames only as long as the station is
+		 * authorized, i.e., GTK keys are already installed (if needed)
+		 */
+		if (mvmvif->authorized)
+			cmd.filter_flags |= cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
 	} else {
 		ctxt_sta->is_assoc = cpu_to_le32(0);
 
@@ -664,7 +665,7 @@ static int iwl_mvm_mac_ctxt_cmd_listener(struct iwl_mvm *mvm,
 					 u32 action)
 {
 	struct iwl_mac_ctx_cmd cmd = {};
-	u32 tfd_queue_msk = 0;
+	u32 tfd_queue_msk = BIT(mvm->snif_queue);
 	int ret;
 
 	WARN_ON(vif->type != NL80211_IFTYPE_MONITOR);
@@ -678,14 +679,6 @@ static int iwl_mvm_mac_ctxt_cmd_listener(struct iwl_mvm *mvm,
 				       MAC_FILTER_IN_CRC32 |
 				       MAC_FILTER_ACCEPT_GRP);
 	ieee80211_hw_set(mvm->hw, RX_INCLUDES_FCS);
-
-	/*
-	 * the queue mask is only relevant for old TX API, and
-	 * mvm->snif_queue isn't set here (it's still set to
-	 * IWL_MVM_INVALID_QUEUE so the BIT() of it is UB)
-	 */
-	if (!iwl_mvm_has_new_tx_api(mvm))
-		tfd_queue_msk = BIT(mvm->snif_queue);
 
 	/* Allocate sniffer station */
 	ret = iwl_mvm_allocate_int_sta(mvm, &mvm->snif_sta, tfd_queue_msk,
@@ -806,40 +799,15 @@ static u32 iwl_mvm_find_ie_offset(u8 *beacon, u8 eid, u32 frame_size)
 	return ie - beacon;
 }
 
-static u8 iwl_mvm_mac_ctxt_get_lowest_rate(struct iwl_mvm *mvm,
-					   struct ieee80211_tx_info *info,
-					   struct ieee80211_vif *vif)
+u8 iwl_mvm_mac_ctxt_get_lowest_rate(struct ieee80211_tx_info *info,
+				    struct ieee80211_vif *vif)
 {
-	struct ieee80211_supported_band *sband;
-	unsigned long basic = vif->bss_conf.basic_rates;
-	u16 lowest_cck = IWL_RATE_COUNT, lowest_ofdm = IWL_RATE_COUNT;
 	u8 rate;
-	u32 i;
+	if (info->band == NL80211_BAND_2GHZ && !vif->p2p)
+		rate = IWL_FIRST_CCK_RATE;
+	else
+		rate = IWL_FIRST_OFDM_RATE;
 
-	sband = mvm->hw->wiphy->bands[info->band];
-	for_each_set_bit(i, &basic, BITS_PER_LONG) {
-		u16 hw = sband->bitrates[i].hw_value;
-
-		if (hw >= IWL_FIRST_OFDM_RATE) {
-			if (lowest_ofdm > hw)
-				lowest_ofdm = hw;
-		} else if (lowest_cck > hw) {
-			lowest_cck = hw;
-		}
-	}
-
-	if (info->band == NL80211_BAND_2GHZ && !vif->p2p) {
-		if (lowest_cck != IWL_RATE_COUNT)
-			rate = lowest_cck;
-		else if (lowest_ofdm != IWL_RATE_COUNT)
-			rate = lowest_ofdm;
-		else
-			rate = IWL_RATE_1M_INDEX;
-	} else if (lowest_ofdm != IWL_RATE_COUNT) {
-		rate = lowest_ofdm;
-	} else {
-		rate = IWL_RATE_6M_INDEX;
-	}
 	return rate;
 }
 
@@ -853,24 +821,6 @@ u16 iwl_mvm_mac_ctxt_get_beacon_flags(const struct iwl_fw *fw, u8 rate_idx)
 			  : IWL_MAC_BEACON_CCK_V1;
 
 	return flags;
-}
-
-u8 iwl_mvm_mac_ctxt_get_beacon_rate(struct iwl_mvm *mvm,
-				    struct ieee80211_tx_info *info,
-				    struct ieee80211_vif *vif)
-{
-	struct ieee80211_supported_band *sband =
-		mvm->hw->wiphy->bands[info->band];
-	u32 legacy = vif->bss_conf.beacon_tx_rate.control[info->band].legacy;
-
-	/* if beacon rate was configured try using it */
-	if (hweight32(legacy) == 1) {
-		u32 rate = ffs(legacy) - 1;
-
-		return sband->bitrates[rate].hw_value;
-	}
-
-	return iwl_mvm_mac_ctxt_get_lowest_rate(mvm, info, vif);
 }
 
 static void iwl_mvm_mac_ctxt_set_tx(struct iwl_mvm *mvm,
@@ -908,7 +858,7 @@ static void iwl_mvm_mac_ctxt_set_tx(struct iwl_mvm *mvm,
 				    RATE_MCS_ANT_POS);
 	}
 
-	rate = iwl_mvm_mac_ctxt_get_beacon_rate(mvm, info, vif);
+	rate = iwl_mvm_mac_ctxt_get_lowest_rate(info, vif);
 
 	tx->rate_n_flags |=
 		cpu_to_le32(iwl_mvm_mac80211_idx_to_hwrate(mvm->fw, rate));
@@ -992,7 +942,7 @@ static int iwl_mvm_mac_ctxt_send_beacon_v9(struct iwl_mvm *mvm,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(beacon);
 	struct iwl_mac_beacon_cmd beacon_cmd = {};
-	u8 rate = iwl_mvm_mac_ctxt_get_beacon_rate(mvm, info, vif);
+	u8 rate = iwl_mvm_mac_ctxt_get_lowest_rate(info, vif);
 	u16 flags;
 	struct ieee80211_chanctx_conf *ctx;
 	int channel;

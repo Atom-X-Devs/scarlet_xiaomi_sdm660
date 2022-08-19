@@ -107,7 +107,7 @@ static inline void iwl_mei_host_associated(const struct iwl_mei_conn_info *conn_
 static inline void iwl_mei_host_disassociated(void)
 {}
 
-static inline void iwl_mei_device_state(bool up)
+static inline void iwl_mei_device_down(void)
 {}
 
 #endif /* __iwl_mei_h__ */

@@ -376,11 +376,12 @@ static void iwl_mvm_te_handle_notif(struct iwl_mvm *mvm,
 static int iwl_mvm_aux_roc_te_handle_notif(struct iwl_mvm *mvm,
 					   struct iwl_time_event_notif *notif)
 {
-	struct iwl_mvm_time_event_data *aux_roc_te = NULL, *te_data;
+	struct iwl_mvm_time_event_data *te_data, *tmp;
+	bool aux_roc_te = false;
 
-	list_for_each_entry(te_data, &mvm->aux_roc_te_list, list) {
+	list_for_each_entry_safe(te_data, tmp, &mvm->aux_roc_te_list, list) {
 		if (le32_to_cpu(notif->unique_id) == te_data->uid) {
-			aux_roc_te = te_data;
+			aux_roc_te = true;
 			break;
 		}
 	}
