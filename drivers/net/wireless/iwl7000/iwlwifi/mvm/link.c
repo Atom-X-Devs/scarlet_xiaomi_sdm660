@@ -217,7 +217,7 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	cmd.frame_time_rts_th = cpu_to_le16(link_conf->frame_time_rts_th);
 
 	/* Block 26-tone RU OFDMA transmissions */
-	if (mvmvif->deflink.he_ru_2mhz_block) {
+	if (link_info->he_ru_2mhz_block) {
 		flags |= LINK_FLG_RU_2MHZ_BLOCK;
 		flags_mask |= LINK_FLG_RU_2MHZ_BLOCK;
 	}
