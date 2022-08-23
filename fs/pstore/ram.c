@@ -783,6 +783,10 @@ static int ramoops_probe(struct platform_device *pdev)
 		goto fail_out;
 	}
 
+#ifdef CONFIG_PSTORE_LAST_KMSG
+	if (pdata->mem_size && !is_power_of_2(pdata->mem_size))
+		pdata->mem_size = rounddown_pow_of_two(pdata->mem_size);
+#endif
 	if (pdata->record_size && !is_power_of_2(pdata->record_size))
 		pdata->record_size = rounddown_pow_of_two(pdata->record_size);
 	if (pdata->console_size && !is_power_of_2(pdata->console_size))
