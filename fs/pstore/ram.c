@@ -36,7 +36,9 @@
 #include <linux/pstore_ram.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#ifdef CONFIG_PSTORE_LAST_KMSG
 #include <linux/memblock.h>
+#endif
 
 #define RAMOOPS_KERNMSG_HDR "===="
 #define MIN_MEM_SIZE 4096UL
@@ -995,6 +997,7 @@ static void __init ramoops_register_dummy(void)
 	}
 }
 
+#ifdef CONFIG_PSTORE_LAST_KMSG
 struct ramoops_platform_data ramoops_data;
 
 static struct platform_device ramoops_dev  = {
@@ -1037,6 +1040,7 @@ static int __init msm_register_ramoops_device(void)
 	return 0;
 }
 core_initcall(msm_register_ramoops_device);
+#endif
 
 static int __init ramoops_init(void)
 {
