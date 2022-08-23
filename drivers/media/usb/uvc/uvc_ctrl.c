@@ -2395,6 +2395,8 @@ static void uvc_ctrl_prune_entity(struct uvc_device *dev,
 		/* Region of interest(ROI) auto control */
 		/* Chicony Electronics Co., Ltd HD User Facing */
 		{ { USB_DEVICE(0x04f2, 0xb667) }, 21 },
+		/* Chicony Electronics Co., Ltd 720p HD Camera */
+		{ { USB_DEVICE(0x04f2, 0xb6b4) }, 21 },
 		/* Chicony Electronics Co., Ltd Integrated Camera */
 		{ { USB_DEVICE(0x04f2, 0xb6d8) }, 21 },
 		/* Chicony Electronics Co., Ltd HD User Facing */
