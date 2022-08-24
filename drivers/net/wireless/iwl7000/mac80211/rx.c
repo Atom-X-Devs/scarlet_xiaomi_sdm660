@@ -4810,6 +4810,9 @@ static bool ieee80211_prepare_and_rx_handle(struct ieee80211_rx_data *rx,
 				return true;
 		}
 	} else {
+		if (rx->sta)
+			rx->link_sta = &rx->sta->deflink;
+
 		rx->link = &sdata->deflink;
 	}
 
