@@ -859,7 +859,17 @@ int ieee80211_key_link(struct ieee80211_key *key,
 		    (old_key && old_key->conf.cipher != key->conf.cipher))
 			goto out;
 	} else if (sta) {
-		old_key = key_mtx_dereference(sdata->local, link->gtk[idx]);
+		struct link_sta_info *link_sta = &sta->deflink;
+		int link_id = key->conf.link_id;
+
+		if (link_id >= 0) {
+			link_sta = rcu_dereference_protected(sta->link[link_id],
+							     lockdep_is_held(&sta->local->sta_mtx));
+			if (!link_sta)
+				return -ENOLINK;
+		}
+
+		old_key = key_mtx_dereference(sdata->local, link_sta->gtk[idx]);
 	} else {
 		if (idx < NUM_DEFAULT_KEYS)
 			old_key = key_mtx_dereference(sdata->local,
