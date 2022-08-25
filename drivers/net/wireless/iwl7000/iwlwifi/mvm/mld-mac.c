@@ -32,6 +32,21 @@ static void iwl_mvm_mld_mac_ctxt_cmd_common(struct iwl_mvm *mvm,
 	if (iwlwifi_mod_params.disable_11ax)
 		return;
 
+	/*
+	 * If we have MLO enabled, then the firmware needs to enable
+	 * address translation for the station(s) we add. That depends
+	 * on having EHT enabled in firmware, which in turn depends on
+	 * mac80211 in the code below.
+	 * However, mac80211 doesn't enable HE/EHT until it has parsed
+	 * the association response successfully, so just skip all that
+	 * and enable both when we have MLO.
+	 */
+	if (vif->valid_links) {
+		cmd->he_support = cpu_to_le32(1);
+		cmd->eht_support = cpu_to_le32(1);
+		return;
+	}
+
 	rcu_read_lock();
 	for (link_id = 0; link_id < ARRAY_SIZE((vif)->link_conf); link_id++) {
 		link_conf = rcu_dereference(vif->link_conf[link_id]);
