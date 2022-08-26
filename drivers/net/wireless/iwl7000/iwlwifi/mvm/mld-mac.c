@@ -54,7 +54,7 @@ static void iwl_mvm_mld_mac_ctxt_cmd_common(struct iwl_mvm *mvm,
 			continue;
 
 		if (link_conf->he_support)
-			cmd->he_support = cpu_to_le32(link_conf->he_support);
+			cmd->he_support = cpu_to_le32(1);
 
 		/* it's not reasonable to have EHT without HE and FW API doesn't
 		 * support it. Ignore EHT in this case.
@@ -63,7 +63,7 @@ static void iwl_mvm_mld_mac_ctxt_cmd_common(struct iwl_mvm *mvm,
 			continue;
 
 		if (link_conf->eht_support) {
-			cmd->eht_support = cpu_to_le32(link_conf->eht_support);
+			cmd->eht_support = cpu_to_le32(1);
 			break;
 		}
 	}
