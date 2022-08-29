@@ -278,7 +278,12 @@ static void iwl_mvm_bt_notif_per_link(struct iwl_mvm *mvm,
 		return;
 
 	link_conf = rcu_dereference(vif->link_conf[link_id]);
-	if (WARN_ON(!link_conf))
+	/*
+	 * This can happen due to races: if we receive the notification
+	 * and have the mutex held, while mac80211 is stuck on our mutex
+	 * in the middle of removing the link.
+	 */
+	if (!link_conf)
 		return;
 
 	chanctx_conf = rcu_dereference(link_conf->chanctx_conf);
