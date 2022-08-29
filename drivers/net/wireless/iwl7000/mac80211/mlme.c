@@ -161,6 +161,7 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 				 struct cfg80211_chan_def *chandef, u16 bitmap)
 {
 	struct ieee80211_eht_operation_info *info = (void *)eht_oper->optional;
+	struct cfg80211_chan_def ap_chandef = *chandef;
 	u32 ap_center_freq, local_center_freq;
 	u32 ap_bw, local_bw;
 	int ap_start_freq, local_start_freq;
@@ -171,8 +172,9 @@ ieee80211_extract_dis_subch_bmap(const struct ieee80211_eht_operation *eht_oper,
 	      IEEE80211_EHT_OPER_DISABLED_SUBCHANNEL_BITMAP_PRESENT))
 		return 0;
 
-	ap_center_freq = ieee80211_channel_to_frequency(info->ccfs1,
-							chandef->chan->band);
+	/* set 160/320 supported to get the full AP definition */
+	ieee80211_chandef_eht_oper(eht_oper, true, true, &ap_chandef);
+	ap_center_freq = ap_chandef.center_freq1;
 	ap_bw = 20 * BIT(u8_get_bits(info->control,
 				     IEEE80211_EHT_OPER_CHAN_WIDTH));
 	ap_start_freq = ap_center_freq - ap_bw / 2;
