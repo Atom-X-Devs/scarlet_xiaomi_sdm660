@@ -4186,11 +4186,11 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
 		goto out;
 	}
 
-	sband = ieee80211_get_link_sband(link);
-	if (!sband) {
+	if (WARN_ON(!link->conf->chandef.chan)) {
 		ret = false;
 		goto out;
 	}
+	sband = local->hw.wiphy->bands[link->conf->chandef.chan->band];
 
 	if (!(link->u.mgd.conn_flags & IEEE80211_CONN_DISABLE_HE) &&
 	    (!elems->he_cap || !elems->he_operation)) {
@@ -5023,8 +5023,10 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 			err = ieee80211_prep_channel(sdata, link,
 						     assoc_data->link[link_id].bss,
 						     &link->u.mgd.conn_flags);
-			if (err)
+			if (err) {
+				link_info(link, "prep_channel failed\n");
 				goto out_err;
+			}
 		}
 
 		err = ieee80211_mgd_setup_link_sta(link, sta, link_sta,
@@ -7150,23 +7152,6 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 
 	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++)
 		size += cfg80211_req_link_elems_len(req, i);
-
-	if (cfg80211_req_ap_mld_addr(req)) {
-		for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
-			if (!cfg80211_req_link_bss(req, i))
-				continue;
-			if (i == assoc_link_id)
-				continue;
-			/*
-			 * For now, support only a single link in MLO, we
-			 * don't have the necessary parsing of the multi-
-			 * link element in the association response, etc.
-			 */
-			sdata_info(sdata,
-				   "refusing MLO association with >1 links\n");
-			return -EINVAL;
-		}
-	}
 
 	assoc_data = kzalloc(size, GFP_KERNEL);
 	if (!assoc_data)

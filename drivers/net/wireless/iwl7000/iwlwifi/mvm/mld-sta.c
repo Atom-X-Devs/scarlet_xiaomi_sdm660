@@ -595,7 +595,7 @@ static int iwl_mvm_alloc_sta_after_restart(struct iwl_mvm *mvm,
 	 * a valid station. Since we need a link_id to allocate a station,
 	 * pick up the first valid one.
 	 */
-	for_each_sta_active_link(sta, link_sta, link_id) {
+	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct ieee80211_bss_conf *link_conf =
 			rcu_dereference_protected(vif->link_conf[link_id], 1);
 		struct iwl_mvm_link_sta *mvm_link_sta =
@@ -656,7 +656,7 @@ int iwl_mvm_mld_add_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	/* at this stage sta link pointers are already allocated */
 	ret = iwl_mvm_mld_update_sta(mvm, vif, sta);
 
-	for_each_sta_active_link(sta, link_sta, link_id) {
+	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct ieee80211_bss_conf *link_conf =
 			rcu_dereference_protected(vif->link_conf[link_id], 1);
 		struct iwl_mvm_link_sta *mvm_link_sta =
@@ -707,7 +707,7 @@ int iwl_mvm_mld_update_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	lockdep_assert_held(&mvm->mutex);
 
-	for_each_sta_active_link(sta, link_sta, link_id) {
+	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct ieee80211_bss_conf *link_conf =
 			rcu_dereference_protected(vif->link_conf[link_id], 1);
 		struct iwl_mvm_link_sta *mvm_link_sta =
@@ -768,7 +768,7 @@ int iwl_mvm_mld_rm_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	kfree(mvm_sta->dup_data);
 
 	/* flush its queues here since we are freeing mvm_sta */
-	for_each_sta_active_link(sta, link_sta, link_id) {
+	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct iwl_mvm_link_sta *mvm_link_sta =
 			rcu_dereference_protected(mvm_sta->link[link_id],
 						  lockdep_is_held(&mvm->mutex));
@@ -788,7 +788,7 @@ int iwl_mvm_mld_rm_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	iwl_mvm_mld_disable_sta_queues(mvm, vif, sta);
 
-	for_each_sta_active_link(sta, link_sta, link_id) {
+	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct iwl_mvm_link_sta *mvm_link_sta =
 			rcu_dereference_protected(mvm_sta->link[link_id],
 						  lockdep_is_held(&mvm->mutex));
