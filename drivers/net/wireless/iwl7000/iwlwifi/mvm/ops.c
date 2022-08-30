@@ -1521,6 +1521,8 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	iwl_mvm_init_modparams(mvm);
 #endif
 
+	iwl_mvm_ftm_initiator_smooth_config(mvm);
+
 	iwl_mvm_init_time_sync(&mvm->time_sync);
 
 	mvm->debugfs_dir = dbgfs_dir;

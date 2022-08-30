@@ -1907,8 +1907,6 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	iwl_mvm_tas_init(mvm);
 	iwl_mvm_leds_sync(mvm);
 
-	iwl_mvm_ftm_initiator_smooth_config(mvm);
-
 	if (iwl_rfi_supported(mvm)) {
 		if (iwl_mvm_eval_dsm_rfi(mvm) == DSM_VALUE_RFI_ENABLE)
 			iwl_rfi_send_config_cmd(mvm, NULL);
