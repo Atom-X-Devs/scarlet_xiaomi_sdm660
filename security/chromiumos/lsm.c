@@ -20,6 +20,7 @@
 #define pr_fmt(fmt) "Chromium OS LSM: " fmt
 
 #include <asm/syscall.h>
+#include <linux/binfmts.h>
 #include <linux/cred.h>
 #include <linux/fs.h>
 #include <linux/fs_struct.h>
@@ -32,10 +33,10 @@
 #include <linux/sched/task_stack.h>
 #include <linux/sched.h>	/* current and other task related stuff */
 #include <linux/security.h>
+#include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
 #include <uapi/linux/fs.h>
 #include <uapi/linux/nvme_ioctl.h>
-
 #include "inode_mark.h"
 #include "utils.h"
 
@@ -332,12 +333,23 @@ int chromiumos_sb_copy_data(char *orig, char *copy)
 	return 0;
 }
 
+int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
+{
+	struct file *file = bprm->file;
+
+	if (shmem_file(file))
+		return -EACCES;
+
+	return 0;
+}
+
 static struct security_hook_list chromiumos_security_hooks[] = {
 	LSM_HOOK_INIT(sb_mount, chromiumos_security_sb_mount),
 	LSM_HOOK_INIT(inode_follow_link, chromiumos_security_inode_follow_link),
 	LSM_HOOK_INIT(file_open, chromiumos_security_file_open),
 	LSM_HOOK_INIT(file_ioctl, chromiumos_security_file_ioctl),
-	LSM_HOOK_INIT(sb_copy_data, chromiumos_sb_copy_data)
+	LSM_HOOK_INIT(sb_copy_data, chromiumos_sb_copy_data),
+	LSM_HOOK_INIT(bprm_creds_for_exec, chromiumos_bprm_creds_for_exec),
 };
 
 static int __init chromiumos_security_init(void)
