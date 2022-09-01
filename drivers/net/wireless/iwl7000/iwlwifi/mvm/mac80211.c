@@ -3861,7 +3861,8 @@ iwl_mvm_sta_state_notexist_to_none(struct iwl_mvm *mvm,
 					   NL80211_TDLS_SETUP);
 	}
 
-	sta->max_rc_amsdu_len = 1;
+	sta->deflink.agg.max_rc_amsdu_len = 1;
+	ieee80211_sta_recalc_aggregates(sta);
 
 	if (vif->type == NL80211_IFTYPE_STATION && !sta->tdls)
 		mvmvif->ap_sta = sta;

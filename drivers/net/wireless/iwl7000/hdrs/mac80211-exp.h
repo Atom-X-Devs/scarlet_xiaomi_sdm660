@@ -103,6 +103,7 @@
 #define ieee80211_send_eosp_nullfunc __iwl7000_ieee80211_send_eosp_nullfunc
 #define ieee80211_sta_set_buffered __iwl7000_ieee80211_sta_set_buffered
 #define ieee80211_sta_register_airtime __iwl7000_ieee80211_sta_register_airtime
+#define ieee80211_sta_recalc_aggregates __iwl7000_ieee80211_sta_recalc_aggregates
 #ifdef CONFIG_LOCKDEP
 #define lockdep_sta_mutex_held __iwl7000_lockdep_sta_mutex_held
 #endif

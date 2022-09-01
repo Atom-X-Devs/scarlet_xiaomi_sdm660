@@ -1490,7 +1490,8 @@ static void rs_set_amsdu_len(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	struct ieee80211_bss_conf *bss_conf = &mvmsta->vif->bss_conf;
 	int i;
 
-	sta->max_amsdu_len = rs_fw_get_max_amsdu_len(sta, bss_conf, &sta->deflink);
+	sta->deflink.agg.max_amsdu_len =
+		rs_fw_get_max_amsdu_len(sta, bss_conf, &sta->deflink);
 
 	/*
 	 * In case TLC offload is not active amsdu_enabled is either 0xFFFF
@@ -1505,22 +1506,23 @@ static void rs_set_amsdu_len(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 
 	if (bss_conf->he_support &&
 	    !iwlwifi_mod_params.disable_11ax)
-		mvmsta->max_amsdu_len = sta->max_amsdu_len;
+		mvmsta->max_amsdu_len = sta->deflink.agg.max_amsdu_len;
 	else
-		mvmsta->max_amsdu_len = min_t(int, sta->max_amsdu_len, 8500);
+		mvmsta->max_amsdu_len =
+			min_t(int, sta->deflink.agg.max_amsdu_len, 8500);
 
-	sta->max_rc_amsdu_len = mvmsta->max_amsdu_len;
+	sta->deflink.agg.max_rc_amsdu_len = mvmsta->max_amsdu_len;
 
 	for (i = 0; i < IWL_MAX_TID_COUNT; i++) {
 		if (mvmsta->amsdu_enabled)
-			sta->max_tid_amsdu_len[i] =
+			sta->deflink.agg.max_tid_amsdu_len[i] =
 				iwl_mvm_max_amsdu_size(mvm, sta, i);
 		else
 			/*
 			 * Not so elegant, but this will effectively
 			 * prevent AMSDU on this TID
 			 */
-			sta->max_tid_amsdu_len[i] = 1;
+			sta->deflink.agg.max_tid_amsdu_len[i] = 1;
 	}
 }
 
@@ -2930,7 +2932,7 @@ static void rs_drv_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 
 	lq_sta->lq.sta_id = mvmsta->deflink.sta_id;
 	mvmsta->amsdu_enabled = 0;
-	mvmsta->max_amsdu_len = sta->max_amsdu_len;
+	mvmsta->max_amsdu_len = sta->cur->max_amsdu_len;
 
 	for (j = 0; j < LQ_SIZE; j++)
 		rs_rate_scale_clear_tbl_windows(mvm, &lq_sta->lq_info[j]);
