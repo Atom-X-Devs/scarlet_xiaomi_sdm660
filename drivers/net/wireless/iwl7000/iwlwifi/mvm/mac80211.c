@@ -3861,7 +3861,15 @@ iwl_mvm_sta_state_notexist_to_none(struct iwl_mvm *mvm,
 					   NL80211_TDLS_SETUP);
 	}
 
-	sta->deflink.agg.max_rc_amsdu_len = 1;
+	for (i = 0; i < ARRAY_SIZE(sta->link); i++) {
+		struct ieee80211_link_sta *link_sta;
+
+		link_sta = link_sta_dereference_protected(sta, i);
+		if (!link_sta)
+			continue;
+
+		link_sta->agg.max_rc_amsdu_len = 1;
+	}
 	ieee80211_sta_recalc_aggregates(sta);
 
 	if (vif->type == NL80211_IFTYPE_STATION && !sta->tdls)
