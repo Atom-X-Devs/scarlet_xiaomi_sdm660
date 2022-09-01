@@ -1852,6 +1852,16 @@ static int __do_execve_file(int fd, struct filename *filename,
 		bprm->argc = 1;
 	}
 
+	/*
+	 * security_bprm_creds_for_exec was added by Eric Biederman
+	 * in refactor work (15a2bc4d). Because chromeOS need it for
+	 * blocking memfd execution, backport it here.
+	 * This hook need to be placed right before exec_binprm.
+	 */
+	retval = security_bprm_creds_for_exec(bprm);
+	if (retval)
+		goto out;
+
 	retval = exec_binprm(bprm);
 	if (retval < 0)
 		goto out;

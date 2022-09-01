@@ -34,6 +34,16 @@
  *
  * Security hooks for program execution operations.
  *
+ * @bprm_creds_for_exec:
+ *	If the setup in prepare_exec_creds did not setup @bprm->cred->security
+ *	properly for executing @bprm->file, update the LSM's portion of
+ *	@bprm->cred->security to be what commit_creds needs to install for the
+ *	new program.  This hook may also optionally check permissions
+ *	(e.g. for transitions between security domains).
+ *	The hook must set @bprm->secureexec to 1 if AT_SECURE should be set to
+ *	request libc enable secure mode.
+ *	@bprm contains the linux_binprm structure.
+ *	Return 0 if the hook is successful and permission is granted.
  * @bprm_set_creds:
  *	Save security information in the bprm->security field, typically based
  *	on information about the bprm->file, for later use by the apply_creds
@@ -1460,6 +1470,7 @@ union security_list_options {
 	int (*vm_enough_memory)(struct mm_struct *mm, long pages);
 
 	int (*bprm_set_creds)(struct linux_binprm *bprm);
+	int (*bprm_creds_for_exec)(struct linux_binprm *bprm);
 	int (*bprm_check_security)(struct linux_binprm *bprm);
 	void (*bprm_committing_creds)(struct linux_binprm *bprm);
 	void (*bprm_committed_creds)(struct linux_binprm *bprm);
@@ -1801,6 +1812,7 @@ struct security_hook_heads {
 	struct hlist_head settime;
 	struct hlist_head vm_enough_memory;
 	struct hlist_head bprm_set_creds;
+	struct hlist_head bprm_creds_for_exec;
 	struct hlist_head bprm_check_security;
 	struct hlist_head bprm_committing_creds;
 	struct hlist_head bprm_committed_creds;
