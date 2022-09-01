@@ -535,7 +535,6 @@ struct btusb_data {
 	int (*setup_on_usb)(struct hci_dev *hdev);
 
 	int oob_wake_irq;   /* irq for out-of-band wake-on-bt */
-	unsigned cmd_timeout_cnt;
 };
 
 
@@ -543,9 +542,6 @@ static void btusb_intel_cmd_timeout(struct hci_dev *hdev)
 {
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	struct gpio_desc *reset_gpio = data->reset_gpio;
-
-	if (++data->cmd_timeout_cnt < 5)
-		return;
 
 	if (!reset_gpio) {
 		bt_dev_err(hdev, "No way to reset. Ignoring and continuing");
@@ -575,9 +571,6 @@ static void btusb_rtl_cmd_timeout(struct hci_dev *hdev)
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	struct gpio_desc *reset_gpio = data->reset_gpio;
 
-	if (++data->cmd_timeout_cnt < 5)
-		return;
-
 	if (!reset_gpio) {
 		bt_dev_err(hdev, "No gpio to reset Realtek device, ignoring");
 		return;
@@ -605,10 +598,7 @@ static void btusb_qca_cmd_timeout(struct hci_dev *hdev)
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	int err;
 
-	if (++data->cmd_timeout_cnt < 5)
-		return;
-
-	bt_dev_err(hdev, "Multiple cmd timeouts seen. Resetting usb device.");
+	bt_dev_err(hdev, "Cmd timeouts seen. Resetting usb device.");
 	/* This is not an unbalanced PM reference since the device will reset */
 	err = usb_autopm_get_interface(data->intf);
 	if (!err)
