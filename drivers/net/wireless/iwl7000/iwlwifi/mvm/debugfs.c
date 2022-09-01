@@ -640,7 +640,7 @@ static ssize_t iwl_dbgfs_ampdu_size_write(struct ieee80211_sta *sta,
 	if (err)
 		return err;
 
-	iwl_rs_dhc_set_ampdu_size(sta, ampdu_size);
+	iwl_rs_dhc_set_ampdu_size(sta, &sta->deflink, ampdu_size);
 	return count;
 }
 
