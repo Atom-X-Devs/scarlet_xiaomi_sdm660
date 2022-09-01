@@ -3739,23 +3739,28 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
  *	(2) if a link is valid in sta then it's valid in vif (can
  *	use same index in the link array)
  */
-#define iwl_mvm_rs_rate_init_all_links(mvm, vif, sta, update) do {		\
-	typeof(vif) _vif = (vif);						\
-	typeof(sta) _sta = (sta);						\
-	unsigned int _i;							\
-	struct iwl_mvm_vif *_mvmvif = iwl_mvm_vif_from_mac80211(_vif);		\
-	for_each_mvm_vif_valid_link(_mvmvif, _i) {				\
-		struct ieee80211_bss_conf *conf =				\
-			rcu_dereference_protected(_vif->link_conf[_i], 1);	\
-		struct ieee80211_link_sta *link_sta =				\
-			rcu_dereference_protected(_sta->link[_i], 1);		\
-		if (!conf || !link_sta)						\
-			continue;						\
-		iwl_mvm_rs_rate_init((mvm), _sta, conf, link_sta,		\
-				     _mvmvif->link[_i]->phy_ctxt->channel->band,\
-				     (update));					\
-	}									\
-} while (0)
+static void iwl_mvm_rs_rate_init_all_links(struct iwl_mvm *mvm,
+					   struct ieee80211_vif *vif,
+					   struct ieee80211_sta *sta,
+					   bool update)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	unsigned int link_id;
+
+	for_each_mvm_vif_valid_link(mvmvif, link_id) {
+		struct ieee80211_bss_conf *conf =
+			rcu_dereference_protected(vif->link_conf[link_id], 1);
+		struct ieee80211_link_sta *link_sta =
+			rcu_dereference_protected(sta->link[link_id], 1);
+
+		if (!conf || !link_sta || !mvmvif->link[link_id]->phy_ctxt)
+			continue;
+
+		iwl_mvm_rs_rate_init(mvm, sta, conf, link_sta,
+				     mvmvif->link[link_id]->phy_ctxt->channel->band,
+				     update);
+	}
+}
 
 static bool iwl_mvm_vif_conf_from_sta(struct iwl_mvm *mvm,
 				      struct ieee80211_vif *vif,
