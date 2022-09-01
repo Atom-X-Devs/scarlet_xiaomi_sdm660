@@ -1981,6 +1981,11 @@ static inline u64 skb_get_kcov_handle(struct sk_buff *skb)
 #endif
 
 #if LINUX_VERSION_IS_LESS(5,11,00)
+#ifndef CONFIG_LOCKDEP
+/* upstream since 5.11 in this exact same way - calls compile away */
+int lockdep_is_held(const void *);
+#endif
+
 static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 					  unsigned int packets,
 					  unsigned int len)
