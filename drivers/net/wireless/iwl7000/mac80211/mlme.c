@@ -3591,6 +3591,7 @@ static void ieee80211_destroy_auth_data(struct ieee80211_sub_if_data *sdata,
 		sdata->u.mgd.flags = 0;
 
 		mutex_lock(&sdata->local->mtx);
+		ieee80211_link_release_channel(&sdata->deflink);
 		ieee80211_vif_set_links(sdata, 0);
 		mutex_unlock(&sdata->local->mtx);
 	}
@@ -3649,6 +3650,7 @@ static void ieee80211_destroy_assoc_data(struct ieee80211_sub_if_data *sdata,
 		}
 
 		mutex_lock(&sdata->local->mtx);
+		ieee80211_link_release_channel(&sdata->deflink);
 		ieee80211_vif_set_links(sdata, 0);
 		mutex_unlock(&sdata->local->mtx);
 	}
@@ -6829,6 +6831,7 @@ static int ieee80211_prep_connection(struct ieee80211_sub_if_data *sdata,
 	return 0;
 
 out_err:
+	ieee80211_link_release_channel(&sdata->deflink);
 	ieee80211_vif_set_links(sdata, 0);
 	return err;
 }
