@@ -28,11 +28,6 @@
 	qcom,battery-thermal-coefficients = [d2 50 ff];
 };
 
-&pm660_haptics {
-	qcom,actuator-type = "erm";
-	qcom,lra-resonance-sig-shape = "square";
-};
-
 /* sdm660-common.dtsi lavender specific diff */
 &qusb_phy0 {
 	qcom,qusb-phy-init-seq = <
