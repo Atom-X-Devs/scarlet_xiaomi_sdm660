@@ -333,7 +333,7 @@ int chromiumos_sb_copy_data(char *orig, char *copy)
 	return 0;
 }
 
-int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
+static int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
 {
 	struct file *file = bprm->file;
 
