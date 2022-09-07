@@ -621,6 +621,7 @@ static int iwl_mvm_alloc_sta_after_restart(struct iwl_mvm *mvm,
 					   struct ieee80211_sta *sta)
 {
 	struct iwl_mvm_sta *mvm_sta = iwl_mvm_sta_from_mac80211(sta);
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct ieee80211_link_sta *link_sta;
 	unsigned int link_id;
 	struct iwl_mvm_int_sta tmp_sta = {
@@ -635,18 +636,20 @@ static int iwl_mvm_alloc_sta_after_restart(struct iwl_mvm *mvm,
 	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct ieee80211_bss_conf *link_conf =
 			link_conf_dereference_protected(vif, link_id);
+		struct iwl_mvm_vif_link_info *mvm_link =
+			mvmvif->link[link_conf->link_id];
 		struct iwl_mvm_link_sta *mvm_link_sta =
 			rcu_dereference_protected(mvm_sta->link[link_id],
 						  lockdep_is_held(&mvm->mutex));
 
-		if (!link_conf || !mvm_link_sta)
+		if (!link_conf || !mvm_link || !mvm_link_sta)
 			continue;
 
 		sta_id = mvm_link_sta->sta_id;
 		tmp_sta.sta_id = sta_id;
 		ret = iwl_mvm_mld_add_int_sta_to_fw(mvm, &tmp_sta,
 						    vif->bss_conf.bssid,
-						    link_id);
+						    mvm_link->fw_link_id);
 		if (ret)
 			return ret;
 
