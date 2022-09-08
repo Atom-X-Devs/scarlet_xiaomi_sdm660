@@ -519,6 +519,9 @@ static void iwl_mvm_mld_link_info_changed_station(struct iwl_mvm *mvm,
 	if (changes & BSS_CHANGED_QOS && vif->cfg.assoc && link_conf->qos)
 		link_changes |= LINK_CONTEXT_MODIFY_QOS_PARAMS;
 
+	if (changes & BSS_CHANGED_ERP_SLOT)
+		link_changes |= LINK_CONTEXT_MODIFY_RATES_INFO;
+
 	if (vif->cfg.assoc && (has_he || has_eht)) {
 		IWL_DEBUG_MAC80211(mvm, "Associated in HE mode\n");
 		link_changes |= LINK_CONTEXT_MODIFY_HE_PARAMS;
