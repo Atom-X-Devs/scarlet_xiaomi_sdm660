@@ -104,12 +104,12 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			 link_info->fw_link_id == IWL_MVM_FW_LINK_ID_INVALID))
 		return -EINVAL;
 
-	/* cannot activate third link */
-	if (!link_info->active && active &&
-	    mvmvif->fw_active_links_num >= IWL_MVM_FW_MAX_ACTIVE_LINKS_NUM)
-		return -EINVAL;
-
 	if (changes & LINK_CONTEXT_MODIFY_ACTIVE) {
+		/* cannot activate third link */
+		if (!link_info->active && active &&
+		    hweight32(vif->active_links) >= IWL_MVM_FW_MAX_ACTIVE_LINKS_NUM)
+			return -EINVAL;
+
 		/* When activating a link, phy context should be valid;
 		 * when deactivating a link, it also should be valid since
 		 * the link was active before. So, do nothing in this case.
@@ -234,18 +234,8 @@ send_cmd:
 	cmd.flags_mask = cpu_to_le32(flags_mask);
 
 	ret = iwl_mvm_link_cmd_send(mvm, &cmd, FW_CTXT_ACTION_MODIFY);
-	if (!ret) {
-		/* the FW is updated, so now it's possible to update the
-		 * activation status. If activating a link, it was already
-		 * checked above that we didn't reach the FW limit.
-		 */
-		if (link_info->active && !active)
-			mvmvif->fw_active_links_num--;
-		else if (!link_info->active && active)
-			mvmvif->fw_active_links_num++;
-
+	if (!ret && (changes & LINK_CONTEXT_MODIFY_ACTIVE))
 		link_info->active = active;
-	}
 
 	return ret;
 }
