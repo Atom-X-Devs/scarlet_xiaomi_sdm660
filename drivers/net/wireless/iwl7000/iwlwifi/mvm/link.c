@@ -105,11 +105,6 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		return -EINVAL;
 
 	if (changes & LINK_CONTEXT_MODIFY_ACTIVE) {
-		/* cannot activate third link */
-		if (!link_info->active && active &&
-		    hweight32(vif->active_links) >= IWL_MVM_FW_MAX_ACTIVE_LINKS_NUM)
-			return -EINVAL;
-
 		/* When activating a link, phy context should be valid;
 		 * when deactivating a link, it also should be valid since
 		 * the link was active before. So, do nothing in this case.
@@ -118,6 +113,22 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		 */
 		if (!link_info->phy_ctxt)
 			return 0;
+
+		/* check there aren't too many active links */
+		if (!link_info->active && active) {
+			int i, count = 0;
+
+			/* link with phy_ctxt is active in FW */
+			for_each_mvm_vif_valid_link(mvmvif, i)
+				if (mvmvif->link[i]->phy_ctxt)
+					count++;
+
+			/* FIXME: IWL_MVM_FW_MAX_ACTIVE_LINKS_NUM should be
+			 * defined per HW
+			 */
+			if (count >= IWL_MVM_FW_MAX_ACTIVE_LINKS_NUM)
+				return -EINVAL;
+		}
 
 		/* Catch early if driver tries to activate or deactivate a link
 		 * twice.
