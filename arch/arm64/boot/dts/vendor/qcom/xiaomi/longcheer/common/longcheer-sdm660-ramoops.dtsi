@@ -9,5 +9,6 @@
 		reg = <0x0 0xA0000000 0x0 0x00400000>;
 		console-size = <0x200000>;
 		pmsg-size = <0x200000>;
+		max-reason = <0x4>;
 	};
 };
