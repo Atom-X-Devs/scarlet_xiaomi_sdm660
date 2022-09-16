@@ -343,6 +343,11 @@ static int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
 	return 0;
 }
 
+static int chromiumos_bpf(int cmd, union bpf_attr *attr, unsigned int size)
+{
+	return -EACCES;
+}
+
 static struct security_hook_list chromiumos_security_hooks[] = {
 	LSM_HOOK_INIT(sb_mount, chromiumos_security_sb_mount),
 	LSM_HOOK_INIT(inode_follow_link, chromiumos_security_inode_follow_link),
@@ -350,6 +355,7 @@ static struct security_hook_list chromiumos_security_hooks[] = {
 	LSM_HOOK_INIT(file_ioctl, chromiumos_security_file_ioctl),
 	LSM_HOOK_INIT(sb_copy_data, chromiumos_sb_copy_data),
 	LSM_HOOK_INIT(bprm_creds_for_exec, chromiumos_bprm_creds_for_exec),
+	LSM_HOOK_INIT(bpf, chromiumos_bpf),
 };
 
 static int __init chromiumos_security_init(void)
