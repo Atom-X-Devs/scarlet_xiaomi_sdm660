@@ -1972,7 +1972,7 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	enum { PVRSRV_PROC_NOTFOUND,
 	       PVRSRV_PROC_FOUND,
 	       PVRSRV_PROC_RESURRECTED
-	     } eProcSearch = PVRSRV_PROC_FOUND;
+	     } __maybe_unused eProcSearch = PVRSRV_PROC_FOUND;
 
 #if defined(ENABLE_GPU_MEM_TRACEPOINT)
 	IMG_UINT64 ui64InitialSize;

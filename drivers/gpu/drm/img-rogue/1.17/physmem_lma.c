@@ -883,7 +883,7 @@ _AllocLMPages(PMR_LMALLOCARRAY_DATA *psPageArrayData, IMG_UINT32 *pui32MapTable)
 	IMG_UINT32 i, ui32Index = 0;
 	IMG_UINT32 uiContigAllocSize;
 	IMG_UINT32 uiLog2AllocSize;
-	PVRSRV_DEVICE_NODE *psDevNode;
+	PVRSRV_DEVICE_NODE __maybe_unused *psDevNode;
 	IMG_BOOL bPoisonOnAlloc;
 	IMG_BOOL bZeroOnAlloc;
 	RA_ARENA *pArena;

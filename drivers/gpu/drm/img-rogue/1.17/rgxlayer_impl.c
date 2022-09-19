@@ -404,7 +404,7 @@ PVRSRV_ERROR RGXPollReg64(const void *hPrivate,
 
 void RGXWaitCycles(const void *hPrivate, IMG_UINT32 ui32Cycles, IMG_UINT32 ui32TimeUs)
 {
-	PVRSRV_RGXDEV_INFO *psDevInfo;
+	PVRSRV_RGXDEV_INFO __maybe_unused *psDevInfo;
 
 	PVR_ASSERT(hPrivate != NULL);
 	psDevInfo = ((RGX_LAYER_PARAMS*)hPrivate)->psDevInfo;

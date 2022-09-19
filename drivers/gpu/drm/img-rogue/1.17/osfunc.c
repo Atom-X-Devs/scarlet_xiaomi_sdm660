@@ -254,13 +254,11 @@ PVRSRV_ERROR OSPhyContigPagesAlloc(PHYS_HEAP *psPhysHeap, size_t uiSize,
 void OSPhyContigPagesFree(PHYS_HEAP *psPhysHeap, PG_HANDLE *psMemHandle)
 {
 	struct page *psPage = (struct page*) psMemHandle->u.pvHandle;
-	IMG_UINT32	uiSize, uiPageCount=0, ui32Order;
+	IMG_UINT32 ui32Order;
 
 	PVR_UNREFERENCED_PARAMETER(psPhysHeap);
 
 	ui32Order = psMemHandle->uiOrder;
-	uiPageCount = (1 << ui32Order);
-	uiSize = (uiPageCount * PAGE_SIZE);
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 #if !defined(PVRSRV_ENABLE_MEMORY_STATS)
@@ -407,6 +405,7 @@ IMG_UINT32 OSCPUCacheAttributeSize(OS_CPU_CACHE_ATTRIBUTE eCacheAttribute)
 	return uiSize;
 }
 
+__scanf(2, 0)
 IMG_UINT32 OSVSScanf(const IMG_CHAR *pStr, const IMG_CHAR *pszFormat, ...)
 {
 	va_list argList;

@@ -555,6 +555,7 @@ void DIPrintf(const OSDI_IMPL_ENTRY *psEntry, const IMG_CHAR *pszFmt, ...)
 	va_end(args);
 }
 
+__printf(2, 0)
 void DIVPrintf(const OSDI_IMPL_ENTRY *psEntry, const IMG_CHAR *pszFmt,
                va_list pArgs)
 {

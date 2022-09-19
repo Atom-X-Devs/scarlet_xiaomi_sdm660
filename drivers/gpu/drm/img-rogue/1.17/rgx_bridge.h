@@ -201,7 +201,7 @@ extern "C" {
 
 /* bit mask representing the enabled RGX bridges */
 
-static const IMG_UINT32 gui32RGXBridges =
+static const IMG_UINT32 __maybe_unused gui32RGXBridges =
 	  (1U << (PVRSRV_BRIDGE_RGXTQ - PVRSRV_BRIDGE_RGX_FIRST))
 #if defined(RGX_FEATURE_COMPUTE) || defined(__KERNEL__)
 	| (1U << (PVRSRV_BRIDGE_RGXCMP - PVRSRV_BRIDGE_RGX_FIRST))

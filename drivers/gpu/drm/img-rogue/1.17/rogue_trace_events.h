@@ -59,9 +59,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define show_usecs_from_ns(ns) \
 	({ \
 		u64 t = ns + (NSEC_PER_USEC / 2); \
-		u32 rem; \
 		do_div(t, NSEC_PER_USEC); \
-		rem = do_div(t, USEC_PER_SEC); \
+		do_div(t, USEC_PER_SEC); \
 	})
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))

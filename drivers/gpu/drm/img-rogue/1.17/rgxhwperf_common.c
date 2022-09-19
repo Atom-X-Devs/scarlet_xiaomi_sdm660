@@ -1114,14 +1114,11 @@ PVRSRV_ERROR RGXHWPerfSetFwFilter(const PVRSRV_DEVICE_NODE *psDeviceNode,
                                   IMG_UINT64 ui64Value)
 {
 	PVRSRV_ERROR eError;
-	PVRSRV_RGXDEV_INFO *psDeviceInfo;
 
 	PVR_UNREFERENCED_PARAMETER(psPrivate);
 
 	PVR_RETURN_IF_INVALID_PARAM(psDeviceNode != NULL);
 	PVR_RETURN_IF_INVALID_PARAM(psDeviceNode->pvDevice != NULL);
-
-	psDeviceInfo = psDeviceNode->pvDevice;
 
 	eError = RGXHWPerfCtrlFwBuffer(psDeviceNode, IMG_FALSE, ui64Value);
 	if (eError != PVRSRV_OK)

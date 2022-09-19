@@ -74,7 +74,7 @@ typedef struct OSDI_IMPL_ENTRY_CB
      * @Input pszFmt NUL-terminated format string
      * @Input va_list variable length argument list
      */
-    void (*pfnVPrintf)(void *pvNativeHandle, const IMG_CHAR *pszFmt, va_list pArgs);
+    void (*pfnVPrintf)(void *pvNativeHandle, const IMG_CHAR *pszFmt, va_list pArgs) __printf(2, 0);
 
     /*! @Function pfnPuts
      *

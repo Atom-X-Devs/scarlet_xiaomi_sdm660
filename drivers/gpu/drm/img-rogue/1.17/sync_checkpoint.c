@@ -1104,9 +1104,7 @@ PVRSRV_ERROR SyncCheckpointContextDestroy(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpo
 	}
 	else
 	{
-		IMG_INT iRf2 = 0;
-
-		iRf2 = OSAtomicRead(&psContext->hRefCount);
+		OSAtomicRead(&psContext->hRefCount);
 		SyncCheckpointContextUnref(psSyncCheckpointContext);
 	}
 
@@ -2878,7 +2876,7 @@ static IMG_UINT32 _CleanCheckpointPool(_SYNC_CHECKPOINT_CONTEXT *psContext)
 	DECLARE_DLLIST(sCleanupList);
 	DLLIST_NODE *psThis, *psNext;
 	OS_SPINLOCK_FLAGS uiFlags;
-	IMG_UINT32 ui32ItemsFreed = 0, ui32NullScpCount = 0, ui32PoolCount;
+	IMG_UINT32 ui32ItemsFreed = 0, ui32NullScpCount = 0, __maybe_unused ui32PoolCount;
 	IMG_BOOL bPoolValid;
 
 	/* Acquire sync checkpoint pool lock */

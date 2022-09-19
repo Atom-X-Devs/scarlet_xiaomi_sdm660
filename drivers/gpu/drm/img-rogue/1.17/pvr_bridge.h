@@ -358,7 +358,7 @@ extern "C" {
 
 /* bit mask representing the enabled PVR bridges */
 
-static const IMG_UINT32 gui32PVRBridges =
+static const IMG_UINT32 __maybe_unused gui32PVRBridges =
 	  (1U << (PVRSRV_BRIDGE_DEFAULT - PVRSRV_BRIDGE_FIRST))
 	| (1U << (PVRSRV_BRIDGE_SRVCORE - PVRSRV_BRIDGE_FIRST))
 	| (1U << (PVRSRV_BRIDGE_SYNC - PVRSRV_BRIDGE_FIRST))

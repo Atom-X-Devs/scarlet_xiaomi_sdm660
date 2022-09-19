@@ -501,7 +501,7 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 	RGX_CLIENT_CCB      *psClientCCB = FWCommonContextGetClientCCB(psTransferContext->sTDMData.psServerCommonContext);
 	IMG_UINT32          ui32IntJobRef = OSAtomicIncrement(&psDevInfo->iCCBSubmissionOrdinal);
 
-	IMG_UINT32 ui32CmdOffset = 0;
+	IMG_UINT32 __maybe_unused ui32CmdOffset = 0;
 	IMG_BOOL bCCBStateOpen;
 
 	PRGXFWIF_TIMESTAMP_ADDR pPreAddr;

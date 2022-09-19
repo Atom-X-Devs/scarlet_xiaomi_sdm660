@@ -1346,7 +1346,6 @@ _ParseHTBAppHints(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
 	void *pvParamState = NULL;
 	IMG_UINT32 ui32LogType;
-	IMG_BOOL bAnyLogGroupConfigured;
 	IMG_UINT32 ui32BufferSize;
 	IMG_UINT32 ui32OpMode;
 
@@ -1356,7 +1355,6 @@ _ParseHTBAppHints(PVRSRV_DEVICE_NODE *psDeviceNode)
 		return;
 
 	SrvInitParamGetUINT32BitField(INITPARAM_NO_DEVICE,  pvParamState,  EnableHTBLogGroup,   ui32LogType);
-	bAnyLogGroupConfigured = ui32LogType ? IMG_TRUE : IMG_FALSE;
 	SrvInitParamGetUINT32List(INITPARAM_NO_DEVICE,      pvParamState,  HTBOperationMode,     ui32OpMode);
 	SrvInitParamGetUINT32(INITPARAM_NO_DEVICE,          pvParamState,  HTBufferSizeInKB, ui32BufferSize);
 

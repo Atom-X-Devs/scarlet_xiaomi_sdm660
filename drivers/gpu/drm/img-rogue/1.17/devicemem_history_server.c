@@ -699,7 +699,7 @@ static PVRSRV_ERROR CreateAllocation(PVRSRV_DEVICE_NODE *psDeviceNode,
 							IMG_UINT32 *puiAllocationIndex)
 {
 	IMG_UINT32 ui32Alloc;
-	RECORD_ALLOCATION *psAlloc;
+	RECORD_ALLOCATION __maybe_unused *psAlloc;
 
 	ui32Alloc = GetFreeAllocation();
 

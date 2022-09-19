@@ -2815,7 +2815,6 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	IMG_UINT32 uiFlushEnd = 0, uiFlushStart = 0;
 
 	IMG_UINT64 uiProtFlags = 0, uiProtFlagsReadOnly = 0, uiDefProtFlags=0;
-	IMG_UINT64 uiDummyProtFlags = 0;
 	MMU_PROTFLAGS_T uiMMUProtFlags = 0;
 
 	const MMU_PxE_CONFIG *psConfig;
@@ -2913,7 +2912,6 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 	{
 		PVR_LOG_GOTO_WITH_ERROR("psConfig->uiBytesPerEntry", eError, PVRSRV_ERROR_INVALID_PARAMS, e2);
 	}
-	uiDummyProtFlags = uiProtFlags;
 
 	if (PMR_IsSparse(psPMR))
 	{
@@ -2938,13 +2936,13 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 			/* Callback to get device specific protection flags */
 			if (psConfig->uiBytesPerEntry == 8)
 			{
-				uiDummyProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUProtFlags , uiLog2HeapPageSize);
+				psMMUContext->psDevAttrs->pfnDerivePTEProt8(uiMMUProtFlags, uiLog2HeapPageSize);
 			}
 			else
 			{
 				/* We've already validated possible values of uiBytesPerEntry at the start of this function */
 				PVR_ASSERT(psConfig->uiBytesPerEntry == 4);
-				uiDummyProtFlags = psMMUContext->psDevAttrs->pfnDerivePTEProt4(uiMMUProtFlags);
+				psMMUContext->psDevAttrs->pfnDerivePTEProt4(uiMMUProtFlags);
 			}
 		}
 	}
@@ -3199,7 +3197,7 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 	IMG_DEV_VIRTADDR sDevVAddr = sDevVAddrBase;
 	IMG_DEV_PHYADDR sBackingPgDevPhysAddr;
 	IMG_BOOL bUnmap = IMG_TRUE, bDummyBacking = IMG_FALSE, bZeroBacking = IMG_FALSE;
-	IMG_CHAR *pcBackingPageName = NULL;
+	IMG_CHAR __maybe_unused *pcBackingPageName = NULL;
 	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psPhysMemCtx->psDevNode;
 
 #if defined(PDUMP)
