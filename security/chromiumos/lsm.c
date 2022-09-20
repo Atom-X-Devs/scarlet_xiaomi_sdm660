@@ -286,7 +286,7 @@ static int chromiumos_security_file_open(struct file *file)
  * the MS_NOSYMFOLLOW flag, the "nosymfollow" option will be stripped from the
  * mount string if it is encountered.
  */
-int chromiumos_sb_copy_data(char *orig, char *copy)
+static int chromiumos_sb_copy_data(char *orig, char *copy)
 {
 	char *orig_copy;
 	char *orig_copy_cur;
