@@ -8906,8 +8906,10 @@ struct kvm_vcpu *kvm_arch_vcpu_create(struct kvm *kvm,
 	vcpu = kvm_x86_ops->vcpu_create(kvm, id);
 
 #ifdef CONFIG_KVM_HETEROGENEOUS_RT
-	vcpu->arch.preempt_count.boost = 0;
-	vcpu->arch.preempt_count.may_boost = 0;
+	if (!IS_ERR(vcpu)) {
+		vcpu->arch.preempt_count.boost = 0;
+		vcpu->arch.preempt_count.may_boost = 0;
+	}
 #endif
 
 	return vcpu;
