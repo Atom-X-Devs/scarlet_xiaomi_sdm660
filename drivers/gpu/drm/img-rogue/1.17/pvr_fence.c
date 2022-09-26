@@ -399,7 +399,7 @@ err_free_fctx:
 	return NULL;
 }
 
-/**
+/*
  * pvr_fence_context_register_dbg - registers the debug handler for a
  * fence context
  *
@@ -430,7 +430,7 @@ PVRSRV_ERROR pvr_fence_context_register_dbg(void *dbg_request_handle,
 	return srv_err;
 }
 
-/**
+/*
  * pvr_fence_foreign_context_create - creates a PVR fence context
  * @fence_status_wq: linux workqueue used to signal foreign fences
  * @name: context name (used for debugging)
@@ -450,7 +450,7 @@ pvr_fence_foreign_context_create(struct workqueue_struct *fence_status_wq,
 							pvr_fence_foreign_context_destroy_work);
 }
 
-/**
+/*
  * pvr_fence_context_create - creates a PVR fence context
  * @dev_cookie: services device cookie
  * @fence_status_wq: Status workqueue to queue fence update CBs.
@@ -507,7 +507,7 @@ static void pvr_fence_context_destroy_kref(struct kref *kref)
 	schedule_work(&fctx->destroy_work);
 }
 
-/**
+/*
  * pvr_fence_context_destroy - destroys a context
  * @fctx: PVR fence context to destroy
  *
@@ -643,7 +643,7 @@ const struct dma_fence_ops pvr_fence_ops = {
 	.release = pvr_fence_release,
 };
 
-/**
+/*
  * pvr_fence_create - creates a PVR fence
  * @fctx: PVR fence context on which the PVR fence should be created
  * @sync_checkpoint_ctx: context in which to create sync checkpoints
@@ -847,7 +847,7 @@ pvr_fence_foreign_signal_sync(struct dma_fence *fence, struct dma_fence_cb *cb)
 	dma_fence_put(&pvr_fence->base);
 }
 
-/**
+/*
  * pvr_fence_create_from_fence - creates a PVR fence from a fence
  * @fctx: PVR fence context on which the PVR fence should be created
  * @sync_checkpoint_ctx: context in which to create sync checkpoints
@@ -983,7 +983,7 @@ err_exit:
 	return NULL;
 }
 
-/**
+/*
  * pvr_fence_destroy - destroys a PVR fence
  * @pvr_fence: PVR fence to destroy
  *
@@ -1000,7 +1000,7 @@ pvr_fence_destroy(struct pvr_fence *pvr_fence)
 	dma_fence_put(&pvr_fence->base);
 }
 
-/**
+/*
  * pvr_fence_sw_signal - signals a PVR fence sync
  * @pvr_fence: PVR fence to signal
  *
@@ -1025,7 +1025,7 @@ pvr_fence_sw_signal(struct pvr_fence *pvr_fence)
 	return 0;
 }
 
-/**
+/*
  * pvr_fence_sw_error - errors the sync checkpoint backing a PVR fence
  * @pvr_fence: PVR fence to error
  *
@@ -1076,7 +1076,7 @@ pvr_fence_get_checkpoint(struct pvr_fence *update_fence)
 	return update_fence->sync_checkpoint;
 }
 
-/**
+/*
  * pvr_fence_dump_info_on_stalled_ufos - displays debug
  * information on a native fence associated with any of
  * the ufos provided. This function will be called from

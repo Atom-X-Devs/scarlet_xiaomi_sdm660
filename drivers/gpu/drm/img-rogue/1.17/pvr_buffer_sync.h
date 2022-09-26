@@ -52,7 +52,7 @@ struct _PMR_;
 struct pvr_buffer_sync_context;
 struct pvr_buffer_sync_append_data;
 
-/**
+/*
  * pvr_buffer_sync_context_create - creates a buffer sync context
  * @dev: Linux device
  * @name: context name (used for debugging)
@@ -65,14 +65,14 @@ struct pvr_buffer_sync_append_data;
 struct pvr_buffer_sync_context *
 pvr_buffer_sync_context_create(struct device *dev, const char *name);
 
-/**
+/*
  * pvr_buffer_sync_context_destroy() - frees a buffer sync context
  * @ctx: buffer sync context
  */
 void
 pvr_buffer_sync_context_destroy(struct pvr_buffer_sync_context *ctx);
 
-/**
+/*
  * pvr_buffer_sync_resolve_and_create_fences() - create checkpoints from
  *                                               buffers
  * @ctx: buffer sync context
@@ -101,7 +101,7 @@ pvr_buffer_sync_resolve_and_create_fences(struct pvr_buffer_sync_context *ctx,
 					  PSYNC_CHECKPOINT *update_checkpoint_out,
 					  struct pvr_buffer_sync_append_data **data_out);
 
-/**
+/*
  * pvr_buffer_sync_kick_succeeded() - cleans up after a successful kick
  *                                    operation
  * @data: buffer sync data returned by
@@ -112,7 +112,7 @@ pvr_buffer_sync_resolve_and_create_fences(struct pvr_buffer_sync_context *ctx,
 void
 pvr_buffer_sync_kick_succeeded(struct pvr_buffer_sync_append_data *data);
 
-/**
+/*
  * pvr_buffer_sync_kick_failed() - cleans up after a failed kick operation
  * @data: buffer sync data returned by
  *        pvr_buffer_sync_resolve_and_create_fences()

@@ -52,26 +52,26 @@
 
 /* Services internal interface */
 
-/**
+/*
  * pvr_sync_register_functions()
  *
  * Return: PVRSRV_OK on success.
  */
 enum PVRSRV_ERROR_TAG pvr_sync_register_functions(void);
 
-/**
+/*
  *  pvr_sync_init - register the pvr_sync misc device
  *
  *  Return: error code, 0 on success.
  */
 int pvr_sync_init(void);
 
-/**
+/*
  * pvr_sync_deinit - unregister the pvr_sync misc device
  */
 void pvr_sync_deinit(void);
 
-/**
+/*
  * pvr_sync_device_init() - create an internal sync context
  * @dev: Linux device
  *
@@ -79,7 +79,7 @@ void pvr_sync_deinit(void);
  */
 enum PVRSRV_ERROR_TAG pvr_sync_device_init(struct device *dev);
 
-/**
+/*
  * pvr_sync_device_deinit() - destroy an internal sync context
  *
  * Drains any work items with outstanding sync fence updates/dependencies.

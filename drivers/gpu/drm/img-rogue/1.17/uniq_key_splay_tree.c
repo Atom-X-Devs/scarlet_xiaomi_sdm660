@@ -46,7 +46,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_debug.h"
 #include "uniq_key_splay_tree.h"
 
-/**
+/*
  * This function performs a simple top down splay
  *
  * @param uiFlags the flags that must splayed to the root (if possible).
@@ -142,7 +142,7 @@ IMG_PSPLAY_TREE PVRSRVSplay (IMG_PSPLAY_FLAGS_T uiFlags, IMG_PSPLAY_TREE psTree)
 }
 
 
-/**
+/*
  * This function inserts a node into the Tree (unless it is already present, in
  * which case it is equivalent to performing only a splay operation
  *
@@ -202,7 +202,7 @@ IMG_PSPLAY_TREE PVRSRVInsert(IMG_PSPLAY_FLAGS_T uiFlags, IMG_PSPLAY_TREE psTree)
 }
 
 
-/**
+/*
  * Deletes a node from the tree (unless it is not there, in which case it is
  * equivalent to a splay operation)
  *
@@ -241,7 +241,7 @@ IMG_PSPLAY_TREE PVRSRVDelete(IMG_PSPLAY_FLAGS_T uiFlags, IMG_PSPLAY_TREE psTree)
 	return psTree;
 }
 
-/**
+/*
  * This function picks up the appropriate node for the given flags
  *
  * @param uiFlags the flags that must associated with the node.

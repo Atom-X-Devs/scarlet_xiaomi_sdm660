@@ -51,7 +51,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv.h"
 #include "info_page_defs.h"
 
-/**
+/*
  * @Function InfoPageCreate
  * @Description Allocates resources for global information page.
  * @Input psData pointer to PVRSRV data
@@ -59,7 +59,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 PVRSRV_ERROR InfoPageCreate(PVRSRV_DATA *psData);
 
-/**
+/*
  * @Function InfoPageDestroy
  * @Description Frees all of the resource of global information page.
  * @Input psData pointer to PVRSRV data
@@ -67,7 +67,7 @@ PVRSRV_ERROR InfoPageCreate(PVRSRV_DATA *psData);
  */
 void InfoPageDestroy(PVRSRV_DATA *psData);
 
-/**
+/*
  * @Function PVRSRVAcquireInfoPageKM()
  * @Description This interface is used for obtaining the global information page
  *              which acts as a general purpose shared memory between KM and UM.
@@ -78,7 +78,7 @@ void InfoPageDestroy(PVRSRV_DATA *psData);
  */
 PVRSRV_ERROR PVRSRVAcquireInfoPageKM(PMR **ppsPMR);
 
-/**
+/*
  * @Function PVRSRVReleaseInfoPageKM()
  * @Description This function matches PVRSRVAcquireInfoPageKM().
  * @Input psPMR handle to exported PMR
@@ -86,7 +86,7 @@ PVRSRV_ERROR PVRSRVAcquireInfoPageKM(PMR **ppsPMR);
  */
 PVRSRV_ERROR PVRSRVReleaseInfoPageKM(PMR *psPMR);
 
-/**
+/*
  * @Function GetInfoPageDebugFlagsKM()
  * @Description Return info page debug flags
  * @Return info page debug flags

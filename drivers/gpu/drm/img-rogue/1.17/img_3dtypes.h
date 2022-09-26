@@ -48,7 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "img_types.h"
 #include "img_defs.h"
 
-/**
+/*
  * Comparison functions
  * This comparison function is defined as:
  * A {CmpFunc} B
@@ -71,7 +71,7 @@ typedef enum _IMG_COMPFUNC_
 	IMG_COMPFUNC_ALWAYS,		/**< The comparison always succeeds */
 } IMG_COMPFUNC;
 
-/**
+/*
  * Stencil op functions
  */
 typedef enum _IMG_STENCILOP_
@@ -88,7 +88,7 @@ typedef enum _IMG_STENCILOP_
 								 wrapping if necessary */
 } IMG_STENCILOP;
 
-/**
+/*
  * Alpha blending allows colours and textures on one surface
  * to be blended with transparency onto another surface.
  * These definitions apply to both source and destination blending
@@ -125,7 +125,7 @@ typedef enum _IMG_BLEND_
 									outputted from the pixel shader */
 } IMG_BLEND;
 
-/**
+/*
  * The arithmetic operation to perform when blending
  */
 typedef enum _IMG_BLENDOP_
@@ -137,7 +137,7 @@ typedef enum _IMG_BLENDOP_
 	IMG_BLENDOP_MAX           /**< Result = max (Source, Destination) */
 } IMG_BLENDOP;
 
-/**
+/*
  * Logical operation to perform when logic ops are enabled
  */
 typedef enum _IMG_LOGICOP_
@@ -160,7 +160,7 @@ typedef enum _IMG_LOGICOP_
 	IMG_LOGICOP_OR_INVERTED    /**< Result = ~Source | Destination */
 } IMG_LOGICOP;
 
-/**
+/*
  * Type of fog blending supported
  */
 typedef enum _IMG_FOGMODE_
@@ -172,7 +172,7 @@ typedef enum _IMG_FOGMODE_
 	IMG_FOGMODE_EXP2, /**< Exponential squaring */
 } IMG_FOGMODE;
 
-/**
+/*
  * Types of filtering
  */
 typedef enum _IMG_FILTER_
@@ -183,7 +183,7 @@ typedef enum _IMG_FILTER_
 	IMG_FILTER_BICUBIC,		/**< Bi-cubic filtering */
 } IMG_FILTER;
 
-/**
+/*
  * Addressing modes for textures
  */
 typedef enum _IMG_ADDRESSMODE_
@@ -198,7 +198,7 @@ typedef enum _IMG_ADDRESSMODE_
 	IMG_ADDRESSMODE_DONTCARE,
 } IMG_ADDRESSMODE;
 
-/**
+/*
  * Culling based on winding order of triangle.
  */
 typedef enum _IMG_CULLMODE_
@@ -208,7 +208,7 @@ typedef enum _IMG_CULLMODE_
 	IMG_CULLMODE_BACKFACING,	/**< Back facing triangles */
 } IMG_CULLMODE;
 
-/**
+/*
  * Colour for clearing surfaces.
  *  The four elements of the 4 x 32 bit array will map to colour
  *  R,G,B,A components, in order.

@@ -48,12 +48,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define RA_MAX_NAME_LENGTH 20
 
-/** Resource arena.
+/* Resource arena.
  *  struct _RA_ARENA_ deliberately opaque
  */
 typedef struct _RA_ARENA_ RA_ARENA;			//PRQA S 3313
 
-/** Resource arena's iterator.
+/* Resource arena's iterator.
  *  struct _RA_ARENA_ITERATOR_ deliberately opaque
  */
 typedef struct _RA_ARENA_ITERATOR_ RA_ARENA_ITERATOR;
@@ -64,7 +64,7 @@ typedef struct _RA_ITERATOR_DATA_ {
 	IMG_BOOL bFree;
 } RA_ITERATOR_DATA;
 
-/** Resource arena usage statistics.
+/* Resource arena usage statistics.
  *  struct _RA_USAGE_STATS
  */
 typedef struct _RA_USAGE_STATS {
@@ -193,7 +193,7 @@ typedef void (*PFN_RA_FREE)(RA_PERARENA_HANDLE,
 							RA_BASE_T,
 							RA_PERISPAN_HANDLE);
 
-/**
+/*
  *  @Function   RA_Create
  *
  *  @Description    To create a resource arena.
@@ -217,7 +217,7 @@ RA_Create(IMG_CHAR *name,
           RA_PERARENA_HANDLE per_arena_handle,
           IMG_UINT32 ui32PolicyFlags);
 
-/**
+/*
  *  @Function   RA_Create_With_Span
  *
  *  @Description
@@ -238,7 +238,7 @@ RA_Create_With_Span(IMG_CHAR *name,
                     IMG_UINT64 ui64SpanDevBase,
                     IMG_UINT64 ui64SpanSize);
 
-/**
+/*
  *  @Function   RA_Delete
  *
  *  @Description
@@ -252,7 +252,7 @@ RA_Create_With_Span(IMG_CHAR *name,
 void
 RA_Delete(RA_ARENA *pArena);
 
-/**
+/*
  *  @Function   RA_Add
  *
  *  @Description
@@ -273,7 +273,7 @@ RA_Add(RA_ARENA *pArena,
        RA_FLAGS_T uFlags,
        RA_PERISPAN_HANDLE hPriv);
 
-/**
+/*
  *  @Function   RA_Alloc
  *
  *  @Description    To allocate resource from an arena.
@@ -305,7 +305,7 @@ RA_Alloc(RA_ARENA *pArena,
          RA_LENGTH_T *pActualSize,
          RA_PERISPAN_HANDLE *phPriv);
 
-/**
+/*
  *  @Function   RA_Alloc_Range
  *
  *  @Description
@@ -330,7 +330,7 @@ RA_Alloc_Range(RA_ARENA *pArena,
 		  RA_BASE_T base,
 		  RA_LENGTH_T *pActualSize);
 
-/**
+/*
  *  @Function   RA_Free
  *
  *  @Description    To free a resource segment.
@@ -343,7 +343,7 @@ RA_Alloc_Range(RA_ARENA *pArena,
 void
 RA_Free(RA_ARENA *pArena, RA_BASE_T base);
 
-/**
+/*
  *  @Function   RA_Get_Usage_Stats
  *
  *  @Description    To collect the arena usage statistics.

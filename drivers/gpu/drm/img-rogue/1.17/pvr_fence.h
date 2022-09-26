@@ -60,7 +60,7 @@ static inline void pvr_fence_cleanup(void)
 struct SYNC_CHECKPOINT_CONTEXT_TAG;
 struct SYNC_CHECKPOINT_TAG;
 
-/**
+/*
  * pvr_fence_context - PVR fence context used to create and manage PVR fences
  * @lock: protects the context and fences created on the context
  * @name: fence context name (used for debugging)
@@ -100,7 +100,7 @@ struct pvr_fence_context {
 	struct work_struct destroy_work;
 };
 
-/**
+/*
  * pvr_fence - PVR fence that represents both native and foreign fences
  * @base: fence structure
  * @fctx: fence context on which this fence was created

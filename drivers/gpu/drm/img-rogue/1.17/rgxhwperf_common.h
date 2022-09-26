@@ -197,7 +197,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 
 #if defined(SUPPORT_RGX)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -226,7 +226,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -243,7 +243,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -265,7 +265,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -290,7 +290,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * @param D Device Node pointer
  * @param TL PVRSRV_TIMELINE on which CP is allocated
  * @param PID Allocating process ID of this TL/FENCE
@@ -314,7 +314,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * @param D Device Node pointer
  * @param PID ID of allocating process
  * @param SW_FENCE PVRSRV_FENCE object
@@ -338,7 +338,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -356,7 +356,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -376,7 +376,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -399,7 +399,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 		} while (0)
 
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -414,7 +414,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 		} while (0)
 
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts a device info event to the HWPerfHost stream.
  *
@@ -431,7 +431,7 @@ IMG_BOOL RGXHWPerfHostIsEventEnabled(PVRSRV_RGXDEV_INFO *psRgxDevInfo, RGX_HWPER
 			} \
 		} while (0)
 
-/**
+/*
  * This macro checks if HWPerfHost and the event are enabled and if they are
  * it posts event to the HWPerfHost stream.
  *
@@ -446,7 +446,7 @@ do { \
 	} \
 } while (0)
 
-/**
+/*
  * @param I      Device info pointer
  * @param T      Wait Event type
  * @param PID    Process ID that the following fence belongs to
@@ -462,7 +462,7 @@ do { \
 	} \
 } while (0)
 
-/**
+/*
  * @param I      Device info pointer
  * @param PID    Process ID that the following timeline belongs to
  * @param F      SW-timeline handle
@@ -476,7 +476,7 @@ do { \
 	} \
 } while (0)
 
-/**
+/*
  * @param D      Device Node pointer
  * @param PID    Process ID that the following timeline belongs to
  * @param N      Null terminated string containing the process name
