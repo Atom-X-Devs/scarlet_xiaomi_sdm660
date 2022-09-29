@@ -1,5 +1,6 @@
 config DRM_POWERVR_ROGUE_1_13
 	tristate "PowerVR Rogue"
+	depends on DRM_POWERVR_ROGUE_1_17 != y
 	depends on ARM64
 	depends on HAS_IOMEM
 	depends on DRM
