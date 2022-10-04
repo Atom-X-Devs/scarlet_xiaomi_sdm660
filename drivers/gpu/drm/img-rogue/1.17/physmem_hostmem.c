@@ -65,10 +65,8 @@ static void HostMemDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 /* heap callbacks for host driver's device's heap */
 static PHYS_HEAP_FUNCTIONS gsHostMemDevPhysHeapFuncs =
 {
-	/* pfnCpuPAddrToDevPAddr */
-	HostMemCpuPAddrToDevPAddr,
-	/* pfnDevPAddrToCpuPAddr */
-	HostMemDevPAddrToCpuPAddr,
+	.pfnCpuPAddrToDevPAddr = HostMemCpuPAddrToDevPAddr,
+	.pfnDevPAddrToCpuPAddr = HostMemDevPAddrToCpuPAddr,
 };
 
 static PVRSRV_DEVICE_CONFIG gsHostMemDevConfig[];

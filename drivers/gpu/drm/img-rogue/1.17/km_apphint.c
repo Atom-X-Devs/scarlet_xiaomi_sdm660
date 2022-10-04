@@ -1075,8 +1075,9 @@ static void apphint_debuginfo_deinit(unsigned int num_entries,
  AppHint status dump implementation
 ******************************************************************************/
 #if defined(PDUMP)
-static void apphint_pdump_values(void *pvDeviceNode,
-                                 const IMG_CHAR *format, ...)
+static void __attribute__ ((format (printf, 2, 3)))
+apphint_pdump_values(void *pvDeviceNode,
+                     const IMG_CHAR *format, ...)
 {
 	char km_buffer[APPHINT_BUFFER_SIZE];
 	IMG_UINT32 ui32Flags = PDUMP_FLAGS_CONTINUOUS;

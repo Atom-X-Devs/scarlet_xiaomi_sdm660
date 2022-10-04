@@ -63,7 +63,7 @@ PVRSRV_ERROR RIWritePMREntryWithOwnerKM(PMR *psPMR,
 
 PVRSRV_ERROR RIWriteMEMDESCEntryKM(PMR *psPMR,
                                    IMG_UINT32 ui32TextBSize,
-                                   const IMG_CHAR ai8TextB[DEVMEM_ANNOTATION_MAX_LEN],
+                                   const IMG_CHAR *ai8TextB,
                                    IMG_UINT64 uiOffset,
                                    IMG_UINT64 uiSize,
                                    IMG_BOOL bIsImport,

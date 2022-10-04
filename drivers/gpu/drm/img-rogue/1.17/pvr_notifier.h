@@ -176,7 +176,7 @@ struct _PVRSRV_DEVICE_NODE_;
 typedef IMG_HANDLE PVRSRV_DBGREQ_HANDLE;
 #ifndef DBGNOTIFY_PFNS
 typedef void (DUMPDEBUG_PRINTF_FUNC)(void *pvDumpDebugFile,
-					const IMG_CHAR *pszFormat, ...);
+					const IMG_CHAR *pszFormat, ...) __attribute__ ((format (printf, 2, 3)));
 typedef void (*PFN_DBGREQ_NOTIFY)(PVRSRV_DBGREQ_HANDLE hDebugRequestHandle,
 					IMG_UINT32 ui32VerbLevel,
 					DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,

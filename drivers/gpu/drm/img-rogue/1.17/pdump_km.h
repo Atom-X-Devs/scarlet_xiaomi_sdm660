@@ -78,11 +78,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #undef PDUMP_TRACE
 
 #if defined(PDUMP_TRACE)
-#define PDUMP_HERE_VAR  IMG_UINT32 here = 0;
+#define PDUMP_HERE_VAR  __maybe_unused IMG_UINT32 here = 0;
 #define PDUMP_HERE(a)	{ here = (a); if (ui32Flags & PDUMP_FLAGS_DEBUG) PVR_DPF((PVR_DBG_WARNING, "HERE %d", (a))); }
 #define PDUMP_HEREA(a)	{ here = (a); PVR_DPF((PVR_DBG_WARNING, "HERE ALWAYS %d", (a))); }
 #else
-#define PDUMP_HERE_VAR  IMG_UINT32 here = 0;
+#define PDUMP_HERE_VAR  __maybe_unused IMG_UINT32 here = 0;
 #define PDUMP_HERE(a)	here = (a);
 #define PDUMP_HEREA(a)	here = (a);
 #endif

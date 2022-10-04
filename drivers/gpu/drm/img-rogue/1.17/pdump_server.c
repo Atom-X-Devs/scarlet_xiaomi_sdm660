@@ -3785,9 +3785,10 @@ PVRSRV_ERROR PDumpCommentKM(CONNECTION_DATA *psConnection,
  * Description    : PDumps a comment, caller need to acquire pdump lock
  *                  explicitly before calling this function
 ******************************************************************************/
-static PVRSRV_ERROR PDumpCommentWithFlagsNoLockVA(PVRSRV_DEVICE_NODE *psDeviceNode,
-                                           IMG_UINT32 ui32Flags,
-                                           const IMG_CHAR * pszFormat, va_list args)
+static PVRSRV_ERROR __attribute__ ((format (printf, 3, 0)))
+PDumpCommentWithFlagsNoLockVA(PVRSRV_DEVICE_NODE *psDeviceNode,
+                              IMG_UINT32 ui32Flags,
+                              const IMG_CHAR * pszFormat, va_list args)
 {
 	IMG_INT32 iCount;
 	PVRSRV_ERROR eErr = PVRSRV_OK;
@@ -3861,9 +3862,10 @@ PVRSRV_ERROR PDumpCommentWithFlags(PVRSRV_DEVICE_NODE *psDeviceNode,
  * Returns        : None
  * Description    : PDumps a comments
 ******************************************************************************/
-PVRSRV_ERROR PDumpCommentWithFlagsVA(PVRSRV_DEVICE_NODE *psDeviceNode,
-                                     IMG_UINT32 ui32Flags,
-                                     const IMG_CHAR * pszFormat, va_list args)
+PVRSRV_ERROR __attribute__ ((format (printf, 3, 0)))
+PDumpCommentWithFlagsVA(PVRSRV_DEVICE_NODE *psDeviceNode,
+                        IMG_UINT32 ui32Flags,
+                        const IMG_CHAR * pszFormat, va_list args)
 {
 	IMG_INT32 iCount;
 	PVRSRV_ERROR eErr = PVRSRV_OK;

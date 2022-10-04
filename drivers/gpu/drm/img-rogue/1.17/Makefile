@@ -5,7 +5,6 @@ obj-$(CONFIG_DRM_POWERVR_ROGUE_1_17) += pvrsrvkm_1_17.o
 
 ccflags-y += \
  -include config_kernel.h \
- -Iinclude/drm \
  -I$(img_basedir) \
  -I$(img_basedir)/km \
  -D__linux__

@@ -1842,32 +1842,16 @@ PVRSRV_ERROR PMRChangeSparseMemCPUMapLocalMem(PMR_IMPL_PRIVDATA pPriv,
 }
 
 static PMR_IMPL_FUNCTAB _sPMRLMAFuncTab = {
-	/* pfnLockPhysAddresses */
-	&PMRLockSysPhysAddressesLocalMem,
-	/* pfnUnlockPhysAddresses */
-	&PMRUnlockSysPhysAddressesLocalMem,
-	/* pfnDevPhysAddr */
-	&PMRSysPhysAddrLocalMem,
-	/* pfnAcquireKernelMappingData */
-	&PMRAcquireKernelMappingDataLocalMem,
-	/* pfnReleaseKernelMappingData */
-	&PMRReleaseKernelMappingDataLocalMem,
-	/* pfnReadBytes */
-	&PMRReadBytesLocalMem,
-	/* pfnWriteBytes */
-	&PMRWriteBytesLocalMem,
-	/* pfnUnpinMem */
-	NULL,
-	/* pfnPinMem */
-	NULL,
-	/* pfnChangeSparseMem*/
-	&PMRChangeSparseMemLocalMem,
-	/* pfnChangeSparseMemCPUMap */
-	&PMRChangeSparseMemCPUMapLocalMem,
-	/* pfnMMap */
-	NULL,
-	/* pfnFinalize */
-	&PMRFinalizeLocalMem
+	.pfnLockPhysAddresses = &PMRLockSysPhysAddressesLocalMem,
+	.pfnUnlockPhysAddresses = &PMRUnlockSysPhysAddressesLocalMem,
+	.pfnDevPhysAddr = &PMRSysPhysAddrLocalMem,
+	.pfnAcquireKernelMappingData = &PMRAcquireKernelMappingDataLocalMem,
+	.pfnReleaseKernelMappingData = &PMRReleaseKernelMappingDataLocalMem,
+	.pfnReadBytes = &PMRReadBytesLocalMem,
+	.pfnWriteBytes = &PMRWriteBytesLocalMem,
+	.pfnChangeSparseMem = &PMRChangeSparseMemLocalMem,
+	.pfnChangeSparseMemCPUMap = &PMRChangeSparseMemCPUMapLocalMem,
+	.pfnFinalize = &PMRFinalizeLocalMem,
 };
 
 PVRSRV_ERROR
