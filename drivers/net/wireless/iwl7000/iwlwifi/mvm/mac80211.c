@@ -1640,6 +1640,9 @@ static bool iwl_mvm_mac_add_interface_common(struct iwl_mvm *mvm,
 	mvmvif->mvm = mvm;
 	RCU_INIT_POINTER(mvmvif->deflink.probe_resp_data, NULL);
 
+	/* the first link always points to the default one */
+	mvmvif->link[0] = &mvmvif->deflink;
+
 	/*
 	 * Not much to do here. The stack will not allow interface
 	 * types or combinations that we didn't advertise, so we
@@ -1680,9 +1683,6 @@ static bool iwl_mvm_mac_add_interface_common(struct iwl_mvm *mvm,
 	}
 
 	mvmvif->features |= hw->netdev_features;
-
-	/* the first link always points to the default one */
-	mvmvif->link[0] = &mvmvif->deflink;
 
 	return false;
 }
