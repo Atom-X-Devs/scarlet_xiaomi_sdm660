@@ -42,7 +42,9 @@ def check_tech_debt(commit):
          'Revert')) and not commit_message.startswith('BACKPORT: FROMLIST'):
         return True
 
-    if re.search(r'\nUPSTREAM-TASK=b:\d+[ \t]*\n', commit_message):
+    buganizer = r'b:[0-9]{7,}'
+    tag_line = r'\nUPSTREAM-TASK=%s([, ]+%s)*[ \t]*\n' % (buganizer, buganizer)
+    if re.search(tag_line, commit_message):
         return True
 
     print(TECH_DEBT_MSG, file=sys.stderr)
