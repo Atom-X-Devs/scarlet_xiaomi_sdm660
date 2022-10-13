@@ -2,12 +2,6 @@
 
 #include "longcheer-sdm636-audio.dtsi"
 
-&hostless {
-	audio_test_mod {
-		compatible = "qcom,audio-test-mod";
-	};
-};
-
 &tavil_snd {
 	/delete-property/ qcom,usbc-analog-en1_gpio;
 	/delete-property/ qcom,usbc-analog-en2_n_gpio;
