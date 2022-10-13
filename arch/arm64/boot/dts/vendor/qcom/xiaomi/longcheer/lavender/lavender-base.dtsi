@@ -87,7 +87,3 @@
 &pil_modem {
 	/delete-property/ qcom,complete-ramdump;
 };
-
-&qcom_seecom {
-	qcom,qsee-reentrancy-support = <0>;
-};
