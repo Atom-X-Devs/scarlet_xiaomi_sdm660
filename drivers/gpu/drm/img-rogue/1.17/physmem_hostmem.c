@@ -49,7 +49,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "allocmem.h"
 #include "physheap.h"
 #include "pvrsrv_device.h"
-#include "physheap.h"
 #include "physmem_osmem.h"
 
 static void HostMemCpuPAddrToDevPAddr(IMG_HANDLE hPrivData,

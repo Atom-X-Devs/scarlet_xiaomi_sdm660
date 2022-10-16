@@ -52,7 +52,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv_error.h"
 
 #include "img_types.h"
-#include "img_defs.h"
 #include "devicemem_typedefs.h"
 
 #define PVRSRV_BRIDGE_DEVICEMEMHISTORY_CMD_FIRST			0

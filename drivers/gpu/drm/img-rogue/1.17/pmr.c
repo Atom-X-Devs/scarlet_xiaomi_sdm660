@@ -93,8 +93,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "proc_stats.h"
 #endif
 
-#include "pdump_km.h"
-
 /* Memalloc flags can be converted into pmr, ra or psplay flags.
  * Ensure flags types are same size.
  */

@@ -51,7 +51,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv_memalloc_physheap.h"
 #include "devicemem_typedefs.h"
 
-#include "pvrsrv_memalloc_physheap.h"
 #include "devicemem.h"
 #include "devicemem_server.h"
 #include "pmr.h"
