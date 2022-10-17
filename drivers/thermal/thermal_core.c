@@ -1396,7 +1396,12 @@ void thermal_zone_device_unregister(struct thermal_zone_device *tz)
 	thermal_remove_hwmon_sysfs(tz);
 	ida_simple_remove(&thermal_tz_ida, tz->id);
 	ida_destroy(&tz->ida);
-	device_unregister(&tz->device);
+
+	mutex_lock(&tz->lock);
+	device_del(&tz->device);
+	mutex_unlock(&tz->lock);
+
+	put_device(&tz->device);
 }
 EXPORT_SYMBOL_GPL(thermal_zone_device_unregister);
 
