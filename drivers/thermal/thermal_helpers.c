@@ -81,10 +81,18 @@ int thermal_zone_get_temp(struct thermal_zone_device *tz, int *temp)
 	int crit_temp = INT_MAX;
 	enum thermal_trip_type type;
 
-	if (!tz || IS_ERR(tz) || !tz->ops->get_temp)
+	if (!tz || IS_ERR(tz))
 		goto exit;
 
 	mutex_lock(&tz->lock);
+
+	if (!device_is_registered(&tz->device)) {
+		ret = -ENODEV;
+		goto exit_unlock;
+	}
+
+	if (!tz->ops->get_temp)
+		goto exit_unlock;
 
 	ret = tz->ops->get_temp(tz, temp);
 	if (ret)
