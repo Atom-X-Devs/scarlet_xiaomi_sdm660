@@ -682,9 +682,20 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-OPT_FLAGS	:= -O3 -march=armv8.1-a+crypto+fp16+rcpc
+OPT_FLAGS	:= -O3 -march=armv8.1-a+crypto+fp16+rcpc -funroll-loops
+
 ifdef CONFIG_CC_IS_CLANG
-OPT_FLAGS	+= -mtune=cortex-a53
+OPT_FLAGS	+= -mtune=cortex-a53 \
+		   -mllvm -extra-vectorizer-passes \
+		   -mllvm -enable-loopinterchange \
+		   -mllvm -enable-loop-distribute \
+		   -mllvm -enable-unroll-and-jam \
+		   -mllvm -allow-unroll-and-jam \
+		   -mllvm -enable-loop-flatten \
+		   -mllvm -interleave-small-loop-scalar-reduction \
+		   -mllvm -unroll-runtime-multi-exit \
+		   -mllvm -aggressive-ext-opt
+
 ifdef CONFIG_POLLY_CLANG
 POLLY_FLAGS	+= -mllvm -polly \
 		   -mllvm -polly-ast-use-context \
