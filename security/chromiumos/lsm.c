@@ -20,6 +20,7 @@
 #define pr_fmt(fmt) "Chromium OS LSM: " fmt
 
 #include <asm/syscall.h>
+#include <linux/audit.h>
 #include <linux/binfmts.h>
 #include <linux/cred.h>
 #include <linux/fs.h>
@@ -337,9 +338,20 @@ static int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
 {
 	struct file *file = bprm->file;
 
-	if (shmem_file(file))
-		return -EACCES;
+	if (shmem_file(file)) {
+		char *cmdline = printable_cmdline(current);
 
+		audit_log(
+			audit_context(),
+			GFP_ATOMIC,
+			AUDIT_AVC,
+			"ChromeOS LSM: memfd execution attempt, cmd=%s, pid=%d",
+			cmdline ? cmdline : "(null)",
+			task_pid_nr(current));
+		kfree(cmdline);
+
+		return -EACCES;
+	}
 	return 0;
 }
 
