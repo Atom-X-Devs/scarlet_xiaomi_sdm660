@@ -999,28 +999,6 @@ PVRSRV_ERROR FWCommonContextAllocate(CONNECTION_DATA *psConnection,
 			RFW_FWADDR_FLAG_NONE);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXSetFirmwareAddress:6", fail_fwcommonctxfwaddr);
 
-#if defined(LINUX)
-	{
-		IMG_UINT32 ui32FWAddr;
-		switch (eDM) {
-		case RGXFWIF_DM_GEOM:
-			ui32FWAddr = (IMG_UINT32) ((uintptr_t) IMG_CONTAINER_OF((void *) ((uintptr_t)
-					psServerCommonContext->sFWCommonContextFWAddr.ui32Addr), RGXFWIF_FWRENDERCONTEXT, sTAContext));
-			break;
-		case RGXFWIF_DM_3D:
-			ui32FWAddr = (IMG_UINT32) ((uintptr_t) IMG_CONTAINER_OF((void *) ((uintptr_t)
-					psServerCommonContext->sFWCommonContextFWAddr.ui32Addr), RGXFWIF_FWRENDERCONTEXT, s3DContext));
-			break;
-		default:
-			ui32FWAddr = psServerCommonContext->sFWCommonContextFWAddr.ui32Addr;
-			break;
-		}
-
-		trace_rogue_create_fw_context(OSGetCurrentClientProcessNameKM(),
-				aszCCBRequestors[eRGXCCBRequestor][REQ_PDUMP_COMMENT],
-				ui32FWAddr);
-	}
-#endif
 	/*Add the node to the list when finalised */
 	OSWRLockAcquireWrite(psDevInfo->hCommonCtxtListLock);
 	dllist_add_to_tail(&(psDevInfo->sCommonCtxtListHead), &(psServerCommonContext->sListNode));
