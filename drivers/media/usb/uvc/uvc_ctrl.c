@@ -2410,6 +2410,8 @@ static void uvc_ctrl_prune_entity(struct uvc_device *dev,
 		/* Quanta Computer, Inc. ACER FHD User Facing */
 		{ { USB_DEVICE(0x0408, 0x4031) }, 21 },
 		/* Quanta Computer, Inc. HP 5M Camera */
+		{ { USB_DEVICE(0x0408, 0x5452) }, 21 },
+		/* Quanta Computer, Inc. HP 5M Camera */
 		{ { USB_DEVICE(0x0408, 0x5479) }, 21 },
 		/* IMC Networks USB2.0 HD UVC WebCam */
 		{ { USB_DEVICE(0x13d3, 0x56d4) }, 21 },
