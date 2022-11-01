@@ -333,17 +333,21 @@ static inline void gf_kernel_key_input(struct gf_dev *gf_dev, struct gf_key *gf_
 {
 	uint32_t key_input = 0;
 
-	if (gf_key->key == GF_KEY_HOME) {
+	switch (gf_key->key) {
+	case GF_KEY_HOME:
 #ifdef CONFIG_TOUCHSCREEN_COMMON
 		if (!capacitive_keys_enabled)
 			return;
 #endif
 		key_input = GF_KEY_INPUT_HOME;
-	} else if (gf_key->key == GF_KEY_POWER) {
+		break;
+	case GF_KEY_POWER:
 		key_input = GF_KEY_INPUT_POWER;
-	} else if (gf_key->key == GF_KEY_CAMERA) {
+		break;
+	case GF_KEY_CAMERA:
 		key_input = GF_KEY_INPUT_CAMERA;
-	} else {
+		break;
+	default:
 		/* add special key define */
 		key_input = gf_key->key;
 	}
