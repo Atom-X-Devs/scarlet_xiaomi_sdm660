@@ -101,8 +101,8 @@ struct fpc1020_data {
 
 static struct kernfs_node *soc_symlink = NULL;
 
-static int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
-		      bool enable)
+static inline int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
+			     bool enable)
 {
 	struct device *dev = fpc1020->dev;
 	struct regulator *vreg;
@@ -170,17 +170,17 @@ found:
  * backwards compatibility. Only prints a debug print that it is
  * disabled.
  */
-static ssize_t clk_enable_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
+static inline ssize_t clk_enable_store(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
 {
 	return count;
 }
 static DEVICE_ATTR_WO(clk_enable);
 
-static ssize_t fingerdown_wait_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+static inline ssize_t fingerdown_wait_store(struct device *dev,
+					    struct device_attribute *attr,
+					    const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
@@ -207,7 +207,7 @@ static DEVICE_ATTR_WO(fingerdown_wait);
  * @see pctl_names
  * @see fpc1020_probe
  */
-static int select_pin_ctl(struct fpc1020_data *fpc1020, const char *name)
+static inline int select_pin_ctl(struct fpc1020_data *fpc1020, const char *name)
 {
 	struct device *dev = fpc1020->dev;
 	size_t i;
@@ -233,9 +233,9 @@ exit:
 	return rc;
 }
 
-static ssize_t pinctl_set_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
+static inline ssize_t pinctl_set_store(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -247,9 +247,9 @@ static ssize_t pinctl_set_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(pinctl_set);
 
-static ssize_t regulator_enable_store(struct device *dev,
-				      struct device_attribute *attr,
-				      const char *buf, size_t count)
+static inline ssize_t regulator_enable_store(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	char name[16];
@@ -274,7 +274,7 @@ static ssize_t regulator_enable_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(regulator_enable);
 
-static int hw_reset(struct fpc1020_data *fpc1020)
+static inline int hw_reset(struct fpc1020_data *fpc1020)
 {
 	int irq_gpio;
 	int rc;
@@ -304,9 +304,9 @@ exit:
 	return rc;
 }
 
-static ssize_t hw_reset_store(struct device *dev,
-			      struct device_attribute *attr,
-			      const char *buf, size_t count)
+static inline ssize_t hw_reset_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -322,7 +322,7 @@ static ssize_t hw_reset_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(hw_reset);
 
-static void config_irq(struct fpc1020_data *fpc1020, bool enabled)
+static inline void config_irq(struct fpc1020_data *fpc1020, bool enabled)
 {
 	static bool irq_enabled = true;
 
@@ -350,7 +350,7 @@ static void config_irq(struct fpc1020_data *fpc1020, bool enabled)
  * @note This function will not send any commands to the sensor it will only
  *       control it "electrically".
  */
-static int device_prepare(struct fpc1020_data *fpc1020, bool enable)
+static inline int device_prepare(struct fpc1020_data *fpc1020, bool enable)
 {
 	int rc;
 
@@ -405,9 +405,9 @@ static int device_prepare(struct fpc1020_data *fpc1020, bool enable)
  *
  * @see device_prepare
  */
-static ssize_t device_prepare_store(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+static inline ssize_t device_prepare_store(struct device *dev,
+					   struct device_attribute *attr,
+					   const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -427,9 +427,9 @@ static DEVICE_ATTR_WO(device_prepare);
  * sysfs node for controlling whether the driver is allowed
  * to wake up the platform on interrupt.
  */
-static ssize_t wakeup_enable_store(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
+static inline ssize_t wakeup_enable_store(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	ssize_t ret = count;
@@ -451,8 +451,8 @@ static DEVICE_ATTR_WO(wakeup_enable);
  * sysfs node to check the interrupt status of the sensor, the interrupt
  * handler should perform sysf_notify to allow userland to poll the node.
  */
-static ssize_t irq_get(struct device *dev, struct device_attribute *attr,
-		       char *buf)
+static inline ssize_t irq_get(struct device *dev, struct device_attribute *attr,
+			      char *buf)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int irq = gpio_get_value(fpc1020->irq_gpio);
@@ -463,17 +463,17 @@ static ssize_t irq_get(struct device *dev, struct device_attribute *attr,
  * writing to the irq node will just drop a printk message
  * and return success, used for latency measurement.
  */
-static ssize_t irq_ack(struct device *dev,
-		       struct device_attribute *attr,
-		       const char *buf, size_t count)
+static inline ssize_t irq_ack(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
 {
 	return count;
 }
 static DEVICE_ATTR(irq, 0600, irq_get, irq_ack);
 
-static ssize_t proximity_state_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+static inline ssize_t proximity_state_store(struct device *dev,
+					    struct device_attribute *attr,
+					    const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 	int rc;
@@ -514,12 +514,12 @@ static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
 
-static void notification_work(struct work_struct *work)
+static inline void notification_work(struct work_struct *work)
 {
 	mdss_prim_panel_fb_unblank(FP_UNLOCK_REJECTION_TIMEOUT);
 }
 
-static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
+static inline irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
 
@@ -530,8 +530,8 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 	return IRQ_HANDLED;
 }
 
-static int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
-				      const char *label, int *gpio)
+static inline int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
+					     const char *label, int *gpio)
 {
 	struct device *dev = fpc1020->dev;
 	struct device_node *np = dev->of_node;
@@ -549,8 +549,8 @@ static int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
 	return 0;
 }
 
-static int fpc_fb_notif_callback(struct notifier_block *nb, unsigned long val,
-				 void *data)
+static inline int fpc_fb_notif_callback(struct notifier_block *nb, unsigned long val,
+					void *data)
 {
 	struct fb_event *evdata = data;
 	struct fpc1020_data *fpc1020 =
@@ -593,8 +593,8 @@ static struct notifier_block fpc_notif_block = {
 };
 
 #ifdef CONFIG_TOUCHSCREEN_COMMON
-static int input_connect(struct input_handler *handler, struct input_dev *dev,
-			 const struct input_device_id *id)
+static inline int input_connect(struct input_handler *handler, struct input_dev *dev,
+				const struct input_device_id *id)
 {
 	struct fpc1020_data *fpc1020 =
 		container_of(handler, struct fpc1020_data, input_handler);
@@ -630,8 +630,8 @@ err_input_register_handle:
 	return rc;
 }
 
-static bool input_filter(struct input_handle *handle, unsigned int type,
-			 unsigned int code, int value)
+static inline bool input_filter(struct input_handle *handle, unsigned int type,
+				unsigned int code, int value)
 {
 	if (code == KEY_HOME)
 		return !capacitive_keys_enabled;
@@ -639,7 +639,7 @@ static bool input_filter(struct input_handle *handle, unsigned int type,
 	return false;
 }
 
-static void input_disconnect(struct input_handle *handle)
+static inline void input_disconnect(struct input_handle *handle)
 {
 	input_close_device(handle);
 	input_unregister_handle(handle);
@@ -655,7 +655,7 @@ static const struct input_device_id ids[] = {
 };
 #endif
 
-static int fpc1020_probe(struct platform_device *pdev)
+static inline int fpc1020_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device *platform_dev;
@@ -805,7 +805,7 @@ exit:
 	return rc;
 }
 
-static int fpc1020_remove(struct platform_device *pdev)
+static inline int fpc1020_remove(struct platform_device *pdev)
 {
 	struct fpc1020_data *fpc1020 = platform_get_drvdata(pdev);
 
