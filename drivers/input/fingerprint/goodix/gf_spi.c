@@ -173,7 +173,8 @@ static inline int gf_parse_dts(struct gf_dev *gf_dev)
 	if (rc) {
 		goto err_reset;
 	}
-	gpio_direction_output(gf_dev->reset_gpio, 1);
+
+	gpio_direction_output(gf_dev->reset_gpio, 0);
 
 	gf_dev->irq_gpio = of_get_named_gpio(np, "fp-gpio-irq", 0);
 	if (gf_dev->irq_gpio < 0) {
