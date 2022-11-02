@@ -541,7 +541,7 @@ static const struct file_operations gf_fops = {
 	.release = gf_release,
 };
 
-static int goodix_fb_state_chg_callback(struct notifier_block *nb,
+static inline int goodix_fb_state_chg_callback(struct notifier_block *nb,
 		unsigned long val, void *data)
 {
 	struct gf_dev *gf_dev;
@@ -586,7 +586,7 @@ static struct notifier_block goodix_noti_block = {
 	.notifier_call = goodix_fb_state_chg_callback,
 };
 
-static ssize_t proximity_state_set(struct device *dev,
+static inline ssize_t proximity_state_set(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct gf_dev *gf_dev = dev_get_drvdata(dev);
