@@ -74,7 +74,7 @@ static DEFINE_MUTEX(device_list_lock);
 static struct wakeup_source *fp_wakelock;
 static struct gf_dev gf;
 static int pid = -1;
-static struct sock *nl_sk;
+static struct sock *nl_sk = NULL;
 extern int fpsensor;
 
 static struct gf_key_map maps[] = {
@@ -95,7 +95,7 @@ static struct gf_key_map maps[] = {
 #endif
 };
 
-static inline int sendnlmsg(char *msg)
+static inline void sendnlmsg(char *msg)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
@@ -103,26 +103,17 @@ static inline int sendnlmsg(char *msg)
 	int ret = 0;
 
 	if (!msg || !nl_sk || !pid)
-		return -ENODEV;
+		return;
 
-	skb = alloc_skb(len, GFP_ATOMIC);
+	skb = alloc_skb(len, GFP_KERNEL);
 	if (!skb)
-		return -ENOMEM;
+		return;
 
 	nlh = nlmsg_put(skb, 0, 0, 0, MAX_MSGSIZE, 0);
-	if (!nlh) {
-		kfree_skb(skb);
-		return -EMSGSIZE;
-	}
-
 	NETLINK_CB(skb).portid = 0;
 	NETLINK_CB(skb).dst_group = 0;
 	memcpy(NLMSG_DATA(nlh), msg, sizeof(char));
 	ret = netlink_unicast(nl_sk, skb, pid, MSG_DONTWAIT);
-	if (ret > 0)
-		ret = 0;
-
-	return ret;
 }
 
 static inline void nl_data_ready(struct sk_buff *__skb)
