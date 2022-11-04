@@ -565,8 +565,8 @@ static struct notifier_block goodix_noti_block = {
 	.notifier_call = goodix_fb_state_chg_callback,
 };
 
-static ssize_t proximity_state_set(struct device *dev, struct device_attribute *attr,
-				   const char *buf, size_t count)
+static ssize_t proximity_state_store(struct device *dev, struct device_attribute *attr,
+				     const char *buf, size_t count)
 {
 	struct gf_dev *gf_dev = dev_get_drvdata(dev);
 	int rc, val;
@@ -588,7 +588,7 @@ static ssize_t proximity_state_set(struct device *dev, struct device_attribute *
 
 	return count;
 }
-static DEVICE_ATTR(proximity_state, S_IWUSR, NULL, proximity_state_set);
+static DEVICE_ATTR_WO(proximity_state);
 
 static struct attribute *attrs[] = {
 	&dev_attr_proximity_state.attr,
