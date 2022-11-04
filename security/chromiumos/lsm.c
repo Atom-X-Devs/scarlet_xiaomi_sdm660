@@ -328,7 +328,7 @@ static int chromiumos_sb_copy_data(char *orig, char *copy)
 	}
 
 	if (found)
-		pr_notice("nosymfollow option should be changed to MS_NOSYMFOLLOW flag.");
+		pr_notice("nosymfollow option should be changed to MS_NOSYMFOLLOW flag.\n");
 
 	free_secdata(orig_copy);
 	return 0;
@@ -350,6 +350,7 @@ static int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
 			task_pid_nr(current));
 		kfree(cmdline);
 
+		pr_notice_ratelimited("memfd execution blocked\n");
 		return -EACCES;
 	}
 	return 0;
@@ -357,6 +358,7 @@ static int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
 
 static int chromiumos_bpf(int cmd, union bpf_attr *attr, unsigned int size)
 {
+	pr_notice_ratelimited("bpf syscall blocked\n");
 	return -EACCES;
 }
 
