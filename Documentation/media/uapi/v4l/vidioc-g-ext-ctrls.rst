@@ -192,6 +192,11 @@ still cause this situation.
       - A pointer to a matrix control of unsigned 32-bit values. Valid if
 	this control is of type ``V4L2_CTRL_TYPE_U32``.
     * -
+      - :c:type:`v4l2_ctrl_vp8_frame` *
+      - ``p_vp8_frame``
+      - A pointer to a struct :c:type:`v4l2_ctrl_vp8_frame`. Valid if this control is
+        of type ``V4L2_CTRL_TYPE_VP8_FRAME``.
+    * -
       - void *
       - ``ptr``
       - A pointer to a compound type which can be an N-dimensional array
@@ -411,3 +416,6 @@ EACCES
 
     Or the ``which`` field was set to ``V4L2_CTRL_WHICH_REQUEST_VAL`` but the
     device does not support requests.
+
+    Or if there is an attempt to set an inactive control and the driver is
+    not capable of caching the new value until the control is active again.

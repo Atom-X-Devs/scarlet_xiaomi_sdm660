@@ -43,6 +43,14 @@ static int vidioc_venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	int ret = 0;
 
 	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_BITRATE_MODE:
+		mtk_v4l2_debug(2, "V4L2_CID_MPEG_VIDEO_BITRATE_MODE val= %d",
+			       ctrl->val);
+		if (ctrl->val != V4L2_MPEG_VIDEO_BITRATE_MODE_CBR) {
+			mtk_v4l2_err("Unsupported bitrate mode =%d", ctrl->val);
+			ret = -EINVAL;
+		}
+		break;
 	case V4L2_CID_MPEG_VIDEO_BITRATE:
 		mtk_v4l2_debug(2, "V4L2_CID_MPEG_VIDEO_BITRATE val = %d",
 			       ctrl->val);
@@ -806,9 +814,16 @@ static int vb2ops_venc_buf_prepare(struct vb2_buffer *vb)
 	q_data = mtk_venc_get_q_data(ctx, vb->vb2_queue->type);
 
 	for (i = 0; i < q_data->fmt->num_planes; i++) {
-		if (vb2_plane_size(vb, i) < q_data->sizeimage[i]) {
-			mtk_v4l2_err("data will not fit into plane %d (%lu < %d)",
+		if (vb->planes[i].data_offset > vb2_plane_size(vb, i)) {
+			mtk_v4l2_err("data offset larger than plane size");
+			return -EINVAL;
+		}
+
+		if (vb2_plane_size(vb, i) - vb->planes[i].data_offset
+		    < q_data->sizeimage[i]) {
+			mtk_v4l2_err("data will not fit into plane %d (%lu - %u < %d)",
 				i, vb2_plane_size(vb, i),
+				vb->planes[i].data_offset,
 				q_data->sizeimage[i]);
 			return -EINVAL;
 		}
@@ -1371,6 +1386,11 @@ int mtk_vcodec_enc_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_H264_LEVEL,
 			V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
 			0, V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
+	v4l2_ctrl_new_std_menu(handler, ops, V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
+			       V4L2_MPEG_VIDEO_BITRATE_MODE_CBR,
+			       ~(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_CBR),
+			       V4L2_MPEG_VIDEO_BITRATE_MODE_CBR);
+
 	if (handler->error) {
 		mtk_v4l2_err("Init control handler fail %d",
 				handler->error);

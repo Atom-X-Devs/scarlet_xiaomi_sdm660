@@ -1457,10 +1457,6 @@ PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	PVRSRV_DATA*		   psPVRSRVData = PVRSRVGetPVRSRVData();
 	PVRSRV_MEM_ALLOC_REC*  psRecord = NULL;
 	PVRSRV_PROCESS_STATS*  psProcessStats;
-	enum { PVRSRV_PROC_NOTFOUND,
-	       PVRSRV_PROC_FOUND,
-	       PVRSRV_PROC_RESURRECTED
-	     } eProcSearch = PVRSRV_PROC_FOUND;
 
 #if defined(ENABLE_GPU_MEM_TRACEPOINT)
 	IMG_UINT64 ui64InitialSize;
@@ -1520,7 +1516,6 @@ PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			if (!psProcessStats)
 			{
 				psProcessStats = _FindProcessStatsInDeadList(currentPid);
-				eProcSearch = PVRSRV_PROC_RESURRECTED;
 			}
 		}
 	}
@@ -1530,14 +1525,11 @@ PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		if (!psProcessStats)
 		{
 			psProcessStats = _FindProcessStatsInDeadList(currentPid);
-			eProcSearch = PVRSRV_PROC_RESURRECTED;
 		}
 	}
 
 	if (psProcessStats == NULL)
 	{
-		eProcSearch = PVRSRV_PROC_NOTFOUND;
-
 #if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 		PVR_DPF((PVR_DBG_WARNING,
 				 "%s: Process stat increment called for 'unknown' process PID(%d)",
@@ -1986,11 +1978,12 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	IMG_PID				  currentCleanupPid = PVRSRVGetPurgeConnectionPid();
 	PVRSRV_DATA*		  psPVRSRVData = PVRSRVGetPVRSRVData();
 	PVRSRV_PROCESS_STATS* psProcessStats = NULL;
+#if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 	enum { PVRSRV_PROC_NOTFOUND,
 	       PVRSRV_PROC_FOUND,
 	       PVRSRV_PROC_RESURRECTED
 	     } eProcSearch = PVRSRV_PROC_FOUND;
-
+#endif
 #if defined(ENABLE_GPU_MEM_TRACEPOINT)
 	IMG_UINT64 ui64InitialSize;
 #endif
@@ -2021,7 +2014,9 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			if (!psProcessStats)
 			{
 				psProcessStats = _FindProcessStatsInDeadList(currentPid);
+#if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 				eProcSearch = PVRSRV_PROC_RESURRECTED;
+#endif
 			}
 		}
 	}
@@ -2031,15 +2026,17 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		if (!psProcessStats)
 		{
 			psProcessStats = _FindProcessStatsInDeadList(currentPid);
+#if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 			eProcSearch = PVRSRV_PROC_RESURRECTED;
+#endif
 		}
 	}
 
 	if (psProcessStats == NULL)
 	{
+#if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 		eProcSearch = PVRSRV_PROC_NOTFOUND;
 
-#if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 		PVR_DPF((PVR_DBG_WARNING,
 				 "%s: Process stat increment called for 'unknown' process PID(%d)",
 				 __func__, currentPid));

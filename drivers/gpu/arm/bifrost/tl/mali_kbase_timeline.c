@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -109,11 +108,14 @@ int kbase_timeline_init(struct kbase_timeline **timeline,
 {
 	enum tl_stream_type i;
 	struct kbase_timeline *result;
+#if MALI_USE_CSF
+	struct kbase_tlstream *csffw_stream;
+#endif
 
 	if (!timeline || !timeline_flags)
 		return -EINVAL;
 
-	result = kzalloc(sizeof(*result), GFP_KERNEL);
+	result = vzalloc(sizeof(*result));
 	if (!result)
 		return -ENOMEM;
 
@@ -135,6 +137,10 @@ int kbase_timeline_init(struct kbase_timeline **timeline,
 			  kbasep_timeline_autoflush_timer_callback);
 	result->timeline_flags = timeline_flags;
 
+#if MALI_USE_CSF
+	csffw_stream = &result->streams[TL_STREAM_TYPE_CSFFW];
+	kbase_csf_tl_reader_init(&result->csf_tl_reader, csffw_stream);
+#endif
 
 	*timeline = result;
 	return 0;
@@ -147,13 +153,16 @@ void kbase_timeline_term(struct kbase_timeline *timeline)
 	if (!timeline)
 		return;
 
+#if MALI_USE_CSF
+	kbase_csf_tl_reader_term(&timeline->csf_tl_reader);
+#endif
 
 	WARN_ON(!list_empty(&timeline->tl_kctx_list));
 
 	for (i = (enum tl_stream_type)0; i < TL_STREAM_TYPE_COUNT; i++)
 		kbase_tlstream_term(&timeline->streams[i]);
 
-	kfree(timeline);
+	vfree(timeline);
 }
 
 #ifdef CONFIG_MALI_BIFROST_DEVFREQ
@@ -168,11 +177,7 @@ static void kbase_tlstream_current_devfreq_target(struct kbase_device *kbdev)
 		unsigned long cur_freq = 0;
 
 		mutex_lock(&devfreq->lock);
-#if KERNEL_VERSION(4, 3, 0) > LINUX_VERSION_CODE
-		cur_freq = kbdev->current_nominal_freq;
-#else
 		cur_freq = devfreq->last_status.current_frequency;
-#endif
 		KBASE_TLSTREAM_AUX_DEVFREQ_TARGET(kbdev, (u64)cur_freq);
 		mutex_unlock(&devfreq->lock);
 	}
@@ -181,13 +186,24 @@ static void kbase_tlstream_current_devfreq_target(struct kbase_device *kbdev)
 
 int kbase_timeline_io_acquire(struct kbase_device *kbdev, u32 flags)
 {
-	int ret;
+	int ret = 0;
 	u32 timeline_flags = TLSTREAM_ENABLED | flags;
 	struct kbase_timeline *timeline = kbdev->timeline;
 
 	if (!atomic_cmpxchg(timeline->timeline_flags, 0, timeline_flags)) {
 		int rcode;
 
+#if MALI_USE_CSF
+		if (flags & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS) {
+			ret = kbase_csf_tl_reader_start(
+				&timeline->csf_tl_reader, kbdev);
+			if (ret)
+			{
+				atomic_set(timeline->timeline_flags, 0);
+				return ret;
+			}
+		}
+#endif
 		ret = anon_inode_getfd(
 				"[mali_tlstream]",
 				&kbasep_tlstream_fops,
@@ -195,6 +211,9 @@ int kbase_timeline_io_acquire(struct kbase_device *kbdev, u32 flags)
 				O_RDONLY | O_CLOEXEC);
 		if (ret < 0) {
 			atomic_set(timeline->timeline_flags, 0);
+#if MALI_USE_CSF
+			kbase_csf_tl_reader_stop(&timeline->csf_tl_reader);
+#endif
 			return ret;
 		}
 
@@ -212,6 +231,7 @@ int kbase_timeline_io_acquire(struct kbase_device *kbdev, u32 flags)
 				jiffies + msecs_to_jiffies(AUTOFLUSH_INTERVAL));
 		CSTD_UNUSED(rcode);
 
+#if !MALI_USE_CSF
 		/* If job dumping is enabled, readjust the software event's
 		 * timeout as the default value of 3 seconds is often
 		 * insufficient.
@@ -222,6 +242,7 @@ int kbase_timeline_io_acquire(struct kbase_device *kbdev, u32 flags)
 			atomic_set(&kbdev->js_data.soft_job_timeout_ms,
 					1800000);
 		}
+#endif /* !MALI_USE_CSF */
 
 		/* Summary stream was cleared during acquire.
 		 * Create static timeline objects that will be
@@ -241,15 +262,30 @@ int kbase_timeline_io_acquire(struct kbase_device *kbdev, u32 flags)
 		ret = -EBUSY;
 	}
 
+	if (ret >= 0)
+		timeline->last_acquire_time = ktime_get();
+
 	return ret;
 }
 
-void kbase_timeline_streams_flush(struct kbase_timeline *timeline)
+int kbase_timeline_streams_flush(struct kbase_timeline *timeline)
 {
 	enum tl_stream_type stype;
+	bool has_bytes = false;
+	size_t nbytes = 0;
+#if MALI_USE_CSF
+	int ret = kbase_csf_tl_reader_flush_buffer(&timeline->csf_tl_reader);
 
-	for (stype = 0; stype < TL_STREAM_TYPE_COUNT; stype++)
-		kbase_tlstream_flush_stream(&timeline->streams[stype]);
+	if (ret > 0)
+		has_bytes = true;
+#endif
+
+	for (stype = 0; stype < TL_STREAM_TYPE_COUNT; stype++) {
+		nbytes = kbase_tlstream_flush_stream(&timeline->streams[stype]);
+		if (nbytes > 0)
+			has_bytes = true;
+	}
+	return has_bytes ? 0 : -EIO;
 }
 
 void kbase_timeline_streams_body_reset(struct kbase_timeline *timeline)
@@ -258,6 +294,10 @@ void kbase_timeline_streams_body_reset(struct kbase_timeline *timeline)
 			&timeline->streams[TL_STREAM_TYPE_OBJ]);
 	kbase_tlstream_reset(
 			&timeline->streams[TL_STREAM_TYPE_AUX]);
+#if MALI_USE_CSF
+	kbase_tlstream_reset(
+			&timeline->streams[TL_STREAM_TYPE_CSFFW]);
+#endif
 }
 
 void kbase_timeline_pre_kbase_context_destroy(struct kbase_context *kctx)

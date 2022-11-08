@@ -1609,7 +1609,7 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
 
 .. _v4l2-mpeg-vp8:
 
-``V4L2_CID_MPEG_VIDEO_VP8_FRAME_HEADER (struct)``
+``V4L2_CID_MPEG_VIDEO_VP8_FRAME (struct)``
     Specifies the frame parameters for the associated VP8 parsed frame data.
     This includes the necessary parameters for
     configuring a stateless hardware decoding pipeline for VP8.
@@ -1620,28 +1620,28 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
        This compound control is not yet part of the public kernel API and
        it is expected to change.
 
-.. c:type:: v4l2_ctrl_vp8_frame_header
+.. c:type:: v4l2_ctrl_vp8_frame
 
 .. cssclass:: longtable
 
 .. tabularcolumns:: |p{5.8cm}|p{4.8cm}|p{6.6cm}|
 
-.. flat-table:: struct v4l2_ctrl_vp8_frame_header
+.. flat-table:: struct v4l2_ctrl_vp8_frame
     :header-rows:  0
     :stub-columns: 0
     :widths:       1 1 2
 
-    * - struct :c:type:`v4l2_vp8_segment_header`
-      - ``segment_header``
+    * - struct :c:type:`v4l2_vp8_segment`
+      - ``segment``
       - Structure with segment-based adjustments metadata.
-    * - struct :c:type:`v4l2_vp8_loopfilter_header`
-      - ``loopfilter_header``
+    * - struct :c:type:`v4l2_vp8_loop_filter`
+      - ``lf``
       - Structure with loop filter level adjustments metadata.
-    * - struct :c:type:`v4l2_vp8_quantization_header`
-      - ``quant_header``
+    * - struct :c:type:`v4l2_vp8_quantization`
+      - ``quant``
       - Structure with VP8 dequantization indices metadata.
-    * - struct :c:type:`v4l2_vp8_entropy_header`
-      - ``entropy_header``
+    * - struct :c:type:`v4l2_vp8_entropy`
+      - ``entropy``
       - Structure with VP8 entropy coder probabilities metadata.
     * - struct :c:type:`v4l2_vp8_entropy_coder_state`
       - ``coder_state``
@@ -1710,11 +1710,11 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
 	:c:type:`v4l2_buffer` to a __u64.
     * - __u64
       - ``flags``
-      - See :ref:`Frame Header Flags <vp8_frame_header_flags>`
+      - See :ref:`Frame Flags <vp8_frame_flags>`
 
-.. _vp8_frame_header_flags:
+.. _vp8_frame_flags:
 
-``Frame Header Flags``
+``Frame Flags``
 
 .. cssclass:: longtable
 
@@ -1723,22 +1723,22 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
     :stub-columns: 0
     :widths:       1 1 2
 
-    * - ``V4L2_VP8_FRAME_HEADER_FLAG_KEY_FRAME``
+    * - ``V4L2_VP8_FRAME_FLAG_KEY_FRAME``
       - 0x01
       - Indicates if the frame is a key frame.
-    * - ``V4L2_VP8_FRAME_HEADER_FLAG_EXPERIMENTAL``
+    * - ``V4L2_VP8_FRAME_FLAG_EXPERIMENTAL``
       - 0x02
       - Experimental bitstream.
-    * - ``V4L2_VP8_FRAME_HEADER_FLAG_SHOW_FRAME``
+    * - ``V4L2_VP8_FRAME_FLAG_SHOW_FRAME``
       - 0x04
       - Show frame flag, indicates if the frame is for display.
-    * - ``V4L2_VP8_FRAME_HEADER_FLAG_MB_NO_SKIP_COEFF``
+    * - ``V4L2_VP8_FRAME_FLAG_MB_NO_SKIP_COEFF``
       - 0x08
       - Enable/disable skipping of macroblocks with no non-zero coefficients.
-    * - ``V4L2_VP8_FRAME_HEADER_FLAG_SIGN_BIAS_GOLDEN``
+    * - ``V4L2_VP8_FRAME_FLAG_SIGN_BIAS_GOLDEN``
       - 0x10
       - Sign of motion vectors when the golden frame is referenced.
-    * - ``V4L2_VP8_FRAME_HEADER_FLAG_SIGN_BIAS_ALT``
+    * - ``V4L2_VP8_FRAME_FLAG_SIGN_BIAS_ALT``
       - 0x20
       - Sign of motion vectors when the alt frame is referenced.
 
@@ -1766,13 +1766,13 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
       - ``padding``
       - Applications and drivers must set this to zero.
 
-.. c:type:: v4l2_vp8_segment_header
+.. c:type:: v4l2_vp8_segment
 
 .. cssclass:: longtable
 
 .. tabularcolumns:: |p{1.5cm}|p{6.3cm}|p{9.4cm}|
 
-.. flat-table:: struct v4l2_vp8_segment_header
+.. flat-table:: struct v4l2_vp8_segment
     :header-rows:  0
     :stub-columns: 0
     :widths:       1 1 2
@@ -1791,11 +1791,11 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
       - Applications and drivers must set this to zero.
     * - __u32
       - ``flags``
-      - See :ref:`Segment Header Flags <vp8_segment_header_flags>`
+      - See :ref:`Segment Flags <vp8_segment_flags>`
 
-.. _vp8_segment_header_flags:
+.. _vp8_segment_flags:
 
-``Segment Header Flags``
+``Segment Flags``
 
 .. cssclass:: longtable
 
@@ -1804,27 +1804,27 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
     :stub-columns: 0
     :widths:       1 1 2
 
-    * - ``V4L2_VP8_SEGMENT_HEADER_FLAG_ENABLED``
+    * - ``V4L2_VP8_SEGMENT_FLAG_ENABLED``
       - 0x01
       - Enable/disable segment-based adjustments.
-    * - ``V4L2_VP8_SEGMENT_HEADER_FLAG_UPDATE_MAP``
+    * - ``V4L2_VP8_SEGMENT_FLAG_UPDATE_MAP``
       - 0x02
       - Indicates if the macroblock segmentation map is updated in this frame.
-    * - ``V4L2_VP8_SEGMENT_HEADER_FLAG_UPDATE_FEATURE_DATA``
+    * - ``V4L2_VP8_SEGMENT_FLAG_UPDATE_FEATURE_DATA``
       - 0x04
       - Indicates if the segment feature data is updated in this frame.
-    * - ``V4L2_VP8_SEGMENT_HEADER_FLAG_DELTA_VALUE_MODE``
+    * - ``V4L2_VP8_SEGMENT_FLAG_DELTA_VALUE_MODE``
       - 0x08
       - If is set, the segment feature data mode is delta-value.
         If cleared, it's absolute-value.
 
-.. c:type:: v4l2_vp8_loopfilter_header
+.. c:type:: v4l2_vp8_loop_filter
 
 .. cssclass:: longtable
 
 .. tabularcolumns:: |p{1.5cm}|p{6.3cm}|p{9.4cm}|
 
-.. flat-table:: struct v4l2_vp8_loopfilter_header
+.. flat-table:: struct v4l2_vp8_loop_filter
     :header-rows:  0
     :stub-columns: 0
     :widths:       1 1 2
@@ -1846,11 +1846,11 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
       - Applications and drivers must set this to zero.
     * - __u32
       - ``flags``
-      - See :ref:`Loopfilter Header Flags <vp8_loopfilter_header_flags>`
+      - See :ref:`Loop Filter Flags <vp8_loop_filter_flags>`
 
-.. _vp8_loopfilter_header_flags:
+.. _vp8_loop_filter_flags:
 
-``Loopfilter Header Flags``
+``Loop Filter Flags``
 
 .. cssclass:: longtable
 
@@ -1859,10 +1859,10 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
     :stub-columns: 0
     :widths:       1 1 2
 
-    * - ``V4L2_VP8_LF_HEADER_ADJ_ENABLE``
+    * - ``V4L2_VP8_LF_ADJ_ENABLE``
       - 0x01
       - Enable/disable macroblock-level loop filter adjustment.
-    * - ``V4L2_VP8_LF_HEADER_DELTA_UPDATE``
+    * - ``V4L2_VP8_LF_DELTA_UPDATE``
       - 0x02
       - Indicates if the delta values used in an adjustment are updated.
     * - ``V4L2_VP8_LF_FILTER_TYPE_SIMPLE``
@@ -1870,13 +1870,13 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
       - If set, indicates the filter type is simple.
         If cleared, the filter type is normal.
 
-.. c:type:: v4l2_vp8_quantization_header
+.. c:type:: v4l2_vp8_quantization
 
 .. cssclass:: longtable
 
 .. tabularcolumns:: |p{1.5cm}|p{6.3cm}|p{9.4cm}|
 
-.. flat-table:: struct v4l2_vp8_quantization_header
+.. flat-table:: struct v4l2_vp8_quantization
     :header-rows:  0
     :stub-columns: 0
     :widths:       1 1 2
@@ -1903,13 +1903,13 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type -
       - ``padding``
       - Applications and drivers must set this to zero.
 
-.. c:type:: v4l2_vp8_entropy_header
+.. c:type:: v4l2_vp8_entropy
 
 .. cssclass:: longtable
 
 .. tabularcolumns:: |p{1.5cm}|p{6.3cm}|p{9.4cm}|
 
-.. flat-table:: struct v4l2_vp8_entropy_header
+.. flat-table:: struct v4l2_vp8_entropy
     :header-rows:  0
     :stub-columns: 0
     :widths:       1 1 2

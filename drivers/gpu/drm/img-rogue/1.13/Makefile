@@ -8,7 +8,6 @@ ccflags-y += \
  -Iinclude/drm \
  -I$(img_basedir) \
  -I$(img_basedir)/km \
- -I$(img_basedir)/system \
  -D__linux__
 
 include $(img_basedir)/pvrsrvkm.mk

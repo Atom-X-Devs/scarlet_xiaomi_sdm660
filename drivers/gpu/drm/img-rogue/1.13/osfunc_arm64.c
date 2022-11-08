@@ -43,6 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/version.h>
 #include <linux/cpumask.h>
 #include <linux/dma-mapping.h>
+#include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 
 #include "pvrsrv_error.h"
@@ -58,7 +59,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
    */
 	#error "CONFIG_OUTER_CACHE not supported on arm64."
 #endif
-/*
+
 static inline void begin_user_mode_access(void)
 {
 #if defined(CONFIG_ARM64) && defined(CONFIG_ARM64_SW_TTBR0_PAN)
@@ -118,7 +119,7 @@ static inline void FlushRange(void *pvRangeAddrStart,
 
 	end_user_mode_access();
 }
-*/
+
 void OSCPUCacheFlushRangeKM(PVRSRV_DEVICE_NODE *psDevNode,
 							void *pvVirtStart,
 							void *pvVirtEnd,
@@ -127,8 +128,11 @@ void OSCPUCacheFlushRangeKM(PVRSRV_DEVICE_NODE *psDevNode,
 {
 	struct device *dev;
 
-	PVR_UNREFERENCED_PARAMETER(pvVirtStart);
-	PVR_UNREFERENCED_PARAMETER(pvVirtEnd);
+	if (pvVirtStart)
+	{
+		FlushRange(pvVirtStart, pvVirtEnd, PVRSRV_CACHE_OP_FLUSH);
+		return;
+	}
 
 	dev = psDevNode->psDevConfig->pvOSDevice;
 
@@ -169,8 +173,11 @@ void OSCPUCacheCleanRangeKM(PVRSRV_DEVICE_NODE *psDevNode,
 {
 	struct device *dev;
 
-	PVR_UNREFERENCED_PARAMETER(pvVirtStart);
-	PVR_UNREFERENCED_PARAMETER(pvVirtEnd);
+	if (pvVirtStart)
+	{
+		FlushRange(pvVirtStart, pvVirtEnd, PVRSRV_CACHE_OP_CLEAN);
+		return;
+	}
 
 	dev = psDevNode->psDevConfig->pvOSDevice;
 
@@ -209,8 +216,11 @@ void OSCPUCacheInvalidateRangeKM(PVRSRV_DEVICE_NODE *psDevNode,
 {
 	struct device *dev;
 
-	PVR_UNREFERENCED_PARAMETER(pvVirtStart);
-	PVR_UNREFERENCED_PARAMETER(pvVirtEnd);
+	if (pvVirtStart)
+	{
+		FlushRange(pvVirtStart, pvVirtEnd, PVRSRV_CACHE_OP_INVALIDATE);
+		return;
+	}
 
 	dev = psDevNode->psDevConfig->pvOSDevice;
 

@@ -45,6 +45,12 @@
 #define DRIVER_DESC "USB HID core driver"
 
 /*
+ * TODO(b/199705375): Remove when resolved by vendor in firmware
+ */
+#define USB_VENDOR_ID_MIMO    0x266e
+#define USB_DEVICE_ID_MIMO_PLANKTON 0x0110
+
+/*
  * Module parameters.
  */
 
@@ -284,9 +290,25 @@ static void hid_irq_in(struct urb *urb)
 			break;
 		usbhid_mark_busy(usbhid);
 		if (!test_bit(HID_RESUME_RUNNING, &usbhid->iofl)) {
-			hid_input_report(urb->context, HID_INPUT_REPORT,
-					 urb->transfer_buffer,
-					 urb->actual_length, 1);
+			status = hid_input_report(urb->context,
+						  HID_INPUT_REPORT,
+						  urb->transfer_buffer,
+						  urb->actual_length, 1);
+			// TODO(b/199705375): Remove when resolved by vendor in firmware
+			if (status &&
+			     hid->vendor == USB_VENDOR_ID_MIMO &&
+			     hid->product == USB_DEVICE_ID_MIMO_PLANKTON) {
+				// Reset the USB hub this device is connected to
+				// when an invalid HID message is received in
+				// order to fix issues with touch events
+				struct usb_device *parent = interface_to_usbdev(
+					usbhid->intf)->parent;
+				struct usb_interface *parent_interface =
+					parent->actconfig->interface[0];
+				hid_warn(hid, "MIMO has wedged; issuing hub reset\n");
+				usb_queue_reset_device(parent_interface);
+			}
+
 			/*
 			 * autosuspend refused while keys are pressed
 			 * because most keyboards don't wake up when
@@ -506,7 +528,7 @@ static void hid_ctrl(struct urb *urb)
 
 	if (unplug) {
 		usbhid->ctrltail = usbhid->ctrlhead;
-	} else {
+	} else if (usbhid->ctrlhead != usbhid->ctrltail) {
 		usbhid->ctrltail = (usbhid->ctrltail + 1) & (HID_CONTROL_FIFO_SIZE - 1);
 
 		if (usbhid->ctrlhead != usbhid->ctrltail &&
@@ -1224,9 +1246,20 @@ static void usbhid_stop(struct hid_device *hid)
 	mutex_lock(&usbhid->mutex);
 
 	clear_bit(HID_STARTED, &usbhid->iofl);
+
 	spin_lock_irq(&usbhid->lock);	/* Sync with error and led handlers */
 	set_bit(HID_DISCONNECTED, &usbhid->iofl);
+	while (usbhid->ctrltail != usbhid->ctrlhead) {
+		if (usbhid->ctrl[usbhid->ctrltail].dir == USB_DIR_OUT) {
+			kfree(usbhid->ctrl[usbhid->ctrltail].raw_report);
+			usbhid->ctrl[usbhid->ctrltail].raw_report = NULL;
+		}
+
+		usbhid->ctrltail = (usbhid->ctrltail + 1) &
+			(HID_CONTROL_FIFO_SIZE - 1);
+	}
 	spin_unlock_irq(&usbhid->lock);
+
 	usb_kill_urb(usbhid->urbin);
 	usb_kill_urb(usbhid->urbout);
 	usb_kill_urb(usbhid->urbctrl);

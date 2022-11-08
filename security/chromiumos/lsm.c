@@ -20,6 +20,8 @@
 #define pr_fmt(fmt) "Chromium OS LSM: " fmt
 
 #include <asm/syscall.h>
+#include <linux/audit.h>
+#include <linux/binfmts.h>
 #include <linux/cred.h>
 #include <linux/fs.h>
 #include <linux/fs_struct.h>
@@ -32,10 +34,10 @@
 #include <linux/sched/task_stack.h>
 #include <linux/sched.h>	/* current and other task related stuff */
 #include <linux/security.h>
+#include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
 #include <uapi/linux/fs.h>
 #include <uapi/linux/nvme_ioctl.h>
-
 #include "inode_mark.h"
 #include "utils.h"
 
@@ -285,7 +287,7 @@ static int chromiumos_security_file_open(struct file *file)
  * the MS_NOSYMFOLLOW flag, the "nosymfollow" option will be stripped from the
  * mount string if it is encountered.
  */
-int chromiumos_sb_copy_data(char *orig, char *copy)
+static int chromiumos_sb_copy_data(char *orig, char *copy)
 {
 	char *orig_copy;
 	char *orig_copy_cur;
@@ -332,12 +334,40 @@ int chromiumos_sb_copy_data(char *orig, char *copy)
 	return 0;
 }
 
+static int chromiumos_bprm_creds_for_exec(struct linux_binprm *bprm)
+{
+	struct file *file = bprm->file;
+
+	if (shmem_file(file)) {
+		char *cmdline = printable_cmdline(current);
+
+		audit_log(
+			audit_context(),
+			GFP_ATOMIC,
+			AUDIT_AVC,
+			"ChromeOS LSM: memfd execution attempt, cmd=%s, pid=%d",
+			cmdline ? cmdline : "(null)",
+			task_pid_nr(current));
+		kfree(cmdline);
+
+		return -EACCES;
+	}
+	return 0;
+}
+
+static int chromiumos_bpf(int cmd, union bpf_attr *attr, unsigned int size)
+{
+	return -EACCES;
+}
+
 static struct security_hook_list chromiumos_security_hooks[] = {
 	LSM_HOOK_INIT(sb_mount, chromiumos_security_sb_mount),
 	LSM_HOOK_INIT(inode_follow_link, chromiumos_security_inode_follow_link),
 	LSM_HOOK_INIT(file_open, chromiumos_security_file_open),
 	LSM_HOOK_INIT(file_ioctl, chromiumos_security_file_ioctl),
-	LSM_HOOK_INIT(sb_copy_data, chromiumos_sb_copy_data)
+	LSM_HOOK_INIT(sb_copy_data, chromiumos_sb_copy_data),
+	LSM_HOOK_INIT(bprm_creds_for_exec, chromiumos_bprm_creds_for_exec),
+	LSM_HOOK_INIT(bpf, chromiumos_bpf),
 };
 
 static int __init chromiumos_security_init(void)

@@ -1641,6 +1641,8 @@ struct drm_i915_private {
 
 	struct intel_uncore uncore;
 
+	struct mutex tlb_invalidate_lock;
+
 	struct i915_virtual_gpu vgpu;
 
 	struct intel_gvt *gvt;
@@ -2647,8 +2649,10 @@ intel_info(const struct drm_i915_private *dev_priv)
 	(IS_BROADWELL(dev_priv) || INTEL_GEN(dev_priv) == 9)
 
 /* WaRsDisableCoarsePowerGating:skl,cnl */
-#define NEEDS_WaRsDisableCoarsePowerGating(dev_priv) \
-	(IS_CANNONLAKE(dev_priv) || INTEL_GEN(dev_priv) == 9)
+#define NEEDS_WaRsDisableCoarsePowerGating(dev_priv)			\
+	(IS_CANNONLAKE(dev_priv) ||					\
+	 IS_SKL_GT3(dev_priv) ||					\
+	 IS_SKL_GT4(dev_priv))
 
 #define HAS_GMBUS_IRQ(dev_priv) (INTEL_GEN(dev_priv) >= 4)
 #define HAS_GMBUS_BURST_READ(dev_priv) (INTEL_GEN(dev_priv) >= 10 || \
@@ -3232,7 +3236,7 @@ static inline bool i915_terminally_wedged(struct i915_gpu_error *error)
 
 static inline bool i915_reset_backoff_or_wedged(struct i915_gpu_error *error)
 {
-	return i915_reset_backoff(error) | i915_terminally_wedged(error);
+	return i915_reset_backoff(error) || i915_terminally_wedged(error);
 }
 
 static inline u32 i915_reset_count(struct i915_gpu_error *error)

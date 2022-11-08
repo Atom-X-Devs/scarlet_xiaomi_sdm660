@@ -112,6 +112,7 @@ EXPORT_SYMBOL(PVRSRVGetErrorString);
 #if defined(SUPPORT_SHARED_SLC)
 EXPORT_SYMBOL(RGXInitSLC);
 #endif
+#if !defined(CHROMIUMOS_KERNEL) || !defined(MODULE)
 EXPORT_SYMBOL(RGXHWPerfConnect);
 EXPORT_SYMBOL(RGXHWPerfDisconnect);
 EXPORT_SYMBOL(RGXHWPerfControl);
@@ -125,6 +126,7 @@ EXPORT_SYMBOL(RGXHWPerfDisableCounters);
 EXPORT_SYMBOL(RGXHWPerfAcquireEvents);
 EXPORT_SYMBOL(RGXHWPerfReleaseEvents);
 EXPORT_SYMBOL(RGXHWPerfConvertCRTimeStamp);
+#endif
 #if defined(SUPPORT_KERNEL_HWPERF_TEST)
 EXPORT_SYMBOL(OSAddTimer);
 EXPORT_SYMBOL(OSEnableTimer);

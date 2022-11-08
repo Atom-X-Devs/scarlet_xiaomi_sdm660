@@ -1397,8 +1397,6 @@ device_initcall(init_tsc_clocksource);
 
 static bool __init determine_cpu_tsc_frequencies(bool early)
 {
-	u64 initial_tsc;
-
 	/* Make sure that cpu and tsc are not already calibrated */
 	WARN_ON(cpu_khz || tsc_khz);
 
@@ -1410,8 +1408,6 @@ static bool __init determine_cpu_tsc_frequencies(bool early)
 		WARN_ON(x86_platform.calibrate_cpu != native_calibrate_cpu);
 		cpu_khz = pit_hpet_ptimer_calibrate_cpu();
 	}
-
-	initial_tsc = rdtsc();
 
 	/*
 	 * Trust non-zero tsc_khz as authoritative,
@@ -1425,10 +1421,6 @@ static bool __init determine_cpu_tsc_frequencies(bool early)
 
 	if (tsc_khz == 0)
 		return false;
-
-	do_div(initial_tsc, cpu_khz / 1000);
-	pr_info("Initial usec timer %llu\n",
-		(unsigned long long)initial_tsc);
 
 	pr_info("Detected %lu.%03lu MHz processor\n",
 		(unsigned long)cpu_khz / KHZ,

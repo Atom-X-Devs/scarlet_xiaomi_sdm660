@@ -331,7 +331,7 @@ get_value_offset_from_device(const PVRSRV_DEVICE_NODE * const device,
 	*offset = i * APPHINT_DEBUGFS_DEVICE_ID_MAX;
 }
 
-/**
+/*
  * apphint_action_worker - perform an action after an AppHint update has been
  *                    requested by a UM process
  *                    And update the record of the current active value
@@ -430,7 +430,7 @@ err_exit:
 	kfree(new_value.STRING);
 }
 
-/**
+/*
  * apphint_read - read the different AppHint data types
  * return -errno or the buffer size
  */
@@ -638,7 +638,7 @@ static PVRSRV_ERROR get_apphint_value_from_action(const struct apphint_action * 
 	return result;
 }
 
-/**
+/*
  * apphint_write - write the current AppHint data to a buffer
  *
  * Returns length written or -errno
@@ -748,7 +748,7 @@ err_exit:
 *******************************************************************************
  Module parameters initialization - different from debugfs
 ******************************************************************************/
-/**
+/*
  * apphint_kparam_set - Handle an update of a module parameter
  *
  * Returns 0, or -errno.  arg is in kp->arg.
@@ -778,7 +778,7 @@ static int apphint_kparam_set(const char *val, const struct kernel_param *kp)
 	return (result > 0) ? 0 : result;
 }
 
-/**
+/*
  * apphint_kparam_get - handle a read of a module parameter
  *
  * Returns length written or -errno.  Buffer is 4k (ie. be short!)
@@ -867,7 +867,7 @@ static int apphint_di_show(OSDI_IMPL_ENTRY *s, void *v)
  Debugfs supporting functions
 ******************************************************************************/
 
-/**
+/*
  * apphint_set - Handle a DI value update
  */
 static IMG_INT64 apphint_set(const IMG_CHAR *buffer, IMG_UINT64 count,
@@ -906,7 +906,7 @@ err_exit:
 	return result;
 }
 
-/**
+/*
  * apphint_debugfs_init - Create the specified debugfs entries
  */
 static int apphint_debugfs_init(const char *sub_dir,
@@ -963,7 +963,7 @@ err_exit:
 	return result;
 }
 
-/**
+/*
  * apphint_debugfs_deinit- destroy the debugfs entries
  */
 static void apphint_debugfs_deinit(unsigned num_entries,
@@ -1074,7 +1074,7 @@ static void apphint_dump_values(const char *group_name,
 	}
 }
 
-/**
+/*
  * Callback for debug dump
  */
 static void apphint_dump_state(PVRSRV_DBGREQ_HANDLE hDebugRequestHandle,

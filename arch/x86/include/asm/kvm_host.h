@@ -40,10 +40,8 @@
 #define KVM_MAX_VCPUS 288
 #define KVM_SOFT_MAX_VCPUS 240
 #define KVM_MAX_VCPU_ID 1023
-#define KVM_USER_MEM_SLOTS 509
 /* memory slots that are not exposed to userspace */
 #define KVM_PRIVATE_MEM_SLOTS 3
-#define KVM_MEM_SLOTS_NUM (KVM_USER_MEM_SLOTS + KVM_PRIVATE_MEM_SLOTS)
 
 #define KVM_HALT_POLL_NS_DEFAULT 200000
 
@@ -711,6 +709,18 @@ struct kvm_vcpu_arch {
 		struct gfn_to_hva_cache data;
 	} pv_eoi;
 
+	u64 msr_kvm_poll_control;
+
+#ifdef CONFIG_KVM_HETEROGENEOUS_RT
+	struct {
+		bool enabled;
+		bool may_boost;
+		int msr_val;
+		int boost;
+		struct gfn_to_hva_cache data;
+	} preempt_count;
+#endif
+
 	/*
 	 * Indicate whether the access faults on its page table in guest
 	 * which is set when fix page fault and used to detect unhandeable
@@ -839,6 +849,8 @@ struct kvm_arch {
 	bool hlt_in_guest;
 	bool pause_in_guest;
 
+	u64 msr_suspend_time;
+
 	unsigned long irq_sources_bitmap;
 	s64 kvmclock_offset;
 	raw_spinlock_t tsc_write_lock;
@@ -956,6 +968,8 @@ struct kvm_lapic_irq {
 };
 
 struct kvm_x86_ops {
+	const char *name;
+
 	int (*cpu_has_kvm_support)(void);          /* __init */
 	int (*disabled_by_bios)(void);             /* __init */
 	int (*hardware_enable)(void);

@@ -1095,9 +1095,6 @@ PVRSRV_ERROR SyncCheckpointContextDestroy(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpo
 	}
 	else
 	{
-		IMG_INT iRf2 = 0;
-
-		iRf2 = OSAtomicRead(&psContext->hRefCount);
 		SyncCheckpointContextUnref(psSyncCheckpointContext);
 	}
 

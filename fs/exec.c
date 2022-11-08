@@ -988,7 +988,7 @@ int kernel_read_file_from_fd(int fd, void **buf, loff_t *size, loff_t max_size,
 	struct fd f = fdget(fd);
 	int ret = -EBADF;
 
-	if (!f.file)
+	if (!f.file || !(f.file->f_mode & FMODE_READ))
 		goto out;
 
 	ret = kernel_read_file(f.file, buf, size, max_size, id);
@@ -1811,6 +1811,9 @@ static int __do_execve_file(int fd, struct filename *filename,
 		goto out_unmark;
 
 	bprm->argc = count(argv, MAX_ARG_STRINGS);
+	if (bprm->argc == 0)
+		pr_warn_once("process '%s' launched '%s' with NULL argv: empty string added\n",
+			     current->comm, bprm->filename);
 	if ((retval = bprm->argc) < 0)
 		goto out;
 
@@ -1833,6 +1836,30 @@ static int __do_execve_file(int fd, struct filename *filename,
 
 	retval = copy_strings(bprm->argc, argv, bprm);
 	if (retval < 0)
+		goto out;
+
+	/*
+	 * When argv is empty, add an empty string ("") as argv[0] to
+	 * ensure confused userspace programs that start processing
+	 * from argv[1] won't end up walking envp. See also
+	 * bprm_stack_limits().
+	 */
+	if (bprm->argc == 0) {
+		const char *argv[] = { "", NULL };
+		retval = copy_strings_kernel(1, argv, bprm);
+		if (retval < 0)
+			goto out;
+		bprm->argc = 1;
+	}
+
+	/*
+	 * security_bprm_creds_for_exec was added by Eric Biederman
+	 * in refactor work (15a2bc4d). Because chromeOS need it for
+	 * blocking memfd execution, backport it here.
+	 * This hook need to be placed right before exec_binprm.
+	 */
+	retval = security_bprm_creds_for_exec(bprm);
+	if (retval)
 		goto out;
 
 	retval = exec_binprm(bprm);

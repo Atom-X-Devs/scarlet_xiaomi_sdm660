@@ -459,7 +459,7 @@ static const struct hantro_ctrl controls[] = {
 	}, {
 		.codec = HANTRO_VP8_DECODER,
 		.cfg = {
-			.id = V4L2_CID_MPEG_VIDEO_VP8_FRAME_HEADER,
+			.id = V4L2_CID_STATELESS_VP8_FRAME,
 		},
 	}, {
 		.codec = HANTRO_H264_DECODER,
@@ -970,7 +970,7 @@ static int hantro_probe(struct platform_device *pdev)
 	ret = clk_bulk_prepare(vpu->variant->num_clocks, vpu->clocks);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to prepare clocks\n");
-		return ret;
+		goto err_pm_disable;
 	}
 
 	ret = v4l2_device_register(&pdev->dev, &vpu->v4l2_dev);
@@ -1034,6 +1034,7 @@ err_v4l2_unreg:
 	v4l2_device_unregister(&vpu->v4l2_dev);
 err_clk_unprepare:
 	clk_bulk_unprepare(vpu->variant->num_clocks, vpu->clocks);
+err_pm_disable:
 	pm_runtime_dont_use_autosuspend(vpu->dev);
 	pm_runtime_disable(vpu->dev);
 	return ret;

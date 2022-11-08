@@ -999,28 +999,6 @@ PVRSRV_ERROR FWCommonContextAllocate(CONNECTION_DATA *psConnection,
 			RFW_FWADDR_FLAG_NONE);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXSetFirmwareAddress:6", fail_fwcommonctxfwaddr);
 
-#if defined(LINUX)
-	{
-		IMG_UINT32 ui32FWAddr;
-		switch (eDM) {
-		case RGXFWIF_DM_GEOM:
-			ui32FWAddr = (IMG_UINT32) ((uintptr_t) IMG_CONTAINER_OF((void *) ((uintptr_t)
-					psServerCommonContext->sFWCommonContextFWAddr.ui32Addr), RGXFWIF_FWRENDERCONTEXT, sTAContext));
-			break;
-		case RGXFWIF_DM_3D:
-			ui32FWAddr = (IMG_UINT32) ((uintptr_t) IMG_CONTAINER_OF((void *) ((uintptr_t)
-					psServerCommonContext->sFWCommonContextFWAddr.ui32Addr), RGXFWIF_FWRENDERCONTEXT, s3DContext));
-			break;
-		default:
-			ui32FWAddr = psServerCommonContext->sFWCommonContextFWAddr.ui32Addr;
-			break;
-		}
-
-		trace_rogue_create_fw_context(OSGetCurrentClientProcessNameKM(),
-				aszCCBRequestors[eRGXCCBRequestor][REQ_PDUMP_COMMENT],
-				ui32FWAddr);
-	}
-#endif
 	/*Add the node to the list when finalised */
 	OSWRLockAcquireWrite(psDevInfo->hCommonCtxtListLock);
 	dllist_add_to_tail(&(psDevInfo->sCommonCtxtListHead), &(psServerCommonContext->sListNode));
@@ -4538,7 +4516,22 @@ PVRSRV_ERROR RGXScheduleCleanupCommand(PVRSRV_RGXDEV_INFO	*psDevInfo,
 											  0,
 											  ui32PDumpFlags,
 											  &ui32kCCBCommandSlot);
-	PVR_LOG_GOTO_IF_ERROR(eError, "RGXScheduleCommandAndGetKCCBSlot", fail_command);
+	if (eError != PVRSRV_OK)
+	{
+		/* If we hit a temporary KCCB exhaustion, return a RETRY to caller */
+		if (eError == PVRSRV_ERROR_KERNEL_CCB_FULL)
+		{
+			eError = PVRSRV_ERROR_RETRY;
+		}
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			        "In %s() failed to schedule cleanup command %d for %d",
+			        __func__, eCleanupType, eDM));
+		}
+
+		goto fail_command;
+	}
 
 	/* Wait for command kCCB slot to be updated by FW */
 	PDUMPCOMMENT("Wait for the firmware to reply to the cleanup command");
