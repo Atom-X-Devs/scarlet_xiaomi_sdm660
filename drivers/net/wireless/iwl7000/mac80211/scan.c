@@ -215,8 +215,7 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 	if (baselen > len)
 		return NULL;
 
-	elems = ieee802_11_parse_elems(elements, len - baselen, false,
-				       mgmt->bssid, cbss->bssid);
+	elems = ieee802_11_parse_elems(elements, len - baselen, false, cbss);
 	if (!elems)
 		return NULL;
 
@@ -227,17 +226,22 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 
 	bss = (void *)cbss->priv;
 	ieee80211_update_bss_from_elems(local, bss, elems, rx_status, beacon);
+	kfree(elems);
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	list_for_each_entry(non_tx_cbss, &cbss->nontrans_list, nontrans_list) {
 		non_tx_bss = (void *)non_tx_cbss->priv;
 
+		elems = ieee802_11_parse_elems(elements, len - baselen, false,
+					       non_tx_cbss);
+		if (!elems)
+			continue;
+
 		ieee80211_update_bss_from_elems(local, non_tx_bss, elems,
 						rx_status, beacon);
+		kfree(elems);
 	}
 #endif
-
-	kfree(elems);
 
 	return bss;
 }
@@ -288,6 +292,16 @@ void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb)
 
 	if (likely(!sdata1 && !sdata2))
 		return;
+
+	if (test_and_clear_bit(SCAN_BEACON_WAIT, &local->scanning)) {
+		/*
+		 * we were passive scanning because of radar/no-IR, but
+		 * the beacon/proberesp rx gives us an opportunity to upgrade
+		 * to active scan
+		 */
+		 set_bit(SCAN_BEACON_DONE, &local->scanning);
+		 ieee80211_queue_delayed_work(&local->hw, &local->scan_work, 0);
+	}
 
 	if (ieee80211_is_probe_resp(mgmt->frame_control)) {
 		struct cfg80211_scan_request *scan_req;
@@ -813,6 +827,8 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 						IEEE80211_CHAN_RADAR)) ||
 		    !req->n_ssids) {
 			next_delay = IEEE80211_PASSIVE_CHANNEL_TIME;
+			if (req->n_ssids)
+				set_bit(SCAN_BEACON_WAIT, &local->scanning);
 		} else {
 			ieee80211_scan_state_send_probe(local, &next_delay);
 			next_delay = IEEE80211_CHANNEL_TIME;
@@ -1031,6 +1047,8 @@ set_channel:
 	    !scan_req->n_ssids) {
 		*next_delay = IEEE80211_PASSIVE_CHANNEL_TIME;
 		local->next_scan_state = SCAN_DECISION;
+		if (scan_req->n_ssids)
+			set_bit(SCAN_BEACON_WAIT, &local->scanning);
 		return;
 	}
 
@@ -1123,6 +1141,8 @@ void ieee80211_scan_work(struct work_struct *work)
 			goto out;
 	}
 
+	clear_bit(SCAN_BEACON_WAIT, &local->scanning);
+
 	/*
 	 * as long as no delay is required advance immediately
 	 * without scheduling a new work
@@ -1132,6 +1152,10 @@ void ieee80211_scan_work(struct work_struct *work)
 			aborted = true;
 			goto out_complete;
 		}
+
+		if (test_and_clear_bit(SCAN_BEACON_DONE, &local->scanning) &&
+		    local->next_scan_state == SCAN_DECISION)
+			local->next_scan_state = SCAN_SEND_PROBE;
 
 		switch (local->next_scan_state) {
 		case SCAN_DECISION:
