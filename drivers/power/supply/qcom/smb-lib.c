@@ -18,11 +18,6 @@
 #include "storm-watch.h"
 #ifdef CONFIG_MACH_LONGCHEER
 #include "fg-core.h"
-
-extern int hwc_check_global;
-#ifdef CONFIG_MACH_XIAOMI_WHYRED
-#define LCT_JEITA_CCC_AUTO_ADJUST
-#endif
 #endif
 
 #ifdef DEBUG
@@ -372,53 +367,6 @@ static int smblib_set_opt_freq_buck(struct smb_charger *chg, int fsw_khz)
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_WHYRED
-/*
- * Jeita CC COMP regiseter is 1092,
- * please refer to qualcom doc:80_P7905_2X ,SCHG_CHGR_JEITA_CCCOMP_CFG
- * qcom,thermal-mitigation = <2500000 2000000 1000000 800000 500000>;
- * jeita current = fcc - JEITA_CC_COMP_CFG_IN_UEFI*1000
- */
-#define JEITA_CC_COMP_CFG_IN_UEFI  1200
-static int smblib_adjust_jeita_cc_config(struct smb_charger *chg,int val_u)
-{
-	int rc = 0;
-	int current_cc_minus_ua = 0;
-
-	pr_err("smblib_adjust_jeita_cc_config fcc val_u  = %d\n", val_u);
-
-	rc = smblib_get_charge_param(chg,&chg->param.jeita_cc_comp,
-			&current_cc_minus_ua);
-	pr_err("lct smblib_adjust_jeita_cc_config jeita cc current_cc_minus_ua = %d\n", current_cc_minus_ua);
-
-	if ((val_u == chg->batt_profile_fcc_ua) &&
-			(current_cc_minus_ua != JEITA_CC_COMP_CFG_IN_UEFI * 1000)) {
-		rc = smblib_set_charge_param(chg, &chg->param.jeita_cc_comp,
-				JEITA_CC_COMP_CFG_IN_UEFI * 1000);
-		pr_err("smblib_adjust_jeita_cc_config jeita cc has changed ,write it back ,write result = %d\n", rc);
-	} else if ((val_u < chg->batt_profile_fcc_ua) &&
-			((chg->batt_profile_fcc_ua - val_u) <= JEITA_CC_COMP_CFG_IN_UEFI * 1000)) {
-		if (current_cc_minus_ua != (JEITA_CC_COMP_CFG_IN_UEFI * 1000 - (chg->batt_profile_fcc_ua - val_u))) {
-			current_cc_minus_ua = JEITA_CC_COMP_CFG_IN_UEFI * 1000 - (chg->batt_profile_fcc_ua - val_u);
-			rc = smblib_set_charge_param(chg,
-					&chg->param.jeita_cc_comp,
-					current_cc_minus_ua);
-			pr_err("smblib_adjust_jeita_cc_config jeita cc need to decrease to %d,write result = %d\n", current_cc_minus_ua,rc);
-		} else {
-			pr_err("smblib_adjust_jeita_cc_config jeita cc have decreased \n");
-		}
-	} else if ((val_u < chg->batt_profile_fcc_ua) &&
-			((chg->batt_profile_fcc_ua - val_u) > JEITA_CC_COMP_CFG_IN_UEFI * 1000)) {
-		rc = smblib_set_charge_param(chg, &chg->param.jeita_cc_comp, 0);
-		pr_err("smblib_adjust_jeita_cc_config jeita need to set to zero,write result = %d\n", rc);
-	} else {
-		pr_err("smblib_adjust_jeita_cc_config do nothing \n");
-	}
-
-	return rc;
-}
-#endif
-
 int smblib_set_charge_param(struct smb_charger *chg,
 			    struct smb_chg_param *param, int val_u)
 {
@@ -445,10 +393,6 @@ int smblib_set_charge_param(struct smb_charger *chg,
 			param->name, val_raw, param->reg, rc);
 		return rc;
 	}
-#ifdef CONFIG_MACH_XIAOMI_WHYRED
-	if (strcmp(param->name,"fast charge current") == 0)
-		smblib_adjust_jeita_cc_config(chg, val_u);
-#endif
 
 	smblib_dbg(chg, PR_REGISTER, "%s = %d (0x%02x)\n",
 		   param->name, val_u, val_raw);
@@ -688,15 +632,12 @@ static const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg)
 		 * detected as as SDP
 		 */
 		if (!(apsd_result->pst == POWER_SUPPLY_TYPE_USB_FLOAT &&
-			chg->real_charger_type == POWER_SUPPLY_TYPE_USB))
-#ifdef CONFIG_MACH_LONGCHEER
-		{
-#endif
+			chg->real_charger_type == POWER_SUPPLY_TYPE_USB)) {
 			chg->real_charger_type = apsd_result->pst;
 #ifdef CONFIG_MACH_LONGCHEER
 			chg->usb_psy_desc.type = apsd_result->pst;
-		}
 #endif
+		}
 	}
 
 	smblib_dbg(chg, PR_MISC, "APSD=%s PD=%d\n",
@@ -1488,9 +1429,7 @@ static int smblib_hvdcp_hw_inov_dis_vote_callback(struct votable *votable,
 	struct smb_charger *chg = data;
 	int rc;
 
-#ifdef CONFIG_MACH_LONGCHEER
-	disable = 0;
-#endif
+#ifndef CONFIG_MACH_LONGCHEER
 	if (disable) {
 		/*
 		 * the pulse count register get zeroed when autonomous mode is
@@ -1503,6 +1442,7 @@ static int smblib_hvdcp_hw_inov_dis_vote_callback(struct votable *votable,
 			return rc;
 		}
 	}
+#endif
 
 	rc = smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG,
 			HVDCP_AUTONOMOUS_MODE_EN_CFG_BIT,
@@ -2215,11 +2155,13 @@ int smblib_get_prop_battery_full_design(struct smb_charger *chg,
 
 	if (!chg->bms_psy)
 		return -EINVAL;
+
 	chip = power_supply_get_drvdata(chg->bms_psy);
 	if (chip->battery_full_design)
 		val->intval = chip->battery_full_design;
 	else
 		val->intval = 4000;
+
 	return 0;
 }
 #endif
@@ -2252,31 +2194,6 @@ int smblib_set_prop_input_suspend(struct smb_charger *chg,
 	return rc;
 }
 
-#ifdef CONFIG_MACH_LONGCHEER
-int lct_set_prop_input_suspend(struct smb_charger *chg,
-			       const union power_supply_propval *val)
-{
-	int rc = 0;
-	union power_supply_propval pval = {0, };
-
-	pr_err("[%s] val=%d\n", __func__, val->intval);
-	if (val->intval) {
-		pval.intval = 0;
-		smblib_set_prop_input_suspend(chg, &pval);
-	} else {
-		pval.intval = 1;
-		chg->pl_psy =  power_supply_get_by_name("parallel");
-		if (chg->pl_psy) {
-			power_supply_set_property(chg->pl_psy,
-					POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
-		}
-		smblib_set_prop_input_suspend(chg, &pval);
-	}
-	power_supply_changed(chg->batt_psy);
-	return rc;
-}
-#endif
-
 int smblib_set_prop_batt_capacity(struct smb_charger *chg,
 				  const union power_supply_propval *val)
 {
@@ -2302,14 +2219,36 @@ int smblib_set_prop_batt_status(struct smb_charger *chg,
 }
 
 #ifdef CONFIG_MACH_LONGCHEER
+int lct_set_prop_input_suspend(struct smb_charger *chg,
+			       const union power_supply_propval *val)
+{
+	int rc = 0;
+	union power_supply_propval pval = {0, };
+
+	pr_err("[%s] val=%d\n", __func__, val->intval);
+	if (val->intval) {
+		pval.intval = 0;
+		smblib_set_prop_input_suspend(chg, &pval);
+	} else {
+		pval.intval = 1;
+		chg->pl_psy =  power_supply_get_by_name("parallel");
+		if (chg->pl_psy)
+			power_supply_set_property(chg->pl_psy,
+					POWER_SUPPLY_PROP_INPUT_SUSPEND, &pval);
+		smblib_set_prop_input_suspend(chg, &pval);
+	}
+	power_supply_changed(chg->batt_psy);
+	return rc;
+}
+
 extern union power_supply_propval lct_therm_lvl_reserved;
+extern bool is_global_version;
 extern bool lct_backlight_off;
 extern int LctIsInCall;
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
 extern int LctIsInVideo;
 #endif
 extern int LctThermal;
-extern int hwc_check_india;
 #endif
 
 int smblib_set_prop_system_temp_level(struct smb_charger *chg,
@@ -2325,8 +2264,8 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 		return -EINVAL;
 
 #ifdef CONFIG_MACH_LONGCHEER
-	pr_debug("smblib_set_prop_system_temp_level val=%d, chg->system_temp_level=%d, LctThermal=%d, lct_backlight_off= %d, IsInCall=%d, hwc_check_india=%d\n ",
-		val->intval,chg->system_temp_level, LctThermal, lct_backlight_off, LctIsInCall, hwc_check_india);
+	pr_debug("smblib_set_prop_system_temp_level val=%d, chg->system_temp_level=%d, LctThermal=%d, lct_backlight_off= %d, IsInCall=%d, is_global_version=%d\n",
+		val->intval,chg->system_temp_level, LctThermal, lct_backlight_off, LctIsInCall, is_global_version);
 
 	if (LctThermal == 0)
 #if defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
@@ -2334,7 +2273,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 #endif
 		lct_therm_lvl_reserved.intval = val->intval;
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-		if (hwc_check_india) {
+		if (is_global_version) {
 			if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > 2))
 				return 0;
 		} else {
@@ -2356,7 +2295,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 		return 0;
 #endif
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
-	if ((LctIsInVideo == 1) && (val->intval != 6) && (lct_backlight_off == 0) && (hwc_check_india == 1))
+	if ((LctIsInVideo == 1) && (val->intval != 6) && (lct_backlight_off == 0) && (is_global_version == false))
 		return 0;
 #endif
 	if (val->intval == chg->system_temp_level)
@@ -2369,14 +2308,14 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	if ((lct_backlight_off == 0) && (chg->system_temp_level <= 1))
 		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-	else if ((hwc_check_india == 0) && (chg->system_temp_level <= 2))
+	else if ((is_global_version == true) && (chg->system_temp_level <= 2))
 		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
 	else if (chg->system_temp_level <= 2)
 		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
 #endif
 	else
-	vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,
+		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,
 			chg->system_temp_level ? true : false, 0);
 #endif
 
@@ -2760,9 +2699,7 @@ int smblib_get_prop_usb_voltage_now(struct smb_charger *chg,
 				    union power_supply_propval *val)
 {
 #ifdef CONFIG_MACH_LONGCHEER
-	int rc = 0;
-
-	rc = smblib_get_prop_usb_present(chg, val);
+	int rc = smblib_get_prop_usb_present(chg, val);
 	if (rc < 0 || !val->intval)
 		return rc;
 #endif
@@ -4366,10 +4303,7 @@ static void smblib_force_legacy_icl(struct smb_charger *chg, int pst)
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 2000000);
 #elif defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
 		vote(chg->usb_icl_votable, USER_VOTER, false, 0);
-		if (hwc_check_global)
-			vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 2900000);
-		else
-			vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 3300000);
+		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 3300000);
 #else
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, 3000000);
 #endif

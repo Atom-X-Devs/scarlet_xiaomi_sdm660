@@ -610,9 +610,9 @@ update_time:
 
 #define JEITA_SUSPEND_HYST_UV		50000
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
+extern bool is_global_version;
 extern union power_supply_propval lct_therm_lvl_reserved;
 extern int LctIsInVideo;
-extern int hwc_check_india;
 union power_supply_propval lct_therm_video_level = {6,};
 #endif
 static int handle_jeita(struct step_chg_info *chip)
@@ -625,7 +625,7 @@ static int handle_jeita(struct step_chg_info *chip)
 #endif
 
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
-	if (hwc_check_india) {
+	if (is_global_version) {
 		pr_debug("lct video LctIsInVideo=%d, lct_therm_lvl_reserved=%d\n",
 				LctIsInVideo, lct_therm_lvl_reserved.intval);
 		if (LctIsInVideo)
