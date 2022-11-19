@@ -48,7 +48,7 @@
 #define FCC_VOTER			"FCC_VOTER"
 #define MAIN_FCC_VOTER			"MAIN_FCC_VOTER"
 #define PD_VOTER			"PD_VOTER"
-#ifdef CONFIG_MACH_LONGCHEER
+#ifdef CONFIG_MACH_XIAOMI_TULIP
 #define PL_TEMP_VOTER			"PL_TEMP_VOTER"
 #endif
 
@@ -1305,6 +1305,11 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 
 #define ICL_STEP_UA	25000
 #define PL_DELAY_MS     3000
+#ifdef CONFIG_MACH_LONGCHEER
+#define ICL_MAX_UA	1300000
+#else
+#define ICL_MAX_UA	1400000
+#endif
 static int usb_icl_vote_callback(struct votable *votable, void *data,
 			int icl_ua, const char *client)
 {
@@ -1327,7 +1332,7 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	vote(chip->pl_disable_votable, ICL_CHANGE_VOTER, true, 0);
 
 	/*
-	 * if (ICL < 1400)
+	 * if (ICL < ICL_MAX_UA)
 	 *	disable parallel charger using USBIN_I_VOTER
 	 * else
 	 *	instead of re-enabling here rely on status_changed_work
@@ -1335,11 +1340,7 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	 *	unvote USBIN_I_VOTER) the status_changed_work enables
 	 *	USBIN_I_VOTER based on settled current.
 	 */
-#ifdef CONFIG_MACH_LONGCHEER
-	if (icl_ua <= 1300000)
-#else
-	if (icl_ua <= 1400000)
-#endif
+	if (icl_ua <= ICL_MAX_UA)
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		queue_delayed_work(system_power_efficient_wq, &chip->status_change_work,
@@ -1824,10 +1825,10 @@ static void handle_settled_icl_change(struct pl_data *chip)
 		}
 		battery_temp = lct_pval.intval;
 		pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d , battery_temp=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua, battery_temp);
-		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
+		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < ICL_MAX_UA)
 				|| (main_settled_ua == 0)
 				|| ((total_current_ua >= 0) &&
-				(total_current_ua <= 1300000))){
+				(total_current_ua <= ICL_MAX_UA))){
 			pr_debug("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
 			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 			vote(chip->pl_disable_votable, PL_TEMP_VOTER, true, 0);
@@ -1842,10 +1843,10 @@ static void handle_settled_icl_change(struct pl_data *chip)
 		}
 	} else {
 		pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
-		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
+		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < ICL_MAX_UA)
 				|| (main_settled_ua == 0)
 				|| ((total_current_ua >= 0) &&
-				(total_current_ua <= 1300000))){
+				(total_current_ua <= ICL_MAX_UA))){
 			pr_debug("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
 			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 		} else
@@ -1853,18 +1854,10 @@ static void handle_settled_icl_change(struct pl_data *chip)
 	}
 #else
 	pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
-#ifdef CONFIG_MACH_LONGCHEER
-	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1300000)
-#else
-	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1400000)
-#endif
+	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < ICL_MAX_UA)
 			|| (main_settled_ua == 0)
 			|| ((total_current_ua >= 0) &&
-#ifdef CONFIG_MACH_LONGCHEER
-				(total_current_ua <= 1300000)))
-#else
-				(total_current_ua <= 1400000)))
-#endif
+				(total_current_ua <= ICL_MAX_UA)))
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);

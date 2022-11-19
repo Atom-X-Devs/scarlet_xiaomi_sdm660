@@ -512,13 +512,8 @@ static DEVICE_ATTR_RW(sram_dump_period_ms);
 
 static int fg_restart_mp;
 static bool fg_sram_dump;
-#ifdef CONFIG_MACH_LONGCHEER
-int hwc_check_india;
-int hwc_check_global;
-extern bool is_poweroff_charge;
 #ifdef CONFIG_MACH_XIAOMI_TULIP
 extern int rradc_die;
-#endif
 #endif
 
 /* All getters HERE */
@@ -631,49 +626,49 @@ static int fg_get_battery_temp(struct fg_dev *fg, int *val)
 #ifdef CONFIG_MACH_XIAOMI_TULIP
 	if (temp < -40) {
 		switch (temp) {
-			case -50:
-				temp = -70;
-				break;
-			case -60:
-				temp = -80;
-				break;
-			case -70:
-				temp = -90;
-				break;
-			case -80:
-				temp = -100;
-				break;
+		case -50:
+			temp = -70;
+			break;
+		case -60:
+			temp = -80;
+			break;
+		case -70:
+			temp = -90;
+			break;
+		case -80:
+			temp = -100;
+			break;
 #else
 	if (temp < -80) {
 		switch (temp) {
 #endif
-			case -90:
-				temp = -110;
-				break;
-			case -100:
-				temp = -120;
-				break;
-			case -110:
-				temp = -130;
-				break;
-			case -120:
-				temp = -150;
-				break;
-			case -130:
-				temp = -170;
-				break;
-			case -140:
-				temp = -190;
-				break;
-			case -150:
-				temp = -200;
-				break;
-			case -160:
-				temp = -210;
-				break;
-			default:
-				temp -= 50;
-				break;
+		case -90:
+			temp = -110;
+			break;
+		case -100:
+			temp = -120;
+			break;
+		case -110:
+			temp = -130;
+			break;
+		case -120:
+			temp = -150;
+			break;
+		case -130:
+			temp = -170;
+			break;
+		case -140:
+			temp = -190;
+			break;
+		case -150:
+			temp = -200;
+			break;
+		case -160:
+			temp = -210;
+			break;
+		default:
+			temp -= 50;
+			break;
 		};
 	}
 
@@ -874,22 +869,6 @@ out:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_LONGCHEER
-static int __init hwc_setup(char *s)
-{
-	if (strcmp(s, "India") == 0)
-		hwc_check_india = 1;
-	else
-		hwc_check_india = 0;
-	if (strcmp(s, "Global") == 0)
-		hwc_check_global = 1;
-	else
-		hwc_check_global = 0;
-	return 1;
-}
-__setup("androidboot.hwc=", hwc_setup);
-#endif
-
 static int fg_get_batt_profile(struct fg_dev *fg)
 {
 	struct fg_gen3_chip *chip = container_of(fg, struct fg_gen3_chip, fg);
@@ -934,20 +913,6 @@ static int fg_get_batt_profile(struct fg_dev *fg)
 		pr_err("battery fastchg current unavailable, rc:%d\n", rc);
 		fg->bp.fastchg_curr_ma = -EINVAL;
 	}
-
-#ifdef CONFIG_MACH_LONGCHEER
-	if (hwc_check_global)
-		fg->bp.fastchg_curr_ma = 2900;
-#ifdef CONFIG_MACH_XIAOMI_TULIP
-	else
-		if (is_poweroff_charge) {
-			if (hwc_check_india)
-				fg->bp.fastchg_curr_ma = 2200;
-			else
-				fg->bp.fastchg_curr_ma = 2300;
-		}
-#endif
-#endif
 
 	rc = of_property_read_u32(profile_node, "qcom,fg-cc-cv-threshold-mv",
 			&fg->bp.vbatt_full_mv);
@@ -1965,19 +1930,15 @@ static int fg_adjust_recharge_voltage(struct fg_dev *fg)
 
 	/* Lower the recharge voltage in soft JEITA */
 #ifdef CONFIG_MACH_LONGCHEER
-#if defined(CONFIG_MACH_XIAOMI_WHYRED)
 	if (fg->health == POWER_SUPPLY_HEALTH_WARM)
 		recharge_volt_mv = 4050;
+#if defined(CONFIG_MACH_XIAOMI_WHYRED)
 	if (fg->health == POWER_SUPPLY_HEALTH_COOL)
 		recharge_volt_mv = 4282;
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
-	if (fg->health == POWER_SUPPLY_HEALTH_WARM)
-		recharge_volt_mv = 4050;
 	if (fg->health == POWER_SUPPLY_HEALTH_COOL)
 		recharge_volt_mv = 4250;
 #else
-	if (fg->health == POWER_SUPPLY_HEALTH_WARM)
-		recharge_volt_mv = 4050;
 	if (fg->health == POWER_SUPPLY_HEALTH_COOL)
 		recharge_volt_mv = 4280;
 #endif
@@ -2772,9 +2733,9 @@ static void status_change_work(struct work_struct *work)
 	fg_cap_learning_update(fg);
 
 #if defined(CONFIG_MACH_XIAOMI_LAVENDER) || defined(CONFIG_MACH_XIAOMI_WAYNE)
-	if (fg->charge_done && !fg->report_full) {
+	if (fg->charge_done && !fg->report_full)
 		fg->report_full = true;
-	} else if (!fg->charge_done && fg->report_full) {
+	else if (!fg->charge_done && fg->report_full) {
 		rc = fg_get_msoc_raw(fg, &msoc);
 		if (rc < 0)
 			pr_err("Error in getting msoc, rc=%d\n", rc);

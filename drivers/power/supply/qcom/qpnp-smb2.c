@@ -39,15 +39,13 @@ union power_supply_propval lct_therm_globe_level = {2,};
 union power_supply_propval lct_therm_india_level = {1,};
 #endif
 
+extern bool is_global_version;
 bool lct_backlight_off;
 int LctIsInCall = 0;
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
 int LctIsInVideo = 0;
 #endif
 int LctThermal = 0;
-extern int hwc_check_india;
-extern int hwc_check_global;
-extern bool is_poweroff_charge;
 #endif
 
 #define SMB2_DEFAULT_WPWR_UW	8000000
@@ -318,19 +316,6 @@ static int smb2_parse_dt(struct smb2 *chip)
 				"qcom,fcc-max-ua", &chg->batt_profile_fcc_ua);
 	if (rc < 0)
 		chg->batt_profile_fcc_ua = -EINVAL;
-#ifdef CONFIG_MACH_LONGCHEER
-	if (hwc_check_global) {
-		chg->batt_profile_fcc_ua = 2900000;
-#ifdef CONFIG_MACH_XIAOMI_TULIP
-		if (is_poweroff_charge) {
-			if (hwc_check_india)
-				chg->batt_profile_fcc_ua = 2200000;
-			else
-				chg->batt_profile_fcc_ua = 2300000;
-		}
-#endif
-	}
-#endif
 
 	rc = of_property_read_u32(node,
 				"qcom,fv-max-uv", &chg->batt_profile_fv_uv);
@@ -502,9 +487,6 @@ static int smb2_usb_get_prop(struct power_supply *psy,
 			val->intval = 0;
 		else
 			val->intval = 1;
-#ifdef CONFIG_MACH_LONGCHEER
-		if (is_poweroff_charge != false)
-#endif
 		if (chg->real_charger_type == POWER_SUPPLY_TYPE_UNKNOWN)
 			val->intval = 0;
 		break;
@@ -1776,9 +1758,6 @@ static int smb2_init_hw(struct smb2 *chip)
 		return rc;
 	}
 
-#ifdef CONFIG_MACH_LONGCHEER
-	if ((is_poweroff_charge == false) && (stat != 0x01))
-#endif
 	smblib_rerun_apsd_if_required(chg);
 
 	/* clear the ICL override if it is set */
@@ -2650,7 +2629,7 @@ static void thermal_fb_notifier_resume_work(struct work_struct *work)
 	LctThermal = 1;
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
 	if ((lct_backlight_off) && (LctIsInCall == 0)) {
-		if (hwc_check_india) {
+		if (is_global_version) {
 			if (lct_therm_lvl_reserved.intval >= 2)
 				smblib_set_prop_system_temp_level(chg,
 						&lct_therm_india_level);
