@@ -101,7 +101,6 @@ obj-$(CONFIG_DRM_STM) += stm/
 obj-$(CONFIG_DRM_STI) += sti/
 obj-$(CONFIG_DRM_IMX) += imx/
 obj-$(CONFIG_DRM_MEDIATEK) += mediatek/
-obj-$(CONFIG_DRM_POWERVR_ROGUE_1_13) += img-rogue/1.13/
 obj-$(CONFIG_DRM_POWERVR_ROGUE_1_17) += img-rogue/1.17/
 obj-$(CONFIG_DRM_MESON)	+= meson/
 obj-y			+= i2c/
