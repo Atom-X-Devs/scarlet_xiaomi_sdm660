@@ -717,7 +717,7 @@ static int cpuidle_latency_notify(struct notifier_block *b,
 	unsigned long cpus = atomic_read(&idled) & *cpumask_bits(to_cpumask(v));
 
 	if (cpus)
-		smp_send_ipi(to_cpumask(&cpus));
+		arch_send_wakeup_ipi_mask(to_cpumask(&cpus));
 
 	return NOTIFY_OK;
 }
