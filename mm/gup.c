@@ -510,12 +510,12 @@ unmap:
 }
 
 /*
- * mmap_sem must be held on entry.  If @locked != NULL and *@flags
- * does not include FOLL_NOWAIT, the mmap_sem may be released.  If it
- * is, *@locked will be set to 0 and -EBUSY returned.
+ * mmap_sem must be held on entry.  If @nonblocking != NULL and
+ * *@flags does not include FOLL_NOWAIT, the mmap_sem may be released.
+ * If it is, *@nonblocking will be set to 0 and -EBUSY returned.
  */
-static int faultin_page(struct vm_area_struct *vma,
-		unsigned long address, unsigned int *flags, int *locked)
+static int faultin_page(struct task_struct *tsk, struct vm_area_struct *vma,
+		unsigned long address, unsigned int *flags, int *nonblocking)
 {
 	unsigned int fault_flags = 0;
 	vm_fault_t ret;
@@ -527,19 +527,16 @@ static int faultin_page(struct vm_area_struct *vma,
 		fault_flags |= FAULT_FLAG_WRITE;
 	if (*flags & FOLL_REMOTE)
 		fault_flags |= FAULT_FLAG_REMOTE;
-	if (locked)
-		fault_flags |= FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
+	if (nonblocking)
+		fault_flags |= FAULT_FLAG_ALLOW_RETRY;
 	if (*flags & FOLL_NOWAIT)
 		fault_flags |= FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_RETRY_NOWAIT;
 	if (*flags & FOLL_TRIED) {
-		/*
-		 * Note: FAULT_FLAG_ALLOW_RETRY and FAULT_FLAG_TRIED
-		 * can co-exist
-		 */
+		VM_WARN_ON_ONCE(fault_flags & FAULT_FLAG_ALLOW_RETRY);
 		fault_flags |= FAULT_FLAG_TRIED;
 	}
 
-	ret = handle_mm_fault(vma, address, fault_flags, NULL);
+	ret = handle_mm_fault(vma, address, fault_flags);
 	if (ret & VM_FAULT_ERROR) {
 		int err = vm_fault_to_errno(ret, *flags);
 
@@ -548,9 +545,16 @@ static int faultin_page(struct vm_area_struct *vma,
 		BUG();
 	}
 
+	if (tsk) {
+		if (ret & VM_FAULT_MAJOR)
+			tsk->maj_flt++;
+		else
+			tsk->min_flt++;
+	}
+
 	if (ret & VM_FAULT_RETRY) {
-		if (locked && !(fault_flags & FAULT_FLAG_RETRY_NOWAIT))
-			*locked = 0;
+		if (nonblocking && !(fault_flags & FAULT_FLAG_RETRY_NOWAIT))
+			*nonblocking = 0;
 		return -EBUSY;
 	}
 
@@ -617,6 +621,7 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
 
 /**
  * __get_user_pages() - pin user pages in memory
+ * @tsk:	task_struct of target task
  * @mm:		mm_struct of target mm
  * @start:	starting user address
  * @nr_pages:	number of pages from start to pin
@@ -626,20 +631,13 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
  *		only intends to ensure the pages are faulted in.
  * @vmas:	array of pointers to vmas corresponding to each page.
  *		Or NULL if the caller does not require them.
- * @locked:     whether we're still with the mmap_sem held
+ * @nonblocking: whether waiting for disk IO or mmap_sem contention
  *
- * Returns either number of pages pinned (which may be less than the
- * number requested), or an error. Details about the return value:
- *
- * -- If nr_pages is 0, returns 0.
- * -- If nr_pages is >0, but no pages were pinned, returns -errno.
- * -- If nr_pages is >0, and some pages were pinned, returns the number of
- *    pages pinned. Again, this may be less than nr_pages.
- * -- 0 return value is possible when the fault would need to be retried.
- *
- * The caller is responsible for releasing returned @pages, via put_page().
- *
- * @vmas are valid only as long as mmap_sem is held.
+ * Returns number of pages pinned. This may be fewer than the number
+ * requested. If nr_pages is 0 or negative, returns 0. If no pages
+ * were pinned, returns -errno. Each page returned must be released
+ * with a put_page() call when it is finished with. vmas will only
+ * remain valid while mmap_sem is held.
  *
  * Must be called with mmap_sem held.  It may be released.  See below.
  *
@@ -662,11 +660,13 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
  * appropriate) must be called after the page is finished with, and
  * before put_page is called.
  *
- * If @locked != NULL, *@locked will be set to 0 when mmap_sem is
- * released by an up_read().  That can happen if @gup_flags does not
- * have FOLL_NOWAIT.
+ * If @nonblocking != NULL, __get_user_pages will not wait for disk IO
+ * or mmap_sem contention, and if waiting is needed to pin all pages,
+ * *@nonblocking will be set to 0.  Further, if @gup_flags does not
+ * include FOLL_NOWAIT, the mmap_sem will be released via up_read() in
+ * this case.
  *
- * A caller using such a combination of @locked and @gup_flags
+ * A caller using such a combination of @nonblocking and @gup_flags
  * must therefore hold the mmap_sem for reading only, and recognize
  * when it's been released.  Otherwise, it must be held for either
  * reading or writing and will not be released.
@@ -675,13 +675,12 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
  * instead of __get_user_pages. __get_user_pages should be used only if
  * you need some special @gup_flags.
  */
-static long __get_user_pages(struct mm_struct *mm,
+static long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
-		struct vm_area_struct **vmas, int *locked)
+		struct vm_area_struct **vmas, int *nonblocking)
 {
 	long i = 0;
-	int ret;
 	unsigned int page_mask;
 	struct vm_area_struct *vma = NULL;
 
@@ -709,6 +708,7 @@ static long __get_user_pages(struct mm_struct *mm,
 		if (!vma || start >= vma->vm_end) {
 			vma = find_extend_vma(mm, start);
 			if (!vma && in_gate_area(mm, start)) {
+				int ret;
 				ret = get_gate_page(mm, start & PAGE_MASK,
 						gup_flags, &vma,
 						pages ? &pages[i] : NULL);
@@ -725,17 +725,7 @@ static long __get_user_pages(struct mm_struct *mm,
 					foll_flags |= FOLL_WRITE;
 				i = follow_hugetlb_page(mm, vma, pages, vmas,
 						&start, &nr_pages, i,
-						foll_flags, locked);
-				if (locked && *locked == 0) {
-					/*
-					 * We've got a VM_FAULT_RETRY
-					 * and we've lost mmap_sem.
-					 * We must stop here.
-					 */
-					BUG_ON(gup_flags & FOLL_NOWAIT);
-					BUG_ON(ret != 0);
-					return i ? : ret;
-				}
+						foll_flags, nonblocking);
 				continue;
 			}
 		}
@@ -754,8 +744,8 @@ retry:
 		page = follow_page_mask(vma, start, foll_flags, &page_mask);
 		if (!page) {
 			int ret;
-			ret = faultin_page(vma, start, &foll_flags,
-					   locked);
+			ret = faultin_page(tsk, vma, start, &foll_flags,
+					nonblocking);
 			switch (ret) {
 			case 0:
 				goto retry;
@@ -824,6 +814,8 @@ static bool vma_permits_fault(struct vm_area_struct *vma,
 
 /*
  * fixup_user_fault() - manually resolve a user page fault
+ * @tsk:	the task_struct to use for page fault accounting, or
+ *		NULL if faults are not to be recorded.
  * @mm:		mm_struct of target mm
  * @address:	user address
  * @fault_flags:flags to pass down to handle_mm_fault()
@@ -850,7 +842,7 @@ static bool vma_permits_fault(struct vm_area_struct *vma,
  * This function will not return with an unlocked mmap_sem. So it has not the
  * same semantics wrt the @mm->mmap_sem as does filemap_fault().
  */
-int fixup_user_fault(struct mm_struct *mm,
+int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long address, unsigned int fault_flags,
 		     bool *unlocked)
 {
@@ -860,7 +852,7 @@ int fixup_user_fault(struct mm_struct *mm,
 	address = untagged_addr(address);
 
 	if (unlocked)
-		fault_flags |= FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
+		fault_flags |= FAULT_FLAG_ALLOW_RETRY;
 
 retry:
 	vma = find_extend_vma(mm, address);
@@ -870,11 +862,7 @@ retry:
 	if (!vma_permits_fault(vma, fault_flags))
 		return -EFAULT;
 
-	if ((fault_flags & FAULT_FLAG_KILLABLE) &&
-	    fatal_signal_pending(current))
-		return -EINTR;
-
-	ret = handle_mm_fault(vma, address, fault_flags, NULL);
+	ret = handle_mm_fault(vma, address, fault_flags);
 	major |= ret & VM_FAULT_MAJOR;
 	if (ret & VM_FAULT_ERROR) {
 		int err = vm_fault_to_errno(ret, 0);
@@ -886,20 +874,26 @@ retry:
 
 	if (ret & VM_FAULT_RETRY) {
 		down_read(&mm->mmap_sem);
-		*unlocked = true;
-		fault_flags |= FAULT_FLAG_TRIED;
-		goto retry;
+		if (!(fault_flags & FAULT_FLAG_TRIED)) {
+			*unlocked = true;
+			fault_flags &= ~FAULT_FLAG_ALLOW_RETRY;
+			fault_flags |= FAULT_FLAG_TRIED;
+			goto retry;
+		}
 	}
 
+	if (tsk) {
+		if (major)
+			tsk->maj_flt++;
+		else
+			tsk->min_flt++;
+	}
 	return 0;
 }
 EXPORT_SYMBOL_GPL(fixup_user_fault);
 
-/*
- * Please note that this function, unlike __get_user_pages will not
- * return 0 for nr_pages > 0 without FOLL_NOWAIT
- */
-static __always_inline long __get_user_pages_locked(struct mm_struct *mm,
+static __always_inline long __get_user_pages_locked(struct task_struct *tsk,
+						struct mm_struct *mm,
 						unsigned long start,
 						unsigned long nr_pages,
 						struct page **pages,
@@ -923,7 +917,7 @@ static __always_inline long __get_user_pages_locked(struct mm_struct *mm,
 	pages_done = 0;
 	lock_dropped = false;
 	for (;;) {
-		ret = __get_user_pages(mm, start, nr_pages, flags, pages,
+		ret = __get_user_pages(tsk, mm, start, nr_pages, flags, pages,
 				       vmas, locked);
 		if (!locked)
 			/* VM_FAULT_RETRY couldn't trigger, bypass */
@@ -957,39 +951,17 @@ static __always_inline long __get_user_pages_locked(struct mm_struct *mm,
 		/* VM_FAULT_RETRY triggered, so seek to the faulting offset */
 		pages += ret;
 		start += ret << PAGE_SHIFT;
-		lock_dropped = true;
 
-retry:
 		/*
 		 * Repeat on the address that fired VM_FAULT_RETRY
-		 * with both FAULT_FLAG_ALLOW_RETRY and
-		 * FAULT_FLAG_TRIED.  Note that GUP can be interrupted
-		 * by fatal signals, so we need to check it before we
-		 * start trying again otherwise it can loop forever.
+		 * without FAULT_FLAG_ALLOW_RETRY but with
+		 * FAULT_FLAG_TRIED.
 		 */
-
-		if (fatal_signal_pending(current)) {
-			if (!pages_done)
-				pages_done = -EINTR;
-			break;
-		}
-
-		ret = down_read_killable(&mm->mmap_sem);
-		if (ret) {
-			BUG_ON(ret > 0);
-			if (!pages_done)
-				pages_done = ret;
-			break;
-		}
-
 		*locked = 1;
-		ret = __get_user_pages(mm, start, 1, flags | FOLL_TRIED,
-				       pages, NULL, locked);
-		if (!*locked) {
-			/* Continue to retry until we succeeded */
-			BUG_ON(ret != 0);
-			goto retry;
-		}
+		lock_dropped = true;
+		down_read(&mm->mmap_sem);
+		ret = __get_user_pages(tsk, mm, start, 1, flags | FOLL_TRIED,
+				       pages, NULL, NULL);
 		if (ret != 1) {
 			BUG_ON(ret > 1);
 			if (!pages_done)
@@ -1039,7 +1011,7 @@ long get_user_pages_locked(unsigned long start, unsigned long nr_pages,
 			   unsigned int gup_flags, struct page **pages,
 			   int *locked)
 {
-	return __get_user_pages_locked(current->mm, start, nr_pages,
+	return __get_user_pages_locked(current, current->mm, start, nr_pages,
 				       pages, NULL, locked,
 				       gup_flags | FOLL_TOUCH);
 }
@@ -1068,7 +1040,7 @@ long get_user_pages_unlocked(unsigned long start, unsigned long nr_pages,
 	long ret;
 
 	down_read(&mm->mmap_sem);
-	ret = __get_user_pages_locked(mm, start, nr_pages, pages, NULL,
+	ret = __get_user_pages_locked(current, mm, start, nr_pages, pages, NULL,
 				      &locked, gup_flags | FOLL_TOUCH);
 	if (locked)
 		up_read(&mm->mmap_sem);
@@ -1132,12 +1104,12 @@ EXPORT_SYMBOL(get_user_pages_unlocked);
  * should use get_user_pages because it cannot pass
  * FAULT_FLAG_ALLOW_RETRY to handle_mm_fault.
  */
-long get_user_pages_remote(struct mm_struct *mm,
+long get_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
 		struct vm_area_struct **vmas, int *locked)
 {
-	return __get_user_pages_locked(mm, start, nr_pages, pages, vmas,
+	return __get_user_pages_locked(tsk, mm, start, nr_pages, pages, vmas,
 				       locked,
 				       gup_flags | FOLL_TOUCH | FOLL_REMOTE);
 }
@@ -1154,7 +1126,7 @@ long get_user_pages(unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
 		struct vm_area_struct **vmas)
 {
-	return __get_user_pages_locked(current->mm, start, nr_pages,
+	return __get_user_pages_locked(current, current->mm, start, nr_pages,
 				       pages, vmas, NULL,
 				       gup_flags | FOLL_TOUCH);
 }
@@ -1229,7 +1201,7 @@ EXPORT_SYMBOL(get_user_pages_longterm);
  * @vma:   target vma
  * @start: start address
  * @end:   end address
- * @locked: whether the mmap_sem is still held
+ * @nonblocking:
  *
  * This takes care of mlocking the pages too if VM_LOCKED is set.
  *
@@ -1237,14 +1209,14 @@ EXPORT_SYMBOL(get_user_pages_longterm);
  *
  * vma->vm_mm->mmap_sem must be held.
  *
- * If @locked is NULL, it may be held for read or write and will
+ * If @nonblocking is NULL, it may be held for read or write and will
  * be unperturbed.
  *
- * If @locked is non-NULL, it must held for read only and may be
- * released.  If it's released, *@locked will be set to 0.
+ * If @nonblocking is non-NULL, it must held for read only and may be
+ * released.  If it's released, *@nonblocking will be set to 0.
  */
 long populate_vma_page_range(struct vm_area_struct *vma,
-		unsigned long start, unsigned long end, int *locked)
+		unsigned long start, unsigned long end, int *nonblocking)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long nr_pages = (end - start) / PAGE_SIZE;
@@ -1278,8 +1250,8 @@ long populate_vma_page_range(struct vm_area_struct *vma,
 	 * We made sure addr is within a VMA, so the following will
 	 * not result in a stack expansion that recurses back here.
 	 */
-	return __get_user_pages(mm, start, nr_pages, gup_flags,
-				NULL, NULL, locked);
+	return __get_user_pages(current, mm, start, nr_pages, gup_flags,
+				NULL, NULL, nonblocking);
 }
 
 /*
@@ -1362,7 +1334,7 @@ struct page *get_dump_page(unsigned long addr)
 	struct vm_area_struct *vma;
 	struct page *page;
 
-	if (__get_user_pages(current->mm, addr, 1,
+	if (__get_user_pages(current, current->mm, addr, 1,
 			     FOLL_FORCE | FOLL_DUMP | FOLL_GET, &page, &vma,
 			     NULL) < 1)
 		return NULL;
@@ -1966,6 +1938,5 @@ int get_user_pages_fast(unsigned long start, int nr_pages, int write,
 
 	return ret;
 }
-
 
 #endif /* CONFIG_HAVE_GENERIC_GUP */

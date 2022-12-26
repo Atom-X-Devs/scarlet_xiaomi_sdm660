@@ -543,7 +543,7 @@ good_area:
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault.
 	 */
-	fault = handle_mm_fault(vma, address, flags, NULL);
+	fault = handle_mm_fault(vma, address, flags);
 
 #ifdef CONFIG_PPC_MEM_KEYS
 	/*
@@ -567,7 +567,13 @@ good_area:
 	 * case.
 	 */
 	if (unlikely(fault & VM_FAULT_RETRY)) {
+		/* We retry only once */
 		if (flags & FAULT_FLAG_ALLOW_RETRY) {
+			/*
+			 * Clear FAULT_FLAG_ALLOW_RETRY to avoid any risk
+			 * of starvation.
+			 */
+			flags &= ~FAULT_FLAG_ALLOW_RETRY;
 			flags |= FAULT_FLAG_TRIED;
 			if (!fatal_signal_pending(current))
 				goto retry;
