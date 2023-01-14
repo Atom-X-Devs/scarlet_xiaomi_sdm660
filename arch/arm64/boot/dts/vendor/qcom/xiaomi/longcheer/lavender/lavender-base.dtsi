@@ -20,7 +20,7 @@
 	qcom,dc-icl-ua = <2900000>;
 	qcom,fcc-max-ua = <2900000>;
 	qcom,fv-max-uv = <4400000>;
-	qcom,thermal-mitigation = <2900000 2400000 2000000 1500000 800000 500000 100000>;
+	qcom,thermal-mitigation = <3000000 2700000 2300000 1800000 1500000 1000000 500000>;
 };
 
 &pm660_fg {
