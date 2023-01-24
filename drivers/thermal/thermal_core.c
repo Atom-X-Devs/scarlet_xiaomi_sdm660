@@ -1688,17 +1688,14 @@ static struct notifier_block thermal_pm_nb = {
 };
 
 #ifdef CONFIG_MACH_LONGCHEER
-static ssize_t
-thermal_sconfig_show(struct device *dev,
-				      struct device_attribute *attr, char *buf)
+static ssize_t sconfig_show(struct device *dev, struct device_attribute *attr,
+			    char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&switch_mode));
 }
 
-
-static ssize_t
-thermal_sconfig_store(struct device *dev,
-				      struct device_attribute *attr, const char *buf, size_t len)
+static ssize_t sconfig_store(struct device *dev, struct device_attribute *attr,
+			     const char *buf, size_t len)
 {
 	int val = -1;
 
@@ -1709,38 +1706,34 @@ thermal_sconfig_store(struct device *dev,
 	return len;
 }
 
-static DEVICE_ATTR(sconfig, 0664,
-		   thermal_sconfig_show, thermal_sconfig_store);
+static DEVICE_ATTR_RW(sconfig);
 
-static ssize_t
-thermal_boost_show(struct device *dev,
-				      struct device_attribute *attr, char *buf)
+static ssize_t boost_show(struct device *dev, struct device_attribute *attr,
+			  char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, boost_buf);
 }
 
-static ssize_t
-thermal_boost_store(struct device *dev,
-				      struct device_attribute *attr, const char *buf, size_t len)
+static ssize_t boost_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t len)
 {
 	int ret;
+
 	ret = snprintf(boost_buf, sizeof(boost_buf), buf);
 	return len;
 }
 
-static DEVICE_ATTR(boost, 0644,
-		   thermal_boost_show, thermal_boost_store);
+static DEVICE_ATTR_RW(boost);
 
-static ssize_t
-thermal_temp_state_show(struct device *dev,
-				      struct device_attribute *attr, char *buf)
+static ssize_t temp_state_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&temp_state));
 }
 
-static ssize_t
-thermal_temp_state_store(struct device *dev,
-				      struct device_attribute *attr, const char *buf, size_t len)
+static ssize_t temp_state_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t len)
 {
 	int val = -1;
 
@@ -1751,25 +1744,22 @@ thermal_temp_state_store(struct device *dev,
 	return len;
 }
 
-static DEVICE_ATTR(temp_state, 0664,
-		   thermal_temp_state_show, thermal_temp_state_store);
+static DEVICE_ATTR_RW(temp_state);
 
-static ssize_t
-cpu_limits_show(struct device *dev,
-				      struct device_attribute *attr, char *buf)
+static ssize_t cpu_limits_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
 {
 	return 0;
 }
 
-static ssize_t
-cpu_limits_store(struct device *dev,
-				      struct device_attribute *attr, const char *buf, size_t len)
+static ssize_t cpu_limits_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t len)
 {
-	unsigned int cpu;
-	unsigned int max;
+	unsigned int cpu, max;
 
 	if (sscanf(buf, "cpu%u %u", &cpu, &max) != CPU_LIMITS_PARAM_NUM) {
-		pr_err("input param error, can not prase param\n");
+		pr_err("input param error, can not parse param\n");
 		return -EINVAL;
 	}
 
@@ -1778,9 +1768,10 @@ cpu_limits_store(struct device *dev,
 	return len;
 }
 
-static ssize_t
-thermal_board_sensor_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static DEVICE_ATTR_RW(cpu_limits);
+
+static ssize_t board_sensor_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
 {
 	if (!board_sensor)
 		board_sensor = "invalid";
@@ -1788,30 +1779,24 @@ thermal_board_sensor_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s", board_sensor);
 }
 
-static DEVICE_ATTR(board_sensor, 0664,
-		thermal_board_sensor_show, NULL);
+static DEVICE_ATTR_RO(board_sensor);
 
-static ssize_t
-thermal_board_sensor_temp_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+static ssize_t board_sensor_temp_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
 {
-       return snprintf(buf, PAGE_SIZE, board_sensor_temp);
+	return snprintf(buf, PAGE_SIZE, board_sensor_temp);
 }
 
-static ssize_t
-thermal_board_sensor_temp_store(struct device *dev,
-				struct device_attribute *attr, const char *buf, size_t len)
+static ssize_t board_sensor_temp_store(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t len)
 {
-       snprintf(board_sensor_temp, sizeof(board_sensor_temp), buf);
+	snprintf(board_sensor_temp, sizeof(board_sensor_temp), buf);
 
-       return len;
+	return len;
 }
 
-static DEVICE_ATTR(board_sensor_temp, 0664,
-		thermal_board_sensor_temp_show, thermal_board_sensor_temp_store);
-
-static DEVICE_ATTR(cpu_limits, 0664,
-		   cpu_limits_show, cpu_limits_store);
+static DEVICE_ATTR_RW(board_sensor_temp);
 
 static int create_thermal_message_node(void)
 {
@@ -1822,24 +1807,33 @@ static int create_thermal_message_node(void)
 	dev_set_name(&thermal_message_dev, "thermal_message");
 	ret = device_register(&thermal_message_dev);
 	if (!ret) {
-		ret = sysfs_create_file(&thermal_message_dev.kobj, &dev_attr_sconfig.attr);
+		ret = sysfs_create_file(&thermal_message_dev.kobj,
+					&dev_attr_sconfig.attr);
 		if (ret < 0)
 			pr_warn("Thermal: create sconfig node failed\n");
 
-		ret = sysfs_create_file(&thermal_message_dev.kobj, &dev_attr_boost.attr);
+		ret = sysfs_create_file(&thermal_message_dev.kobj,
+					&dev_attr_boost.attr);
 		if (ret < 0)
 			pr_warn("Thermal: create boost node failed\n");
 
-		ret = sysfs_create_file(&thermal_message_dev.kobj, &dev_attr_temp_state.attr);
+		ret = sysfs_create_file(&thermal_message_dev.kobj,
+					&dev_attr_temp_state.attr);
 		if (ret < 0)
 			pr_warn("Thermal: create temp state node failed\n");
 
-		ret = sysfs_create_file(&thermal_message_dev.kobj, &dev_attr_cpu_limits.attr);
-		ret = sysfs_create_file(&thermal_message_dev.kobj, &dev_attr_board_sensor.attr);
+		ret = sysfs_create_file(&thermal_message_dev.kobj,
+					&dev_attr_cpu_limits.attr);
+		if (ret < 0)
+			pr_warn("Thermal: create cpu limits node failed\n");
+
+		ret = sysfs_create_file(&thermal_message_dev.kobj,
+					&dev_attr_board_sensor.attr);
 		if (ret < 0)
 			pr_warn("Thermal: create board sensor node failed\n");
 
-		ret = sysfs_create_file(&thermal_message_dev.kobj, &dev_attr_board_sensor_temp.attr);
+		ret = sysfs_create_file(&thermal_message_dev.kobj,
+					&dev_attr_board_sensor_temp.attr);
 		if (ret < 0)
 			pr_warn("Thermal: create cpu limits node failed\n");
 	}
