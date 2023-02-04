@@ -507,6 +507,8 @@ static int cgroup_pidlist_show(struct seq_file *s, void *v)
 	return 0;
 }
 
+extern int kp_active_mode(void);
+
 static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 				     char *buf, size_t nbytes, loff_t off,
 				     bool threadgroup)
@@ -515,6 +517,7 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 	struct task_struct *task;
 	const struct cred *cred, *tcred;
 	ssize_t ret;
+        unsigned int period = 200;
 
 	cgrp = cgroup_kn_lock_live(of->kn, false);
 	if (!cgrp)
@@ -541,13 +544,25 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 	if (ret)
 		goto out_finish;
 
+        switch (kp_active_mode()) {
+        case 0: /* Use balance mode's boost period */
+        case 2:
+                /* Boost for 50 ms when balance mode is active */
+                period = 300;
+                break;
+        case 3:
+                /* Boost for 100 ms when performance mode is active */
+                period = 500;
+                break;
+        }
+
 	ret = cgroup_attach_task(cgrp, task, threadgroup);
 
 	/* This covers boosting for app launches and app transitions */
 	if (!ret && !threadgroup &&
 		!memcmp(of->kn->parent->name, "top-app", sizeof("top-app")) &&
 		task_is_zygote(task->parent))
-		devfreq_boost_kick_max(DEVFREQ_MSM_CPU_DDR_BW, 500);
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPU_DDR_BW, period);
 
 out_finish:
 	cgroup_procs_write_finish(task);
