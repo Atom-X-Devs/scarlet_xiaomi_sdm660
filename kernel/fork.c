@@ -2329,19 +2329,9 @@ long _do_fork(unsigned long clone_flags,
 	struct task_struct *p;
 	int trace = 0;
 	long nr;
-	unsigned int period = 30;
+	unsigned int period;
 
-	switch (kp_active_mode()) {
-	case 0: /* Use balance mode's boost period */
-	case 2:
-		/* Boost for 50 ms when balance mode is active */
-		period = 50;
-		break;
-	case 3:
-		/* Boost for 100 ms when performance mode is active */
-		period = 100;
-		break;
-	}
+	period = (kp_active_mode() == 2) ? 50 : (kp_active_mode() == 3) ? 100 : 30;
 
 	/* Boost DDR bus to the max when userspace launches an app */
 	if (task_is_zygote(current))
