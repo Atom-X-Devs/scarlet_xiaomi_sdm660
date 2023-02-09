@@ -1246,7 +1246,7 @@ fail:
 
 static int mtp_open(struct inode *ip, struct file *fp)
 {
-	printk(KERN_INFO "mtp_open\n");
+	pr_info("MTP has been opened\n");
 	if (mtp_lock(&_mtp_dev->open_excl)) {
 		pr_err("%s mtp_release not called returning EBUSY\n", __func__);
 		return -EBUSY;
@@ -1262,7 +1262,7 @@ static int mtp_open(struct inode *ip, struct file *fp)
 
 static int mtp_release(struct inode *ip, struct file *fp)
 {
-	printk(KERN_INFO "mtp_release\n");
+	pr_info("MTP has been closed\n");
 
 	mtp_unlock(&_mtp_dev->open_excl);
 	return 0;
