@@ -203,7 +203,7 @@ QDF_STATUS ucfg_mc_cp_stats_cca_stats_get(struct wlan_objmgr_vdev *vdev,
  * Return: status of operation
  */
 QDF_STATUS ucfg_mc_cp_stats_set_rate_flags(struct wlan_objmgr_vdev *vdev,
-					   enum tx_rate_info flags);
+					   uint32_t flags);
 
 /**
  * ucfg_mc_cp_stats_register_lost_link_info_cb() - API to register lost link
