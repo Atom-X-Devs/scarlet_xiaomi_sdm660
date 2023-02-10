@@ -361,7 +361,7 @@ int wlan_hdd_send_avoid_freq_event(struct hdd_context *hdd_ctx,
  * Return: 0 on success or failure reason
  */
 int wlan_hdd_send_hang_reason_event(struct hdd_context *hdd_ctx,
-				    uint32_t reason);
+				    enum qdf_hang_reason reason);
 
 int wlan_hdd_send_avoid_freq_for_dnbs(struct hdd_context *hdd_ctx,
 				      uint8_t op_chan);
