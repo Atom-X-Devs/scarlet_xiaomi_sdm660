@@ -481,7 +481,7 @@ static void nvt_ts_worker(struct work_struct *work)
 
 	int32_t ret;
 	int32_t i;
-	int32_t finger_cnt;
+	int32_t finger_cnt = 0;
 	uint8_t point_data[POINT_DATA_LEN + 1] = { 0 };
 	uint8_t input_id;
 	uint8_t press_id[TOUCH_MAX_FINGER_NUM] = { 0 };
