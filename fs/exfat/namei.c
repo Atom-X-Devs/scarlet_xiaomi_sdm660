@@ -423,7 +423,7 @@ static int exfat_find_empty_entry(struct inode *inode,
 		ei->i_size_ondisk += sbi->cluster_size;
 		ei->i_size_aligned += sbi->cluster_size;
 		ei->flags = p_dir->flags;
-		inode->i_blocks += 1 << sbi->sect_per_clus_bits;
+		inode->i_blocks += sbi->cluster_size >> 9;
 	}
 
 	return dentry;
@@ -647,7 +647,7 @@ unlock:
 static int exfat_find(struct inode *dir, struct qstr *qname,
 		struct exfat_dir_entry *info)
 {
-	int ret, dentry, num_entries, count;
+	int ret, dentry, count;
 	struct exfat_chain cdir;
 	struct exfat_uni_name uni_name;
 	struct super_block *sb = dir->i_sb;
@@ -666,10 +666,6 @@ static int exfat_find(struct inode *dir, struct qstr *qname,
 	if (ret)
 		return ret;
 
-	num_entries = exfat_calc_num_entries(&uni_name);
-	if (num_entries < 0)
-		return num_entries;
-
 	/* check the validation of hint_stat and initialize it if required */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
 	if (ei->version != (inode_peek_iversion_raw(dir) & 0xffffffff)) {
@@ -687,9 +683,7 @@ static int exfat_find(struct inode *dir, struct qstr *qname,
 	}
 
 	/* search the file name for directories */
-	dentry = exfat_find_dir_entry(sb, ei, &cdir, &uni_name,
-			num_entries, TYPE_ALL, &hint_opt);
-
+	dentry = exfat_find_dir_entry(sb, ei, &cdir, &uni_name, &hint_opt);
 	if (dentry < 0)
 		return dentry; /* -error value */
 
@@ -1291,7 +1285,7 @@ static int __exfat_rename(struct inode *old_parent_inode,
 	struct exfat_inode_info *new_ei = NULL;
 	unsigned int new_entry_type = TYPE_UNUSED;
 	int new_entry = 0;
-	struct buffer_head *old_bh, *new_bh = NULL;
+	struct buffer_head *new_bh = NULL;
 
 	/* check the validity of pointer parameters */
 	if (new_path == NULL || strlen(new_path) == 0)
@@ -1306,13 +1300,6 @@ static int __exfat_rename(struct inode *old_parent_inode,
 		EXFAT_B_TO_CLU_ROUND_UP(i_size_read(old_parent_inode), sbi),
 		EXFAT_I(old_parent_inode)->flags);
 	dentry = ei->entry;
-
-	ep = exfat_get_dentry(sb, &olddir, dentry, &old_bh);
-	if (!ep) {
-		ret = -EIO;
-		goto out;
-	}
-	brelse(old_bh);
 
 	/* check whether new dir is existing directory and empty */
 	if (new_inode) {
