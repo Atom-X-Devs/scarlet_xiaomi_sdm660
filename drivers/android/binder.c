@@ -67,6 +67,7 @@
 #include <linux/task_work.h>
 #include <linux/sizes.h>
 
+#include <uapi/linux/android/binderfs.h>
 #include <uapi/linux/sched/types.h>
 #include <uapi/linux/android/binder.h>
 
