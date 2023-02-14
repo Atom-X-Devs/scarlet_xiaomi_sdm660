@@ -519,7 +519,7 @@ static inline void notification_work(struct work_struct *work)
 	mdss_prim_panel_fb_unblank(FP_UNLOCK_REJECTION_TIMEOUT);
 }
 
-static inline irqreturn_t fpc1020_irq_handler(int irq, void *handle)
+static __always_inline irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
 
@@ -549,8 +549,8 @@ static inline int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
 	return 0;
 }
 
-static inline int fpc_fb_notif_callback(struct notifier_block *nb, unsigned long val,
-					void *data)
+static __always_inline int fpc_fb_notif_callback(struct notifier_block *nb, unsigned long val,
+						 void *data)
 {
 	struct fb_event *evdata = data;
 	struct fpc1020_data *fpc1020 =
