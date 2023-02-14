@@ -493,7 +493,7 @@ static const struct file_operations gf_fops = {
 static int __always_inline goodix_fb_state_chg_callback(struct notifier_block *nb,
 							unsigned long val, void *data)
 {
-	struct gf_dev *gf_dev;
+	struct gf_dev *gf_dev = container_of(nb, struct gf_dev, notifier);
 	struct fb_event *evdata = data;
 	unsigned int blank;
 	char msg = 0;
@@ -501,7 +501,6 @@ static int __always_inline goodix_fb_state_chg_callback(struct notifier_block *n
 	if (val != FB_EVENT_BLANK)
 		return 0;
 
-	gf_dev = container_of(nb, struct gf_dev, notifier);
 	if (evdata && evdata->data && val == FB_EVENT_BLANK && gf_dev) {
 		blank = *(int *)(evdata->data);
 		switch (blank) {
@@ -528,6 +527,7 @@ static int __always_inline goodix_fb_state_chg_callback(struct notifier_block *n
 			break;
 		}
 	}
+
 	return NOTIFY_OK;
 }
 
