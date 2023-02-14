@@ -557,10 +557,7 @@ static __always_inline int fpc_fb_notif_callback(struct notifier_block *nb, unsi
 		container_of(nb, struct fpc1020_data, fb_notifier);
 	unsigned int blank;
 
-	if (!fpc1020)
-		return 0;
-
-	if (val != FB_EVENT_BLANK)
+	if (!fpc1020 || val != FB_EVENT_BLANK)
 		return 0;
 
 	if (evdata && evdata->data && val == FB_EVENT_BLANK) {
@@ -585,6 +582,7 @@ static __always_inline int fpc_fb_notif_callback(struct notifier_block *nb, unsi
 			break;
 		}
 	}
+
 	return NOTIFY_OK;
 }
 
