@@ -396,25 +396,22 @@ info_retry:
 	return ret;
 }
 
-#ifdef CONFIG_OF
 static void nvt_parse_dt(struct device *dev)
 {
+#ifdef CONFIG_OF
 	struct device_node *np = dev->of_node;
 
 #if NVT_TOUCH_SUPPORT_HW_RST || TOUCHSCREEN_WHYRED || TOUCHSCREEN_WAYNE
 	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
 #endif
 	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
-}
 #else
-static void nvt_parse_dt(struct device *dev)
-{
 #if NVT_TOUCH_SUPPORT_HW_RST
 	ts->reset_gpio = NVT_TOUCH_RST_PIN;
 #endif
 	ts->irq_gpio = NVT_TOUCH_INT_PIN;
-}
 #endif
+}
 
 static int nvt_gpio_config(struct nvt_ts_data *ts)
 {
