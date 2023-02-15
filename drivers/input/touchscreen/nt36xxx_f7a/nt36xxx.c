@@ -684,20 +684,16 @@ Novatek touchscreen parse device tree function.
 return:
 n.a.
  *******************************************************/
-#ifdef CONFIG_OF
 static void nvt_parse_dt(struct device *dev)
 {
+#ifdef CONFIG_OF
 	struct device_node *np = dev->of_node;
 	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
 	NVT_LOG("novatek,irq-gpio=%d\n", ts->irq_gpio);
-}
 #else
-static void nvt_parse_dt(struct device *dev)
-{
 	ts->irq_gpio = NVTTOUCH_INT_PIN;
-	return 0;
-}
 #endif
+}
 
 /*******************************************************
 Description:
