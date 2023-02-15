@@ -1160,29 +1160,22 @@ static int32_t __init nvt_driver_init(void)
 
 	if (strstr(saved_command_line, "androidboot.mode=charger") != NULL) {
 		pr_debug("androidboot.mode=charger, TP doesn't support!\n");
-		goto err_driver;
+		return ret;
 	}
 
 	if ((strstr(g_lcd_id, "tianma nt36672a") == NULL) ||
 	    (strstr(g_lcd_id, "shenchao nt36672a") == NULL))
-		goto err_driver;
+		return ret;
 #endif
 
 	ret = i2c_add_driver(&nvt_i2c_driver);
 	if (ret) {
 #if TOUCHSCREEN_LAVENDER
 		ret = -ENODEV;
-		goto err_driver;
-#else
-		goto err_driver;
 #endif
+		return ret;
 	}
 
-#if TOUCHSCREEN_LAVENDER
-	goto err_driver;
-#endif
-
-err_driver:
 	return ret;
 }
 module_init(nvt_driver_init);
