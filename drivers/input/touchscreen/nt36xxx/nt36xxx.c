@@ -84,7 +84,7 @@ const uint16_t gesture_key_array[] = {
 };
 
 #if XIAOMI_PANEL
-bool enable_gesture_mode = false;
+bool enable_gesture_mode;
 bool delay_gesture = false;
 bool suspend_state = false;
 static struct wakeup_source *gesture_wakelock;
@@ -98,10 +98,8 @@ int nvt_gesture_switch(struct input_dev *dev, unsigned int type,
 				delay_gesture = true;
 		}
 
-		if (value == WAKEUP_OFF)
-			enable_gesture_mode = false;
-		else if (value == WAKEUP_ON)
-			enable_gesture_mode = true;
+		enable_gesture_mode = (value == WAKEUP_OFF) ? false :
+				      (value == WAKEUP_ON) ? true : false;
 	}
 
 	return 0;
