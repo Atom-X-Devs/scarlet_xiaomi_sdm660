@@ -42,6 +42,7 @@
 
 &pm660_haptics {
 	qcom,actuator-type = "erm";
+	qcom,lra-resonance-sig-shape = "square";
 };
 
 /* sdm660-common.dtsi lavender specific diff */
