@@ -94,10 +94,10 @@ static inline void __btrfs_debug_check_extent_io_range(const char *caller,
 						 start, end);
 }
 #else
-#define btrfs_leak_debug_add(new, head)	do {} while (0)
-#define btrfs_leak_debug_del(entry)	do {} while (0)
-#define btrfs_leak_debug_check()	do {} while (0)
-#define btrfs_debug_check_extent_io_range(c, s, e)	do {} while (0)
+#define btrfs_leak_debug_add(new, head)	((void)0)
+#define btrfs_leak_debug_del(entry)	((void)0)
+#define btrfs_leak_debug_check()	((void)0)
+#define btrfs_debug_check_extent_io_range(c, s, e)	((void)0)
 #endif
 
 #define BUFFER_LRU_MAX 64

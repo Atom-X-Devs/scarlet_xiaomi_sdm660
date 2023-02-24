@@ -102,8 +102,8 @@ static inline void kvm_spinlock_init(void)
 #endif /* CONFIG_PARAVIRT_SPINLOCKS */
 
 #else /* CONFIG_KVM_GUEST */
-#define kvm_async_pf_task_wait(T, I) do {} while(0)
-#define kvm_async_pf_task_wake(T) do {} while(0)
+#define kvm_async_pf_task_wait(T, I) ((void)0)
+#define kvm_async_pf_task_wake(T) ((void)0)
 
 static inline bool kvm_para_available(void)
 {

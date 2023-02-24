@@ -248,7 +248,7 @@ pci_restore_srm_config(void)
 	}
 }
 #else
-#define pdev_save_srm_config(dev)	do {} while (0)
+#define pdev_save_srm_config(dev)	((void)0)
 #endif
 
 void pcibios_fixup_bus(struct pci_bus *bus)

@@ -203,9 +203,9 @@
 #define SET_ACTIVATION(c)	(c)->ctx_last_activation = GET_ACTIVATION()
 
 #else /* !CONFIG_SMP */
-#define SET_ACTIVATION(t) 	do {} while(0)
-#define GET_ACTIVATION(t) 	do {} while(0)
-#define INC_ACTIVATION(t) 	do {} while(0)
+#define SET_ACTIVATION(t) 	((void)0)
+#define GET_ACTIVATION(t) 	((void)0)
+#define INC_ACTIVATION(t) 	((void)0)
 #endif /* CONFIG_SMP */
 
 #define SET_PMU_OWNER(t, c)	do { pfm_get_cpu_var(pmu_owner) = (t); pfm_get_cpu_var(pmu_ctx) = (c); } while(0)
@@ -350,8 +350,8 @@ typedef struct pfm_context {
 #define SET_LAST_CPU(ctx, v)	(ctx)->ctx_last_cpu = (v)
 #define GET_LAST_CPU(ctx)	(ctx)->ctx_last_cpu
 #else
-#define SET_LAST_CPU(ctx, v)	do {} while(0)
-#define GET_LAST_CPU(ctx)	do {} while(0)
+#define SET_LAST_CPU(ctx, v)	((void)0)
+#define GET_LAST_CPU(ctx)	((void)0)
 #endif
 
 

@@ -36,8 +36,8 @@
 	} while (0)
 
 #else
-#define smblib_err(chg, fmt, ...) do {} while (0)
-#define smblib_dbg(chg, reason, fmt, ...) do {} while (0)
+#define smblib_err(chg, fmt, ...) ((void)0)
+#define smblib_dbg(chg, reason, fmt, ...) ((void)0)
 #endif
 
 #ifdef CONFIG_MACH_XIAOMI_LAVENDER

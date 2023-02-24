@@ -35,7 +35,7 @@
 
 #include "exofs.h"
 
-#define EXOFS_DBGMSG2(M...) do {} while (0)
+#define EXOFS_DBGMSG2(M...) ((void)0)
 
 unsigned exofs_max_io_pages(struct ore_layout *layout,
 			    unsigned expected_pages)

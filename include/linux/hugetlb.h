@@ -211,8 +211,8 @@ static inline bool isolate_huge_page(struct page *page, struct list_head *list)
 {
 	return false;
 }
-#define putback_active_hugepage(p)	do {} while (0)
-#define move_hugetlb_state(old, new, reason)	do {} while (0)
+#define putback_active_hugepage(p)	((void)0)
+#define move_hugetlb_state(old, new, reason)	((void)0)
 
 static inline unsigned long hugetlb_change_protection(struct vm_area_struct *vma,
 		unsigned long address, unsigned long end, pgprot_t newprot)

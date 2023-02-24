@@ -109,7 +109,7 @@ static inline struct device *cb710_chip_dev(struct cb710_chip *chip)
 #ifdef CONFIG_CB710_DEBUG
 void cb710_dump_regs(struct cb710_chip *chip, unsigned dump);
 #else
-#define cb710_dump_regs(c, d) do {} while (0)
+#define cb710_dump_regs(c, d) ((void)0)
 #endif
 
 #define CB710_DUMP_REGS_MMC	0x0F

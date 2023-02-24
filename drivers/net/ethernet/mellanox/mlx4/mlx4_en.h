@@ -184,9 +184,9 @@
 
 #else
 
-#define INC_PERF_COUNTER(cnt)		do {} while (0)
-#define ADD_PERF_COUNTER(cnt, add)	do {} while (0)
-#define AVG_PERF_COUNTER(cnt, sample)	do {} while (0)
+#define INC_PERF_COUNTER(cnt)		((void)0)
+#define ADD_PERF_COUNTER(cnt, add)	((void)0)
+#define AVG_PERF_COUNTER(cnt, sample)	((void)0)
 #define GET_PERF_COUNTER(cnt)		(0)
 #define GET_AVG_PERF_COUNTER(cnt)	(0)
 #endif /* MLX4_EN_PERF_STAT */

@@ -80,7 +80,7 @@
 		QPRINT(priv, KERN_DEBUG, msg);		\
 	} while (0)
 #else
-#define QDUMP(msg)	do {} while (0)
+#define QDUMP(msg)	((void)0)
 #endif
 
 #define QERROR(msg)					\

@@ -261,8 +261,8 @@ static unsigned cmd_line;
 					} while (0)
 #define PL330_DBGMC_START(addr)		(cmd_line = addr)
 #else
-#define PL330_DBGCMD_DUMP(off, x...)	do {} while (0)
-#define PL330_DBGMC_START(addr)		do {} while (0)
+#define PL330_DBGCMD_DUMP(off, x...)	((void)0)
+#define PL330_DBGMC_START(addr)		((void)0)
 #endif
 
 /* The number of default descriptors */

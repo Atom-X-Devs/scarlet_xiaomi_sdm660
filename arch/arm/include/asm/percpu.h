@@ -45,7 +45,7 @@ static inline unsigned long __my_cpu_offset(void)
 }
 #define __my_cpu_offset __my_cpu_offset()
 #else
-#define set_my_cpu_offset(x)	do {} while(0)
+#define set_my_cpu_offset(x)	((void)0)
 
 #endif /* CONFIG_SMP */
 

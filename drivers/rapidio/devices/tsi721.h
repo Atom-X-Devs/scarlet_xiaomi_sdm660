@@ -929,8 +929,8 @@ extern int tsi721_register_dma(struct tsi721_device *priv);
 extern void tsi721_unregister_dma(struct tsi721_device *priv);
 extern void tsi721_dma_stop_all(struct tsi721_device *priv);
 #else
-#define tsi721_dma_stop_all(priv) do {} while (0)
-#define tsi721_unregister_dma(priv) do {} while (0)
+#define tsi721_dma_stop_all(priv) ((void)0)
+#define tsi721_unregister_dma(priv) ((void)0)
 #endif
 
 #endif

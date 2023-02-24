@@ -84,7 +84,7 @@
 				__func__, __LINE__ , ## args); \
 	}
 #else
-	#define PDEBUG(level, fmt, args...) do {} while (0)
+	#define PDEBUG(level, fmt, args...) ((void)0)
 #endif
 
 #define DBG_IO		(1 << 1)

@@ -93,7 +93,7 @@ MODULE_LICENSE("GPL");
 #ifdef VSXXXAA_DEBUG
 #define DBG(x...) printk(x)
 #else
-#define DBG(x...) do {} while (0)
+#define DBG(x...) ((void)0)
 #endif
 
 #define VSXXXAA_INTRO_MASK	0x80

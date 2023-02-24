@@ -114,7 +114,7 @@ static inline void *PDE_DATA(const struct inode *inode) {BUG(); return NULL;}
 static inline void *proc_get_parent_data(const struct inode *inode) { BUG(); return NULL; }
 
 static inline void proc_remove(struct proc_dir_entry *de) {}
-#define remove_proc_entry(name, parent) do {} while (0)
+#define remove_proc_entry(name, parent) ((void)0)
 static inline int remove_proc_subtree(const char *name, struct proc_dir_entry *parent) { return 0; }
 
 #define proc_create_net_data(name, mode, parent, ops, state_size, data) ({NULL;})

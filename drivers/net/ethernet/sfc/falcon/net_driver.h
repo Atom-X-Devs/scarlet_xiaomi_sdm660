@@ -47,8 +47,8 @@
 #define EF4_BUG_ON_PARANOID(x) BUG_ON(x)
 #define EF4_WARN_ON_PARANOID(x) WARN_ON(x)
 #else
-#define EF4_BUG_ON_PARANOID(x) do {} while (0)
-#define EF4_WARN_ON_PARANOID(x) do {} while (0)
+#define EF4_BUG_ON_PARANOID(x) ((void)0)
+#define EF4_WARN_ON_PARANOID(x) ((void)0)
 #endif
 
 /**************************************************************************

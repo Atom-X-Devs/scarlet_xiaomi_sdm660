@@ -2480,7 +2480,7 @@ static void pxa_udc_shutdown(struct platform_device *_dev)
 #ifdef CONFIG_PXA27x
 extern void pxa27x_clear_otgph(void);
 #else
-#define pxa27x_clear_otgph()   do {} while (0)
+#define pxa27x_clear_otgph()   ((void)0)
 #endif
 
 #ifdef CONFIG_PM

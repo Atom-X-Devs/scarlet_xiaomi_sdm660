@@ -42,7 +42,7 @@
  * driver was compiled with debug enabled. Otherwise, the call turns into a NOP.
  */
 #ifndef CONFIG_LDM_DEBUG
-#define ldm_debug(...)	do {} while (0)
+#define ldm_debug(...)	((void)0)
 #else
 #define ldm_debug(f, a...) _ldm_printk (KERN_DEBUG, __func__, f, ##a)
 #endif

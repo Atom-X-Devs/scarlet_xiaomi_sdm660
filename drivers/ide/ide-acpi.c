@@ -49,7 +49,7 @@ struct ide_acpi_hwif_link {
 #define DEBPRINT(fmt, args...)	\
 		printk(KERN_DEBUG "%s: " fmt, __func__, ## args)
 #else
-#define DEBPRINT(fmt, args...)	do {} while (0)
+#define DEBPRINT(fmt, args...)	((void)0)
 #endif	/* DEBUGGING */
 
 static bool ide_noacpi;

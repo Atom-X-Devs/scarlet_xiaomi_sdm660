@@ -779,15 +779,15 @@ extern bool dev_pm_smart_suspend_and_suspended(struct device *dev);
 
 #else /* !CONFIG_PM_SLEEP */
 
-#define device_pm_lock() do {} while (0)
-#define device_pm_unlock() do {} while (0)
+#define device_pm_lock() ((void)0)
+#define device_pm_unlock() ((void)0)
 
 static inline int dpm_suspend_start(pm_message_t state)
 {
 	return 0;
 }
 
-#define suspend_report_result(fn, ret)		do {} while (0)
+#define suspend_report_result(fn, ret)		((void)0)
 
 static inline int device_pm_wait_for_dev(struct device *a, struct device *b)
 {
