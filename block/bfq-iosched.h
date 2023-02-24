@@ -1084,7 +1084,7 @@ struct bfq_group *bfqq_group(struct bfq_queue *bfqq);
 			bfq_bfqq_sync((bfqq)) ? 'S' : 'A',		\
 				##args);	\
 } while (0)
-#define bfq_log_bfqg(bfqd, bfqg, fmt, args...)		do {} while (0)
+#define bfq_log_bfqg(bfqd, bfqg, fmt, args...)		((void)0)
 
 #endif /* CONFIG_BFQ_GROUP_IOSCHED */
 

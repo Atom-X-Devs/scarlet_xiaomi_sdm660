@@ -101,7 +101,7 @@ enum debuglevel {
 
 #else
 
-#define gig_dbg(level, format, arg...) do {} while (0)
+#define gig_dbg(level, format, arg...) ((void)0)
 #define DEBUG_DEFAULT 0
 
 #endif

@@ -49,15 +49,15 @@
 
 #if !QDF_LOCK_STATS
 struct lock_stats {};
-#define BEFORE_LOCK(x...) do {} while (0)
-#define AFTER_LOCK(x...) do {} while (0)
-#define BEFORE_TRYLOCK(x...) do {} while (0)
-#define AFTER_TRYLOCK(x...) do {} while (0)
-#define BEFORE_UNLOCK(x...) do {} while (0)
-#define qdf_lock_stats_create(x...) do {} while (0)
-#define qdf_lock_stats_destroy(x...) do {} while (0)
-#define qdf_lock_stats_init(x...) do {} while (0)
-#define qdf_lock_stats_deinit(x...) do {} while (0)
+#define BEFORE_LOCK(x...) ((void)0)
+#define AFTER_LOCK(x...) ((void)0)
+#define BEFORE_TRYLOCK(x...) ((void)0)
+#define AFTER_TRYLOCK(x...) ((void)0)
+#define BEFORE_UNLOCK(x...) ((void)0)
+#define qdf_lock_stats_create(x...) ((void)0)
+#define qdf_lock_stats_destroy(x...) ((void)0)
+#define qdf_lock_stats_init(x...) ((void)0)
+#define qdf_lock_stats_deinit(x...) ((void)0)
 #else
 void qdf_lock_stats_init(void);
 void qdf_lock_stats_deinit(void);
@@ -86,7 +86,7 @@ do { \
 	uint64_t AFTER_LOCK_time;  \
 	bool BEFORE_LOCK_is_locked = was_locked; \
 	BEFORE_LOCK_time = qdf_get_log_timestamp(); \
-	do {} while (0)
+	((void)0)
 
 
 #define AFTER_LOCK(lock, func) \
@@ -117,7 +117,7 @@ do { \
 	uint64_t BEFORE_LOCK_time; \
 	uint64_t AFTER_LOCK_time;  \
 	BEFORE_LOCK_time = qdf_get_log_timestamp(); \
-	do {} while (0)
+	((void)0)
 
 #define AFTER_TRYLOCK(lock, trylock_return, func) \
 	AFTER_LOCK_time = qdf_get_log_timestamp(); \

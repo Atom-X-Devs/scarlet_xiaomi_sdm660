@@ -301,7 +301,7 @@ static inline void key_check(const struct key *key)
 
 #else
 
-#define key_check(key) do {} while(0)
+#define key_check(key) ((void)0)
 
 #endif
 #endif /* _INTERNAL_H */

@@ -104,7 +104,7 @@ static inline int adf_bank_debugfs_add(struct adf_etr_bank_data *bank)
 	return 0;
 }
 
-#define adf_bank_debugfs_rm(bank) do {} while (0)
+#define adf_bank_debugfs_rm(bank) ((void)0)
 
 static inline int adf_ring_debugfs_add(struct adf_etr_ring_data *ring,
 				       const char *name)
@@ -112,6 +112,6 @@ static inline int adf_ring_debugfs_add(struct adf_etr_ring_data *ring,
 	return 0;
 }
 
-#define adf_ring_debugfs_rm(ring) do {} while (0)
+#define adf_ring_debugfs_rm(ring) ((void)0)
 #endif
 #endif

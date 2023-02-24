@@ -211,7 +211,7 @@ static void flush_request_modules(struct bttv *dev)
 }
 #else
 #define request_modules(dev)
-#define flush_request_modules(dev) do {} while(0)
+#define flush_request_modules(dev) ((void)0)
 #endif /* CONFIG_MODULES */
 
 

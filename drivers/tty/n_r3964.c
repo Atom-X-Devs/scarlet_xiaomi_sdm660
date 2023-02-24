@@ -85,27 +85,27 @@
 #ifdef DEBUG_MODUL
 #define TRACE_M(format, args...) printk("r3964: " format "\n" , ## args)
 #else
-#define TRACE_M(fmt, arg...) do {} while (0)
+#define TRACE_M(fmt, arg...) ((void)0)
 #endif
 #ifdef DEBUG_PROTO_S
 #define TRACE_PS(format, args...) printk("r3964: " format "\n" , ## args)
 #else
-#define TRACE_PS(fmt, arg...) do {} while (0)
+#define TRACE_PS(fmt, arg...) ((void)0)
 #endif
 #ifdef DEBUG_PROTO_E
 #define TRACE_PE(format, args...) printk("r3964: " format "\n" , ## args)
 #else
-#define TRACE_PE(fmt, arg...) do {} while (0)
+#define TRACE_PE(fmt, arg...) ((void)0)
 #endif
 #ifdef DEBUG_LDISC
 #define TRACE_L(format, args...) printk("r3964: " format "\n" , ## args)
 #else
-#define TRACE_L(fmt, arg...) do {} while (0)
+#define TRACE_L(fmt, arg...) ((void)0)
 #endif
 #ifdef DEBUG_QUEUE
 #define TRACE_Q(format, args...) printk("r3964: " format "\n" , ## args)
 #else
-#define TRACE_Q(fmt, arg...) do {} while (0)
+#define TRACE_Q(fmt, arg...) ((void)0)
 #endif
 static void add_tx_queue(struct r3964_info *, struct r3964_block_header *);
 static void remove_from_tx_queue(struct r3964_info *pInfo, int error_code);

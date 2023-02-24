@@ -257,7 +257,7 @@ struct ci13xxx {
  * LOGGING
  *****************************************************************************/
 
-#define trace(format, args...)      do {} while (0)
+#define trace(format, args...)      ((void)0)
 #define dbg_trace(format, args...)  dev_dbg(dev, format, ##args)
 
 #endif	/* _CI13XXX_h_ */

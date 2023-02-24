@@ -30,7 +30,7 @@
 #ifdef TTY_DEBUG_WAIT_UNTIL_SENT
 # define tty_debug_wait_until_sent(tty, f, args...)    tty_debug(tty, f, ##args)
 #else
-# define tty_debug_wait_until_sent(tty, f, args...)    do {} while (0)
+# define tty_debug_wait_until_sent(tty, f, args...)    ((void)0)
 #endif
 
 #undef	DEBUG

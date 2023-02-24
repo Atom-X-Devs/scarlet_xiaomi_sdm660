@@ -520,7 +520,7 @@ static inline const char *ST5481_CMD_string(int evt)
 
 #else
 
-#define DBG_ISO_PACKET(level, urb) do {} while (0)
+#define DBG_ISO_PACKET(level, urb) ((void)0)
 
 #endif
 

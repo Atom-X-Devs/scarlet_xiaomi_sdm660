@@ -160,7 +160,7 @@ struct pci_iommu_arena
 #ifdef ALPHA_RESTORE_SRM_SETUP
 extern void pci_restore_srm_config(void);
 #else
-#define pci_restore_srm_config()	do {} while (0)
+#define pci_restore_srm_config()	((void)0)
 #endif
 
 /* The hose list.  */

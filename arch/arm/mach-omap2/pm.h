@@ -61,7 +61,7 @@ extern u32 enable_off_mode;
 #if defined(CONFIG_PM_DEBUG) && defined(CONFIG_DEBUG_FS)
 extern void pm_dbg_update_time(struct powerdomain *pwrdm, int prev);
 #else
-#define pm_dbg_update_time(pwrdm, prev) do {} while (0);
+#define pm_dbg_update_time(pwrdm, prev) ((void)0);
 #endif /* CONFIG_PM_DEBUG */
 
 /* 24xx */

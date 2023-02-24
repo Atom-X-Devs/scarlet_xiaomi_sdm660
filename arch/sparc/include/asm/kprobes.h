@@ -17,7 +17,7 @@ typedef u32 kprobe_opcode_t;
 
 #define kretprobe_blacklist_size 0
 
-#define arch_remove_kprobe(p)	do {} while (0)
+#define arch_remove_kprobe(p)	((void)0)
 
 #define flush_insn_slot(p)		\
 do { 	flushi(&(p)->ainsn.insn[0]);	\

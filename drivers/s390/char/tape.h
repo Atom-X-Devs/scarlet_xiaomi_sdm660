@@ -34,7 +34,7 @@ do { \
 	debug_sprintf_event(TAPE_DBF_AREA, level, str, ## __VA_ARGS__); \
 } while (0)
 #else
-#define DBF_LH(level, str, ...) do {} while(0)
+#define DBF_LH(level, str, ...) ((void)0)
 #endif
 
 /*

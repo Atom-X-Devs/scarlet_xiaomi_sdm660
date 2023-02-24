@@ -1653,12 +1653,12 @@ static inline tid_t  jbd2_get_latest_transaction(journal_t *journal)
 
 #ifdef __KERNEL__
 
-#define buffer_trace_init(bh)	do {} while (0)
-#define print_buffer_fields(bh)	do {} while (0)
-#define print_buffer_trace(bh)	do {} while (0)
-#define BUFFER_TRACE(bh, info)	do {} while (0)
-#define BUFFER_TRACE2(bh, bh2, info)	do {} while (0)
-#define JBUFFER_TRACE(jh, info)	do {} while (0)
+#define buffer_trace_init(bh)	((void)0)
+#define print_buffer_fields(bh)	((void)0)
+#define print_buffer_trace(bh)	((void)0)
+#define BUFFER_TRACE(bh, info)	((void)0)
+#define BUFFER_TRACE2(bh, bh2, info)	((void)0)
+#define JBUFFER_TRACE(jh, info)	((void)0)
 
 #endif	/* __KERNEL__ */
 

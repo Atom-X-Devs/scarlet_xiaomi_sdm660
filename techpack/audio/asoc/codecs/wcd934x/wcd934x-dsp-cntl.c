@@ -156,7 +156,7 @@ static void wcd_cntl_collect_debug_dumps(struct wcd_dsp_cntl *cntl,
 }
 #else
 #define WCD_CNTL_SET_ERR_IRQ_FLAG(cntl) 0
-#define WCD_CNTL_CLR_ERR_IRQ_FLAG(cntl) do {} while (0)
+#define WCD_CNTL_CLR_ERR_IRQ_FLAG(cntl) ((void)0)
 static void wcd_cntl_collect_debug_dumps(struct wcd_dsp_cntl *cntl,
 					 bool internal)
 {

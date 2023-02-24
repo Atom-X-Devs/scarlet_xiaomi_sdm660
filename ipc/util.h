@@ -89,7 +89,7 @@ void __init ipc_init_proc_interface(const char *path, const char *header,
 		int ids, int (*show)(struct seq_file *, void *));
 struct pid_namespace *ipc_seq_pid_ns(struct seq_file *);
 #else
-#define ipc_init_proc_interface(path, header, ids, show) do {} while (0)
+#define ipc_init_proc_interface(path, header, ids, show) ((void)0)
 #endif
 
 #define IPC_SEM_IDS	0

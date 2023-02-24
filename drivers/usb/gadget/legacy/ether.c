@@ -96,7 +96,7 @@ static inline bool has_rndis(void)
 #include "u_rndis.h"
 #include "rndis.h"
 #else
-#define rndis_borrow_net(...) do {} while (0)
+#define rndis_borrow_net(...) ((void)0)
 #endif
 #include "u_eem.h"
 

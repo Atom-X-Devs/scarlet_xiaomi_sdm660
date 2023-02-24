@@ -110,8 +110,8 @@ static inline void __kunmap_atomic(void *addr)
 
 #define kmap_atomic_pfn(pfn)	kmap_atomic(pfn_to_page(pfn))
 
-#define kmap_flush_unused()	do {} while(0)
-#define kmap_atomic_flush_unused()	do {} while (0)
+#define kmap_flush_unused()	((void)0)
+#define kmap_atomic_flush_unused()	((void)0)
 #endif
 
 #endif /* CONFIG_HIGHMEM */

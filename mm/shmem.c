@@ -3970,7 +3970,7 @@ EXPORT_SYMBOL_GPL(shmem_truncate_range);
 #define shmem_file_operations			ramfs_file_operations
 #define shmem_get_inode(sb, dir, mode, dev, flags)	ramfs_get_inode(sb, dir, mode, dev)
 #define shmem_acct_size(flags, size)		0
-#define shmem_unacct_size(flags, size)		do {} while (0)
+#define shmem_unacct_size(flags, size)		((void)0)
 
 #endif /* CONFIG_SHMEM */
 

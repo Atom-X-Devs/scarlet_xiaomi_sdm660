@@ -94,7 +94,7 @@
 #define BCH_ECC_MAX_WORDS      DIV_ROUND_UP(BCH_MAX_M * BCH_MAX_T, 32)
 
 #ifndef dbg
-#define dbg(_fmt, args...)     do {} while (0)
+#define dbg(_fmt, args...)     ((void)0)
 #endif
 
 /*

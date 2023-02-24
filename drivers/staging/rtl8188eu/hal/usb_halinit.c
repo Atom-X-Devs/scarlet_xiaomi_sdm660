@@ -655,7 +655,7 @@ u32 rtl8188eu_hal_init(struct adapter *Adapter)
 	struct registry_priv	*pregistrypriv = &Adapter->registrypriv;
 	unsigned long init_start_time = jiffies;
 
-	#define HAL_INIT_PROFILE_TAG(stage) do {} while (0)
+	#define HAL_INIT_PROFILE_TAG(stage) ((void)0)
 
 	HAL_INIT_PROFILE_TAG(HAL_INIT_STAGES_BEGIN);
 

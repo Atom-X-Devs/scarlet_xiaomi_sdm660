@@ -14,7 +14,7 @@
 #if IDECD_DEBUG_LOG
 #define ide_debug_log(lvl, fmt, args...) __ide_debug_log(lvl, fmt, ## args)
 #else
-#define ide_debug_log(lvl, fmt, args...) do {} while (0)
+#define ide_debug_log(lvl, fmt, args...) ((void)0)
 #endif
 
 #define ATAPI_WAIT_WRITE_BUSY	(10 * HZ)

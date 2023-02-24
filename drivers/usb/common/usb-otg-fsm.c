@@ -22,7 +22,7 @@
 #define VDBG(fmt, args...) pr_debug("[%s]  " fmt, \
 				 __func__, ## args)
 #else
-#define VDBG(stuff...)	do {} while (0)
+#define VDBG(stuff...)	((void)0)
 #endif
 
 /* Change USB protocol when there is a protocol change */

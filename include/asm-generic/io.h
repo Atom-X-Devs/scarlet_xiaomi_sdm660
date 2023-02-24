@@ -22,7 +22,7 @@
 #include <asm-generic/pci_iomap.h>
 
 #ifndef mmiowb
-#define mmiowb() do {} while (0)
+#define mmiowb() ((void)0)
 #endif
 
 #ifndef __io_br

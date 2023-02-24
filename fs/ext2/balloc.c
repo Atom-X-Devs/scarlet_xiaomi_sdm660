@@ -241,7 +241,7 @@ restart:
 #define rsv_window_dump(root, verbose) \
 	__rsv_window_dump((root), (verbose), __func__)
 #else
-#define rsv_window_dump(root, verbose) do {} while (0)
+#define rsv_window_dump(root, verbose) ((void)0)
 #endif
 
 /**

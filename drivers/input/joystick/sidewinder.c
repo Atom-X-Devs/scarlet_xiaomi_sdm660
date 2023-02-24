@@ -57,7 +57,7 @@ MODULE_LICENSE("GPL");
 #ifdef SW_DEBUG
 #define dbg(format, arg...) printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg)
 #else
-#define dbg(format, arg...) do {} while (0)
+#define dbg(format, arg...) ((void)0)
 #endif
 
 /*

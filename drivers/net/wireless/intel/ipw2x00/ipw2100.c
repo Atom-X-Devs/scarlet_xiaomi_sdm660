@@ -221,7 +221,7 @@ do { \
 	} \
 } while (0)
 #else
-#define IPW_DEBUG(level, message...) do {} while (0)
+#define IPW_DEBUG(level, message...) ((void)0)
 #endif				/* CONFIG_IPW2100_DEBUG */
 
 #ifdef CONFIG_IPW2100_DEBUG

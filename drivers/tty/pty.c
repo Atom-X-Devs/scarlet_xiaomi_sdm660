@@ -34,7 +34,7 @@
 #ifdef TTY_DEBUG_HANGUP
 # define tty_debug_hangup(tty, f, args...)	tty_debug(tty, f, ##args)
 #else
-# define tty_debug_hangup(tty, f, args...)	do {} while (0)
+# define tty_debug_hangup(tty, f, args...)	((void)0)
 #endif
 
 #ifdef CONFIG_UNIX98_PTYS

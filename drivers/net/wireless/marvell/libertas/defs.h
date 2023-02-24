@@ -53,7 +53,7 @@ do { if ((lbs_debug & (grp)) == (grp)) \
   printk(KERN_DEBUG DRV_NAME grpnam "%s: " fmt, \
          in_interrupt() ? " (INT)" : "", ## args); } while (0)
 #else
-#define LBS_DEB_LL(grp, grpnam, fmt, args...) do {} while (0)
+#define LBS_DEB_LL(grp, grpnam, fmt, args...) ((void)0)
 #endif
 
 #define lbs_deb_main(fmt, args...)      LBS_DEB_LL(LBS_DEB_MAIN, " main", fmt, ##args)
@@ -104,7 +104,7 @@ static inline void lbs_deb_hex(unsigned int grp, const char *prompt,
 	}
 }
 #else
-#define lbs_deb_hex(grp,prompt,buf,len)	do {} while (0)
+#define lbs_deb_hex(grp,prompt,buf,len)	((void)0)
 #endif
 
 

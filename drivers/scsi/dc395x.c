@@ -136,7 +136,7 @@
  * No debugging. Do nothing
  */
 #define dprintkdbg(type, format, arg...) \
-	do {} while (0)
+	((void)0)
 #define debug_enabled(type)	(0)
 
 #endif
