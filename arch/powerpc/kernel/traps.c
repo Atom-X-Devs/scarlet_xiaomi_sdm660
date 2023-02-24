@@ -505,7 +505,7 @@ static inline int check_io_access(struct pt_regs *regs)
 /* single-step stuff */
 #define single_stepping(regs)	(current->thread.debug.dbcr0 & DBCR0_IC)
 #define clear_single_step(regs)	(current->thread.debug.dbcr0 &= ~DBCR0_IC)
-#define clear_br_trace(regs)	do {} while(0)
+#define clear_br_trace(regs)	((void)0)
 #else
 /* On non-4xx, the reason for the machine check or program
    exception is in the MSR. */

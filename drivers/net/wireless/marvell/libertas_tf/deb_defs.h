@@ -51,7 +51,7 @@ do { if ((lbtf_debug & (grp)) == (grp)) \
   printk(KERN_DEBUG DRV_NAME grpnam "%s: " fmt, \
          in_interrupt() ? " (INT)" : "", ## args); } while (0)
 #else
-#define LBTF_DEB_LL(grp, grpnam, fmt, args...) do {} while (0)
+#define LBTF_DEB_LL(grp, grpnam, fmt, args...) ((void)0)
 #endif
 
 #define lbtf_deb_enter(grp) \
@@ -99,7 +99,7 @@ static inline void lbtf_deb_hex(unsigned int grp, const char *prompt, u8 *buf, i
 	}
 }
 #else
-#define lbtf_deb_hex(grp, prompt, buf, len)	do {} while (0)
+#define lbtf_deb_hex(grp, prompt, buf, len)	((void)0)
 #endif
 
 #endif

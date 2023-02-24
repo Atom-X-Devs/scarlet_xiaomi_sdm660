@@ -3484,7 +3484,7 @@ static void free_firmware(void)
 	}
 }
 #else
-#define free_firmware() do {} while (0)
+#define free_firmware() ((void)0)
 #endif
 
 static int ipw_load(struct ipw_priv *priv)

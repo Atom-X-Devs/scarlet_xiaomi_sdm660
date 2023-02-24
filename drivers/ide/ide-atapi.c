@@ -19,7 +19,7 @@
 #define debug_log(fmt, args...) \
 	printk(KERN_INFO "ide: " fmt, ## args)
 #else
-#define debug_log(fmt, args...) do {} while (0)
+#define debug_log(fmt, args...) ((void)0)
 #endif
 
 #define ATAPI_MIN_CDB_BYTES	12

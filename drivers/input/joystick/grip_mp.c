@@ -27,7 +27,7 @@ MODULE_LICENSE("GPL");
 #ifdef GRIP_DEBUG
 #define dbg(format, arg...) printk(KERN_ERR __FILE__ ": " format "\n" , ## arg)
 #else
-#define dbg(format, arg...) do {} while (0)
+#define dbg(format, arg...) ((void)0)
 #endif
 
 #define GRIP_MAX_PORTS	4

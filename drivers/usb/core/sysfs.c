@@ -696,10 +696,10 @@ static void remove_power_attributes(struct device *dev)
 #else
 
 #define add_persist_attributes(dev)	0
-#define remove_persist_attributes(dev)	do {} while (0)
+#define remove_persist_attributes(dev)	((void)0)
 
 #define add_power_attributes(dev)	0
-#define remove_power_attributes(dev)	do {} while (0)
+#define remove_power_attributes(dev)	((void)0)
 
 #endif	/* CONFIG_PM */
 

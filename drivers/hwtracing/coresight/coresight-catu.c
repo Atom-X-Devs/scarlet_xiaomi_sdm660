@@ -25,7 +25,7 @@
 #ifdef CATU_DEBUG
 #define catu_dbg(x, ...) dev_dbg(x, __VA_ARGS__)
 #else
-#define catu_dbg(x, ...) do {} while (0)
+#define catu_dbg(x, ...) ((void)0)
 #endif
 
 struct catu_etr_buf {

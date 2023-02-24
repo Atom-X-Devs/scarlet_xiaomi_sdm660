@@ -74,7 +74,7 @@ MODULE_PARM_DESC(adjust_y_offset, "adjust Y offset display [core]");
 				__func__, __LINE__ , ## args); \
 	}
 #else
-	#define PDEBUG(level, fmt, args...) do {} while (0)
+	#define PDEBUG(level, fmt, args...) ((void)0)
 #endif
 
 #define DBG_HEADER	(1 << 0)

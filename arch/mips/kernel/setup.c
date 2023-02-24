@@ -352,7 +352,7 @@ static unsigned long __init init_initrd(void)
 	return 0;
 }
 
-#define finalize_initrd()	do {} while (0)
+#define finalize_initrd()	((void)0)
 
 #endif
 

@@ -22,7 +22,7 @@
 	BUG_ON(atomic_read((X)) >> (sizeof(atomic_t) - 2) == \
 	       (POISON_FREE << 8 | POISON_FREE))
 #else
-#define CHECK_SLAB_OKAY(X) do {} while (0)
+#define CHECK_SLAB_OKAY(X) ((void)0)
 #endif
 
 #define FCRYPT_BSIZE 8

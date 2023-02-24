@@ -24,7 +24,7 @@
 #include <asm/mem-layout.h>
 #include <asm/atomic.h>
 
-#define check_pgt_cache() do {} while (0)
+#define check_pgt_cache() ((void)0)
 
 extern unsigned long long kmap_generation;
 

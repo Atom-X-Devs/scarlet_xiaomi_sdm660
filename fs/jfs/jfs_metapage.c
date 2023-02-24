@@ -178,7 +178,7 @@ static inline void remove_metapage(struct page *page, struct metapage *mp)
 	kunmap(page);
 }
 
-#define inc_io(page) do {} while(0)
+#define inc_io(page) ((void)0)
 #define dec_io(page, handler) handler(page)
 
 #endif

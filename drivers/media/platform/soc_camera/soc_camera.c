@@ -1488,8 +1488,8 @@ static void scan_async_host(struct soc_camera_host *ici)
 }
 #else
 #define soc_camera_i2c_init(icd, sdesc)	(-ENODEV)
-#define soc_camera_i2c_free(icd)	do {} while (0)
-#define scan_async_host(ici)		do {} while (0)
+#define soc_camera_i2c_free(icd)	((void)0)
+#define scan_async_host(ici)		((void)0)
 #endif
 
 #ifdef CONFIG_OF

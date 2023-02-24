@@ -1405,7 +1405,7 @@ do { if (ipw_debug_level & (level)) \
   printk(KERN_DEBUG DRV_NAME": %c %s " fmt, \
          in_interrupt() ? 'I' : 'U', __func__ , ## args); } while (0)
 #else
-#define IPW_LL_DEBUG(level, fmt, args...) do {} while (0)
+#define IPW_LL_DEBUG(level, fmt, args...) ((void)0)
 #endif				/* CONFIG_IPW2200_DEBUG */
 
 /*

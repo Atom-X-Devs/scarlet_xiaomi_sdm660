@@ -656,7 +656,7 @@ MODULE_PARM_DESC(use_fullspeed, "true for fullspeed only");
 #ifdef UDC_VERBOSE
 #define VDBG			DBG
 #else
-#define VDBG(udc , args...)	do {} while (0)
+#define VDBG(udc , args...)	((void)0)
 #endif
 
 #endif /* #ifdef AMD5536UDC_H */

@@ -34,8 +34,8 @@
 #else
 #define arm_iommu_create_mapping(...)	NULL
 #define arm_iommu_attach_device(...)	-ENODEV
-#define arm_iommu_release_mapping(...)	do {} while (0)
-#define arm_iommu_detach_device(...)	do {} while (0)
+#define arm_iommu_release_mapping(...)	((void)0)
+#define arm_iommu_detach_device(...)	((void)0)
 #endif
 
 #define IPMMU_CTX_MAX 8

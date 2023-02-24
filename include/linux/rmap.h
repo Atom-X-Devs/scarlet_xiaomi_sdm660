@@ -295,9 +295,9 @@ void page_unlock_anon_vma_read(struct anon_vma *anon_vma);
 
 #else	/* !CONFIG_MMU */
 
-#define anon_vma_init()		do {} while (0)
+#define anon_vma_init()		((void)0)
 #define anon_vma_prepare(vma)	(0)
-#define anon_vma_link(vma)	do {} while (0)
+#define anon_vma_link(vma)	((void)0)
 
 static inline int page_referenced(struct page *page, int is_locked,
 				  struct mem_cgroup *memcg,

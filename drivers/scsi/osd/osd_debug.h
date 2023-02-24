@@ -21,7 +21,7 @@
 #define OSD_DEBUG(fmt, a...) \
 	printk(KERN_NOTICE "osd @%s:%d: " fmt, __func__, __LINE__, ##a)
 #else
-#define OSD_DEBUG(fmt, a...) do {} while (0)
+#define OSD_DEBUG(fmt, a...) ((void)0)
 #endif
 
 /* u64 has problems with printk this will cast it to unsigned long long */

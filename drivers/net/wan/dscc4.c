@@ -1034,7 +1034,7 @@ static void dscc4_pci_reset(struct pci_dev *pdev, void __iomem *ioaddr)
 	mutex_unlock(&dscc4_mutex);
 }
 #else
-#define dscc4_pci_reset(pdev,ioaddr)	do {} while (0)
+#define dscc4_pci_reset(pdev,ioaddr)	((void)0)
 #endif /* CONFIG_DSCC4_PCI_RST */
 
 static int dscc4_open(struct net_device *dev)

@@ -270,7 +270,7 @@ static inline void pxa27x_reset_hc(struct pxa27x_ohci *pxa_ohci)
 #ifdef CONFIG_PXA27x
 extern void pxa27x_clear_otgph(void);
 #else
-#define pxa27x_clear_otgph()	do {} while (0)
+#define pxa27x_clear_otgph()	((void)0)
 #endif
 
 static int pxa27x_start_hc(struct pxa27x_ohci *pxa_ohci, struct device *dev)

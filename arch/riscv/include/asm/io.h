@@ -138,10 +138,10 @@ static inline u64 __raw_readq(const volatile void __iomem *addr)
  * fences are required to enforce this ordering.
  */
 /* FIXME: These are now the same as asm-generic */
-#define __io_rbr()		do {} while (0)
-#define __io_rar()		do {} while (0)
-#define __io_rbw()		do {} while (0)
-#define __io_raw()		do {} while (0)
+#define __io_rbr()		((void)0)
+#define __io_rar()		((void)0)
+#define __io_rbw()		((void)0)
+#define __io_raw()		((void)0)
 
 #define readb_relaxed(c)	({ u8  __v; __io_rbr(); __v = readb_cpu(c); __io_rar(); __v; })
 #define readw_relaxed(c)	({ u16 __v; __io_rbr(); __v = readw_cpu(c); __io_rar(); __v; })
@@ -162,10 +162,10 @@ static inline u64 __raw_readq(const volatile void __iomem *addr)
  * Normal memory access.  The memory barriers here are necessary as RISC-V
  * doesn't define any ordering between the memory space and the I/O space.
  */
-#define __io_br()	do {} while (0)
+#define __io_br()	((void)0)
 #define __io_ar()	__asm__ __volatile__ ("fence i,r" : : : "memory");
 #define __io_bw()	__asm__ __volatile__ ("fence w,o" : : : "memory");
-#define __io_aw()	do {} while (0)
+#define __io_aw()	((void)0)
 
 #define readb(c)	({ u8  __v; __io_br(); __v = readb_cpu(c); __io_ar(); __v; })
 #define readw(c)	({ u16 __v; __io_br(); __v = readw_cpu(c); __io_ar(); __v; })

@@ -25,7 +25,7 @@
 #ifdef CONFIG_PCI_DEBUG
 #define DBG(x...) printk(KERN_DEBUG x)
 #else
-#define DBG(x...) do {} while (0)
+#define DBG(x...) ((void)0)
 #endif
 
 #define PCI_ACCESS_READ		0

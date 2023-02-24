@@ -122,8 +122,8 @@ extern u32 rt_global_debug_component;
 		}							\
 	} while (0)
 #else
-#define RTL8192U_ASSERT(expr) do {} while (0)
-#define RT_DEBUG_DATA(level, data, datalen) do {} while (0)
+#define RTL8192U_ASSERT(expr) ((void)0)
+#define RT_DEBUG_DATA(level, data, datalen) ((void)0)
 #endif /* RTL8169_DEBUG */
 
 /* Queue Select Value in TxDesc */

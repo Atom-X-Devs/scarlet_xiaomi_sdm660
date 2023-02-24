@@ -95,11 +95,11 @@
 #endif
   
 #ifndef FP_INIT_ROUNDMODE
-#define FP_INIT_ROUNDMODE do {} while (0)
+#define FP_INIT_ROUNDMODE ((void)0)
 #endif
 
 #ifndef FP_HANDLE_EXCEPTIONS
-#define FP_HANDLE_EXCEPTIONS do {} while (0)
+#define FP_HANDLE_EXCEPTIONS ((void)0)
 #endif
 
 /* By default we never flush denormal input operands to signed zero. */

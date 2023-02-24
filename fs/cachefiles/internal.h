@@ -202,8 +202,8 @@ void cachefiles_hist(atomic_t histogram[], unsigned long start_jif)
 
 #else
 #define cachefiles_proc_init()		(0)
-#define cachefiles_proc_cleanup()	do {} while (0)
-#define cachefiles_hist(hist, start_jif) do {} while (0)
+#define cachefiles_proc_cleanup()	((void)0)
+#define cachefiles_hist(hist, start_jif) ((void)0)
 #endif
 
 /*
@@ -362,9 +362,9 @@ do {									\
 
 #else
 
-#define ASSERT(X)			do {} while (0)
-#define ASSERTCMP(X, OP, Y)		do {} while (0)
-#define ASSERTIF(C, X)			do {} while (0)
-#define ASSERTIFCMP(C, X, OP, Y)	do {} while (0)
+#define ASSERT(X)			((void)0)
+#define ASSERTCMP(X, OP, Y)		((void)0)
+#define ASSERTIF(C, X)			((void)0)
+#define ASSERTIFCMP(C, X, OP, Y)	((void)0)
 
 #endif

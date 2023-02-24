@@ -11,7 +11,7 @@
 #if IDE_GD_DEBUG_LOG
 #define ide_debug_log(lvl, fmt, args...) __ide_debug_log(lvl, fmt, ## args)
 #else
-#define ide_debug_log(lvl, fmt, args...) do {} while (0)
+#define ide_debug_log(lvl, fmt, args...) ((void)0)
 #endif
 
 struct ide_disk_obj {

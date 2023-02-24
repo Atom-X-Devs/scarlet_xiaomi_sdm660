@@ -134,10 +134,10 @@
 #define RT_TRACE(_Comp, _Level, Fmt) do{}while (0)
 #define RT_PRINT_DATA(_Comp, _Level, _TitleString, _HexData, _HexDataLen) do{}while (0)
 
-#define DBG_871X(x, ...) do {} while (0)
-#define MSG_8192C(x, ...) do {} while (0)
-#define DBG_8192C(x,...) do {} while (0)
-#define DBG_871X_LEVEL(x,...) do {} while (0)
+#define DBG_871X(x, ...) ((void)0)
+#define MSG_8192C(x, ...) ((void)0)
+#define DBG_8192C(x,...) ((void)0)
+#define DBG_871X_LEVEL(x,...) ((void)0)
 
 #undef _dbgdump
 
@@ -255,7 +255,7 @@
 #ifdef CONFIG_DBG_COUNTER
 #define DBG_COUNTER(counter) counter++
 #else
-#define DBG_COUNTER(counter) do {} while (0)
+#define DBG_COUNTER(counter) ((void)0)
 #endif
 
 void dump_drv_version(void *sel);
