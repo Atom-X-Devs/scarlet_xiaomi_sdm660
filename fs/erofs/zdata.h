@@ -6,6 +6,7 @@
 #ifndef __EROFS_FS_ZDATA_H
 #define __EROFS_FS_ZDATA_H
 
+#include <linux/kthread.h>
 #include "internal.h"
 #include "zpvec.h"
 
