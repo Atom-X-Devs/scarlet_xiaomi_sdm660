@@ -1407,6 +1407,8 @@ source "drivers/input/touchscreen/focal_ft8719/Kconfig"
 
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
 
+source "drivers/input/touchscreen/nt36xxx_f7a/Kconfig"
+
 source "drivers/input/touchscreen/synaptics_dsx_e7s/Kconfig"
 
 endif
