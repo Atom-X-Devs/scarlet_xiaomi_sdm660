@@ -1092,7 +1092,7 @@ static int l2_cache_pmu_probe_cluster(struct device *parent,
 	irq = of_irq_get(cn, 0);
 	if (irq < 0) {
 		pr_err(L2_COUNTERS_BUG
-			"Failed to get valid irq for cluster %ld\n",
+			"Failed to get valid irq for cluster %u\n",
 			fw_cluster_id);
 		goto err_put_dev;
 	}
@@ -1111,7 +1111,7 @@ static int l2_cache_pmu_probe_cluster(struct device *parent,
 	}
 
 	pr_info(L2_COUNTERS_BUG
-		"Registered L2 cache PMU cluster %ld\n", fw_cluster_id);
+		"Registered L2 cache PMU cluster %u\n", fw_cluster_id);
 
 	spin_lock_init(&cluster->pmu_lock);
 	list_add(&cluster->next, &l2cache_pmu->clusters);

@@ -1191,7 +1191,7 @@ static int qusb_phy_vbus_notifier(struct notifier_block *nb,
 	}
 
 	qphy->vbus_active = !!event;
-	dev_dbg(qphy->phy.dev, "Got VBUS notification: %u\n", event);
+	dev_dbg(qphy->phy.dev, "Got VBUS notification: %lu\n", event);
 	queue_delayed_work(system_freezable_wq, &qphy->port_det_w, 0);
 
 	return NOTIFY_DONE;
@@ -1209,7 +1209,7 @@ static int qusb_phy_id_notifier(struct notifier_block *nb,
 	}
 
 	qphy->id_state = !event;
-	dev_dbg(qphy->phy.dev, "Got id notification: %u\n", event);
+	dev_dbg(qphy->phy.dev, "Got id notification: %lu\n", event);
 	queue_delayed_work(system_freezable_wq, &qphy->port_det_w, 0);
 
 	return NOTIFY_DONE;
@@ -1692,14 +1692,14 @@ static int qusb_phy_probe(struct platform_device *pdev)
 		ret = of_property_read_u32(dev->of_node, "qcom,usb-hs-ac-value",
 						&qphy->usb_hs_ac_value);
 		if (ret) {
-			dev_err(dev, "usb_hs_ac_value not passed\n", __func__);
+			dev_err(dev, "%s: usb_hs_ac_value not passed\n", __func__);
 			return ret;
 		}
 
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						"tcsr_conn_box_spare_0");
 		if (!res) {
-			dev_err(dev, "tcsr_conn_box_spare_0 not passed\n",
+			dev_err(dev, "%s: tcsr_conn_box_spare_0 not passed\n",
 								__func__);
 			return -ENOENT;
 		}
