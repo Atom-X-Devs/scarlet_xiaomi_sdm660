@@ -1595,7 +1595,7 @@ static int pp_pa_dither_cache_params_v1_7(
 			     (u8 *)((unsigned long)dither_data.matrix_data),
 			     (MDP_DITHER_DATA_V1_7_SZ * sizeof(u32)));
 	if (ret) {
-		pr_err("failed to copy the dither matrix ret %d sz %z\n", ret,
+		pr_err("failed to copy the dither matrix ret %d sz %lu\n", ret,
 			MDP_DITHER_DATA_V1_7_SZ * sizeof(u32));
 		ret = -EFAULT;
 		goto exit;

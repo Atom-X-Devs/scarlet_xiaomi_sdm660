@@ -616,7 +616,7 @@ static size_t qcom_smd_channel_ext_read(struct qcom_smd_channel *channel)
 		ret = ept->cb(ept->rpdev, ptr, len, ept->priv, RPMSG_ADDR_ANY);
 		if (ret < 0) {
 			smd_ipc(channel->edge->ipc, false, NULL,
-			"%s: ret %d len %d ch %s\n", __func__, ret, len,
+			"%s: ret %d len %ld ch %s\n", __func__, ret, len,
 								channel->name);
 		}
 		kfree(channel->extended_buf);
@@ -666,7 +666,7 @@ static int qcom_smd_channel_recv_single(struct qcom_smd_channel *channel)
 		ret = ept->cb(ept->rpdev, ptr, len, ept->priv, RPMSG_ADDR_ANY);
 		if (ret < 0) {
 			smd_ipc(channel->edge->ipc, false, NULL,
-				"%s: ret %d len %d ch %s\n", __func__, ret, len,
+				"%s: ret %d len %ld ch %s\n", __func__, ret, len,
 								channel->name);
 			return ret;
 		}
@@ -683,7 +683,7 @@ static int qcom_smd_channel_recv_single(struct qcom_smd_channel *channel)
 	channel->pkt_size = 0;
 
 exit:
-	smd_ipc(channel->edge->ipc, false, NULL, "%s: len %d ch %s ed %s\n",
+	smd_ipc(channel->edge->ipc, false, NULL, "%s: len %ld ch %s ed %s\n",
 			__func__, len, channel->name, channel->edge->name);
 	return 0;
 }
@@ -949,7 +949,7 @@ static int __qcom_smd_send(struct qcom_smd_channel *channel, const void *data,
 
 	qcom_smd_signal_channel(channel);
 	smd_ipc(channel->edge->ipc, false, NULL,
-	"%s: hdr:%d len:%d ch %s ed %s\n", __func__,
+	"%s: hdr:%ld len:%d ch %s ed %s\n", __func__,
 	sizeof(hdr), len, channel->name, channel->edge->name);
 
 out_unlock:
