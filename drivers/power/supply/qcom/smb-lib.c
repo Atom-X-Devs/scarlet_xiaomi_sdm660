@@ -4305,14 +4305,10 @@ static void smblib_force_legacy_icl(struct smb_charger *chg, int pst)
 		break;
 #endif
 	case POWER_SUPPLY_TYPE_USB_HVDCP_3:
-#if defined(CONFIG_MACH_XIAOMI_WHYRED) || defined(CONFIG_MACH_XIAOMI_TULIP)
-		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, HVDCP_CURRENT_UA);
-#else
 #if defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
 		vote(chg->usb_icl_votable, USER_VOTER, false, 0);
 #endif
 		vote(chg->usb_icl_votable, LEGACY_UNKNOWN_VOTER, true, HVDCP_CURRENT_UA);
-#endif
 		break;
 	default:
 		smblib_err(chg, "Unknown APSD %d; forcing suspend\n", pst);
