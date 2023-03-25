@@ -32,6 +32,7 @@
 #include <linux/tick.h>
 #include <linux/sched/topology.h>
 #include <linux/sched/sysctl.h>
+#include <../drivers/misc/kprofiles/kprofiles.h>
 
 #include <trace/events/power.h>
 
@@ -711,8 +712,6 @@ static ssize_t show_scaling_cur_freq(struct cpufreq_policy *policy, char *buf)
 
 static int cpufreq_set_policy(struct cpufreq_policy *policy,
 				struct cpufreq_policy *new_policy);
-
-extern int kp_active_mode(void);
 
 /**
  * cpufreq_per_cpu_attr_write() / store_##file_name() - sysfs write access
