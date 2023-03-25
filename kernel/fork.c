@@ -97,6 +97,7 @@
 #include <linux/scs.h>
 #include <linux/simple_lmk.h>
 #include <linux/devfreq_boost.h>
+#include <../drivers/misc/kprofiles/kprofiles.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -2308,8 +2309,6 @@ struct task_struct *fork_idle(int cpu)
 
 	return task;
 }
-
-extern int kp_active_mode(void);
 
 /*
  *  Ok, this is the main fork-routine.
