@@ -2328,23 +2328,10 @@ long _do_fork(unsigned long clone_flags,
 	struct task_struct *p;
 	int trace = 0;
 	long nr;
-	unsigned int period = 30;
 
-	switch (kp_active_mode()) {
-	case 0: /* Use balance mode's boost period */
-	case 2:
-		/* Boost for 50 ms when balance mode is active */
-		period = 50;
-		break;
-	case 3:
-		/* Boost for 100 ms when performance mode is active */
-		period = 100;
-		break;
-	}
-
-	/* Boost DDR bus to the max when userspace launches an app */
+	/* Boost DDR bus to the max for 100 ms when userspace launches an app */
 	if (task_is_zygote(current))
-		devfreq_boost_kick_max(DEVFREQ_MSM_CPU_DDR_BW, period);
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPU_DDR_BW, 100);
 
 	/*
 	 * Determine whether and which event to report to ptracer.  When
