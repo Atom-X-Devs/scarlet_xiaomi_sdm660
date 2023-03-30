@@ -2964,7 +2964,7 @@ int smblib_get_prop_die_health(struct smb_charger *chg,
 #if defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
 #define CDP_CURRENT_UA			2000000
 #define DCP_CURRENT_UA			2500000
-#define HVDCP_CURRENT_UA		3000000
+#define HVDCP_CURRENT_UA		2900000
 #define HVDCP2_CURRENT_UA		2000000
 #elif defined(CONFIG_MACH_XIAOMI_WHYRED) || defined(CONFIG_MACH_XIAOMI_TULIP)
 #define CDP_CURRENT_UA			1500000
@@ -2976,10 +2976,10 @@ int smblib_get_prop_die_health(struct smb_charger *chg,
 #define DCP_CURRENT_UA			1500000
 #define HVDCP_CURRENT_UA		3000000
 #endif
-
 #define TYPEC_DEFAULT_CURRENT_UA	900000
 #define TYPEC_MEDIUM_CURRENT_UA		1500000
 #define TYPEC_HIGH_CURRENT_UA		3000000
+
 static int get_rp_based_dcp_current(struct smb_charger *chg, int typec_mode)
 {
 	int rp_ua;
