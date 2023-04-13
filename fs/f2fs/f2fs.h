@@ -855,7 +855,6 @@ struct f2fs_inode_info {
 					/* cached extent_tree entry */
 	pgoff_t ra_offset;		/* ongoing readahead offset */
 	struct inode *cow_inode;	/* copy-on-write inode for atomic write */
-	struct list_head xattr_dirty_list;	/* list for xattr changed inodes */
 
 	/* avoid racing between foreground op and gc */
 	struct f2fs_rwsem i_gc_rwsem[2];
@@ -1162,7 +1161,6 @@ enum cp_reason_type {
 	CP_FASTBOOT_MODE,
 	CP_SPEC_LOG_NUM,
 	CP_RECOVER_DIR,
-	CP_PARENT_XATTR_SET,
 };
 
 enum iostat_type {
@@ -1669,8 +1667,6 @@ struct f2fs_sb_info {
 	struct list_head fsync_node_list;	/* node list head */
 	unsigned int fsync_seg_id;		/* sequence id */
 	unsigned int fsync_node_num;		/* number of node entries */
-	spinlock_t xattr_set_dir_ilist_lock;	/* lock for dir inode list*/
-	struct list_head xattr_set_dir_ilist;	/* xattr changed dir inode list */
 
 	/* for orphan inode, use 0'th array */
 	unsigned int max_orphans;		/* max orphan inodes */
@@ -1744,7 +1740,6 @@ struct f2fs_sb_info {
 	struct atgc_management am;		/* atgc management */
 	unsigned int cur_victim_sec;		/* current victim section num */
 	unsigned int gc_mode;			/* current GC state */
-	bool gc_booster;			/* boost background gc */
 	unsigned int next_victim_seg[2];	/* next segment in victim section */
 	spinlock_t gc_remaining_trials_lock;
 	/* remaining trial count for GC_URGENT_* and GC_IDLE_* */
@@ -3949,7 +3944,7 @@ struct f2fs_stat_info {
 	int nats, dirty_nats, sits, dirty_sits;
 	int free_nids, avail_nids, alloc_nids;
 	int total_count, utilization;
-	int gc_booster, bg_gc, nr_wb_cp_data, nr_wb_data;
+	int bg_gc, nr_wb_cp_data, nr_wb_data;
 	int nr_rd_data, nr_rd_node, nr_rd_meta;
 	int nr_dio_read, nr_dio_write;
 	unsigned int io_skip_bggc, other_skip_bggc;
@@ -4205,14 +4200,6 @@ int f2fs_read_inline_dir(struct file *file, struct dir_context *ctx,
 int f2fs_inline_data_fiemap(struct inode *inode,
 			struct fiemap_extent_info *fieinfo,
 			__u64 start, __u64 len);
-
-/*
- * xattr.c
- */
-void f2fs_inode_xattr_set(struct inode *inode);
-void f2fs_remove_xattr_set_inode(struct inode *inode);
-void f2fs_clear_xattr_set_ilist(struct f2fs_sb_info *sbi);
-int f2fs_parent_inode_xattr_set(struct inode *inode);
 
 /*
  * shrinker.c
