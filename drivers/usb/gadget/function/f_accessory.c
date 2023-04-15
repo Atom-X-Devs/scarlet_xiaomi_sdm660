@@ -614,9 +614,8 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req;
-	ssize_t r = count;
+	ssize_t r = count, xfer;
 	ssize_t data_length;
-	unsigned xfer;
 	int ret = 0;
 
 	pr_debug("acc_read(%zu)\n", count);
