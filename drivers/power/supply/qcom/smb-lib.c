@@ -4250,9 +4250,7 @@ static void smblib_force_legacy_icl(struct smb_charger *chg, int pst)
 		 */
 		if (!is_client_vote_enabled(chg->usb_icl_votable,
 								USB_PSY_VOTER))
-#if defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER) 
-			vote(chg->usb_icl_votable, USB_PSY_VOTER, true, 900000);
-#elif defined(CONFIG_MACH_XIAOMI_WHYRED) || defined(CONFIG_MACH_XIAOMI_TULIP) 
+#ifdef CONFIG_MACH_LONGCHEER
 			vote(chg->usb_icl_votable, USB_PSY_VOTER, true, 500000);
 #else
 			vote(chg->usb_icl_votable, USB_PSY_VOTER, true, 100000);
