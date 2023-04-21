@@ -57,8 +57,8 @@ static inline u8 mtrr_type_lookup(u64 addr, u64 end, u8 *uniform)
 	 */
 	return MTRR_TYPE_INVALID;
 }
-#define mtrr_save_fixed_ranges(arg) do {} while (0)
-#define mtrr_save_state() do {} while (0)
+#define mtrr_save_fixed_ranges(arg) ((void)0)
+#define mtrr_save_state() ((void)0)
 static inline int mtrr_add(unsigned long base, unsigned long size,
 			   unsigned int type, bool increment)
 {
@@ -89,10 +89,10 @@ static inline void mtrr_bp_init(void)
 	pat_disable("MTRRs disabled, skipping PAT initialization too.");
 }
 
-#define mtrr_ap_init() do {} while (0)
-#define set_mtrr_aps_delayed_init() do {} while (0)
-#define mtrr_aps_init() do {} while (0)
-#define mtrr_bp_restore() do {} while (0)
+#define mtrr_ap_init() ((void)0)
+#define set_mtrr_aps_delayed_init() ((void)0)
+#define mtrr_aps_init() ((void)0)
+#define mtrr_bp_restore() ((void)0)
 #  endif
 
 #ifdef CONFIG_COMPAT

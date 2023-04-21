@@ -127,11 +127,10 @@ static inline bool __core_in_valid_state(struct venus_hfi_device *device)
 	return device->state != VENUS_STATE_DEINIT;
 }
 
-#define row_size 32
 static void __dump_packet(u8 *packet)
 {
 	u32 c = 0, packet_size = *(u32 *)packet;
-
+	const int row_size = 32;
 	/* row must contain enough for 0xdeadbaad * 8 to be converted into
 	 * "de ad ba ab " * 8 + '\0'
 	 */
@@ -1537,7 +1536,7 @@ static int __iface_cmdq_write_relaxed(struct venus_hfi_device *device,
 
 	if (cmd_packet->packet_type == HFI_CMD_SESSION_EMPTY_BUFFER &&
 				!is_clock_bus_voted(device))
-		dprintk(VIDC_ERR, "%s: bus %llu bps or clock %lu MHz\n",
+		dprintk(VIDC_ERR, "%s: bus %lu bps or clock %u MHz\n",
 				__func__, device->bus_vote.total_bw_ddr,
 					device->clk_freq);
 

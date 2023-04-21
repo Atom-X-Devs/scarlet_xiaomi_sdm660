@@ -26,13 +26,13 @@
 #ifndef NO_SYNC_SMP_MB
 #define sync_smp_mb() smp_mb()
 #else
-#define sync_smp_mb() do {} while (0)
+#define sync_smp_mb() ((void)0)
 #endif
 
 #ifndef NO_READ_SIDE_SMP_MB
 #define rs_smp_mb() smp_mb()
 #else
-#define rs_smp_mb() do {} while (0)
+#define rs_smp_mb() ((void)0)
 #endif
 
 #define READ_ONCE(x) (*(volatile typeof(x) *) &(x))

@@ -476,7 +476,7 @@ int cpia2_usb_change_streaming_alternate(struct camera_data *cam,
 #define ALOG(fmt,args...) printk(fmt,##args)
 #define LOG(fmt,args...) ALOG(KERN_INFO "cpia2: "fmt,##args)
 #define ERR(fmt,args...) ALOG(KERN_ERR "cpia2: "fmt,##args)
-#define DBG(fmn,args...) do {} while(0)
+#define DBG(fmn,args...) ((void)0)
 #endif
 /* No function or lineno, for shorter lines */
 #define KINFO(fmt, args...) printk(KERN_INFO fmt,##args)

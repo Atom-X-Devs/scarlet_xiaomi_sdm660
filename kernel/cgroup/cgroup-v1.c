@@ -13,8 +13,10 @@
 #include <linux/delayacct.h>
 #include <linux/pid_namespace.h>
 #include <linux/cgroupstats.h>
+#include <linux/cpu.h>
 #include <linux/binfmts.h>
 #include <linux/devfreq_boost.h>
+#include <../drivers/misc/kprofiles/kprofiles.h>
 
 #include <trace/events/cgroup.h>
 
@@ -60,6 +62,7 @@ int cgroup_attach_task_all(struct task_struct *from, struct task_struct *tsk)
 	int retval = 0;
 
 	mutex_lock(&cgroup_mutex);
+	get_online_cpus();
 	percpu_down_write(&cgroup_threadgroup_rwsem);
 	for_each_root(root) {
 		struct cgroup *from_cgrp;
@@ -76,6 +79,7 @@ int cgroup_attach_task_all(struct task_struct *from, struct task_struct *tsk)
 			break;
 	}
 	percpu_up_write(&cgroup_threadgroup_rwsem);
+	put_online_cpus();
 	mutex_unlock(&cgroup_mutex);
 
 	return retval;
@@ -506,8 +510,6 @@ static int cgroup_pidlist_show(struct seq_file *s, void *v)
 
 	return 0;
 }
-
-extern int kp_active_mode(void);
 
 static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 				     char *buf, size_t nbytes, loff_t off,

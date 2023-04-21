@@ -110,7 +110,7 @@ static void __init vmware_paravirt_ops_setup(void)
 		vmware_sched_clock_setup();
 }
 #else
-#define vmware_paravirt_ops_setup() do {} while (0)
+#define vmware_paravirt_ops_setup() ((void)0)
 #endif
 
 /*

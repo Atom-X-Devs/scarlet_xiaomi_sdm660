@@ -210,16 +210,13 @@ static void update_position(u32 *index, int *offset, struct bio_vec *bvec)
 static inline void update_used_max(struct zram *zram,
 					const unsigned long pages)
 {
-	unsigned long old_max, cur_max;
-
-	old_max = atomic_long_read(&zram->stats.max_used_pages);
+	unsigned long cur_max = atomic_long_read(&zram->stats.max_used_pages);
 
 	do {
-		cur_max = old_max;
-		if (pages > cur_max)
-			old_max = atomic_long_cmpxchg(
-				&zram->stats.max_used_pages, cur_max, pages);
-	} while (old_max != cur_max);
+		if (cur_max >= pages)
+			return;
+	} while (!atomic_long_try_cmpxchg(&zram->stats.max_used_pages,
+					  &cur_max, pages));
 }
 
 static inline void zram_fill_page(void *ptr, unsigned long len,
@@ -1150,7 +1147,7 @@ static ssize_t recomp_algorithm_store(struct device *dev,
 	while (*args) {
 		args = next_arg(args, &param, &val);
 
-		if (!*val)
+		if (!val || !*val)
 			return -EINVAL;
 
 		if (!strcmp(param, "algo")) {
@@ -1233,7 +1230,7 @@ static ssize_t mm_stat_show(struct device *dev,
 	max_used = atomic_long_read(&zram->stats.max_used_pages);
 
 	ret = scnprintf(buf, PAGE_SIZE,
-			"%8llu %8llu %8llu %8lu %8ld %8llu %8lu %8llu %8llu\n",
+			"%8llu %8llu %8llu %8lu %8ld %8llu %8lu\n",
 			(orig_size << PAGE_SHIFT) / 1048576,
 			((u64)atomic64_read(&zram->stats.compr_data_size)) / 1048576,
 			(mem_used << PAGE_SHIFT) / 1048576,
@@ -1827,7 +1824,7 @@ static ssize_t recompress_store(struct device *dev,
 	while (*args) {
 		args = next_arg(args, &param, &val);
 
-		if (!*val)
+		if (!val || !*val)
 			return -EINVAL;
 
 		if (!strcmp(param, "type")) {

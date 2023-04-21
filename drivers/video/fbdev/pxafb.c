@@ -2108,7 +2108,7 @@ static void pxafb_check_options(struct device *dev, struct pxafb_mach_info *inf)
 				"passive mode\n");
 }
 #else
-#define pxafb_check_options(...)	do {} while (0)
+#define pxafb_check_options(...)	((void)0)
 #endif
 
 #if defined(CONFIG_OF)

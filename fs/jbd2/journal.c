@@ -2651,8 +2651,8 @@ static void __exit jbd2_remove_jbd_stats_proc_entry(void)
 
 #else
 
-#define jbd2_create_jbd_stats_proc_entry() do {} while (0)
-#define jbd2_remove_jbd_stats_proc_entry() do {} while (0)
+#define jbd2_create_jbd_stats_proc_entry() ((void)0)
+#define jbd2_remove_jbd_stats_proc_entry() ((void)0)
 
 #endif
 

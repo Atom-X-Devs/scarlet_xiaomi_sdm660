@@ -1313,7 +1313,7 @@ static ssize_t store_mask_and_match(struct device *dev,
 
 	while ((token = strsep(&temp, " "))) {
 		if (kstrtoul(token, 0, &value))
-			return -EIO;
+			return -EINVAL;
 		if (i == 0)
 			mask = value;
 		else if (i == 1)
@@ -2064,10 +2064,16 @@ static int sdhci_msm_pm_qos_parse_cpu_groups(struct device *dev,
 {
 	struct device_node *np = dev->of_node;
 	u32 mask;
-	int nr_groups = 1;
+	int nr_groups;
 	int ret;
 	int i;
 
+	/* Read cpu group mapping */
+	nr_groups = of_property_count_u32_elems(np, "qcom,pm-qos-cpu-groups");
+	if (nr_groups <= 0) {
+		ret = -EINVAL;
+		goto out;
+	}
 	pdata->pm_qos_data.cpu_group_map.nr_groups = nr_groups;
 	pdata->pm_qos_data.cpu_group_map.mask =
 		kcalloc(nr_groups, sizeof(cpumask_t), GFP_KERNEL);

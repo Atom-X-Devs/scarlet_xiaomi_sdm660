@@ -167,9 +167,9 @@ static inline void set_gdma_dev(int req, int dev)
 	omap_writel(l, reg);
 }
 #else
-#define set_gdma_dev(req, dev)	do {} while (0)
+#define set_gdma_dev(req, dev)	((void)0)
 #define omap_readl(reg)		0
-#define omap_writel(val, reg)	do {} while (0)
+#define omap_writel(val, reg)	((void)0)
 #endif
 
 #ifdef CONFIG_ARCH_OMAP1

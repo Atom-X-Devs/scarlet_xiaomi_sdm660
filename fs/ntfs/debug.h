@@ -54,7 +54,7 @@ do {									\
 		no_printk(fmt, ##__VA_ARGS__);				\
 } while (0)
 
-#define ntfs_debug_dump_runlist(rl)	do {} while (0)
+#define ntfs_debug_dump_runlist(rl)	((void)0)
 
 #endif	/* !DEBUG */
 

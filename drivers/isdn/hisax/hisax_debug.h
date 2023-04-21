@@ -71,9 +71,9 @@ dump_packet(const char *name, const u_char *data, int pkt_len)
 
 #else
 
-#define DBG(level, format, arg...) do {} while (0)
-#define DBG_PACKET(level, data, count) do {} while (0)
-#define DBG_SKB(level, skb) do {} while (0)
+#define DBG(level, format, arg...) ((void)0)
+#define DBG_PACKET(level, data, count) ((void)0)
+#define DBG_SKB(level, skb) ((void)0)
 
 #endif
 

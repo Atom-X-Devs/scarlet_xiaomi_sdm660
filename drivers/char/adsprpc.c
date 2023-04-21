@@ -682,8 +682,7 @@ static void fastrpc_buf_free(struct fastrpc_buf *buf, int cache)
 		VERIFY(err, cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS);
 		if (err) {
 			err = -ECHRNG;
-			pr_err("invalid channel 0x%zx set for session\n",
-				cid);
+			pr_err("invalid channel %d set for session\n", cid);
 			goto bail;
 		}
 		vmid = fl->apps->channel[cid].vmid;
@@ -2396,14 +2395,14 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 	VERIFY(err, cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS);
 	if (err) {
 		err = -ECHRNG;
-		goto bail;
+		return err;
 	}
 	VERIFY(err, fl->sctx != NULL);
 	if (err) {
 		pr_err("adsprpc: ERROR: %s: user application %s domain is not set\n",
 			__func__, current->comm);
 		err = -EBADR;
-		goto bail;
+		return err;
 	}
 	if (fl->profile) {
 		perf_counter = getperfcounter(fl, PERF_COUNT);
@@ -2861,8 +2860,7 @@ static int fastrpc_send_cpuinfo_to_dsp(struct fastrpc_file *fl)
 	VERIFY(err, cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS);
 	if (err) {
 		err = -ECHRNG;
-		pr_err("invalid channel 0x%zx set for session\n\n",
-			cid);
+		pr_err("invalid channel %d set for session\n", cid);
 		goto bail;
 	}
 	cpuinfo = me->channel[cid].cpuinfo_todsp;
@@ -3142,8 +3140,7 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 		VERIFY(err, cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS);
 		if (err) {
 			err = -ECHRNG;
-			pr_err("invalid channel 0x%zx set for session\n",
-			cid);
+			pr_err("invalid channel %d set for session\n", cid);
 			goto bail;
 		}
 	}
@@ -3189,8 +3186,7 @@ static int fastrpc_munmap_on_dsp_rh(struct fastrpc_file *fl, uint64_t phys,
 	VERIFY(err, cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS);
 	if (err) {
 		err = -ECHRNG;
-		pr_err("invalid channel 0x%zx set for session\n",
-			cid);
+		pr_err("invalid channel %d set for session\n", cid);
 		goto bail;
 	}
 	if (flags == ADSP_MMAP_HEAP_ADDR) {
@@ -3845,8 +3841,8 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	mutex_unlock(&fl->perf_mutex);
 	mutex_destroy(&fl->perf_mutex);
 	mutex_destroy(&fl->map_mutex);
-	mutex_destroy(&fl->pm_qos_mutex);
 	mutex_destroy(&fl->internal_map_mutex);
+	mutex_destroy(&fl->pm_qos_mutex);
 	kfree(fl);
 	return 0;
 }
@@ -4347,12 +4343,14 @@ static int fastrpc_internal_control(struct fastrpc_file *fl,
 
 		fl->pm_qos_req.type = PM_QOS_REQ_AFFINE_CORES;
 
+		mutex_lock(&fl->pm_qos_mutex);
 		if (!fl->qos_request) {
 			pm_qos_add_request(&fl->pm_qos_req,
 				PM_QOS_CPU_DMA_LATENCY, latency);
 			fl->qos_request = 1;
 		} else
 			pm_qos_update_request(&fl->pm_qos_req, latency);
+		mutex_unlock(&fl->pm_qos_mutex);
 
 		/* Ensure CPU feature map updated to DSP for early WakeUp */
 		fastrpc_send_cpuinfo_to_dsp(fl);
@@ -5185,7 +5183,6 @@ static int fastrpc_probe(struct platform_device *pdev)
 	struct device_node *ion_node, *node;
 	struct platform_device *ion_pdev;
 	struct cma *cma;
-	uint32_t vmid_ssc_q6;
 	uint32_t val;
 	int ret = 0;
 	uint32_t secure_domains;
@@ -5218,9 +5215,6 @@ static int fastrpc_probe(struct platform_device *pdev)
 					"qcom,msm-fastrpc-legacy-compute-cb"))
 		return fastrpc_cb_legacy_probe(dev);
 
-	if (of_property_read_u32(dev->of_node, "qcom,vmid-ssc-q6", &vmid_ssc_q6))
-		vmid_ssc_q6 = VMID_SSC_Q6;
-
 	if (of_device_is_compatible(dev->of_node,
 					"qcom,msm-adsprpc-mem-region")) {
 		me->dev = dev;
@@ -5246,7 +5240,7 @@ static int fastrpc_probe(struct platform_device *pdev)
 		if (range.addr && !of_property_read_bool(dev->of_node,
 							 "restrict-access")) {
 			int srcVM[1] = {VMID_HLOS};
-			int destVM[4] = {VMID_HLOS, VMID_MSS_MSA, vmid_ssc_q6,
+			int destVM[4] = {VMID_HLOS, VMID_MSS_MSA, VMID_SSC_Q6,
 						VMID_ADSP_Q6};
 			int destVMperm[4] = {PERM_READ | PERM_WRITE | PERM_EXEC,
 				PERM_READ | PERM_WRITE | PERM_EXEC,

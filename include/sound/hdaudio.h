@@ -584,9 +584,9 @@ void snd_hdac_dsp_trigger(struct hdac_stream *azx_dev, bool start);
 void snd_hdac_dsp_cleanup(struct hdac_stream *azx_dev,
 			  struct snd_dma_buffer *dmab);
 #else /* CONFIG_SND_HDA_DSP_LOADER */
-#define snd_hdac_dsp_lock_init(dev)	do {} while (0)
-#define snd_hdac_dsp_lock(dev)		do {} while (0)
-#define snd_hdac_dsp_unlock(dev)	do {} while (0)
+#define snd_hdac_dsp_lock_init(dev)	((void)0)
+#define snd_hdac_dsp_lock(dev)		((void)0)
+#define snd_hdac_dsp_unlock(dev)	((void)0)
 #define snd_hdac_stream_is_locked(dev)	0
 
 static inline int

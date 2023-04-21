@@ -160,7 +160,7 @@ do { \
 #define NES_EVENT_TIMEOUT   1200000
 #else
 #define nes_debug(level, fmt, args...) no_printk(fmt, ##args)
-#define assert(expr)          do {} while (0)
+#define assert(expr)          ((void)0)
 
 #define NES_EVENT_TIMEOUT   100000
 #endif

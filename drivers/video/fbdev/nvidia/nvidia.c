@@ -766,6 +766,8 @@ static int nvidiafb_check_var(struct fb_var_screeninfo *var,
 	int pitch, err = 0;
 
 	NVTRACE_ENTER();
+	if (!var->pixclock)
+		return -EINVAL;
 
 	var->transp.offset = 0;
 	var->transp.length = 0;
@@ -987,8 +989,8 @@ static void restore_vga_x86(struct nvidia_par *par)
 		restore_vga(&par->vgastate);
 }
 #else
-#define save_vga_x86(x) do {} while (0)
-#define restore_vga_x86(x) do {} while (0)
+#define save_vga_x86(x) ((void)0)
+#define restore_vga_x86(x) ((void)0)
 #endif /* X86 */
 
 static int nvidiafb_open(struct fb_info *info, int user)

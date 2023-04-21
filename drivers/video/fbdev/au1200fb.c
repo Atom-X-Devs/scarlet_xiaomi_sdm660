@@ -61,7 +61,7 @@
 #if DEBUG
 #define print_dbg(f, arg...) printk(KERN_DEBUG __FILE__ ": " f "\n", ## arg)
 #else
-#define print_dbg(f, arg...) do {} while (0)
+#define print_dbg(f, arg...) ((void)0)
 #endif
 
 
@@ -1038,6 +1038,9 @@ static int au1200fb_fb_check_var(struct fb_var_screeninfo *var,
 	struct au1200fb_device *fbdev = fbi->par;
 	u32 pixclock;
 	int screen_size, plane;
+
+	if (!var->pixclock)
+		return -EINVAL;
 
 	plane = fbdev->plane;
 

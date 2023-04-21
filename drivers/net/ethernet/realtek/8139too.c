@@ -131,7 +131,7 @@
 
 
 #ifdef RTL8139_NDEBUG
-#  define assert(expr) do {} while (0)
+#  define assert(expr) ((void)0)
 #else
 #  define assert(expr) \
         if (unlikely(!(expr))) {				\

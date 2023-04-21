@@ -2006,7 +2006,7 @@ static void mport_cdev_release_dma(struct file *filp)
 	priv->dmach = NULL;
 }
 #else
-#define mport_cdev_release_dma(priv) do {} while (0)
+#define mport_cdev_release_dma(priv) ((void)0)
 #endif
 
 /*

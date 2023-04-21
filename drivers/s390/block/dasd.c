@@ -1140,8 +1140,8 @@ error:
 }
 
 #else
-#define dasd_profile_start(block, cqr, req) do {} while (0)
-#define dasd_profile_end(block, cqr, req) do {} while (0)
+#define dasd_profile_start(block, cqr, req) ((void)0)
+#define dasd_profile_end(block, cqr, req) ((void)0)
 
 static void dasd_statistics_createroot(void)
 {

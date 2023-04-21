@@ -505,7 +505,7 @@ static inline void dnet_print_skb(struct sk_buff *skb)
 	printk("\n");
 }
 #else
-#define dnet_print_skb(skb)	do {} while (0)
+#define dnet_print_skb(skb)	((void)0)
 #endif
 
 static netdev_tx_t dnet_start_xmit(struct sk_buff *skb, struct net_device *dev)

@@ -519,7 +519,7 @@ int __init omap1_mux_init(void)
 }
 
 #else
-#define omap_mux_init() do {} while(0)
-#define omap_cfg_reg(x)	do {} while(0)
+#define omap_mux_init() ((void)0)
+#define omap_cfg_reg(x)	((void)0)
 #endif	/* CONFIG_OMAP_MUX */
 

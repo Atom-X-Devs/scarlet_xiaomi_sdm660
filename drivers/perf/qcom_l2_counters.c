@@ -1037,8 +1037,8 @@ static int l2_cache_pmu_probe_cluster(struct device *parent,
 	struct cluster_pmu *cluster;
 	u32 fw_cluster_id;
 	struct resource res;
-	int ret = 0;
-	int irq, cpu, cpu_count = 0;
+	int ret;
+	int irq;
 
 	cluster = kzalloc(sizeof(*cluster), GFP_KERNEL);
 	if (!cluster) {
@@ -1064,14 +1064,6 @@ static int l2_cache_pmu_probe_cluster(struct device *parent,
 		goto err_put_dev;
 	}
 
-	for_each_possible_cpu(cpu) {
-		if (topology_physical_package_id(cpu) == fw_cluster_id) {
-			cpu_count++;
-			break;
-		}
-	}
-	if (cpu_count == 0)
-		goto err_put_dev;
 	ret = of_address_to_resource(cn, 0, &res);
 	if (ret) {
 		pr_err(L2_COUNTERS_BUG "not able to find the resource\n");
@@ -1092,7 +1084,7 @@ static int l2_cache_pmu_probe_cluster(struct device *parent,
 	irq = of_irq_get(cn, 0);
 	if (irq < 0) {
 		pr_err(L2_COUNTERS_BUG
-			"Failed to get valid irq for cluster %ld\n",
+			"Failed to get valid irq for cluster %u\n",
 			fw_cluster_id);
 		goto err_put_dev;
 	}
@@ -1111,7 +1103,7 @@ static int l2_cache_pmu_probe_cluster(struct device *parent,
 	}
 
 	pr_info(L2_COUNTERS_BUG
-		"Registered L2 cache PMU cluster %ld\n", fw_cluster_id);
+		"Registered L2 cache PMU cluster %u\n", fw_cluster_id);
 
 	spin_lock_init(&cluster->pmu_lock);
 	list_add(&cluster->next, &l2cache_pmu->clusters);

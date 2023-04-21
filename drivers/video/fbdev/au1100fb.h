@@ -39,7 +39,7 @@
 #if DEBUG
 #define print_dbg(f, arg...) printk(__FILE__ ": " f "\n", ## arg)
 #else
-#define print_dbg(f, arg...) do {} while (0)
+#define print_dbg(f, arg...) ((void)0)
 #endif
 
 #if defined(__BIG_ENDIAN)

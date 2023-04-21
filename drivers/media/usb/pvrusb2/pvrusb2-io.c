@@ -39,7 +39,7 @@ static const char *pvr2_buffer_state_decode(enum pvr2_buffer_state);
 	} \
 } while (0)
 #else
-#define BUFFER_CHECK(bp) do {} while (0)
+#define BUFFER_CHECK(bp) ((void)0)
 #endif
 
 struct pvr2_stream {

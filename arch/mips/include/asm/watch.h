@@ -26,7 +26,7 @@ void mips_probe_watch_registers(struct cpuinfo_mips *c);
 } while (0)
 
 #else
-#define __restore_watch(task) do {} while (0)
+#define __restore_watch(task) ((void)0)
 #endif
 
 #endif /* _ASM_WATCH_H */

@@ -523,7 +523,7 @@ static inline int node_random(const nodemask_t *mask)
 #define NODEMASK_FREE(m)			kfree(m)
 #else
 #define NODEMASK_ALLOC(type, name, gfp_flags)	type _##name, *name = &_##name
-#define NODEMASK_FREE(m)			do {} while (0)
+#define NODEMASK_FREE(m)			((void)0)
 #endif
 
 /* A example struture for using NODEMASK_ALLOC, used in mempolicy. */

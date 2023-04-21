@@ -160,8 +160,8 @@ static void sst_dbg_print_write_reg(u32 reg, u32 val) {
 		r_dprintk(" sst_write(%s, %#x)\n", regname, val);
 }
 #else /*  (SST_DEBUG_REG > 0) */
-#  define sst_dbg_print_read_reg(reg, val)	do {} while(0)
-#  define sst_dbg_print_write_reg(reg, val)	do {} while(0)
+#  define sst_dbg_print_read_reg(reg, val)	((void)0)
+#  define sst_dbg_print_write_reg(reg, val)	((void)0)
 #endif /*  (SST_DEBUG_REG > 0) */
 
 /*

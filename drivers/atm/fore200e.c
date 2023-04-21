@@ -81,7 +81,7 @@
 #define DPRINTK(level, format, args...)  do { if (CONFIG_ATM_FORE200E_DEBUG >= (level)) \
                                                   printk(FORE200E format, ##args); } while (0)
 #else
-#define DPRINTK(level, format, args...)  do {} while (0)
+#define DPRINTK(level, format, args...)  ((void)0)
 #endif
 
 
@@ -101,7 +101,7 @@
 			     panic(FORE200E "%s", __func__); \
 			 }
 #else
-#define ASSERT(expr)     do {} while (0)
+#define ASSERT(expr)     ((void)0)
 #endif
 
 

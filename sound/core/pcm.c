@@ -927,7 +927,7 @@ static void snd_pcm_free_stream(struct snd_pcm_str * pstr)
 			_notify->call(pcm);				\
 	} while (0)
 #else
-#define pcm_call_notify(pcm, call) do {} while (0)
+#define pcm_call_notify(pcm, call) ((void)0)
 #endif
 
 static int snd_pcm_free(struct snd_pcm *pcm)

@@ -28,7 +28,7 @@
 /* u64 has problems with printk this will cast it to unsigned long long */
 #define _LLU(x) (unsigned long long)(x)
 
-#define ORE_DBGMSG2(M...) do {} while (0)
+#define ORE_DBGMSG2(M...) ((void)0)
 /* #define ORE_DBGMSG2 ORE_DBGMSG */
 
 /* ios_raid.c stuff needed by ios.c */

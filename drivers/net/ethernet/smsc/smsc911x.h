@@ -69,7 +69,7 @@
 #define SMSC_ASSERT_MAC_LOCK(pdata) \
 		WARN_ON_SMP(!spin_is_locked(&pdata->mac_lock))
 #else
-#define SMSC_ASSERT_MAC_LOCK(pdata) do {} while (0)
+#define SMSC_ASSERT_MAC_LOCK(pdata) ((void)0)
 #endif				/* CONFIG_DEBUG_SPINLOCK */
 
 /* SMSC911x registers and bitfields */
@@ -412,7 +412,7 @@
  * Provide hooks to let the arch add to the initialisation procedure
  * and to override the source of the MAC address.
  */
-#define SMSC_INITIALIZE()		do {} while (0)
+#define SMSC_INITIALIZE()		((void)0)
 #define smsc_get_mac(dev)		smsc911x_read_mac_address((dev))
 
 #ifdef CONFIG_SMSC911X_ARCH_HOOKS

@@ -60,8 +60,8 @@ static void devres_log(struct device *dev, struct devres_node *node,
 			op, node, node->name, (unsigned long)node->size);
 }
 #else /* CONFIG_DEBUG_DEVRES */
-#define set_node_dbginfo(node, n, s)	do {} while (0)
-#define devres_log(dev, node, op)	do {} while (0)
+#define set_node_dbginfo(node, n, s)	((void)0)
+#define devres_log(dev, node, op)	((void)0)
 #endif /* CONFIG_DEBUG_DEVRES */
 
 /*
