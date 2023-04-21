@@ -148,7 +148,7 @@ static int pxa27x_ohci_select_pmm(struct pxa27x_ohci *pxa_ohci, int mode)
 		uhcrhda |= RH_A_NPS;
 		break;
 	case PMM_GLOBAL_MODE:
-		uhcrhda &= ~(RH_A_NPS & RH_A_PSM);
+		uhcrhda &= ~(RH_A_NPS | RH_A_PSM);
 		break;
 	case PMM_PERPORT_MODE:
 		uhcrhda &= ~(RH_A_NPS);
@@ -270,7 +270,7 @@ static inline void pxa27x_reset_hc(struct pxa27x_ohci *pxa_ohci)
 #ifdef CONFIG_PXA27x
 extern void pxa27x_clear_otgph(void);
 #else
-#define pxa27x_clear_otgph()	do {} while (0)
+#define pxa27x_clear_otgph()	((void)0)
 #endif
 
 static int pxa27x_start_hc(struct pxa27x_ohci *pxa_ohci, struct device *dev)

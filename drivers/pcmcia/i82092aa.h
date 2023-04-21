@@ -10,9 +10,9 @@
 #define leave(x)   printk("Leave: %s, %s line %i\n",x,__FILE__,__LINE__)
 #define dprintk(fmt, args...) printk(fmt , ## args)
 #else
-#define enter(x)   do {} while (0)
-#define leave(x)   do {} while (0)
-#define dprintk(fmt, args...) do {} while (0)
+#define enter(x)   ((void)0)
+#define leave(x)   ((void)0)
+#define dprintk(fmt, args...) ((void)0)
 #endif
 
 

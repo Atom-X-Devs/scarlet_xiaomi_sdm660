@@ -59,7 +59,7 @@
 #define DBG(fmt, idx, args...)	\
 	pr_debug("au1xmmc(%d): DEBUG: " fmt, idx, ##args)
 #else
-#define DBG(fmt, idx, args...) do {} while (0)
+#define DBG(fmt, idx, args...) ((void)0)
 #endif
 
 /* Hardware definitions */

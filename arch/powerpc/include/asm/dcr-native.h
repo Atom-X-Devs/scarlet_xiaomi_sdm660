@@ -38,7 +38,7 @@ static inline bool dcr_map_ok_native(dcr_host_native_t host)
 
 #define dcr_map_native(dev, dcr_n, dcr_c) \
 	((dcr_host_native_t){ .base = (dcr_n) })
-#define dcr_unmap_native(host, dcr_c)		do {} while (0)
+#define dcr_unmap_native(host, dcr_c)		((void)0)
 #define dcr_read_native(host, dcr_n)		mfdcr(dcr_n + host.base)
 #define dcr_write_native(host, dcr_n, value)	mtdcr(dcr_n + host.base, value)
 

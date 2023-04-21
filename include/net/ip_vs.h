@@ -249,12 +249,12 @@ static inline const char *ip_vs_dbg_addr(int af, char *buf, size_t buf_len,
 			pp->debug_packet(af, pp, skb, ofs, msg);	\
 	} while (0)
 #else	/* NO DEBUGGING at ALL */
-#define IP_VS_DBG_BUF(level, msg...)  do {} while (0)
-#define IP_VS_ERR_BUF(msg...)  do {} while (0)
-#define IP_VS_DBG(level, msg...)  do {} while (0)
-#define IP_VS_DBG_RL(msg...)  do {} while (0)
-#define IP_VS_DBG_PKT(level, af, pp, skb, ofs, msg)	do {} while (0)
-#define IP_VS_DBG_RL_PKT(level, af, pp, skb, ofs, msg)	do {} while (0)
+#define IP_VS_DBG_BUF(level, msg...)  ((void)0)
+#define IP_VS_ERR_BUF(msg...)  ((void)0)
+#define IP_VS_DBG(level, msg...)  ((void)0)
+#define IP_VS_DBG_RL(msg...)  ((void)0)
+#define IP_VS_DBG_PKT(level, af, pp, skb, ofs, msg)	((void)0)
+#define IP_VS_DBG_RL_PKT(level, af, pp, skb, ofs, msg)	((void)0)
 #endif
 
 #define IP_VS_BUG() BUG()
@@ -280,8 +280,8 @@ static inline const char *ip_vs_dbg_addr(int af, char *buf, size_t buf_len,
 			       __func__, __FILE__, __LINE__);		\
 	} while (0)
 #else
-#define EnterFunction(level)   do {} while (0)
-#define LeaveFunction(level)   do {} while (0)
+#define EnterFunction(level)   ((void)0)
+#define LeaveFunction(level)   ((void)0)
 #endif
 
 /* The port number of FTP service (in network order). */

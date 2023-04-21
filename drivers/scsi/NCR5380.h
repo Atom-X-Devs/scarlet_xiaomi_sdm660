@@ -263,8 +263,8 @@ static inline struct scsi_cmnd *NCR5380_to_scmd(struct NCR5380_cmd *ncmd_ptr)
 static void NCR5380_print_phase(struct Scsi_Host *instance);
 static void NCR5380_print(struct Scsi_Host *instance);
 #else
-#define NCR5380_dprint(flg, arg)       do {} while (0)
-#define NCR5380_dprint_phase(flg, arg) do {} while (0)
+#define NCR5380_dprint(flg, arg)       ((void)0)
+#define NCR5380_dprint_phase(flg, arg) ((void)0)
 #endif
 
 static int NCR5380_init(struct Scsi_Host *instance, int flags);

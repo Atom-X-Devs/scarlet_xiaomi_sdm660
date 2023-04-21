@@ -143,7 +143,7 @@ static inline void busy_wait(void)
 #ifdef __alpha__
 #define smp_read_barrier_depends() smp_acquire()
 #else
-#define smp_read_barrier_depends() do {} while(0)
+#define smp_read_barrier_depends() ((void)0)
 #endif
 
 static __always_inline

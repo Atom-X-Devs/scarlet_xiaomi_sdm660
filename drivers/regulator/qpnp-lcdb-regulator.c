@@ -2341,7 +2341,7 @@ static int qpnp_lcdb_regulator_probe(struct platform_device *pdev)
 
 	rc = qpnp_lcdb_parse_dt(lcdb);
 	if (rc < 0)
-		return dev_err_probe(&pdev->dev, rc, "Failed to parse dt rc=%d\n");
+		return dev_err_probe(&pdev->dev, rc, "Failed to parse dt rc=%d\n", rc);
 
 	lcdb->lcdb_class.name = "lcd_bias";
 	lcdb->lcdb_class.owner = THIS_MODULE;

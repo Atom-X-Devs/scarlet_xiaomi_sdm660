@@ -622,8 +622,8 @@ cia_restore_srm_settings(void)
 	mb();
 }
 #else /* ALPHA_RESTORE_SRM_SETUP */
-#define cia_save_srm_settings(p)	do {} while (0)
-#define cia_restore_srm_settings()	do {} while (0)
+#define cia_save_srm_settings(p)	((void)0)
+#define cia_restore_srm_settings()	((void)0)
 #endif /* ALPHA_RESTORE_SRM_SETUP */
 
 

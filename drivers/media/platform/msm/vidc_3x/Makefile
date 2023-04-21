@@ -13,9 +13,7 @@ obj-$(CONFIG_MSM_VIDC_3X_V4L2) := 	msm_v4l2_vidc.o \
 				venus_boot.o \
 				msm_vidc_dcvs.o
 
-obj-$(CONFIG_DEBUG_KERNEL) += msm_vidc_debug.o
-
-obj-$(CONFIG_TRACEPOINTS) += msm_vidc_trace.o
+obj-$(CONFIG_DEBUG_FS) += msm_vidc_debug.o
 
 obj-$(CONFIG_MSM_VIDC_3X_V4L2) += governors/
 

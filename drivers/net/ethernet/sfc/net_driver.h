@@ -47,8 +47,8 @@
 #define EFX_WARN_ON_ONCE_PARANOID(x) WARN_ON_ONCE(x)
 #define EFX_WARN_ON_PARANOID(x) WARN_ON(x)
 #else
-#define EFX_WARN_ON_ONCE_PARANOID(x) do {} while (0)
-#define EFX_WARN_ON_PARANOID(x) do {} while (0)
+#define EFX_WARN_ON_ONCE_PARANOID(x) ((void)0)
+#define EFX_WARN_ON_PARANOID(x) ((void)0)
 #endif
 
 /**************************************************************************

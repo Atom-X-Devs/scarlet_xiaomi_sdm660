@@ -2510,7 +2510,7 @@ int icnss_smmu_map(struct device *dev,
 	priv->smmu_iova_ipa_current = iova + len;
 	*iova_addr = (uint32_t)(iova + paddr - rounddown(paddr, PAGE_SIZE));
 
-	icnss_pr_dbg("IOVA addr mapped to physical addr %lx\n", *iova_addr);
+	icnss_pr_dbg("IOVA addr mapped to physical addr %u\n", *iova_addr);
 	return 0;
 }
 EXPORT_SYMBOL(icnss_smmu_map);

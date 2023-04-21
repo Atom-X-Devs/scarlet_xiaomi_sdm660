@@ -54,7 +54,15 @@ extern int msm_cvp_clock_voting;
 extern bool msm_cvp_syscache_disable;
 
 #define dprintk(__level, __fmt, arg...)	\
-	pr_debug(CVP_DBG_TAG __fmt, get_debug_level_str(__level), ## arg)
+	do { \
+		if (msm_cvp_debug & __level) { \
+			if (msm_cvp_debug_out == CVP_OUT_PRINTK) { \
+				pr_info(CVP_DBG_TAG __fmt, \
+					get_debug_level_str(__level),	\
+					## arg); \
+			} \
+		} \
+	} while (0)
 
 #define MSM_CVP_ERROR(value)					\
 	do {	if (value)					\

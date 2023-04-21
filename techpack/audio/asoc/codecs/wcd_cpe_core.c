@@ -1972,8 +1972,8 @@ struct wcd_cpe_core *wcd_cpe_init(const char *img_fname,
 	}
 
 	card = component->card->snd_card;
-	snprintf(proc_name, (sizeof("cpe") + sizeof("_state") +
-		 sizeof(id) - 2), "%s%d%s", cpe_name, id, state_name);
+	snprintf(proc_name, WCD_CPE_STATE_MAX_LEN,
+		 "%s%d%s", cpe_name, id, state_name);
 	entry = snd_info_create_card_entry(card, proc_name,
 					   card->proc_root);
 	if (entry) {
@@ -3600,7 +3600,7 @@ static int wcd_cpe_lsm_eob(
 			struct cpe_lsm_session *session)
 {
 	int ret = 0;
-	struct cmi_hdr lab_eob;
+	struct cmi_hdr lab_eob = { 0 };
 
 	if (fill_lsm_cmd_header_v0_inband(&lab_eob, session->id,
 		0, CPE_LSM_SESSION_CMD_EOB)) {

@@ -74,6 +74,6 @@ static inline struct probe_cache *probe_cache__new(const char *tgt __maybe_unuse
 {
 	return NULL;
 }
-#define probe_cache__delete(pcache) do {} while (0)
+#define probe_cache__delete(pcache) ((void)0)
 #endif
 #endif

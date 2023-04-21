@@ -27,6 +27,10 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_dcvs.h"
 
+#ifdef CONFIG_TRACEPOINTS
+#define CREATE_TRACE_POINTS
+#endif
+
 #define IS_ALREADY_IN_STATE(__p, __d) ({\
 	int __rc = (__p >= __d);\
 	__rc; \
@@ -50,27 +54,6 @@
 		V4L2_EVENT_MSM_VIDC_RELEASE_BUFFER_REFERENCE
 
 #define MAX_SUPPORTED_INSTANCES 16
-
-#ifndef CONFIG_DEBUG_KERNEL
-int msm_vidc_debug = 0;
-EXPORT_SYMBOL(msm_vidc_debug);
-
-int msm_vidc_debug_out = 0;
-EXPORT_SYMBOL(msm_vidc_debug_out);
-
-int msm_vidc_fw_debug = 0;
-int msm_vidc_fw_debug_mode = 0;
-int msm_vidc_fw_low_power_mode = 1;
-int msm_vidc_hw_rsp_timeout = 1000;
-bool msm_vidc_fw_coverage = true;
-bool msm_vidc_dec_dcvs_mode = true;
-bool msm_vidc_enc_dcvs_mode = true;
-bool msm_vidc_sys_idle_indicator = true;
-int msm_vidc_firmware_unload_delay = 15000;
-bool msm_vidc_thermal_mitigation_disabled = true;
-bool msm_vidc_bitrate_clock_scaling = true;
-bool msm_vidc_debug_timeout = true;
-#endif
 
 const char *const mpeg_video_vidc_extradata[] = {
 	"Extradata none",
@@ -2147,7 +2130,7 @@ static int handle_multi_stream_buffers(struct msm_vidc_inst *inst,
 		if (smem && dev_addr == smem->device_addr) {
 			if (binfo->buffer_ownership == DRIVER) {
 				dprintk(VIDC_ERR,
-					"FW returned same buffer: %x\n",
+					"FW returned same buffer: %llu\n",
 					dev_addr);
 				break;
 			}
@@ -2160,7 +2143,7 @@ static int handle_multi_stream_buffers(struct msm_vidc_inst *inst,
 
 	if (!found) {
 		dprintk(VIDC_ERR,
-			"Failed to find output buffer in queued list: %x\n",
+			"Failed to find output buffer in queued list: %llu\n",
 			dev_addr);
 	}
 

@@ -252,7 +252,7 @@ static inline int get_attribute(struct fb_info *info, u16 c)
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE_ROTATION
 extern void fbcon_set_rotate(struct fbcon_ops *ops);
 #else
-#define fbcon_set_rotate(x) do {} while(0)
+#define fbcon_set_rotate(x) ((void)0)
 #endif /* CONFIG_FRAMEBUFFER_CONSOLE_ROTATION */
 
 #endif /* _VIDEO_FBCON_H */

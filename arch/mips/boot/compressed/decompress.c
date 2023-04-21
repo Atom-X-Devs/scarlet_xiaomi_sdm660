@@ -36,8 +36,8 @@ extern unsigned char __image_begin, __image_end;
 extern void puts(const char *s);
 extern void puthex(unsigned long long val);
 #else
-#define puts(s) do {} while (0)
-#define puthex(val) do {} while (0)
+#define puts(s) ((void)0)
+#define puthex(val) ((void)0)
 #endif
 
 extern char __appended_dtb[];

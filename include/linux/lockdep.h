@@ -503,7 +503,7 @@ enum xhlock_context_t {
 	XHLOCK_CTX_NR,
 };
 
-#define lockdep_init_map_crosslock(m, n, k, s) do {} while (0)
+#define lockdep_init_map_crosslock(m, n, k, s) ((void)0)
 /*
  * To initialize a lockdep_map statically use this macro.
  * Note that _name must not be NULL.
@@ -542,8 +542,8 @@ do {								\
 
 #else /* CONFIG_LOCK_STAT */
 
-#define lock_contended(lockdep_map, ip) do {} while (0)
-#define lock_acquired(lockdep_map, ip) do {} while (0)
+#define lock_contended(lockdep_map, ip) ((void)0)
+#define lock_acquired(lockdep_map, ip) ((void)0)
 
 #define LOCK_CONTENDED(_lock, try, lock) \
 	lock(_lock)

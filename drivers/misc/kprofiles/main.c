@@ -76,7 +76,6 @@ void kp_set_mode_rollback(unsigned int level, unsigned int duration_ms)
 	kp_override = false;
 	mutex_unlock(&kplock);
 }
-EXPORT_SYMBOL(kp_set_mode_rollback);
 
 /*
  * This function can be used to change profile to
@@ -100,7 +99,6 @@ void kp_set_mode(unsigned int level)
 	if (auto_kprofiles)
 		kp_mode = level;
 }
-EXPORT_SYMBOL(kp_set_mode);
 
 /*
  * This function returns a number from 0 and 3 depending on the profile
@@ -143,34 +141,33 @@ int kp_active_mode(void)
 
 	return kp_mode;
 }
-EXPORT_SYMBOL(kp_active_mode);
 
 #ifdef CONFIG_AUTO_KPROFILES
 static inline int kp_notifier_callback(struct notifier_block *self,
 				       unsigned long event, void *data)
 {
 	struct kprofiles_events *evdata = data;
-	int *blank;
+	unsigned int blank;
 
-	if (event != KP_EVENT_BLANK
-#ifdef CONFIG_AUTO_KPROFILES_MSM_DRM
-	    || !evdata || !evdata->data || evdata->id != MSM_DRM_PRIMARY_DISPLAY
-#endif
-	)
-		return NOTIFY_OK;
+	if (event != KP_EVENT_BLANK)
+		return 0;
 
-	blank = evdata->data;
-	switch (*blank) {
-	case KP_BLANK_POWERDOWN:
-		if (!screen_on)
+	if (evdata && evdata->data) {
+		blank = *(int *)(evdata->data);
+		switch (blank) {
+		case KP_BLANK_POWERDOWN:
+			if (!screen_on)
+				break;
+			screen_on = false;
 			break;
-		screen_on = false;
-		break;
-	case KP_BLANK_UNBLANK:
-		if (screen_on)
+		case KP_BLANK_UNBLANK:
+			if (screen_on)
+				break;
+			screen_on = true;
 			break;
-		screen_on = true;
-		break;
+		default:
+			break;
+		}
 	}
 
 	return NOTIFY_OK;

@@ -150,7 +150,7 @@ static inline int up_smp_call_function(smp_call_func_t func, void *info)
 			(up_smp_call_function(func, info))
 
 static inline void smp_send_reschedule(int cpu) { }
-#define smp_prepare_boot_cpu()			do {} while (0)
+#define smp_prepare_boot_cpu()			((void)0)
 #define smp_call_function_many(mask, func, info, wait) \
 			(up_smp_call_function(func, info))
 static inline void call_function_init(void) { }

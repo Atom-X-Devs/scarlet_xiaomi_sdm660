@@ -75,11 +75,11 @@ int msm_qti_pp_send_chmix_cfg_cmd(int port_id, int copp_idx,
 {
 	return 0;
 }
-#define msm_qti_pp_send_eq_values(fedai_id) do {} while (0)
+#define msm_qti_pp_send_eq_values(fedai_id) ((void)0)
 #define msm_qti_pp_send_stereo_to_custom_stereo_cmd(port_id, copp_idx, \
 			session_id, op_FL_ip_FL_weight, op_FL_ip_FR_weight, \
 			op_FR_ip_FL_weight, op_FR_ip_FR_weight) (0)
-#define msm_qti_pp_add_controls(platform) do {} while (0)
+#define msm_qti_pp_add_controls(platform) ((void)0)
 #endif /* CONFIG_QTI_PP */
 
 
@@ -88,7 +88,7 @@ int msm_qti_pp_asphere_init(int port_id, int copp_idx);
 void msm_qti_pp_asphere_deinit(int port_id);
 #else
 #define msm_qti_pp_asphere_init(port_id, copp_idx) (0)
-#define msm_qti_pp_asphere_deinit(port_id) do {} while (0)
+#define msm_qti_pp_asphere_deinit(port_id) ((void)0)
 #endif
 
 #endif /* _MSM_QTI_PP_H_ */

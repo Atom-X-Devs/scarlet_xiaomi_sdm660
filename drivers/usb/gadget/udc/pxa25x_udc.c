@@ -1345,8 +1345,8 @@ DEFINE_SHOW_ATTRIBUTE(udc_debug);
 
 #else	/* !CONFIG_USB_GADGET_DEBUG_FILES */
 
-#define create_debug_files(dev) do {} while (0)
-#define remove_debug_files(dev) do {} while (0)
+#define create_debug_files(dev) ((void)0)
+#define remove_debug_files(dev) ((void)0)
 
 #endif	/* CONFIG_USB_GADGET_DEBUG_FILES */
 

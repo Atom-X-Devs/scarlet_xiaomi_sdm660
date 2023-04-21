@@ -270,7 +270,7 @@ static ssize_t bam_mux_rx_req_size_show(struct device *dev,
 				struct device_attribute	*attr,
 				char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%d\n", bam_mux_rx_req_size);
+	return scnprintf(buf, PAGE_SIZE, "%ld\n", bam_mux_rx_req_size);
 }
 
 static ssize_t bam_mux_rx_req_size_store(struct device *dev,

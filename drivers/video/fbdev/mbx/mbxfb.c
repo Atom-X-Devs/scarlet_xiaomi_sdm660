@@ -875,8 +875,8 @@ static int mbxfb_resume(struct platform_device *dev)
 
 /* debugfs entries */
 #ifndef CONFIG_FB_MBX_DEBUG
-#define mbxfb_debugfs_init(x)	do {} while(0)
-#define mbxfb_debugfs_remove(x)	do {} while(0)
+#define mbxfb_debugfs_init(x)	((void)0)
+#define mbxfb_debugfs_remove(x)	((void)0)
 #else
 #include "mbxdebugfs.c"
 #endif

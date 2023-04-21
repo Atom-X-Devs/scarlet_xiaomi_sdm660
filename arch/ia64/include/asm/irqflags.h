@@ -22,7 +22,7 @@ static inline void arch_maybe_save_ip(unsigned long flags)
 		last_cli_ip = ia64_getreg(_IA64_REG_IP);
 }
 #else
-#define arch_maybe_save_ip(flags) do {} while (0)
+#define arch_maybe_save_ip(flags) ((void)0)
 #endif
 
 /*

@@ -471,8 +471,8 @@ do { if (ieee80211_debug_level & (level)) \
 		}					\
 	} while (0)
 #else
-#define IEEE80211_DEBUG (level, fmt, args...) do {} while (0)
-#define IEEE80211_DEBUG_DATA (level, data, datalen) do {} while(0)
+#define IEEE80211_DEBUG (level, fmt, args...) ((void)0)
+#define IEEE80211_DEBUG_DATA (level, data, datalen) ((void)0)
 #endif	/* CONFIG_IEEE80211_DEBUG */
 
 /* debug macros not dependent on CONFIG_IEEE80211_DEBUG */

@@ -744,8 +744,8 @@ static void nf_bridge_adjust_segmented_data(struct sk_buff *skb)
 		__skb_pull(skb, skb->network_header - skb->mac_header);
 }
 #else
-#define nf_bridge_adjust_skb_data(s) do {} while (0)
-#define nf_bridge_adjust_segmented_data(s) do {} while (0)
+#define nf_bridge_adjust_skb_data(s) ((void)0)
+#define nf_bridge_adjust_segmented_data(s) ((void)0)
 #endif
 
 static void free_entry(struct nf_queue_entry *entry)

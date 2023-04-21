@@ -42,7 +42,7 @@
 
 #include "exofs.h"
 
-#define EXOFS_DBGMSG2(M...) do {} while (0)
+#define EXOFS_DBGMSG2(M...) ((void)0)
 
 /******************************************************************************
  * MOUNT OPTIONS
