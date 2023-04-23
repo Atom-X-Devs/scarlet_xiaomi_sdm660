@@ -471,10 +471,8 @@ static int pm8xxx_rtc_probe(struct platform_device *pdev)
 		device_set_wakeup_capable(&pdev->dev, false);
 
 	rc =  rtc_register_device(rtc_dd->rtc);
-	if (rc < 0) {
-		dev_err(&pdev->dev, "Register RTC device failed\n");
+	if (rc < 0)
 		return rc;
-	}
 
 	return pm8xxx_rtc_init_alarm(rtc_dd);
 }
@@ -491,7 +489,6 @@ static int pm8xxx_rtc_restore(struct device *dev)
 					  IRQF_TRIGGER_RISING,
 					  "pm8xxx_rtc_alarm", rtc_dd);
 	if (rc < 0) {
-		dev_err(rtc_dd->rtc_dev, "Request IRQ failed (%d)\n", rc);
 		return rc;
 	}
 
