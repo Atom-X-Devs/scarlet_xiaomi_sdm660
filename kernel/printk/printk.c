@@ -825,11 +825,11 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 			endp++;
 			len -= endp - line;
 			line = endp;
-			if (strstr(line, "healthd") ||
-				strncmp(line, "logd: Skipping", sizeof("logd: Skipping")))
-				return ret;
 		}
 	}
+
+	if (strstr(line, "healthd") != NULL || strstr(line, "logd") != NULL)
+		return len;
 
 	printk_emit(facility, level, NULL, 0, "%s", line);
 	return ret;
