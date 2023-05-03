@@ -210,7 +210,7 @@ static inline void gf_disable_irq(struct gf_dev *gf_dev)
 	}
 }
 
-static irqreturn_t __always_inline gf_irq(int irq, void *handle)
+static __always_inline irqreturn_t gf_irq(int irq, void *handle)
 {
 	char msg = GF_NET_EVENT_IRQ;
 
@@ -220,7 +220,7 @@ static irqreturn_t __always_inline gf_irq(int irq, void *handle)
 	return IRQ_HANDLED;
 }
 
-static int __always_inline irq_setup(struct gf_dev *gf_dev)
+static __always_inline int irq_setup(struct gf_dev *gf_dev)
 {
 	int status;
 
@@ -238,7 +238,7 @@ static int __always_inline irq_setup(struct gf_dev *gf_dev)
 	return status;
 }
 
-static void __always_inline irq_cleanup(struct gf_dev *gf_dev)
+static __always_inline void irq_cleanup(struct gf_dev *gf_dev)
 {
 	gf_dev->irq_enabled = 0;
 	disable_irq(gf_dev->irq);
@@ -489,7 +489,7 @@ static const struct file_operations gf_fops = {
 	.release = gf_release,
 };
 
-static int __always_inline goodix_fb_state_chg_callback(struct notifier_block *nb,
+static __always_inline int goodix_fb_state_chg_callback(struct notifier_block *nb,
 							unsigned long val, void *data)
 {
 	struct gf_dev *gf_dev = container_of(nb, struct gf_dev, notifier);
