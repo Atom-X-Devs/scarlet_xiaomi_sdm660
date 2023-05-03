@@ -624,7 +624,7 @@ static const struct input_device_id ids[] = {
 static inline int fpc1020_get_regulators(struct fpc1020_data *fpc1020)
 {
 	struct device *dev = fpc1020->dev;
-	unsigned short i = 0;
+	unsigned short i;
 
 	for (i = 0; i < FPC_VREG_MAX; i++) {
 		if (!vreg_conf[i].is_optional)
