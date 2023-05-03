@@ -239,6 +239,7 @@ static inline ssize_t regulator_enable_store(struct device *dev,
 					     const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
+	fpc_rails_t fpc_rail;
 	char op;
 	char name[16];
 	int rc;
@@ -254,7 +255,7 @@ static inline ssize_t regulator_enable_store(struct device *dev,
 		return -EINVAL;
 
 	mutex_lock(&fpc1020->lock);
-	rc = vreg_setup(fpc1020, name, enable);
+	rc = vreg_setup(fpc1020, fpc_rail, enable);
 	mutex_unlock(&fpc1020->lock);
 
 	return rc ? rc : count;
