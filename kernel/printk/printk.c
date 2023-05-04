@@ -828,8 +828,8 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		}
 	}
 
-	if (strstr(line, "healthd") != NULL || strstr(line, "logd") != NULL ||
-	    strstr(line, "init: DM_DEV_STATUS") != NULL)
+	if (strncmp("healthd", line, 7) == 0 || strncmp("logd", line, 4) == 0 ||
+	    strncmp("init: DM_DEV_STATUS", line, 19) == 0)
 		return len;
 
 	printk_emit(facility, level, NULL, 0, "%s", line);
