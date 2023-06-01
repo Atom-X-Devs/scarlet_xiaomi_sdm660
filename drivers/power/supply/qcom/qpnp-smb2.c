@@ -2628,7 +2628,7 @@ static void thermal_fb_notifier_resume_work(struct work_struct *work)
 
 	LctThermal = 1;
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-	if ((lct_backlight_off) && (LctIsInCall == 0)) {
+	if (lct_backlight_off && !LctIsInCall) {
 		if (!is_global_version) {
 			if (lct_therm_lvl_reserved.intval >= 2)
 				smblib_set_prop_system_temp_level(chg,
@@ -2648,14 +2648,14 @@ static void thermal_fb_notifier_resume_work(struct work_struct *work)
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
 	if (LctIsInCall)
 #elif defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
-	if ((lct_backlight_off) && (LctIsInCall == 0)) {
+	if (lct_backlight_off && !LctIsInCall) {
 		if (lct_therm_lvl_reserved.intval >= 2)
 			smblib_set_prop_system_temp_level(chg,
 					&lct_therm_globe_level);
 		else
 			smblib_set_prop_system_temp_level(chg,
 					&lct_therm_level);
-	} else if (LctIsInCall == 1)
+	} else if (LctIsInCall)
 #endif
 		smblib_set_prop_system_temp_level(chg, &lct_therm_call_level);
 	else
