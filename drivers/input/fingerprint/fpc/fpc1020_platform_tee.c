@@ -234,6 +234,18 @@ static inline ssize_t pinctl_set_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(pinctl_set);
 
+static inline fpc_rails_t name_to_fpc_rail(const char *name)
+{
+	if (!strcmp(name, "vdd_ana"))
+		return VDD_ANA;
+	else if (!strcmp(name, "vcc_spi"))
+		return VCC_SPI;
+	else if (!strcmp(name, "vdd_io"))
+		return VDD_IO;
+	else
+		return -EINVAL;
+}
+
 static inline ssize_t regulator_enable_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count)
@@ -243,6 +255,7 @@ static inline ssize_t regulator_enable_store(struct device *dev,
 	char name[16];
 	int rc;
 	bool enable;
+	fpc_rails_t fpc_rail;
 
 	if (sscanf(buf, "%15[^,],%c", name, &op) != NUM_PARAMS_REG_ENABLE_SET)
 		return -EINVAL;
@@ -253,8 +266,10 @@ static inline ssize_t regulator_enable_store(struct device *dev,
 	else
 		return -EINVAL;
 
+	fpc_rail = name_to_fpc_rail(name);
+
 	mutex_lock(&fpc1020->lock);
-	rc = vreg_setup(fpc1020, name, enable);
+	rc = vreg_setup(fpc1020, fpc_rail, enable);
 	mutex_unlock(&fpc1020->lock);
 
 	return rc ? rc : count;
