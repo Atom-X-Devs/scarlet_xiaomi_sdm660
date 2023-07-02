@@ -2273,7 +2273,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 #endif
 		lct_therm_lvl_reserved.intval = val->intval;
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-		if (is_global_version) {
+		if (!is_global_version) {
 			if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > 2))
 				return 0;
 		} else {
@@ -2295,7 +2295,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 		return 0;
 #endif
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
-	if ((LctIsInVideo == 1) && (val->intval != 6) && (lct_backlight_off == 0) && (is_global_version == false))
+	if ((LctIsInVideo == 1) && (val->intval != 6) && (lct_backlight_off == 0) && !is_global_version)
 		return 0;
 #endif
 	if (val->intval == chg->system_temp_level)
@@ -2308,7 +2308,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	if ((lct_backlight_off == 0) && (chg->system_temp_level <= 1))
 		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-	else if ((is_global_version == true) && (chg->system_temp_level <= 2))
+	else if (is_global_version && (chg->system_temp_level <= 2))
 		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
 	else if (chg->system_temp_level <= 2)
