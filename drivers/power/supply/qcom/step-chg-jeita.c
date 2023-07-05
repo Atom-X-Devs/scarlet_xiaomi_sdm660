@@ -625,7 +625,7 @@ static int handle_jeita(struct step_chg_info *chip)
 #endif
 
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
-	if (is_global_version) {
+	if (!is_global_version) {
 		pr_debug("lct video LctIsInVideo=%d, lct_therm_lvl_reserved=%d\n",
 				LctIsInVideo, lct_therm_lvl_reserved.intval);
 		if (LctIsInVideo)

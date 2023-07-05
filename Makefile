@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 4
 PATCHLEVEL = 19
-SUBLEVEL = 280
+SUBLEVEL = 288
 EXTRAVERSION =
 NAME = "People's Front"
 
@@ -778,8 +778,6 @@ KBUILD_CFLAGS += $(call cc-disable-warning, tautological-compare)
 # source of a reference will be _MergedGlobals and not on of the whitelisted names.
 # See modpost pattern 2
 KBUILD_CFLAGS += $(call cc-option, -mno-global-merge,)
-# Temporarily suppress void-ptr-dereference until LLVM fixes it
-KBUILD_CFLAGS += $(call cc-disable-warning, void-ptr-dereference)
 endif
 
 ifdef CONFIG_CC_IS_GCC
