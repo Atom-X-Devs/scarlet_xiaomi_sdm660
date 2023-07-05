@@ -84,142 +84,6 @@ uint32_t register_system_pm_ops(struct system_pm_ops *pm_ops)
 	return 0;
 }
 
-static uint32_t least_cluster_latency(struct lpm_cluster *cluster,
-					struct latency_level *lat_level)
-{
-	struct list_head *list;
-	struct lpm_cluster_level *level;
-	struct lpm_cluster *n;
-	struct power_params *pwr_params;
-	uint32_t latency = 0;
-	int i;
-
-	if (list_empty(&cluster->list)) {
-		for (i = 0; i < cluster->nlevels; i++) {
-			level = &cluster->levels[i];
-			pwr_params = &level->pwr;
-			if (lat_level->reset_level == level->reset_level) {
-				if ((latency > pwr_params->exit_latency)
-						|| (!latency))
-					latency = pwr_params->exit_latency;
-				break;
-			}
-		}
-	} else {
-		list_for_each(list, &cluster->parent->child) {
-			n = list_entry(list, typeof(*n), list);
-			if (lat_level->level_name) {
-				if (strcmp(lat_level->level_name,
-						 n->cluster_name))
-					continue;
-			}
-			for (i = 0; i < n->nlevels; i++) {
-				level = &n->levels[i];
-				pwr_params = &level->pwr;
-				if (lat_level->reset_level ==
-						level->reset_level) {
-					if ((latency > pwr_params->exit_latency)
-								|| (!latency))
-						latency =
-						pwr_params->exit_latency;
-					break;
-				}
-			}
-		}
-	}
-	return latency;
-}
-
-static uint32_t least_cpu_latency(struct list_head *child,
-				struct latency_level *lat_level)
-{
-	struct list_head *list;
-	struct lpm_cpu_level *level;
-	struct power_params *pwr_params;
-	struct lpm_cpu *cpu;
-	struct lpm_cluster *n;
-	uint32_t lat = 0;
-	int i;
-
-	list_for_each(list, child) {
-		n = list_entry(list, typeof(*n), list);
-		if (lat_level->level_name) {
-			if (strcmp(lat_level->level_name, n->cluster_name))
-				continue;
-		}
-		list_for_each_entry(cpu, &n->cpu, list) {
-			for (i = 0; i < cpu->nlevels; i++) {
-				level = &cpu->levels[i];
-				pwr_params = &level->pwr;
-				if (lat_level->reset_level
-						== level->reset_level) {
-					if ((lat > pwr_params->exit_latency)
-							|| (!lat))
-						lat = pwr_params->exit_latency;
-					break;
-				}
-			}
-		}
-	}
-	return lat;
-}
-
-static struct lpm_cluster *cluster_aff_match(struct lpm_cluster *cluster,
-							int affinity_level)
-{
-	struct lpm_cluster *n;
-
-	if ((cluster->aff_level == affinity_level)
-		|| ((!list_empty(&cluster->cpu)) && (affinity_level == 0)))
-		return cluster;
-	else if (list_empty(&cluster->cpu)) {
-		n =  list_entry(cluster->child.next, typeof(*n), list);
-		return cluster_aff_match(n, affinity_level);
-	} else
-		return NULL;
-}
-
-int lpm_get_latency(struct latency_level *level, uint32_t *latency)
-{
-	struct lpm_cluster *cluster;
-	uint32_t val;
-
-	if (!lpm_root_node) {
-		pr_err("lpm_probe not completed\n");
-		return -EAGAIN;
-	}
-
-	if ((level->affinity_level < 0)
-		|| (level->affinity_level > lpm_root_node->aff_level)
-		|| (level->reset_level < LPM_RESET_LVL_RET)
-		|| (level->reset_level > LPM_RESET_LVL_PC)
-		|| !latency)
-		return -EINVAL;
-
-	cluster = cluster_aff_match(lpm_root_node, level->affinity_level);
-	if (!cluster) {
-		pr_err("No matching cluster found for affinity_level:%d\n",
-							level->affinity_level);
-		return -EINVAL;
-	}
-
-	if (level->affinity_level == 0)
-		val = least_cpu_latency(&cluster->parent->child, level);
-	else
-		val = least_cluster_latency(cluster, level);
-
-	if (!val) {
-		pr_err("No mode with affinity_level:%d reset_level:%d\n",
-				level->affinity_level, level->reset_level);
-		return -EINVAL;
-	}
-
-	*latency = val;
-
-	return 0;
-}
-EXPORT_SYMBOL(lpm_get_latency);
-
 static int lpm_dying_cpu(unsigned int cpu)
 {
 	struct lpm_cluster *cluster = per_cpu(cpu_lpm, cpu)->parent;
@@ -387,7 +251,7 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 	if (cluster->min_child_level > child_idx)
 		return;
 
-	raw_spin_lock(&cluster->sync_lock);
+	spin_lock(&cluster->sync_lock);
 	cpumask_or(&cluster->num_children_in_sync, cpu,
 			&cluster->num_children_in_sync);
 
@@ -423,10 +287,10 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 	cluster_prepare(cluster->parent, &cluster->num_children_in_sync, i,
 			from_idle, start_time);
 
-	raw_spin_unlock(&cluster->sync_lock);
+	spin_unlock(&cluster->sync_lock);
 	return;
 failed:
-	raw_spin_unlock(&cluster->sync_lock);
+	spin_unlock(&cluster->sync_lock);
 	if (!IS_ERR_OR_NULL(cluster->stats))
 		cluster->stats->sleep_time = 0;
 }
@@ -445,7 +309,7 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 	if (cluster->min_child_level > child_idx)
 		return;
 
-	raw_spin_lock(&cluster->sync_lock);
+	spin_lock(&cluster->sync_lock);
 	last_level = cluster->default_level;
 	first_cpu = cpumask_equal(&cluster->num_children_in_sync,
 				&cluster->child_cpus);
@@ -484,7 +348,7 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 	cluster_unprepare(cluster->parent, &cluster->child_cpus,
 			last_level, from_idle, end_time, success);
 unlock_return:
-	raw_spin_unlock(&cluster->sync_lock);
+	spin_unlock(&cluster->sync_lock);
 }
 
 static inline void cpu_prepare(struct lpm_cpu *cpu, int cpu_index,
@@ -525,7 +389,7 @@ static int get_cluster_id(struct lpm_cluster *cluster, int *aff_lvl,
 	if (!cluster)
 		return 0;
 
-	raw_spin_lock(&cluster->sync_lock);
+	spin_lock(&cluster->sync_lock);
 
 	if (!cpumask_equal(&cluster->num_children_in_sync,
 				&cluster->child_cpus))
@@ -551,7 +415,7 @@ static int get_cluster_id(struct lpm_cluster *cluster, int *aff_lvl,
 			(*aff_lvl)++;
 	}
 unlock_and_return:
-	raw_spin_unlock(&cluster->sync_lock);
+	spin_unlock(&cluster->sync_lock);
 	return state_id;
 }
 
@@ -589,16 +453,23 @@ static int psci_enter_sleep(struct lpm_cpu *cpu, int idx, bool from_idle)
 }
 
 static int lpm_cpuidle_select(struct cpuidle_driver *drv,
-		struct cpuidle_device *dev)
+		struct cpuidle_device *dev, bool *stop_tick)
 {
+#ifdef CONFIG_NO_HZ_COMMON
+	ktime_t delta_next;
+	s64 duration_ns = tick_nohz_get_sleep_length(&delta_next);
+
+	if (duration_ns <= TICK_NSEC)
+		*stop_tick = false;
+#endif
+
 	return 0;
 }
 
 static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 		struct cpuidle_driver *drv, int idx)
 {
-	if (!need_resched())
-		wfi();
+	wfi();
 
 	return idx;
 }
@@ -731,13 +602,13 @@ static int cluster_cpuidle_register(struct lpm_cluster *cl)
 			while (p) {
 				int j;
 
-				raw_spin_lock(&p->sync_lock);
+				spin_lock(&p->sync_lock);
 				cpumask_set_cpu(cpu, &p->num_children_in_sync);
 				for (j = 0; j < p->nlevels; j++)
 					cpumask_copy(
 						&p->levels[j].num_cpu_votes,
 						&p->num_children_in_sync);
-				raw_spin_unlock(&p->sync_lock);
+				spin_unlock(&p->sync_lock);
 				p = p->parent;
 			}
 		}

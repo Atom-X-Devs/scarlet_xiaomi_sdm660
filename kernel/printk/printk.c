@@ -825,11 +825,13 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 			endp++;
 			len -= endp - line;
 			line = endp;
-			if (strstr(line, "healthd") ||
-				strncmp(line, "logd: Skipping", sizeof("logd: Skipping")))
-				return ret;
 		}
 	}
+
+	if (strstr(line, "healthd") || strstr(line, "logd") ||
+	    strstr(line, "DM_DEV_STATUS") || strstr(line, "Untracked pid") ||
+	    strstr(line, "usb_gadget"))
+		return len;
 
 	printk_emit(facility, level, NULL, 0, "%s", line);
 	return ret;
@@ -2947,7 +2949,7 @@ static void wake_up_klogd_work_func(struct irq_work *irq_work)
 
 static DEFINE_PER_CPU(struct irq_work, wake_up_klogd_work) = {
 	.func = wake_up_klogd_work_func,
-	.flags = IRQ_WORK_LAZY,
+	.flags = ATOMIC_INIT(IRQ_WORK_LAZY),
 };
 
 void wake_up_klogd(void)

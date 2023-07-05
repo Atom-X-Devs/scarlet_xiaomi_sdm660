@@ -481,22 +481,17 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	 */
 
 #ifdef CONFIG_MACH_LONGCHEER
-	if (USE_LMH_DEV && cpufreq_cdev->plat_ops) {
-		if (cpufreq_cdev->plat_ops->ceil_limit)
-			cpufreq_cdev->plat_ops->ceil_limit(cpufreq_cdev->policy->cpu,
-							clip_freq);
-		get_online_cpus();
-		cpufreq_update_policy(cpufreq_cdev->policy->cpu);
-		put_online_cpus();
-	} else {
-		get_online_cpus();
-		cpufreq_update_policy(cpufreq_cdev->policy->cpu);
-		put_online_cpus();
-	}
-#else
-	if (cpufreq_cdev->plat_ops &&
-		cpufreq_cdev->plat_ops->ceil_limit)
+	if (USE_LMH_DEV && cpufreq_cdev->plat_ops &&
+	    cpufreq_cdev->plat_ops->ceil_limit)
 		cpufreq_cdev->plat_ops->ceil_limit(cpufreq_cdev->policy->cpu,
+						   clip_freq);
+	get_online_cpus();
+	cpufreq_update_policy(cpufreq_cdev->policy->cpu);
+	put_online_cpus();
+#else
+	if (cpufreq_cdev->plat_ops && cpufreq_cdev->plat_ops->ceil_limit)
+		cpufreq_cdev->plat_ops->ceil_limit(cpufreq_cdev->policy->cpu,
+						   clip_freq);
 	else
 		cpufreq_update_policy(cpufreq_cdev->policy->cpu);
 #endif

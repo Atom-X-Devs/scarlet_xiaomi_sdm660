@@ -2607,8 +2607,6 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 {
 	const bool can_resched = !preempt_count() && !irqs_disabled();
 	int i, alloced = 0, last_mod = 0;
-	struct list_head *prev_tail = list->prev;
-	struct page *pos, *n;
 
 	spin_lock(&zone->lock);
 	for (i = 0; i < count; ++i) {
@@ -2639,6 +2637,9 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 			spin_lock(&zone->lock);
 		}
 
+		if (unlikely(check_pcp_refill(page)))
+			continue;
+
 		/*
 		 * Split buddy pages returned by expand() are received here in
 		 * physical page order. The page is added to the tail of
@@ -2650,6 +2651,7 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 		 * pages are ordered properly.
 		 */
 		list_add_tail(&page->lru, list);
+		alloced++;
 		if (is_migrate_cma(get_pcppage_migratetype(page)))
 			__mod_zone_page_state(zone, NR_FREE_CMA_PAGES,
 					      -(1 << order));
@@ -2663,22 +2665,6 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 	 */
 	__mod_zone_page_state(zone, NR_FREE_PAGES, -((i - last_mod) << order));
 	spin_unlock(&zone->lock);
-
-	/*
-	 * Pages are appended to the pcp list without checking to reduce the
-	 * time holding the zone lock. Checking the appended pages happens right
-	 * after the critical section while still holding the pcp lock.
-	 */
-	pos = list_first_entry(prev_tail, struct page, lru);
-	list_for_each_entry_safe_from(pos, n, list, lru) {
-		if (unlikely(check_pcp_refill(pos))) {
-			list_del(&pos->lru);
-			continue;
-		}
-
-		alloced++;
-	}
-
 	return alloced;
 }
 
@@ -4488,12 +4474,17 @@ restart:
 		if (page)
 			goto got_pg;
 
-		 if (order >= pageblock_order && (gfp_mask & __GFP_IO)) {
+		/*
+		 * Checks for costly allocations with __GFP_NORETRY, which
+		 * includes some THP page fault allocations
+		 */
+		if (costly_order && (gfp_mask & __GFP_NORETRY)) {
 			/*
 			 * If allocating entire pageblock(s) and compaction
 			 * failed because all zones are below low watermarks
 			 * or is prohibited because it recently failed at this
-			 * order, fail immediately.
+			 * order, fail immediately unless the allocator has
+			 * requested compaction and reclaim retry.
 			 *
 			 * Reclaim is
 			 *  - potentially very expensive because zones are far
@@ -4507,23 +4498,6 @@ restart:
 			 */
 			if (compact_result == COMPACT_SKIPPED ||
 			    compact_result == COMPACT_DEFERRED)
-				goto nopage;
-		}
-
-		/*
-		 * Checks for costly allocations with __GFP_NORETRY, which
-		 * includes THP page fault allocations
-		 */
-		if (costly_order && (gfp_mask & __GFP_NORETRY)) {
-			/*
-			 * If compaction is deferred for high-order allocations,
-			 * it is because sync compaction recently failed. If
-			 * this is the case and the caller requested a THP
-			 * allocation, we do not want to heavily disrupt the
-			 * system, so we fail the allocation instead of entering
-			 * direct reclaim.
-			 */
-			if (compact_result == COMPACT_DEFERRED)
 				goto nopage;
 
 			/*
@@ -5785,7 +5759,21 @@ static void __build_all_zonelists(void *data)
 	int nid;
 	int __maybe_unused cpu;
 	pg_data_t *self = data;
+	unsigned long flags;
 
+	/*
+	 * Explicitly disable this CPU's interrupts before taking seqlock
+	 * to prevent any IRQ handler from calling into the page allocator
+	 * (e.g. GFP_ATOMIC) that could hit zonelist_iter_begin and livelock.
+	 */
+	local_irq_save(flags);
+	/*
+	 * Explicitly disable this CPU's synchronous printk() before taking
+	 * seqlock to prevent any printk() from trying to hold port->lock, for
+	 * tty_insert_flip_string_and_push_buffer() on other CPU might be
+	 * calling kmalloc(GFP_ATOMIC | __GFP_NOWARN) with port->lock held.
+	 */
+	printk_deferred_enter();
 	write_seqlock(&zonelist_update_seq);
 
 #ifdef CONFIG_NUMA
@@ -5820,6 +5808,8 @@ static void __build_all_zonelists(void *data)
 	}
 
 	write_sequnlock(&zonelist_update_seq);
+	printk_deferred_exit();
+	local_irq_restore(flags);
 }
 
 static noinline void __init

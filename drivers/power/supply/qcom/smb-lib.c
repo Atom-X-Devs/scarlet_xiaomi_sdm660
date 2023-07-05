@@ -2254,48 +2254,39 @@ extern int LctThermal;
 int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 				const union power_supply_propval *val)
 {
-	if (val->intval < 0)
-		return -EINVAL;
-
-	if (chg->thermal_levels <= 0)
-		return -EINVAL;
-
-	if (val->intval > chg->thermal_levels)
+	if ((val->intval < 0) || (chg->thermal_levels <= 0) ||
+	    (val->intval > chg->thermal_levels))
 		return -EINVAL;
 
 #ifdef CONFIG_MACH_LONGCHEER
-	pr_debug("smblib_set_prop_system_temp_level val=%d, chg->system_temp_level=%d, LctThermal=%d, lct_backlight_off= %d, IsInCall=%d, is_global_version=%d\n",
-		val->intval,chg->system_temp_level, LctThermal, lct_backlight_off, LctIsInCall, is_global_version);
-
-	if (LctThermal == 0)
+	if (!LctThermal) {
 #if defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
 		if (val->intval < 6)
 #endif
-		lct_therm_lvl_reserved.intval = val->intval;
+			lct_therm_lvl_reserved.intval = val->intval;
+	}
+
+	if (lct_backlight_off && !LctIsInCall) {
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-		if (is_global_version) {
-			if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > 2))
-				return 0;
-		} else {
-			if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > 1))
-				return 0;
-		}
+		if ((!is_global_version && (val->intval > 2)) || (val->intval > 1))
 #elif defined(CONFIG_MACH_XIAOMI_WAYNE) || defined(CONFIG_MACH_XIAOMI_LAVENDER)
-	if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > 2))
-		return 0;
+		if (val->intval > 2)
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
-	if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > 3))
-		return 0;
+		if (val->intval > 3)
 #endif
+			return 0;
+	}
+
+	if (LctIsInCall) {
 #if defined(CONFIG_MACH_XIAOMI_LAVENDER) || defined(CONFIG_MACH_XIAOMI_WHYRED) || defined(CONFIG_MACH_XIAOMI_WAYNE)
-	if ((LctIsInCall == 1) && (val->intval != 4))
-		return 0;
+		if (val->intval != 4)
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
-	if ((LctIsInCall == 1) && (val->intval != 5))
-		return 0;
+		if (val->intval != 5)
 #endif
+			return 0;
+	}
 #ifdef CONFIG_MACH_XIAOMI_WAYNE
-	if ((LctIsInVideo == 1) && (val->intval != 6) && (lct_backlight_off == 0) && (is_global_version == false))
+	if ((val->intval != 6) && LctIsInVideo && !lct_backlight_off && !is_global_version)
 		return 0;
 #endif
 	if (val->intval == chg->system_temp_level)
@@ -2305,14 +2296,14 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	chg->system_temp_level = val->intval;
 
 #ifdef CONFIG_MACH_LONGCHEER
-	if ((lct_backlight_off == 0) && (chg->system_temp_level <= 1))
-		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
+	if (!lct_backlight_off && (chg->system_temp_level <= 1))
+		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
 #if defined(CONFIG_MACH_XIAOMI_WHYRED)
-	else if ((is_global_version == true) && (chg->system_temp_level <= 2))
-		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
+	else if (is_global_version && (chg->system_temp_level <= 2))
+		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
 #elif defined(CONFIG_MACH_XIAOMI_TULIP)
 	else if (chg->system_temp_level <= 2)
-		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,false,0);
+		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
 #endif
 	else
 		vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,
