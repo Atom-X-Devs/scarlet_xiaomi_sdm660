@@ -106,7 +106,5 @@
 		qcom,mdss-dsi-panel-status-value = <0x9c>;
 		qcom,mdss-dsi-panel-max-error-count = <3>;
 		qcom,panel-ack-disabled;
-		cm,mdss-livedisplay-cabc-cmd = [39 01 00 00 00 00 02 55 00];
-		cm,mdss-livedisplay-cabc-ui-value = <0x01>;
 	};
 };
