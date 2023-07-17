@@ -152,7 +152,7 @@ void kp_set_mode(unsigned int level)
 	}
 
 	kp_mode = level;
-	kp_trigger_mode_change_event()
+	kp_trigger_mode_change_event();
 	spin_unlock(&kp_set_mode_lock);
 }
 EXPORT_SYMBOL(kp_set_mode);
@@ -252,13 +252,13 @@ static inline int kp_display_notifier_callback(struct notifier_block *self,
 			if (!screen_on)
 				break;
 			screen_on = false;
-			kp_trigger_mode_change_event()
+			kp_trigger_mode_change_event();
 			break;
 		case KP_BLANK_UNBLANK:
 			if (screen_on)
 				break;
 			screen_on = true;
-			kp_trigger_mode_change_event()
+			kp_trigger_mode_change_event();
 			break;
 		default:
 			break;
@@ -358,13 +358,12 @@ static int __init kp_init(void)
 		return ret;
 	}
 
-	return ret;
-
 	ret = kp_register_display_notifier();
 	if (ret) {
 		pr_err("Failed to register Kprofiles display notifier, err: %d\n", ret);
 		sysfs_remove_group(kp_kobj, &kp_attr_group);
 		kobject_put(kp_kobj);
+		return ret;
 	}
 
 	pr_info("Kprofiles " KPROFILES_VERSION " loaded successfully. For further details, visit https://github.com/dakkshesh07/Kprofiles/blob/main/README.md\n");
