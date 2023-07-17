@@ -213,7 +213,7 @@ static inline int select_pin_ctl(struct fpc1020_data *fpc1020, const char *name)
 	size_t i;
 	int rc;
 
-	for (i = 0; i < ARRAY_SIZE(fpc1020->pinctrl_state); i++) {
+	for (i = 0; i < ARRAY_SIZE(pctl_names); i++) {
 		const char *n = pctl_names[i];
 		if (!strcmp(n, name)) {
 			rc = pinctrl_select_state(fpc1020->fingerprint_pinctrl,
@@ -710,7 +710,7 @@ static inline int fpc1020_probe(struct platform_device *pdev)
 		goto exit;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(fpc1020->pinctrl_state); i++) {
+	for (i = 0; i < ARRAY_SIZE(pctl_names); i++) {
 		const char *n = pctl_names[i];
 		struct pinctrl_state *state =
 			pinctrl_lookup_state(fpc1020->fingerprint_pinctrl, n);
