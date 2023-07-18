@@ -556,6 +556,9 @@ static void __init mm_init(void)
 	pti_init();
 }
 
+#ifdef CONFIG_LONGCHEER
+unsigned short fpsensor = 1;
+#endif
 asmlinkage __visible void __init start_kernel(void)
 {
 	char *command_line;
@@ -591,6 +594,14 @@ asmlinkage __visible void __init start_kernel(void)
 	pr_notice("Kernel command line: %s\n", boot_command_line);
 	/* parameters may set static keys */
 	jump_label_init();
+
+#ifdef CONFIG_LONGCHEER
+	if (strstr(boot_command_line, "androidboot.fpsensor=fpc"))
+		fpsensor = 1; /* FPC fingerprint */
+	else
+		fpsensor = 2; /* Goodix fingerprint */
+#endif
+
 	parse_early_param();
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
