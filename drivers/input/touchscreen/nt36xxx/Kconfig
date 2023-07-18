@@ -1,19 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Novatek NT36xxx touchscreen driver configuration
 #
-
 config TOUCHSCREEN_NT36XXX
-	bool "Novatek NT36XXX support"
+	bool "Novatek NT36xxx"
 	help
 	  Say Y here if you have a Novatek NT36xxx touchscreen connected
 	  to your system.
-
-	  If unsure, say N.
-
-config TOUCHSCREEN_NT36XXX_FW_UPDATE
-	bool "Novatek NT36xxx firmware update"
-	depends on TOUCHSCREEN_NT36XXX
-	help
-	  Say Y here if you want to enable firmware update function of nt36xxx driver.
 
 	  If unsure, say N.
