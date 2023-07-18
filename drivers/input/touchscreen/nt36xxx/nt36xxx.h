@@ -71,7 +71,7 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #define TOUCH_FORCE_NUM 1000
 
 /* Enable only when module have tp reset pin and connected to host */
-#define NVT_TOUCH_SUPPORT_HW_RST 1
+#define NVT_TOUCH_SUPPORT_HW_RST 0
 
 //---Customerized func.---
 #define NVT_TOUCH_PROC 1
@@ -95,8 +95,7 @@ struct nvt_ts_data {
 	struct delayed_work nvt_fwu_work;
 	uint16_t addr;
 	int8_t phys[32];
-	const struct i2c_device_id *id;
-#if defined(CONFIG_DRM_PANEL)
+#ifdef CONFIG_DRM_MSM
 	struct notifier_block drm_notif;
 #elif defined(CONFIG_FB)
 	struct notifier_block fb_notif;
