@@ -10,7 +10,7 @@
 #ifndef _LINUX_NVT_TOUCH_H
 #define _LINUX_NVT_TOUCH_H
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 #include <linux/regulator/consumer.h>
 #endif
 #include <linux/delay.h>
@@ -28,14 +28,14 @@
 #define I2C_HW_Address 0x62
 #define NVT_TS_NAME "NVTCapacitiveTouchScreen"
 #define TOUCH_DEFAULT_MAX_WIDTH 1080
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 #define TOUCH_DEFAULT_MAX_HEIGHT 2160
 #else
 #define TOUCH_DEFAULT_MAX_HEIGHT 1920
 #endif
 #define TOUCH_MAX_FINGER_NUM 10
 #define TOUCH_FORCE_NUM 1000
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 #define NVT_TOUCH_SUPPORT_HW_RST 1
 #define WAKEUP_GESTURE 1
 #else
@@ -59,7 +59,7 @@ struct nvt_ts_data {
 	struct delayed_work nvt_fwu_work;
 	uint16_t addr;
 	int8_t phys[32];
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	struct regulator *vcc_i2c;
 #endif
 #ifdef CONFIG_DRM_MSM

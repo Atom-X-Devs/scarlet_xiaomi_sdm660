@@ -645,7 +645,7 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 
 	msleep(10);
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	ts->vcc_i2c = regulator_get(&client->dev, "vcc_i2c-supply");
 	if (!IS_ERR(ts->vcc_i2c)) {
 		ret = regulator_set_voltage(ts->vcc_i2c, 1800000, 1800000);
