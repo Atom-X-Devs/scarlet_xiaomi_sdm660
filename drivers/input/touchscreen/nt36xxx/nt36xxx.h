@@ -10,6 +10,9 @@
 #ifndef _LINUX_NVT_TOUCH_H
 #define _LINUX_NVT_TOUCH_H
 
+#ifdef CONFIG_XIAOMI_SDM660
+#include <linux/regulator/consumer.h>
+#endif
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/input.h>
@@ -25,11 +28,19 @@
 #define I2C_HW_Address 0x62
 #define NVT_TS_NAME "NVTCapacitiveTouchScreen"
 #define TOUCH_DEFAULT_MAX_WIDTH 1080
+#ifdef CONFIG_XIAOMI_WAYNE
+#define TOUCH_DEFAULT_MAX_HEIGHT 2160
+#else
 #define TOUCH_DEFAULT_MAX_HEIGHT 1920
+#endif
 #define TOUCH_MAX_FINGER_NUM 10
 #define TOUCH_FORCE_NUM 1000
 #define NVT_TOUCH_SUPPORT_HW_RST 0
+#ifdef CONFIG_XIAOMI_SDM660
+#define WAKEUP_GESTURE 1
+#else
 #define WAKEUP_GESTURE 0
+#endif
 #ifdef CONFIG_TOUCHSCREEN_NT36XXX_FW_UPDATE
 #define BOOT_UPDATE_FIRMWARE 1
 #define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw.bin"
@@ -47,6 +58,9 @@ struct nvt_ts_data {
 	struct delayed_work nvt_fwu_work;
 	uint16_t addr;
 	int8_t phys[32];
+#ifdef CONFIG_XIAOMI_SDM660
+	struct regulator *vcc_i2c;
+#endif
 #ifdef CONFIG_DRM_MSM
 	struct notifier_block drm_notif;
 #elif defined(CONFIG_FB)
