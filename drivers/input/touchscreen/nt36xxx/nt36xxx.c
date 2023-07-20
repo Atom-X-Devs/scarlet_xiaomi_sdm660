@@ -32,6 +32,7 @@ struct nvt_ts_data *ts;
 static uint8_t bTouchIsAwake = 0;
 #if WAKEUP_GESTURE && defined(CONFIG_TOUCHSCREEN_COMMON)
 bool enable_gesture_mode = false;
+EXPORT_SYMBOL(enable_gesture_mode);
 #endif
 
 #if BOOT_UPDATE_FIRMWARE
