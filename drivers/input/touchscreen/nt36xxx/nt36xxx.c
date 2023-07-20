@@ -611,6 +611,20 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 
 	msleep(10);
 
+#ifdef CONFIG_XIAOMI_SDM660
+	ts->vcc_i2c = regulator_get(&client->dev, "vcc_i2c-supply");
+	if (!IS_ERR(ts->vcc_i2c)) {
+		ret = regulator_set_voltage(ts->vcc_i2c, 1800000, 1800000);
+		if (!ret) {
+			ret = regulator_enable(ts->vcc_i2c);
+			if (ret) {
+				pr_err("%s: Enabling regulator vcc_i2c failed\n", __func__);
+				regulator_put(ts->vcc_i2c);
+			}
+		}
+	}
+#endif
+
 	ret = nvt_ts_check_chip_ver_trim();
 	if (ret) {
 		ret = -EINVAL;
