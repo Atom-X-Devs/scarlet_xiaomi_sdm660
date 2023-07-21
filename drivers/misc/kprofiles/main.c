@@ -78,7 +78,7 @@ DEFINE_SPINLOCK(kp_set_mode_lock);
 #ifdef CONFIG_KP_VERBOSE_DEBUG
 #define kp_dbg(fmt, ...) pr_info(fmt, ##__VA_ARGS__)
 #else
-#define kp_dbg(fmt, ...)
+#define kp_dbg(fmt, ...) ((void)0)
 #endif
 
 #define kp_err(fmt, ...) pr_err(fmt, ##__VA_ARGS__)
