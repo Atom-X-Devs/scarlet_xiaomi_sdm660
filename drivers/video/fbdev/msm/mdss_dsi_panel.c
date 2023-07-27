@@ -423,7 +423,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 				}
 			}
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 			usleep_range(12000, 12000);
 #endif
 
@@ -499,7 +499,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
 			gpio_free(ctrl_pdata->disp_en_gpio);
 		}
-#ifndef CONFIG_XIAOMI_SDM660
+#ifndef CONFIG_MACH_LONGCHEER
 		gpio_set_value((ctrl_pdata->rst_gpio), 0);
 #endif
 		gpio_free(ctrl_pdata->rst_gpio);
