@@ -8,6 +8,12 @@
 #include <linux/mdss_io_util.h>
 
 #define MAX_I2C_CMDS  16
+
+/* TODO_XIAOMI: CONFIG_XIAOMI_SDM660 for common imports */
+#if defined(CONFIG_XIAOMI_WAYNE) && defined(CONFIG_TOUCHSCREEN_COMMON)
+extern bool enable_gesture_mode;
+#endif
+
 void dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug)
 {
 	u32 in_val;
@@ -257,6 +263,13 @@ int msm_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg, int enable)
 
 	if (enable) {
 		for (i = 0; i < num_vreg; i++) {
+#if defined(CONFIG_XIAOMI_WAYNE) && defined(CONFIG_TOUCHSCREEN_COMMON)
+			if (enable_gesture_mode &&
+			    (!strcmp(in_vreg[i].vreg_name, "lab") ||
+			     !strcmp(in_vreg[i].vreg_name, "ibb") ||
+			     !strcmp(in_vreg[i].vreg_name, "wqhd-vddio")))
+				continue;
+#endif
 			rc = PTR_RET(in_vreg[i].vreg);
 			if (rc) {
 				DEV_ERR("%pS->%s: %s regulator error. rc=%d\n",
@@ -289,6 +302,13 @@ int msm_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg, int enable)
 		}
 	} else {
 		for (i = num_vreg-1; i >= 0; i--) {
+#if defined(CONFIG_XIAOMI_WAYNE) && defined(CONFIG_TOUCHSCREEN_COMMON)
+			if (enable_gesture_mode &&
+			    (!strcmp(in_vreg[i].vreg_name, "lab") ||
+			     !strcmp(in_vreg[i].vreg_name, "ibb") ||
+			     !strcmp(in_vreg[i].vreg_name, "wqhd-vddio")))
+				continue;
+#endif
 			if (in_vreg[i].pre_off_sleep)
 				usleep_range(in_vreg[i].pre_off_sleep * 1000,
 					in_vreg[i].pre_off_sleep * 1000);
