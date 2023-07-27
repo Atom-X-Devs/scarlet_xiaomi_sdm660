@@ -1068,6 +1068,15 @@ fb_blank(struct fb_info *info, int blank)
  	if (blank > FB_BLANK_POWERDOWN)
  		blank = FB_BLANK_POWERDOWN;
 
+#ifdef CONFIG_XIAOMI_SDM660
+	if (info->blank == blank) {
+		if (info->fbops->fb_blank)
+			ret = info->fbops->fb_blank(blank, info);
+
+		return ret;
+	}
+#endif
+
 	event.info = info;
 	event.data = &blank;
 
@@ -1076,9 +1085,12 @@ fb_blank(struct fb_info *info, int blank)
 	if (info->fbops->fb_blank)
  		ret = info->fbops->fb_blank(blank, info);
 
-	if (!ret)
+	if (!ret) {
 		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
-	else {
+#ifdef CONFIG_XIAOMI_SDM660
+		info->blank = blank;
+#endif
+	} else {
 		/*
 		 * if fb_blank is failed then revert effects of
 		 * the early blank event.
@@ -1671,6 +1683,9 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 		if (!registered_fb[i])
 			break;
 	fb_info->node = i;
+#ifdef CONFIG_XIAOMI_SDM660
+	fb_info->blank = -1;
+#endif
 	atomic_set(&fb_info->count, 1);
 	mutex_init(&fb_info->lock);
 	mutex_init(&fb_info->mm_lock);
