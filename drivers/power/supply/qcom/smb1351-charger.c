@@ -800,7 +800,7 @@ static int smb1351_fastchg_current_set(struct smb1351_charger *chip,
 }
 
 #define MIN_FLOAT_MV		3500
-#define MAX_FLOAT_MV		4508
+#define MAX_FLOAT_MV		4500
 #define VFLOAT_STEP_MV		20
 
 static int smb1351_float_voltage_set(struct smb1351_charger *chip,
@@ -1556,7 +1556,6 @@ static enum power_supply_property smb1351_parallel_properties[] = {
 	POWER_SUPPLY_PROP_PARALLEL_MODE,
 	POWER_SUPPLY_PROP_INPUT_SUSPEND,
 	POWER_SUPPLY_PROP_PARALLEL_BATFET_MODE,
-	POWER_SUPPLY_PROP_MODEL_NAME,
 };
 
 static int smb1351_parallel_set_chg_suspend(struct smb1351_charger *chip,
@@ -1716,7 +1715,7 @@ static int smb1351_parallel_set_property(struct power_supply *psy,
 				       enum power_supply_property prop,
 				       const union power_supply_propval *val)
 {
-	int rc = 0, index, current_ma;
+	int rc = 0, index;
 	struct smb1351_charger *chip = power_supply_get_drvdata(psy);
 
 	switch (prop) {
@@ -1739,13 +1738,8 @@ static int smb1351_parallel_set_property(struct power_supply *psy,
 					chip->target_fastchg_current_max_ma);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		current_ma = val->intval / 1000;
-		if (current_ma > SUSPEND_CURRENT_MA) {
-			index = smb1351_get_closest_usb_setpoint(current_ma);
-			chip->usb_psy_ma = usb_chg_current[index];
-		} else {
-			chip->usb_psy_ma = current_ma;
-		}
+		index = smb1351_get_closest_usb_setpoint(val->intval / 1000);
+		chip->usb_psy_ma = usb_chg_current[index];
 		if (!chip->parallel_charger_suspended)
 			rc = smb1351_set_usb_chg_current(chip,
 						chip->usb_psy_ma);
@@ -1753,7 +1747,7 @@ static int smb1351_parallel_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		chip->vfloat_mv = val->intval / 1000;
 		if (!chip->parallel_charger_suspended)
-			rc = smb1351_float_voltage_set(chip, chip->vfloat_mv);
+			rc = smb1351_float_voltage_set(chip, val->intval);
 		break;
 	default:
 		return -EINVAL;
@@ -1832,9 +1826,6 @@ static int smb1351_parallel_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_PARALLEL_BATFET_MODE:
 		val->intval = chip->pl_batfet_mode;
-		break;
-	case POWER_SUPPLY_PROP_MODEL_NAME:
-		val->strval = "smb1351";
 		break;
 	default:
 		return -EINVAL;
@@ -2945,18 +2936,6 @@ fail_smb1351_regulator_init:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_LONGCHEER
-bool is_global_version;
-
-static int __init hwc_setup(char *s)
-{
-	is_global_version = !strcmp(s, "Global");
-	return 1;
-}
-
-__setup("androidboot.hwc=", hwc_setup);
-#endif
-
 static int smb1351_parallel_charger_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
@@ -2964,14 +2943,6 @@ static int smb1351_parallel_charger_probe(struct i2c_client *client,
 	struct smb1351_charger *chip;
 	struct device_node *node = client->dev.of_node;
 	struct power_supply_config parallel_psy_cfg = {};
-
-#ifdef CONFIG_MACH_LONGCHEER
-	if (is_global_version && !IS_ENABLED(CONFIG_MACH_XIAOMI_WAYNE) &&
-	    !IS_ENABLED(CONFIG_MACH_XIAOMI_LAVENDER)) {
-		pr_info("Global version doesn't have smb1351 regulator, killing probe\n");
-		return -ENODEV;
-	}
-#endif
 
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
@@ -3065,14 +3036,6 @@ static int smb1351_charger_remove(struct i2c_client *client)
 	return 0;
 }
 
-static void smb1351_charger_shutdown(struct i2c_client *client)
-{
-	struct smb1351_charger *chip = i2c_get_clientdata(client);
-
-	if (!chip->parallel_charger_suspended)
-		smb1351_usb_suspend(chip, USER, true);
-}
-
 static int smb1351_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -3151,33 +3114,10 @@ static struct i2c_driver smb1351_charger_driver = {
 	},
 	.probe		= smb1351_charger_probe,
 	.remove		= smb1351_charger_remove,
-	.shutdown	= smb1351_charger_shutdown,
 	.id_table	= smb1351_charger_id,
 };
 
-#ifdef CONFIG_MACH_LONGCHEER
-static int __init smb1351_charger_init(void)
-{
-	struct power_supply *pl_psy = power_supply_get_by_name("parallel");
-
-	if (pl_psy) {
-		pr_info("Another parallel driver has been registered\n");
-		return -ENOENT;
-	}
-
-	return i2c_add_driver(&smb1351_charger_driver);
-}
-
-static void __exit smb1351_charger_exit(void)
-{
-	i2c_del_driver(&smb1351_charger_driver);
-}
-
-late_initcall(smb1351_charger_init);
-module_exit(smb1351_charger_exit);
-#else
 module_i2c_driver(smb1351_charger_driver);
-#endif
 
 MODULE_DESCRIPTION("smb1351 Charger");
 MODULE_LICENSE("GPL v2");
