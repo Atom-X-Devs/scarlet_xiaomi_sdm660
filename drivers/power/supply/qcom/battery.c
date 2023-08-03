@@ -829,7 +829,7 @@ skip_fcc_step_update:
 }
 
 #define MINIMUM_PARALLEL_FCC_UA		500000
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 #define PL_TAPER_WORK_DELAY_MS		100
 #else
 #define PL_TAPER_WORK_DELAY_MS		500
@@ -1218,7 +1218,7 @@ static bool is_batt_available(struct pl_data *chip)
 	return true;
 }
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 #define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 100000
 #else
 #define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 50000
@@ -1285,7 +1285,7 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 
 #define ICL_STEP_UA	25000
 #define PL_DELAY_MS     3000
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 #define ICL_MAX_UA	1300000
 #else
 #define ICL_MAX_UA	1400000
