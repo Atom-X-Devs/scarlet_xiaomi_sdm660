@@ -1066,7 +1066,7 @@ static enum power_supply_property smb2_batt_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX,
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	POWER_SUPPLY_PROP_CHARGING_ENABLED,
 #endif
 	POWER_SUPPLY_PROP_CHARGE_FULL,
@@ -1085,7 +1085,7 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	union power_supply_propval pval = {0, };
 
 	switch (psp) {
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 		val->intval = 1;
 		break;
@@ -1160,7 +1160,7 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 					      FG_ESR_VOTER);
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LIPO;
 #else
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
@@ -1196,13 +1196,13 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 	case POWER_SUPPLY_PROP_TEMP:
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-#ifndef CONFIG_XIAOMI_SDM660
+#ifndef CONFIG_MACH_LONGCHEER
 		rc = smblib_get_prop_from_bms(chg, psp, val);
 		break;
 #endif
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		rc = smblib_get_prop_from_bms(chg, psp, val);
-#ifndef CONFIG_XIAOMI_SDM660
+#ifndef CONFIG_MACH_LONGCHEER
 		if (!rc)
 			val->intval *= (-1);
 #endif
@@ -1231,7 +1231,7 @@ static int smb2_batt_set_prop(struct power_supply *psy,
 	struct smb_charger *chg = power_supply_get_drvdata(psy);
 
 	switch (prop) {
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 		rc = 0;
 		break;
@@ -1334,7 +1334,7 @@ static int smb2_batt_prop_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PARALLEL_DISABLE:
 	case POWER_SUPPLY_PROP_DP_DM:
 	case POWER_SUPPLY_PROP_RERUN_AICL:
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 #endif
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED:
@@ -1736,7 +1736,7 @@ static int smb2_init_hw(struct smb2 *chip)
 	vote(chg->pd_disallowed_votable_indirect, PD_NOT_SUPPORTED_VOTER,
 			chip->dt.no_pd, 0);
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	/* Operate the QC2.0 in 5V/9V mode i.e. Disable 12V */
 	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
 				 PULSE_COUNT_QC2P0_12V | PULSE_COUNT_QC2P0_9V,
@@ -1746,7 +1746,7 @@ static int smb2_init_hw(struct smb2 *chip)
 		return rc;
 	}
 #endif
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 	/* Operate the QC3.0 to limit vbus to 6.6V */
 	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG, PULSE_COUNT_QC3P0_MASK, 0x8);
 	if (rc < 0) {
@@ -1920,7 +1920,7 @@ static int smb2_init_hw(struct smb2 *chip)
 		return rc;
 	}
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	rc = vote(chg->chg_disable_votable, DEFAULT_VOTER, true, 0);
 #endif
 
@@ -1952,7 +1952,7 @@ static int smb2_init_hw(struct smb2 *chip)
 		break;
 	}
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	rc = vote(chg->chg_disable_votable, DEFAULT_VOTER, false, 0);
 #endif
 
