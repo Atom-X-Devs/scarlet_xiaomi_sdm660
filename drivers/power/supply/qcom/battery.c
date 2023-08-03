@@ -3,11 +3,7 @@
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
  */
 
-#ifdef CONFIG_MACH_LONGCHEER
-#define pr_fmt(fmt) "lct QCOM-BATT: %s: " fmt, __func__
-#else
 #define pr_fmt(fmt) "QCOM-BATT: %s: " fmt, __func__
-#endif
 
 #include <linux/debugfs.h>
 #include <linux/device.h>
@@ -48,9 +44,6 @@
 #define FCC_VOTER			"FCC_VOTER"
 #define MAIN_FCC_VOTER			"MAIN_FCC_VOTER"
 #define PD_VOTER			"PD_VOTER"
-#ifdef CONFIG_MACH_XIAOMI_TULIP
-#define PL_TEMP_VOTER			"PL_TEMP_VOTER"
-#endif
 
 struct pl_data {
 	int			pl_mode;
@@ -329,10 +322,6 @@ static void cp_configure_ilim(struct pl_data *chip, const char *voter, int ilim)
 	}
 }
 
-#ifdef CONFIG_MACH_XIAOMI_WHYRED
-#define ONLY_PM660_CURRENT_UA 2000000
-#endif
-
 /*******
  * ICL *
  ********/
@@ -466,15 +455,6 @@ static void split_settled(struct pl_data *chip)
 		}
 
 		pval.intval = main_ua;
-#ifdef CONFIG_MACH_XIAOMI_WHYRED
-		if (chip->pl_mode == POWER_SUPPLY_PL_USBIN_USBIN) {
-			pr_debug("pl_disable_votable effective main_psy current_ua =%d \n", pval.intval);
-			if (get_effective_result_locked(chip->pl_disable_votable) && (pval.intval > ONLY_PM660_CURRENT_UA)) {
-				pr_debug("pl_disable_votable effective main_psy force current_ua =%d to %d \n", pval.intval, ONLY_PM660_CURRENT_UA);
-				pval.intval = ONLY_PM660_CURRENT_UA;
-			}
-		}
-#endif
 		/* Set ICL on main charger */
 		rc = power_supply_set_property(chip->main_psy,
 				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
@@ -849,11 +829,7 @@ skip_fcc_step_update:
 }
 
 #define MINIMUM_PARALLEL_FCC_UA		500000
-#ifdef CONFIG_MACH_LONGCHEER
-#define PL_TAPER_WORK_DELAY_MS		100
-#else
 #define PL_TAPER_WORK_DELAY_MS		500
-#endif
 #define TAPER_RESIDUAL_PCT		90
 #define TAPER_REDUCTION_UA		200000
 static void pl_taper_work(struct work_struct *work)
@@ -1238,11 +1214,7 @@ static bool is_batt_available(struct pl_data *chip)
 	return true;
 }
 
-#ifdef CONFIG_MACH_LONGCHEER
-#define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 100000
-#else
 #define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 50000
-#endif
 static int pl_fv_vote_callback(struct votable *votable, void *data,
 			int fv_uv, const char *client)
 {
@@ -1305,11 +1277,6 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 
 #define ICL_STEP_UA	25000
 #define PL_DELAY_MS     3000
-#ifdef CONFIG_MACH_LONGCHEER
-#define ICL_MAX_UA	1300000
-#else
-#define ICL_MAX_UA	1400000
-#endif
 static int usb_icl_vote_callback(struct votable *votable, void *data,
 			int icl_ua, const char *client)
 {
@@ -1332,7 +1299,7 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	vote(chip->pl_disable_votable, ICL_CHANGE_VOTER, true, 0);
 
 	/*
-	 * if (ICL < ICL_MAX_UA)
+	 * if (ICL < 1400)
 	 *	disable parallel charger using USBIN_I_VOTER
 	 * else
 	 *	instead of re-enabling here rely on status_changed_work
@@ -1340,7 +1307,7 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	 *	unvote USBIN_I_VOTER) the status_changed_work enables
 	 *	USBIN_I_VOTER based on settled current.
 	 */
-	if (icl_ua <= ICL_MAX_UA)
+	if (icl_ua <= 1400000)
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		queue_delayed_work(system_power_efficient_wq, &chip->status_change_work,
@@ -1785,10 +1752,6 @@ static void handle_settled_icl_change(struct pl_data *chip)
 	int main_limited;
 	int total_current_ua;
 	bool disable = false;
-#ifdef CONFIG_MACH_XIAOMI_TULIP
-	int battery_temp;
-	union power_supply_propval lct_pval = {0, };
-#endif
 
 	total_current_ua = get_effective_result_locked(chip->usb_icl_votable);
 
@@ -1814,54 +1777,13 @@ static void handle_settled_icl_change(struct pl_data *chip)
 	}
 	main_limited = pval.intval;
 
-#ifdef CONFIG_MACH_XIAOMI_TULIP
-	if (chip->pl_mode == POWER_SUPPLY_PL_USBIN_USBIN) {
-		rc = power_supply_get_property(chip->batt_psy,
-				       POWER_SUPPLY_PROP_TEMP,
-				       &lct_pval);
-		if (rc < 0) {
-			pr_debug("Couldn't battery health value rc=%d\n", rc);
-			return;
-		}
-		battery_temp = lct_pval.intval;
-		pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d , battery_temp=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua, battery_temp);
-		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < ICL_MAX_UA)
-				|| (main_settled_ua == 0)
-				|| ((total_current_ua >= 0) &&
-				(total_current_ua <= ICL_MAX_UA))){
-			pr_debug("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
-			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
-			vote(chip->pl_disable_votable, PL_TEMP_VOTER, true, 0);
-		} else {
-			if ((battery_temp > 20) && (battery_temp < 440)) {
-				vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);
-				vote(chip->pl_disable_votable, PL_TEMP_VOTER, false, 0);
-			} else {
-				vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
-				vote(chip->pl_disable_votable, PL_TEMP_VOTER, true, 0);
-			}
-		}
-	} else {
-		pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
-		if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < ICL_MAX_UA)
-				|| (main_settled_ua == 0)
-				|| ((total_current_ua >= 0) &&
-				(total_current_ua <= ICL_MAX_UA))){
-			pr_debug("total_current_ua <= 1300000 disable parallel charger smb1351 \n");
-			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
-		} else
-			vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);
-	}
-#else
-	pr_debug("main_limited=%d, main_settled_ua=%d, chip->pl_settled_ua=%d ,total_current_ua=%d\n", main_limited, main_settled_ua, chip->pl_settled_ua, total_current_ua);
-	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < ICL_MAX_UA)
+	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1400000)
 			|| (main_settled_ua == 0)
 			|| ((total_current_ua >= 0) &&
-				(total_current_ua <= ICL_MAX_UA)))
+				(total_current_ua <= 1400000)))
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);
-#endif
 
 	rerun_election(chip->fcc_votable);
 
