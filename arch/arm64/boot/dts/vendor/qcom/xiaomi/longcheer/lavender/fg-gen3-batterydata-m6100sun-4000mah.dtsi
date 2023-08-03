@@ -2,14 +2,11 @@
 
 qcom,m6100sun_4000mah {
 	qcom,max-voltage-uv = <4400000>;
-	qcom,fastchg-current-ma = <3000>;
+	qcom,fastchg-current-ma = <2900>;
 	qcom,jeita-fcc-ranges = <0   50   400000
 				 51  150  1200000
-				 151 390  3000000
-				 391 400  2900000
-				 401 430  2400000
-				 431 450  2000000
-				 451 600  1000000>;
+				 151 450  2900000
+				 451 600  2000000>;
 	qcom,jeita-fv-ranges = <0   150  4400000
 				151 450  4400000
 				451 600  4100000>;
