@@ -615,7 +615,7 @@ static int fg_get_battery_temp(struct fg_dev *fg, int *val)
 
 	/* Value is in Kelvin; Convert it to deciDegC */
 	temp = (temp - 273) * 10;
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 	if (temp < -80) {
 		switch (temp) {
 		case -90:
@@ -1878,7 +1878,7 @@ static int fg_adjust_recharge_voltage(struct fg_dev *fg)
 
 	recharge_volt_mv = chip->dt.recharge_volt_thr_mv;
 
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 	if (fg->health == POWER_SUPPLY_HEALTH_WARM)
 		recharge_volt_mv = 4050;
 	if (fg->health == POWER_SUPPLY_HEALTH_COOL)
@@ -2629,7 +2629,7 @@ static void status_change_work(struct work_struct *work)
 			struct fg_dev, status_change_work);
 	union power_supply_propval prop = {0, };
 	int rc, batt_temp;
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 	int msoc;
 #endif
 
@@ -2674,7 +2674,7 @@ static void status_change_work(struct work_struct *work)
 	fg_cycle_counter_update(fg);
 	fg_cap_learning_update(fg);
 
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 	if (fg->charge_done && !fg->report_full)
 		fg->report_full = true;
 	else if (!fg->charge_done && fg->report_full) {
@@ -4228,7 +4228,7 @@ static int fg_hw_init(struct fg_dev *fg)
 	if (chip->dt.delta_soc_thr > 0 && chip->dt.delta_soc_thr < 100) {
 		fg_encode(fg->sp, FG_SRAM_DELTA_MSOC_THR,
 			chip->dt.delta_soc_thr, buf);
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 		buf[0] = 0x8;
 #endif
 		rc = fg_sram_write(fg,
@@ -4466,7 +4466,7 @@ static int fg_hw_init(struct fg_dev *fg)
 		}
 	}
 
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 	buf[0] = 0x33;
 	buf[1] = 0x3;
 	rc = fg_sram_write(fg, 4, 0, buf, 2, FG_IMA_DEFAULT);
@@ -5133,7 +5133,7 @@ static int fg_parse_dt(struct fg_gen3_chip *chip)
 	if (rc < 0)
 		chip->dt.sys_term_curr_ma = DEFAULT_SYS_TERM_CURR_MA;
 	else
-#ifdef CONFIG_XIAOMI_SDM660
+#ifdef CONFIG_MACH_LONGCHEER
 		chip->dt.sys_term_curr_ma = -temp;
 #else
 		chip->dt.sys_term_curr_ma = temp;

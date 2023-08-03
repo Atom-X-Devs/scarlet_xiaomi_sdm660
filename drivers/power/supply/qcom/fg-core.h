@@ -76,7 +76,7 @@
 #define FG_PARALLEL_EN_VOTER	"fg_parallel_en"
 #define MEM_ATTN_IRQ_VOTER	"fg_mem_attn_irq"
 
-#ifndef CONFIG_XIAOMI_SDM660
+#ifndef CONFIG_MACH_LONGCHEER
 #define DEBUG_BOARD_VOTER	"fg_debug_board"
 #endif
 
@@ -87,7 +87,7 @@
 
 #define FULL_CAPACITY			100
 #define FULL_SOC_RAW			255
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 #define FULL_SOC_REPORT_THR		250
 #endif
 
@@ -484,7 +484,7 @@ struct fg_dev {
 	bool			battery_missing;
 	bool			fg_restarting;
 	bool			charge_full;
-#ifdef CONFIG_XIAOMI_WAYNE
+#ifdef CONFIG_MACH_XIAOMI_WAYNE
 	bool			report_full;
 #endif
 	bool			recharge_soc_adjusted;
