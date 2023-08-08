@@ -61,3 +61,21 @@ config XIAOMI_CLOVER
 	select MI
 	help
 	  Support for Xiaomi Mi Pad 4.
+
+config XIAOMI_NEWCAM
+	bool "Xiaomi new camera blobs"
+	depends on XIAOMI_SDM660
+	help
+	  Support for Xiaomi new camera blobs.
+
+config XIAOMI_OLDCAM
+	bool "Xiaomi old camera blobs"
+	depends on XIAOMI_SDM660
+	help
+	  Support for Xiaomi old camera blobs.
+
+config XIAOMI_OSSCAM
+	bool "Xiaomi oss camera blobs"
+	depends on XIAOMI_SDM660
+	help
+	  Support for Xiaomi oss camera blobs.
