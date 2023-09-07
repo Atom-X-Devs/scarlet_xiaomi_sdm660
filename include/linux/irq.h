@@ -212,7 +212,6 @@ struct irq_data {
  *				  required
  * IRQD_AFFINITY_ON_ACTIVATE	- Affinity is set on activation. Don't call
  *				  irq_chip::irq_set_affinity() when deactivated.
- * IRQD_PERF_CRITICAL		- IRQ is performance-critical
  */
 enum {
 	IRQD_TRIGGER_MASK		= 0xf,
@@ -236,7 +235,6 @@ enum {
 	IRQD_DEFAULT_TRIGGER_SET	= (1 << 25),
 	IRQD_CAN_RESERVE		= (1 << 26),
 	IRQD_MSI_NOMASK_QUIRK		= (1 << 27),
-	IRQD_PERF_CRITICAL		= (1 << 28),
 	IRQD_AFFINITY_ON_ACTIVATE	= (1 << 29),
 };
 
@@ -537,6 +535,7 @@ struct irq_chip {
  * IRQCHIP_ONESHOT_SAFE:	One shot does not require mask/unmask
  * IRQCHIP_EOI_THREADED:	Chip requires eoi() on unmask in threaded mode
  * IRQCHIP_SUPPORTS_LEVEL_MSI	Chip can provide two doorbells for Level MSIs
+ * IRQCHIP_AFFINITY_PRE_STARTUP:      Default affinity update before startup
  */
 enum {
 	IRQCHIP_SET_TYPE_MASKED		= (1 <<  0),
@@ -547,6 +546,7 @@ enum {
 	IRQCHIP_ONESHOT_SAFE		= (1 <<  5),
 	IRQCHIP_EOI_THREADED		= (1 <<  6),
 	IRQCHIP_SUPPORTS_LEVEL_MSI	= (1 <<  7),
+	IRQCHIP_AFFINITY_PRE_STARTUP	= (1 << 10),
 };
 
 #include <linux/irqdesc.h>
