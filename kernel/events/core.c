@@ -1161,6 +1161,11 @@ static int perf_mux_hrtimer_restart(struct perf_cpu_context *cpuctx)
 	return 0;
 }
 
+static int perf_mux_hrtimer_restart_ipi(void *arg)
+{
+	return perf_mux_hrtimer_restart(arg);
+}
+
 void perf_pmu_disable(struct pmu *pmu)
 {
 	int *count = this_cpu_ptr(pmu->pmu_disable_count);
@@ -9811,8 +9816,7 @@ perf_event_mux_interval_ms_store(struct device *dev,
 		cpuctx = per_cpu_ptr(pmu->pmu_cpu_context, cpu);
 		cpuctx->hrtimer_interval = ns_to_ktime(NSEC_PER_MSEC * timer);
 
-		cpu_function_call(cpu,
-			(remote_function_f)perf_mux_hrtimer_restart, cpuctx);
+		cpu_function_call(cpu, perf_mux_hrtimer_restart_ipi, cpuctx);
 	}
 	cpus_read_unlock();
 	mutex_unlock(&mux_interval_mutex);
@@ -10368,7 +10372,6 @@ perf_event_alloc(struct perf_event_attr *attr, int cpu,
 	if (!group_leader)
 		group_leader = event;
 
-	mutex_init(&event->group_leader_mutex);
 	mutex_init(&event->child_mutex);
 	INIT_LIST_HEAD(&event->child_list);
 
@@ -10867,7 +10870,7 @@ SYSCALL_DEFINE5(perf_event_open,
 	struct perf_event *group_leader = NULL, *output_event = NULL;
 	struct perf_event *event = NULL, *sibling;
 	struct perf_event_attr attr;
-	struct perf_event_context *ctx, *uninitialized_var(gctx);
+	struct perf_event_context *ctx, *gctx;
 	struct file *event_file = NULL;
 	struct fd group = {NULL, 0};
 	struct task_struct *task = NULL;
@@ -10943,16 +10946,6 @@ SYSCALL_DEFINE5(perf_event_open,
 		if (flags & PERF_FLAG_FD_NO_GROUP)
 			group_leader = NULL;
 	}
-
-	/*
-	 * Take the group_leader's group_leader_mutex before observing
-	 * anything in the group leader that leads to changes in ctx,
-	 * many of which may be changing on another thread.
-	 * In particular, we want to take this lock before deciding
-	 * whether we need to move_group.
-	 */
-	if (group_leader)
-		mutex_lock(&group_leader->group_leader_mutex);
 
 	if (pid != -1 && !(flags & PERF_FLAG_PID_CGROUP)) {
 		task = find_lively_task_by_vpid(pid);
@@ -11269,8 +11262,6 @@ not_move_group:
 	if (move_group)
 		perf_event_ctx_unlock(group_leader, gctx);
 	mutex_unlock(&ctx->mutex);
-	if (group_leader)
-		mutex_unlock(&group_leader->group_leader_mutex);
 
 	if (task) {
 		mutex_unlock(&task->signal->cred_guard_mutex);
@@ -11324,8 +11315,6 @@ err_task:
 	if (task)
 		put_task_struct(task);
 err_group_fd:
-	if (group_leader)
-		mutex_unlock(&group_leader->group_leader_mutex);
 	fdput(group);
 err_fd:
 	put_unused_fd(event_fd);
