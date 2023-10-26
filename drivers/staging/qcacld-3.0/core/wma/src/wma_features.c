@@ -1979,16 +1979,13 @@ static int wow_get_wmi_eventid(int32_t reason, uint32_t tag)
 		event_id = wma_ndp_get_eventid_from_tlvtag(tag);
 		break;
 	case WOW_REASON_TDLS_CONN_TRACKER_EVENT:
-		event_id = WOW_TDLS_CONN_TRACKER_EVENT;
+		event_id = WMI_TDLS_PEER_EVENTID;
 		break;
 	case WOW_REASON_ROAM_HO:
 		event_id = WMI_ROAM_EVENTID;
 		break;
 	case WOW_REASON_11D_SCAN:
 		event_id = WMI_11D_NEW_COUNTRY_EVENTID;
-		break;
-	case WOW_ROAM_PREAUTH_START_EVENT:
-		event_id = WMI_ROAM_PREAUTH_STATUS_CMDID;
 		break;
 	case WOW_REASON_ROAM_PMKID_REQUEST:
 		event_id = WMI_ROAM_PMKID_REQUEST_EVENTID;
@@ -2544,13 +2541,13 @@ static void wma_wow_dump_mgmt_buffer(uint8_t *wow_packet_buffer,
 		uint8_t to_from_ds, frag_num;
 		uint32_t seq_num;
 
-		wma_err("RA: " QDF_MAC_ADDR_STR " TA: " QDF_MAC_ADDR_STR,
-			QDF_MAC_ADDR_ARRAY(wh->i_addr1),
-			QDF_MAC_ADDR_ARRAY(wh->i_addr2));
+		wma_nofl_info("RA: " QDF_MAC_ADDR_STR " TA: " QDF_MAC_ADDR_STR,
+			      QDF_MAC_ADDR_ARRAY(wh->i_addr1),
+			      QDF_MAC_ADDR_ARRAY(wh->i_addr2));
 
-		WMA_LOGE("TO_DS: %u, FROM_DS: %u",
-			wh->i_fc[1] & IEEE80211_FC1_DIR_TODS,
-			wh->i_fc[1] & IEEE80211_FC1_DIR_FROMDS);
+		wma_nofl_info("TO_DS: %u, FROM_DS: %u",
+			      wh->i_fc[1] & IEEE80211_FC1_DIR_TODS,
+			      wh->i_fc[1] & IEEE80211_FC1_DIR_FROMDS);
 
 		to_from_ds = wh->i_fc[1] & IEEE80211_FC1_DIR_MASK;
 
@@ -2560,19 +2557,19 @@ static void wma_wow_dump_mgmt_buffer(uint8_t *wow_packet_buffer,
 				QDF_MAC_ADDR_ARRAY(wh->i_addr3));
 			break;
 		case IEEE80211_FC1_DIR_TODS:
-			wma_err("DA: " QDF_MAC_ADDR_STR,
-				QDF_MAC_ADDR_ARRAY(wh->i_addr3));
+			wma_nofl_info("DA: " QDF_MAC_ADDR_STR,
+				      QDF_MAC_ADDR_ARRAY(wh->i_addr3));
 			break;
 		case IEEE80211_FC1_DIR_FROMDS:
-			wma_err("SA: " QDF_MAC_ADDR_STR,
-				QDF_MAC_ADDR_ARRAY(wh->i_addr3));
+			wma_nofl_info("SA: " QDF_MAC_ADDR_STR,
+				      QDF_MAC_ADDR_ARRAY(wh->i_addr3));
 			break;
 		case IEEE80211_FC1_DIR_DSTODS:
 			if (buf_len >= sizeof(struct ieee80211_frame_addr4))
-				wma_err("DA: " QDF_MAC_ADDR_STR " SA: "
-					QDF_MAC_ADDR_STR,
-					QDF_MAC_ADDR_ARRAY(wh->i_addr3),
-					QDF_MAC_ADDR_ARRAY(wh->i_addr4));
+				wma_nofl_info("DA: " QDF_MAC_ADDR_STR " SA: "
+					      QDF_MAC_ADDR_STR,
+					      QDF_MAC_ADDR_ARRAY(wh->i_addr3),
+					      QDF_MAC_ADDR_ARRAY(wh->i_addr4));
 			break;
 		}
 
@@ -2583,8 +2580,8 @@ static void wma_wow_dump_mgmt_buffer(uint8_t *wow_packet_buffer,
 				IEEE80211_SEQ_FRAG_MASK) >>
 				IEEE80211_SEQ_FRAG_SHIFT);
 
-		WMA_LOGE("SEQ_NUM: %u, FRAG_NUM: %u",
-				seq_num, frag_num);
+		wma_nofl_info("SEQ_NUM: %u, FRAG_NUM: %u",
+			      seq_num, frag_num);
 	} else {
 		WMA_LOGE("Insufficient buffer length for mgmt. packet");
 	}
@@ -3111,7 +3108,7 @@ int wma_pdev_resume_event_handler(void *handle, uint8_t *event, uint32_t len)
 {
 	tp_wma_handle wma = (tp_wma_handle) handle;
 
-	WMA_LOGA("Received PDEV resume event");
+	wma_nofl_info("Received PDEV resume event");
 
 	ucfg_pmo_psoc_wakeup_host_event_received(wma->psoc);
 
