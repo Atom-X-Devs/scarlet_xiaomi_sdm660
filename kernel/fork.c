@@ -658,6 +658,17 @@ void __mmdrop(struct mm_struct *mm)
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
 
+/*
+ * RCU callback for delayed mm drop. Not strictly rcu, but we don't
+ * want another facility to make this work.
+ */
+void __mmdrop_delayed(struct rcu_head *rhp)
+{
+	struct mm_struct *mm = container_of(rhp, struct mm_struct, delayed_drop);
+
+	__mmdrop(mm);
+}
+
 static void mmdrop_async_fn(struct work_struct *work)
 {
 	struct mm_struct *mm;
@@ -2273,6 +2284,7 @@ bad_fork_cleanup_perf:
 	perf_event_free_task(p);
 bad_fork_cleanup_policy:
 	lockdep_free_task(p);
+	free_task_load_ptrs(p);
 #ifdef CONFIG_NUMA
 	mpol_put(p->mempolicy);
 bad_fork_cleanup_threadgroup_lock:
@@ -2386,10 +2398,6 @@ long _do_fork(unsigned long clone_flags,
 		get_task_struct(p);
 	}
 
-#ifdef CONFIG_PERF_HUMANTASK
-	p->human_task = 0;
-	p->inherit_task = 0;
-#endif
 	wake_up_new_task(p);
 
 	/* forking complete and child started to run, tell ptracer */
