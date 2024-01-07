@@ -416,15 +416,21 @@ static irqreturn_t bcl_handle_ibat(int irq, void *data)
 {
 	struct bcl_peripheral_data *perph_data =
 		(struct bcl_peripheral_data *)data;
-	bool irq_enabled = false;
 
 	mutex_lock(&perph_data->state_trans_lock);
-	irq_enabled = perph_data->irq_enabled;
+	if (!perph_data->irq_enabled) {
+		WARN_ON(1);
+		disable_irq_nosync(irq);
+		perph_data->irq_enabled = false;
+		goto exit_intr;
+	}
 	mutex_unlock(&perph_data->state_trans_lock);
+	of_thermal_handle_trip(perph_data->tz_dev);
 
-	if (irq_enabled)
-		of_thermal_handle_trip(perph_data->tz_dev);
+	return IRQ_HANDLED;
 
+exit_intr:
+	mutex_unlock(&perph_data->state_trans_lock);
 	return IRQ_HANDLED;
 }
 
@@ -432,15 +438,21 @@ static irqreturn_t bcl_handle_vbat(int irq, void *data)
 {
 	struct bcl_peripheral_data *perph_data =
 		(struct bcl_peripheral_data *)data;
-	bool irq_enabled = false;
 
 	mutex_lock(&perph_data->state_trans_lock);
-	irq_enabled = perph_data->irq_enabled;
+	if (!perph_data->irq_enabled) {
+		WARN_ON(1);
+		disable_irq_nosync(irq);
+		perph_data->irq_enabled = false;
+		goto exit_intr;
+	}
 	mutex_unlock(&perph_data->state_trans_lock);
+	of_thermal_handle_trip(perph_data->tz_dev);
 
-	if (irq_enabled)
-		of_thermal_handle_trip(perph_data->tz_dev);
+	return IRQ_HANDLED;
 
+exit_intr:
+	mutex_unlock(&perph_data->state_trans_lock);
 	return IRQ_HANDLED;
 }
 
@@ -502,7 +514,7 @@ static int bcl_read_soc(void *data, int *val)
 
 	*val = 100;
 	if (!batt_psy)
-		batt_psy = power_supply_get_by_name("bms");
+		batt_psy = power_supply_get_by_name("battery");
 	if (batt_psy) {
 		err = power_supply_get_property(batt_psy,
 				POWER_SUPPLY_PROP_CAPACITY, &ret);
@@ -550,7 +562,7 @@ static int battery_supply_callback(struct notifier_block *nb,
 {
 	struct power_supply *psy = data;
 
-	if (strcmp(psy->desc->name, "bms"))
+	if (strcmp(psy->desc->name, "battery"))
 		return NOTIFY_OK;
 	schedule_work(&bcl_perph->soc_eval_work);
 

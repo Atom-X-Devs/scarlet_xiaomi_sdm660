@@ -3281,14 +3281,8 @@ static int fg_get_time_to_full_locked(struct fg_dev *fg, int *val)
 	vbatt_avg /= MILLI_UNIT;
 
 	/* clamp ibatt_avg to iterm */
-	if ((msoc <= 85) && (ibatt_avg < 1400))
-		ibatt_avg = 1400; /* Force consistent minumum charging current 1400mA upto 85% battery */
-	else if ((msoc >= 86 && msoc <= 90) && (ibatt_avg < 1000))
-		ibatt_avg = 1000; /* Force consistent minumum charging current 1000mA during 86%-90% battery */
-	else {
-		if (ibatt_avg < abs(chip->dt.sys_term_curr_ma))
-			ibatt_avg = abs(chip->dt.sys_term_curr_ma);
-	}
+	if (ibatt_avg < abs(chip->dt.sys_term_curr_ma))
+		ibatt_avg = abs(chip->dt.sys_term_curr_ma);
 	
 	fg_dbg(fg, FG_TTF, "ibatt_avg=%d\n", ibatt_avg);
 	fg_dbg(fg, FG_TTF, "vbatt_avg=%d\n", vbatt_avg);
