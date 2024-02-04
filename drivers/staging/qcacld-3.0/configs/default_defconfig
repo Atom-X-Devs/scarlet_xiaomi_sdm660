@@ -61,6 +61,9 @@ ifndef CONFIG_ROME_IF
 endif
 endif
 
+# Make WLAN as open-source driver by default
+WLAN_OPEN_SOURCE := y
+
 ifeq (y,$(findstring y,$(CONFIG_ICNSS) $(CONFIG_ICNSS_MODULE)))
 	CONFIG_HELIUMPLUS := y
 	CONFIG_64BIT_PADDR := y
